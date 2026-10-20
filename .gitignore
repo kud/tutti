@@ -19,3 +19,6 @@ captures/
 keystore.properties
 *.p12
 *.pem
+
+# Local agent worktrees
+.claude/

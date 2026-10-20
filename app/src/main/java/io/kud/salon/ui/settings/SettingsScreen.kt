@@ -39,6 +39,7 @@ import io.kud.salon.controller.SalonController
 import io.kud.salon.controller.SalonUiState
 import io.kud.salon.platform.data.SecondaryButton
 import io.kud.salon.protocol.grpc.CloudPlaneState
+import io.kud.salon.quick.settings.QuickNotificationSetting
 import io.kud.salon.ui.common.SectionTitle
 import io.kud.salon.ui.common.SwitchRow
 import io.kud.salon.ui.common.actionLabel
@@ -171,6 +172,7 @@ fun SettingsScreen(
                 checked = state.prefs.trueBlack,
                 onCheckedChange = controller::setTrueBlack,
             )
+            QuickNotificationSetting()
 
             SectionTitle(stringResource(R.string.settings_sony))
             LinkRow(
