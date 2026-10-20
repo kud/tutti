@@ -398,7 +398,7 @@ private fun SettingDialog(
                         )
                     } else {
                         LazyColumn(Modifier.heightIn(max = 360.dp)) {
-                            items(options, key = { it.first }) { (optionValue, label) ->
+                            items(options) { (optionValue, label) ->
                                 Row(
                                     Modifier.fillMaxWidth().clickable { onChange(SceneValue.Text(optionValue)) }.padding(vertical = 4.dp),
                                     verticalAlignment = Alignment.CenterVertically,

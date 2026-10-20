@@ -35,9 +35,16 @@ class SecretCipher @Inject constructor() {
         cipher.doFinal(blob, 1 + ivSize, blob.size - 1 - ivSize)
     }.getOrNull()
 
-    private fun key(): SecretKey = synchronized(lock) {
-        val store = KeyStore.getInstance(KEYSTORE).apply { load(null) }
-        (store.getKey(ALIAS, null) as? SecretKey)?.let { return it }
+    private fun key(): SecretKey {
+        synchronized(lock) {
+            val store = KeyStore.getInstance(KEYSTORE).apply { load(null) }
+            val existing = store.getKey(ALIAS, null) as? SecretKey
+            if (existing != null) return existing
+            return generate()
+        }
+    }
+
+    private fun generate(): SecretKey {
         val generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, KEYSTORE)
         generator.init(
             KeyGenParameterSpec.Builder(ALIAS, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
@@ -46,7 +53,7 @@ class SecretCipher @Inject constructor() {
                 .setKeySize(256)
                 .build(),
         )
-        generator.generateKey()
+        return generator.generateKey()
     }
 
     companion object {

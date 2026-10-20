@@ -47,7 +47,7 @@ import kotlin.math.roundToInt
 @Composable
 fun barReason(state: SalonUiState, feature: TheatreFeature): String? = when {
     state.devices.bar == null -> stringResource(R.string.sound_reason_no_bar)
-    !state.bar.connected -> stringResource(R.string.system_unreachable, state.devices.bar.name)
+    !state.bar.connected -> stringResource(R.string.system_unreachable, state.devices.bar?.name.orEmpty())
     state.bar.value(feature) == null -> stringResource(R.string.sound_reason_unreported)
     else -> null
 }

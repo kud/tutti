@@ -92,153 +92,153 @@ fun RemoteScreen(
         containerColor = MaterialTheme.colorScheme.background,
         sheetContent = { SoundSheet(state, controller) },
     ) { padding ->
-    Column(
-        Modifier
-            .fillMaxSize()
-            .padding(padding)
-            .statusBarsPadding()
-            .imePadding(),
-    ) {
-        Row(
-            Modifier.fillMaxWidth().padding(start = 16.dp, end = 12.dp, top = 8.dp, bottom = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
+        Column(
+            Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .statusBarsPadding()
+                .imePadding(),
         ) {
-            SystemChip(state, onClick = onOpenSettings, modifier = Modifier.weight(1f))
-            Spacer(Modifier.width(4.dp))
-            IconButton(onClick = onOpenScenes) {
-                Icon(painterResource(R.drawable.ic_scene), contentDescription = stringResource(R.string.action_scenes))
+            Row(
+                Modifier.fillMaxWidth().padding(start = 16.dp, end = 12.dp, top = 8.dp, bottom = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                SystemChip(state, onClick = onOpenSettings, modifier = Modifier.weight(1f))
+                Spacer(Modifier.width(4.dp))
+                IconButton(onClick = onOpenScenes) {
+                    Icon(painterResource(R.drawable.ic_scene), contentDescription = stringResource(R.string.action_scenes))
+                }
+                IconButton(onClick = onOpenSettings) {
+                    Icon(painterResource(R.drawable.ic_settings), contentDescription = stringResource(R.string.action_settings))
+                }
+                TonalRoundButton(
+                    icon = R.drawable.ic_power,
+                    contentDescription = stringResource(R.string.action_power),
+                    onClick = {
+                        haptics.select()
+                        controller.power()
+                    },
+                    active = state.powered == true,
+                    size = 52.dp,
+                )
             }
-            IconButton(onClick = onOpenSettings) {
-                Icon(painterResource(R.drawable.ic_settings), contentDescription = stringResource(R.string.action_settings))
-            }
-            TonalRoundButton(
-                icon = R.drawable.ic_power,
-                contentDescription = stringResource(R.string.action_power),
-                onClick = {
-                    haptics.select()
-                    controller.power()
-                },
-                active = state.powered == true,
-                size = 52.dp,
-            )
-        }
 
-        SceneStrip(
-            scenes = state.scenes,
-            onApply = {
-                haptics.click()
-                controller.applyScene(it)
-            },
-            onEdit = onEditScene,
-            modifier = Modifier.padding(vertical = 4.dp),
-        )
+            SceneStrip(
+                scenes = state.scenes,
+                onApply = {
+                    haptics.click()
+                    controller.applyScene(it)
+                },
+                onEdit = onEditScene,
+                modifier = Modifier.padding(vertical = 4.dp),
+            )
 
-        if (keyboardOpen) {
-            KeyboardPanel(
-                field = state.remote.ime,
-                onText = controller::text,
-                onEnter = { controller.key(V2Key.ENTER) },
-                onClose = {
-                    controller.dismissKeyboard()
-                    keyboardRequested = false
-                },
-                onTypingChange = { controller.typing = it },
-            )
-        }
-
-        Row(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
-            Pad(
-                mode = state.prefs.padMode,
-                onModeChange = controller::setPadMode,
-                onKey = controller::key,
-                onLongSelect = { controller.longPress(V2Key.DPAD_CENTER) },
-                onPlayPause = { controller.key(V2Key.MEDIA_PLAY_PAUSE) },
-                onVolumeStep = controller::volumeStep,
-                modifier = Modifier.weight(1f).fillMaxHeight(),
-            )
-            Spacer(Modifier.width(12.dp))
-            VolumeRail(
-                volume = state.volume,
-                cap = state.volumeCap,
-                muted = state.muted,
-                enabled = state.bar.connected,
-                onVolume = controller::setVolume,
-            )
-        }
-
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            TonalRoundButton(
-                icon = R.drawable.ic_back,
-                contentDescription = stringResource(R.string.action_back),
-                onClick = {
-                    haptics.click()
-                    controller.key(V2Key.BACK)
-                },
-                onLongClick = { secondary(SecondaryButton.BACK) },
-            )
-            TonalRoundButton(
-                icon = R.drawable.ic_home,
-                contentDescription = stringResource(R.string.action_home),
-                onClick = {
-                    haptics.click()
-                    controller.key(V2Key.HOME)
-                },
-                onLongClick = { secondary(SecondaryButton.HOME) },
-            )
-            TonalRoundButton(
-                icon = R.drawable.ic_play_pause,
-                contentDescription = stringResource(R.string.action_play_pause),
-                onClick = {
-                    haptics.click()
-                    controller.key(V2Key.MEDIA_PLAY_PAUSE)
-                },
-                onLongClick = { secondary(SecondaryButton.PLAY) },
-            )
-            TonalRoundButton(
-                icon = R.drawable.ic_keyboard,
-                contentDescription = stringResource(R.string.action_keyboard),
-                onClick = {
-                    haptics.click()
-                    if (keyboardOpen) {
+            if (keyboardOpen) {
+                KeyboardPanel(
+                    field = state.remote.ime,
+                    onText = controller::text,
+                    onEnter = { controller.key(V2Key.ENTER) },
+                    onClose = {
                         controller.dismissKeyboard()
                         keyboardRequested = false
-                    } else {
-                        keyboardRequested = true
-                    }
-                },
-                active = keyboardOpen,
-            )
-            TonalRoundButton(
-                icon = if (state.muted) R.drawable.ic_volume_off else R.drawable.ic_volume_up,
-                contentDescription = stringResource(R.string.action_mute),
-                onClick = {
-                    haptics.click()
-                    controller.toggleMute()
-                },
-                active = state.muted,
-                enabled = state.bar.connected,
-            )
-        }
+                    },
+                    onTypingChange = { controller.typing = it },
+                )
+            }
 
-        if (!keyboardOpen) {
+            Row(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
+                Pad(
+                    mode = state.prefs.padMode,
+                    onModeChange = controller::setPadMode,
+                    onKey = controller::key,
+                    onLongSelect = { controller.longPress(V2Key.DPAD_CENTER) },
+                    onPlayPause = { controller.key(V2Key.MEDIA_PLAY_PAUSE) },
+                    onVolumeStep = controller::volumeStep,
+                    modifier = Modifier.weight(1f).fillMaxHeight(),
+                )
+                Spacer(Modifier.width(12.dp))
+                VolumeRail(
+                    volume = state.volume,
+                    cap = state.volumeCap,
+                    muted = state.muted,
+                    enabled = state.bar.connected,
+                    onVolume = controller::setVolume,
+                )
+            }
+
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                TonalRoundButton(
+                    icon = R.drawable.ic_back,
+                    contentDescription = stringResource(R.string.action_back),
+                    onClick = {
+                        haptics.click()
+                        controller.key(V2Key.BACK)
+                    },
+                    onLongClick = { secondary(SecondaryButton.BACK) },
+                )
+                TonalRoundButton(
+                    icon = R.drawable.ic_home,
+                    contentDescription = stringResource(R.string.action_home),
+                    onClick = {
+                        haptics.click()
+                        controller.key(V2Key.HOME)
+                    },
+                    onLongClick = { secondary(SecondaryButton.HOME) },
+                )
+                TonalRoundButton(
+                    icon = R.drawable.ic_play_pause,
+                    contentDescription = stringResource(R.string.action_play_pause),
+                    onClick = {
+                        haptics.click()
+                        controller.key(V2Key.MEDIA_PLAY_PAUSE)
+                    },
+                    onLongClick = { secondary(SecondaryButton.PLAY) },
+                )
+                TonalRoundButton(
+                    icon = R.drawable.ic_keyboard,
+                    contentDescription = stringResource(R.string.action_keyboard),
+                    onClick = {
+                        haptics.click()
+                        if (keyboardOpen) {
+                            controller.dismissKeyboard()
+                            keyboardRequested = false
+                        } else {
+                            keyboardRequested = true
+                        }
+                    },
+                    active = keyboardOpen,
+                )
+                TonalRoundButton(
+                    icon = if (state.muted) R.drawable.ic_volume_off else R.drawable.ic_volume_up,
+                    contentDescription = stringResource(R.string.action_mute),
+                    onClick = {
+                        haptics.click()
+                        controller.toggleMute()
+                    },
+                    active = state.muted,
+                    enabled = state.bar.connected,
+                )
+            }
+
+            if (!keyboardOpen) {
+                Spacer(Modifier.height(12.dp))
+                Dock(
+                    state = state,
+                    onRun = { _, slot ->
+                        haptics.click()
+                        slot.primary?.let(controller::run)
+                    },
+                    onAssign = { index ->
+                        haptics.longPress()
+                        picker = PickerTarget.Slot(index)
+                    },
+                )
+            }
             Spacer(Modifier.height(12.dp))
-            Dock(
-            state = state,
-            onRun = { _, slot ->
-                haptics.click()
-                slot.primary?.let(controller::run)
-            },
-            onAssign = { index ->
-                haptics.longPress()
-                picker = PickerTarget.Slot(index)
-            },
-            )
         }
-        Spacer(Modifier.height(12.dp))
-    }
     }
 
     when (val target = picker) {

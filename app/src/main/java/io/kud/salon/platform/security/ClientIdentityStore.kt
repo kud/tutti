@@ -42,17 +42,24 @@ class ClientIdentityStore @Inject constructor(
     private val certFile: File get() = File(dir, "atv_client.der")
     private val softKeyFile: File get() = File(dir, "atv_client.key.enc")
 
-    suspend fun getOrCreate(): ClientIdentity = mutex.withLock {
-        cached?.let { return it }
-        withContext(Dispatchers.IO) { load() ?: create() }.also { cached = it }
+    suspend fun getOrCreate(): ClientIdentity {
+        mutex.withLock {
+            val existing = cached
+            if (existing != null) return existing
+            val identity = withContext(Dispatchers.IO) { load() ?: create() }
+            cached = identity
+            return identity
+        }
     }
 
-    suspend fun forget() = mutex.withLock {
-        withContext(Dispatchers.IO) {
-            cached = null
-            runCatching { keyStore().deleteEntry(ALIAS) }
-            certFile.delete()
-            softKeyFile.delete()
+    suspend fun forget() {
+        mutex.withLock {
+            withContext(Dispatchers.IO) {
+                cached = null
+                runCatching { keyStore().deleteEntry(ALIAS) }
+                certFile.delete()
+                softKeyFile.delete()
+            }
         }
     }
 
