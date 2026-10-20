@@ -23,7 +23,11 @@ import io.kud.salon.controller.SalonEvent
 import io.kud.salon.controller.SalonUiState
 import io.kud.salon.platform.discovery.TvDiscovery
 import io.kud.salon.ui.common.rememberHaptics
+import io.kud.salon.ui.onboarding.OnboardingScreen
 import io.kud.salon.ui.remote.RemoteScreen
+import io.kud.salon.ui.settings.BarSettingsScreen
+import io.kud.salon.ui.settings.SettingsScreen
+import io.kud.salon.ui.settings.TvSettingsScreen
 import io.kud.salon.ui.scenes.SceneEditorScreen
 import io.kud.salon.ui.scenes.ScenesScreen
 
@@ -35,6 +39,14 @@ sealed interface Screen {
 
     /** Null id: a new scene. */
     data class SceneEditor(val sceneId: String?) : Screen
+
+    data object Settings : Screen
+
+    data object TvSettings : Screen
+
+    data object BarSettings : Screen
+
+    data object Onboarding : Screen
 }
 
 @Composable
@@ -62,6 +74,10 @@ fun SalonApp(controller: SalonController, discovery: TvDiscovery, state: SalonUi
     }
     BackHandler(enabled = stack.size > 1) { pop() }
 
+    LaunchedEffect(state.loaded) {
+        if (state.loaded && state.devices.isEmpty && !state.prefs.onboarded && Screen.Onboarding !in stack) push(Screen.Onboarding)
+    }
+
     if (!state.loaded) {
         // Dark from the first frame; no flash of onboarding before the stores load.
         Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background))
@@ -78,7 +94,7 @@ fun SalonApp(controller: SalonController, discovery: TvDiscovery, state: SalonUi
                 state = state,
                 controller = controller,
                 onOpenScenes = { push(Screen.Scenes) },
-                onOpenSettings = {},
+                onOpenSettings = { push(Screen.Settings) },
                 onEditScene = { push(Screen.SceneEditor(it)) },
             )
             Screen.Scenes -> ScenesScreen(
@@ -91,6 +107,25 @@ fun SalonApp(controller: SalonController, discovery: TvDiscovery, state: SalonUi
                 sceneId = screen.sceneId,
                 state = state,
                 controller = controller,
+                onDone = ::pop,
+            )
+            Screen.Settings -> SettingsScreen(
+                state = state,
+                controller = controller,
+                onBack = ::pop,
+                onOpenTv = { push(Screen.TvSettings) },
+                onOpenBar = { push(Screen.BarSettings) },
+                onPair = {
+                    controller.resetPairing()
+                    push(Screen.Onboarding)
+                },
+            )
+            Screen.TvSettings -> TvSettingsScreen(state = state, controller = controller, onBack = ::pop)
+            Screen.BarSettings -> BarSettingsScreen(state = state, controller = controller, onBack = ::pop)
+            Screen.Onboarding -> OnboardingScreen(
+                state = state,
+                controller = controller,
+                discovery = discovery,
                 onDone = ::pop,
             )
         }
