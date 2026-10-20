@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A quiet remote: one rounded surface, the OK button, a line of sound. Inside the 66dp safe zone. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FFF2EDE4"
+        android:pathData="M50,28h8a14,14 0,0 1,14 14v24a14,14 0,0 1,-14 14h-8a14,14 0,0 1,-14 -14v-24a14,14 0,0 1,14 -14z" />
+    <path
+        android:fillColor="#FF1C1B22"
+        android:pathData="M54,39a9,9 0,1 1,0 18a9,9 0,1 1,0 -18z" />
+    <path
+        android:fillColor="#FFE3A35B"
+        android:pathData="M46,66h16a2,2 0,0 1,0 4h-16a2,2 0,0 1,0 -4z" />
+</vector>
