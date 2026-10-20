@@ -18,7 +18,7 @@ interface Connection {
 }
 
 /** Plain TCP, used by the soundbar's port 33336. */
-fun interface TcpConnector {
+interface TcpConnector {
     suspend fun connect(host: String, port: Int): Connection
 }
 
@@ -39,7 +39,7 @@ interface TlsConnection : Connection {
  *
  * Verification is never simply disabled.
  */
-fun interface TlsConnector {
+interface TlsConnector {
     suspend fun connect(
         host: String,
         port: Int,
