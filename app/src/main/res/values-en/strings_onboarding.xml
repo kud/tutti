@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="onboarding_title">Set up</string>
+    <string name="onboarding_intro">Everything stays on your local network: no account needed.</string>
+    <string name="onboarding_tv_title">TV</string>
+    <string name="onboarding_tv_body">Enter the TV’s IP address (or tap it if it shows up). A code will appear on screen.</string>
+    <string name="onboarding_ip">IP address</string>
+    <string name="onboarding_pair">Pair</string>
+    <string name="onboarding_lan_only">Local address only (192.168…, 10…, 172.16–31…)</string>
+    <string name="onboarding_bar_title">Soundbar</string>
+    <string name="onboarding_bar_body">In BRAVIA Connect, turn on External control for the bar, then enter its IP address.</string>
+    <string name="onboarding_add_bar">Add the bar</string>
+    <string name="onboarding_psk_title">TV pre-shared key (optional)</string>
+    <string name="onboarding_psk_body">For picture, sound output and input settings. On the TV: Settings › Network &amp; Internet › IP control: set Authentication to “Normal and Pre-Shared Key”, then choose a key.</string>
+    <string name="onboarding_psk_field">Pre-shared key</string>
+    <string name="onboarding_save">Save</string>
+    <string name="onboarding_psk_saved">Saved</string>
+    <string name="onboarding_done">Done</string>
+    <string name="pairing_connecting">Connecting to the TV…</string>
+    <string name="pairing_look_at_tv">Look at the TV: it shows a code.</string>
+    <string name="pairing_done">TV paired</string>
+    <string name="pairing_unreachable">TV unreachable: check the address and that the TV is on.</string>
+    <string name="pairing_bad_code">Wrong code. Start pairing again.</string>
+    <string name="pairing_refused">The TV refused pairing.</string>
+    <string name="pairing_code_title">Code shown on the TV</string>
+    <string name="pairing_code_retry">That code does not match, check it.</string>
+    <string name="pairing_confirm">Confirm</string>
+</resources>
