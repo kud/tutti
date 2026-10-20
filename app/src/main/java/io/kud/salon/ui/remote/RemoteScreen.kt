@@ -1,6 +1,5 @@
 package io.kud.salon.ui.remote
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -11,7 +10,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.material3.BottomSheetScaffold
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.rememberBottomSheetScaffoldState
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -47,6 +52,7 @@ private sealed interface PickerTarget {
  * Back / Home / Play / Keyboard / Mute, and the 4-slot dock. Every tap gives its haptic first,
  * then hands the action to the controller, which updates state before the network.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RemoteScreen(
     state: SalonUiState,
@@ -77,11 +83,20 @@ fun RemoteScreen(
         if (action != null) controller.run(action) else picker = PickerTarget.LongPress(button)
     }
 
+    val sheet = rememberBottomSheetScaffoldState()
+    val navigationInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    BottomSheetScaffold(
+        scaffoldState = sheet,
+        sheetPeekHeight = if (keyboardOpen) 0.dp else SHEET_PEEK + navigationInset,
+        sheetContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+        containerColor = MaterialTheme.colorScheme.background,
+        sheetContent = { SoundSheet(state, controller) },
+    ) { padding ->
     Column(
         Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .systemBarsPadding()
+            .padding(padding)
+            .statusBarsPadding()
             .imePadding(),
     ) {
         Row(
@@ -222,7 +237,8 @@ fun RemoteScreen(
             },
             )
         }
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(12.dp))
+    }
     }
 
     when (val target = picker) {
@@ -256,3 +272,6 @@ fun secondaryLabel(button: SecondaryButton): String = when (button) {
     SecondaryButton.BACK -> stringResource(R.string.action_back)
     SecondaryButton.PLAY -> stringResource(R.string.action_play_pause)
 }
+
+/** The “Son” handle and its one-line summary. */
+private val SHEET_PEEK = 72.dp

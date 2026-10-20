@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="sound_title">Son</string>
+    <string name="sound_summary_plain">Son direct</string>
+    <string name="sound_reason_no_bar">Aucune barre ajoutée</string>
+    <string name="sound_reason_unreported">Non signalé par la barre</string>
+    <string name="sound_recalibrate">Recalibrer dans BRAVIA Connect</string>
+    <string name="state_on">Activé</string>
+    <string name="state_off">Désactivé</string>
+    <string name="state_auto">Auto</string>
+</resources>
