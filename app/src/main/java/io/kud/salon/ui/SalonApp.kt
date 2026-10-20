@@ -24,10 +24,17 @@ import io.kud.salon.controller.SalonUiState
 import io.kud.salon.platform.discovery.TvDiscovery
 import io.kud.salon.ui.common.rememberHaptics
 import io.kud.salon.ui.remote.RemoteScreen
+import io.kud.salon.ui.scenes.SceneEditorScreen
+import io.kud.salon.ui.scenes.ScenesScreen
 
 /** Three places, opening on the remote; two levels deep at most. */
 sealed interface Screen {
     data object Remote : Screen
+
+    data object Scenes : Screen
+
+    /** Null id: a new scene. */
+    data class SceneEditor(val sceneId: String?) : Screen
 }
 
 @Composable
@@ -70,9 +77,21 @@ fun SalonApp(controller: SalonController, discovery: TvDiscovery, state: SalonUi
             Screen.Remote -> RemoteScreen(
                 state = state,
                 controller = controller,
-                onOpenScenes = {},
+                onOpenScenes = { push(Screen.Scenes) },
                 onOpenSettings = {},
-                onEditScene = {},
+                onEditScene = { push(Screen.SceneEditor(it)) },
+            )
+            Screen.Scenes -> ScenesScreen(
+                state = state,
+                controller = controller,
+                onBack = ::pop,
+                onEdit = { push(Screen.SceneEditor(it)) },
+            )
+            is Screen.SceneEditor -> SceneEditorScreen(
+                sceneId = screen.sceneId,
+                state = state,
+                controller = controller,
+                onDone = ::pop,
             )
         }
     }
