@@ -18,6 +18,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -57,6 +58,13 @@ fun RemoteScreen(
     val haptics = rememberHaptics()
     var picker by remember { mutableStateOf<PickerTarget?>(null) }
     var keyboardRequested by remember { mutableStateOf(false) }
+    val imeOpen = state.remote.ime != null
+    val keyboardOpen = imeOpen || keyboardRequested
+
+    // The TV field lost focus (or the app changed): close what it opened.
+    LaunchedEffect(imeOpen) {
+        if (!imeOpen) keyboardRequested = false
+    }
 
     DisposableEffect(controller) {
         controller.remoteInFront = true
@@ -109,6 +117,19 @@ fun RemoteScreen(
             onEdit = onEditScene,
             modifier = Modifier.padding(vertical = 4.dp),
         )
+
+        if (keyboardOpen) {
+            KeyboardPanel(
+                field = state.remote.ime,
+                onText = controller::text,
+                onEnter = { controller.key(V2Key.ENTER) },
+                onClose = {
+                    controller.dismissKeyboard()
+                    keyboardRequested = false
+                },
+                onTypingChange = { controller.typing = it },
+            )
+        }
 
         Row(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
             Pad(
@@ -166,9 +187,14 @@ fun RemoteScreen(
                 contentDescription = stringResource(R.string.action_keyboard),
                 onClick = {
                     haptics.click()
-                    keyboardRequested = !keyboardRequested
+                    if (keyboardOpen) {
+                        controller.dismissKeyboard()
+                        keyboardRequested = false
+                    } else {
+                        keyboardRequested = true
+                    }
                 },
-                active = keyboardRequested,
+                active = keyboardOpen,
             )
             TonalRoundButton(
                 icon = if (state.muted) R.drawable.ic_volume_off else R.drawable.ic_volume_up,
@@ -182,8 +208,9 @@ fun RemoteScreen(
             )
         }
 
-        Spacer(Modifier.height(12.dp))
-        Dock(
+        if (!keyboardOpen) {
+            Spacer(Modifier.height(12.dp))
+            Dock(
             state = state,
             onRun = { _, slot ->
                 haptics.click()
@@ -193,7 +220,8 @@ fun RemoteScreen(
                 haptics.longPress()
                 picker = PickerTarget.Slot(index)
             },
-        )
+            )
+        }
         Spacer(Modifier.height(16.dp))
     }
 
