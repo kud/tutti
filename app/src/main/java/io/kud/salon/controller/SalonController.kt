@@ -556,7 +556,7 @@ class SalonController @Inject constructor(
     fun setVolume(level: Int) {
         val ceiling = state.value.volumeCap ?: MAX_VOLUME
         val clamped = level.coerceIn(0, ceiling)
-        if (clamped != level || clamped == 0 || clamped == MAX_VOLUME) mutableEvents.tryEmit(SalonEvent.VolumeLimit)
+        if (clamped == 0 || clamped == ceiling) mutableEvents.tryEmit(SalonEvent.VolumeLimit)
         setOverride { it.copy(volume = clamped) }
         volumeTarget.value = clamped
     }

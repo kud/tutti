@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="cancel">Annuler</string>
+    <string name="error_action_failed">L’appareil n’a pas répondu</string>
+    <string name="scene_missing">Scène supprimée</string>
+    <string name="bar_power">Alimentation</string>
+    <string name="bar_volume">Volume</string>
+    <string name="bar_mute">Sourdine</string>
+    <string name="bar_input">Entrée de la barre</string>
+    <string name="bar_bass">Basses</string>
+    <string name="bar_rear">Niveau arrière</string>
+    <string name="bar_voice">Voix</string>
+    <string name="bar_sound_field">Champ sonore</string>
+    <string name="bar_night">Nuit</string>
+    <string name="bar_drc">DRC</string>
+    <string name="bar_auto_volume">Volume auto</string>
+    <string name="bar_360">360 Spatial</string>
+    <string name="bar_imax">IMAX Enhanced</string>
+    <string name="bar_av_sync">Synchro A/V</string>
+    <string name="bar_dual_mono">Dual mono</string>
+    <string name="bar_voice_zoom">Voice Zoom 3</string>
+    <string name="bar_voice_zoom_level">Niveau Voice Zoom</string>
+    <string name="bar_hdmi_cec">Contrôle HDMI</string>
+    <string name="bar_hdmi_passthrough">Transmission en veille</string>
+    <string name="bar_hdmi_standby">Veille liée HDMI</string>
+    <string name="bar_auto_standby">Veille automatique</string>
+    <string name="bar_auto_update">Mise à jour automatique</string>
+    <string name="bar_model">Modèle</string>
+    <string name="bar_firmware">Version du logiciel</string>
+    <string name="bar_bt_mode">Mode Bluetooth</string>
+    <string name="bar_bt_quality">Qualité Bluetooth</string>
+    <string name="key_settings">Réglages TV</string>
+    <string name="key_input">Source</string>
+    <string name="key_guide">Guide</string>
+    <string name="key_captions">Sous-titres</string>
+    <string name="key_assistant">Assistant</string>
+    <string name="key_info">Infos</string>
+    <string name="key_generic">Touche %1$d</string>
+</resources>

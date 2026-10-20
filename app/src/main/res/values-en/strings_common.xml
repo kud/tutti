@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="cancel">Cancel</string>
+    <string name="error_action_failed">The device did not answer</string>
+    <string name="scene_missing">Deleted scene</string>
+    <string name="bar_power">Power</string>
+    <string name="bar_volume">Volume</string>
+    <string name="bar_mute">Mute</string>
+    <string name="bar_input">Bar input</string>
+    <string name="bar_bass">Bass</string>
+    <string name="bar_rear">Rear level</string>
+    <string name="bar_voice">Voice</string>
+    <string name="bar_sound_field">Sound field</string>
+    <string name="bar_night">Night</string>
+    <string name="bar_drc">DRC</string>
+    <string name="bar_auto_volume">Auto volume</string>
+    <string name="bar_360">360 Spatial</string>
+    <string name="bar_imax">IMAX Enhanced</string>
+    <string name="bar_av_sync">A/V sync</string>
+    <string name="bar_dual_mono">Dual mono</string>
+    <string name="bar_voice_zoom">Voice Zoom 3</string>
+    <string name="bar_voice_zoom_level">Voice Zoom level</string>
+    <string name="bar_hdmi_cec">HDMI control</string>
+    <string name="bar_hdmi_passthrough">Standby pass-through</string>
+    <string name="bar_hdmi_standby">HDMI standby link</string>
+    <string name="bar_auto_standby">Auto standby</string>
+    <string name="bar_auto_update">Auto update</string>
+    <string name="bar_model">Model</string>
+    <string name="bar_firmware">Software version</string>
+    <string name="bar_bt_mode">Bluetooth mode</string>
+    <string name="bar_bt_quality">Bluetooth quality</string>
+    <string name="key_settings">TV settings</string>
+    <string name="key_input">Input</string>
+    <string name="key_guide">Guide</string>
+    <string name="key_captions">Captions</string>
+    <string name="key_assistant">Assistant</string>
+    <string name="key_info">Info</string>
+    <string name="key_generic">Key %1$d</string>
+</resources>

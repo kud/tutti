@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="system_room">Salon</string>
+    <string name="system_unreachable">%1$s injoignable</string>
+    <string name="system_needs_pairing">%1$s : associer à nouveau</string>
+    <string name="system_no_device">Aucun appareil</string>
+    <string name="action_power">Allumer ou éteindre</string>
+    <string name="action_back">Retour</string>
+    <string name="action_home">Accueil</string>
+    <string name="action_play_pause">Lecture / pause</string>
+    <string name="action_keyboard">Clavier</string>
+    <string name="action_mute">Couper le son</string>
+    <string name="action_scenes">Scènes</string>
+    <string name="action_settings">Réglages</string>
+    <string name="pad_label">Pavé tactile</string>
+    <string name="pad_switch_dpad">Passer en croix directionnelle</string>
+    <string name="pad_switch_touchpad">Passer en pavé tactile</string>
+    <string name="volume_label">Volume de la barre</string>
+    <string name="scene_modified">modifiée</string>
+    <string name="dock_add">Ajouter</string>
+    <string name="dock_assign_title">Raccourci %1$d</string>
+    <string name="longpress_assign_title">Appui long : %1$s</string>
+    <string name="picker_apps">Applications</string>
+    <string name="picker_inputs">Entrées</string>
+    <string name="picker_bar">Barre de son</string>
+    <string name="picker_scenes">Scènes</string>
+    <string name="picker_keys">Touches</string>
+    <string name="picker_remove">Retirer</string>
+</resources>
