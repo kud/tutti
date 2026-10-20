@@ -1,0 +1,110 @@
+package io.kud.salon.platform.net
+
+import io.kud.salon.protocol.net.CertificatePin
+import io.kud.salon.protocol.net.ClientIdentity
+import io.kud.salon.protocol.net.Connection
+import io.kud.salon.protocol.net.LanAddress
+import io.kud.salon.protocol.net.TcpConnector
+import io.kud.salon.protocol.net.TlsConnection
+import io.kud.salon.protocol.net.TlsConnector
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.io.IOException
+import java.net.InetSocketAddress
+import java.net.Socket
+import java.security.Principal
+import java.security.PrivateKey
+import java.security.SecureRandom
+import java.security.cert.X509Certificate
+import javax.inject.Inject
+import javax.inject.Singleton
+import javax.net.ssl.SSLContext
+import javax.net.ssl.SSLEngine
+import javax.net.ssl.SSLSocket
+import javax.net.ssl.X509ExtendedKeyManager
+
+/** Refuses anything but a private LAN address: the app never leaves the living room. */
+internal fun requireLan(host: String) {
+    if (!LanAddress.isPrivate(host)) throw IOException("not a private LAN address")
+}
+
+/** Soundbar port 33336. The controller polls every ~20 s, so a long silence means a dead link. */
+@Singleton
+class AndroidTcpConnector @Inject constructor() : TcpConnector {
+    override suspend fun connect(host: String, port: Int): Connection = withContext(Dispatchers.IO) {
+        requireLan(host)
+        val socket = Socket()
+        try {
+            socket.connect(InetSocketAddress(host, port), CONNECT_TIMEOUT_MS)
+            socket.tcpNoDelay = true
+            socket.keepAlive = true
+            socket.soTimeout = BAR_READ_TIMEOUT_MS
+            SocketConnection(socket)
+        } catch (e: Exception) {
+            runCatching { socket.close() }
+            throw e
+        }
+    }
+
+    private companion object {
+        const val CONNECT_TIMEOUT_MS = 4_000
+        const val BAR_READ_TIMEOUT_MS = 75_000
+    }
+}
+
+/**
+ * TLS with the client identity and a TOFU pin on the TV. The TV pings about every 5 s on
+ * the remote port, so a 20 s read timeout marks the link dead.
+ */
+@Singleton
+class AndroidTlsConnector @Inject constructor() : TlsConnector {
+    override suspend fun connect(
+        host: String,
+        port: Int,
+        identity: ClientIdentity,
+        expectedPin: CertificatePin?,
+    ): TlsConnection = withContext(Dispatchers.IO) {
+        requireLan(host)
+        val context = SSLContext.getInstance("TLS")
+        context.init(arrayOf(IdentityKeyManager(identity)), arrayOf(PinningTrustManager(expectedPin)), SecureRandom())
+        val raw = Socket()
+        try {
+            raw.connect(InetSocketAddress(host, port), CONNECT_TIMEOUT_MS)
+            raw.tcpNoDelay = true
+            raw.soTimeout = TV_READ_TIMEOUT_MS
+            val ssl = context.socketFactory.createSocket(raw, host, port, true) as SSLSocket
+            ssl.useClientMode = true
+            ssl.startHandshake()
+            TlsSocketConnection(ssl, identity.certificate)
+        } catch (e: Exception) {
+            runCatching { raw.close() }
+            throw e
+        }
+    }
+
+    private companion object {
+        const val CONNECT_TIMEOUT_MS = 4_000
+        const val TV_READ_TIMEOUT_MS = 20_000
+    }
+}
+
+/** Always presents the one identity the TV bound the pairing to. */
+internal class IdentityKeyManager(private val identity: ClientIdentity) : X509ExtendedKeyManager() {
+    override fun getClientAliases(keyType: String?, issuers: Array<out Principal>?): Array<String> = arrayOf(ALIAS)
+
+    override fun chooseClientAlias(keyType: Array<out String>?, issuers: Array<out Principal>?, socket: Socket?): String = ALIAS
+
+    override fun chooseEngineClientAlias(keyType: Array<out String>?, issuers: Array<out Principal>?, engine: SSLEngine?): String = ALIAS
+
+    override fun getServerAliases(keyType: String?, issuers: Array<out Principal>?): Array<String>? = null
+
+    override fun chooseServerAlias(keyType: String?, issuers: Array<out Principal>?, socket: Socket?): String? = null
+
+    override fun getCertificateChain(alias: String?): Array<X509Certificate> = arrayOf(identity.certificate)
+
+    override fun getPrivateKey(alias: String?): PrivateKey = identity.privateKey
+
+    private companion object {
+        const val ALIAS = "salon-client"
+    }
+}
