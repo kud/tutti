@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Cleartext is allowed because some BRAVIA units serve REST over plain HTTP on the LAN.
+     The app enforces that cleartext only ever targets a private (RFC 1918 / link-local)
+     address: see io.kud.salon.protocol.net.LanAddress. Raw TCP/TLS sockets are unaffected. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

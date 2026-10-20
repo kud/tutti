@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Secrets (PSK, Sony tokens and session keys, pairing material) never leave the device.
+     They live only in files/datastore/secure.preferences_pb and files/secure/, encrypted
+     with an AndroidKeyStore key that is itself never backed up. -->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="file" path="datastore/secure.preferences_pb" />
+        <exclude domain="file" path="secure/" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="file" path="datastore/secure.preferences_pb" />
+        <exclude domain="file" path="secure/" />
+    </device-transfer>
+</data-extraction-rules>
