@@ -7,6 +7,11 @@
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
 
+    <!-- ===== quick access: permissions (begin) ===== -->
+    <!-- Control notification (Android 13+ runtime permission, asked from QuickNotificationSetting). No foreground service. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- ===== quick access: permissions (end) ===== -->
+
     <application
         android:name=".SalonApplication"
         android:allowBackup="true"
@@ -28,5 +33,54 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- ===== quick access: components (begin) — io.kud.salon.quick ===== -->
+        <!-- Long-press on the Quick Settings tile opens the app. Must follow .MainActivity. -->
+        <activity-alias
+            android:name=".quick.tile.QuickTilePreferences"
+            android:exported="true"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE_PREFERENCES" />
+            </intent-filter>
+        </activity-alias>
+
+        <!-- Compact remote opened by the tile. Own empty affinity: never drags the main task along. -->
+        <activity
+            android:name=".quick.overlay.QuickOverlayActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:theme="@style/quick_OverlayTheme" />
+
+        <service
+            android:name=".quick.tile.QuickTileService"
+            android:exported="true"
+            android:icon="@drawable/quick_ic_volume_up"
+            android:label="@string/quick_tile_label"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <receiver
+            android:name=".quick.widget.QuickWidgetReceiver"
+            android:exported="true"
+            android:label="@string/quick_widget_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/quick_widget_info" />
+        </receiver>
+
+        <receiver
+            android:name=".quick.notification.QuickNotificationReceiver"
+            android:exported="false" />
+        <!-- ===== quick access: components (end) ===== -->
     </application>
 </manifest>
