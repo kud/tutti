@@ -12,7 +12,6 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -42,9 +41,9 @@ object QuickRuntime {
 
         // The widget's own session recomposes while it is alive; this covers the
         // rest of the time. Trailing debounce: a volume drag is one update, not forty.
+        // A StateFlow already drops repeated values, so no distinctUntilChanged.
         scope.launch {
             controls.state
-                .distinctUntilChanged()
                 .collectLatest {
                     delay(WIDGET_DEBOUNCE_MS)
                     QuickWidget().updateAll(app)
