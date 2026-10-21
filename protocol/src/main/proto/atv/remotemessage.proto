@@ -9,7 +9,7 @@
 syntax = "proto3";
 package remote;
 
-option java_package = "io.kud.salon.protocol.atv.proto.remote";
+option java_package = "io.kud.tutti.protocol.atv.proto.remote";
 
 message RemoteAppLinkLaunchRequest {
   string app_link = 1;

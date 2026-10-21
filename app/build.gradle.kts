@@ -16,10 +16,10 @@ val appId: String = providers.gradleProperty("app.applicationId").get()
 // Release signing comes from CI (see README, "Release secrets"). Locally, and on
 // any build without the variables, no release signing config exists, and the
 // CI release job refuses to publish an unsigned APK.
-val releaseKeystore: String? = providers.environmentVariable("SALON_KEYSTORE_PATH").orNull
+val releaseKeystore: String? = providers.environmentVariable("TUTTI_KEYSTORE_PATH").orNull
 
 android {
-    namespace = "io.kud.salon"
+    namespace = "io.kud.tutti"
     compileSdk = 36
 
     defaultConfig {
@@ -27,8 +27,8 @@ android {
         minSdk = 29
         targetSdk = 36
         // CI passes a monotonically increasing code (the run number) so each release installs over the last.
-        versionCode = providers.environmentVariable("SALON_VERSION_CODE").orElse("1").get().toInt()
-        versionName = providers.environmentVariable("SALON_VERSION_NAME").orElse("0.0.0-dev").get()
+        versionCode = providers.environmentVariable("TUTTI_VERSION_CODE").orElse("1").get().toInt()
+        versionName = providers.environmentVariable("TUTTI_VERSION_NAME").orElse("0.0.0-dev").get()
         resValue("string", "app_name", appLabel)
     }
 

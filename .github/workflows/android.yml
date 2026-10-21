@@ -84,13 +84,13 @@ jobs:
             exit 1
           fi
           code=$(( BASH_REMATCH[1] * 1000000 + BASH_REMATCH[2] * 1000 + BASH_REMATCH[3] ))
-          echo "SALON_VERSION_NAME=$version" >> "$GITHUB_ENV"
-          echo "SALON_VERSION_CODE=$code" >> "$GITHUB_ENV"
+          echo "TUTTI_VERSION_NAME=$version" >> "$GITHUB_ENV"
+          echo "TUTTI_VERSION_CODE=$code" >> "$GITHUB_ENV"
 
       - name: Restore the keystore
         run: |
           echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.jks"
-          echo "SALON_KEYSTORE_PATH=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
+          echo "TUTTI_KEYSTORE_PATH=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
 
       - uses: actions/setup-java@v4
         with:
@@ -113,8 +113,8 @@ jobs:
           apksigner=$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -n 1)
           "$apksigner" verify --print-certs "$apk"
           name=$(grep '^app.name=' gradle.properties | cut -d= -f2)
-          cp "$apk" "$RUNNER_TEMP/$name-$SALON_VERSION_NAME.apk"
-          echo "RELEASE_APK=$RUNNER_TEMP/$name-$SALON_VERSION_NAME.apk" >> "$GITHUB_ENV"
+          cp "$apk" "$RUNNER_TEMP/$name-$TUTTI_VERSION_NAME.apk"
+          echo "RELEASE_APK=$RUNNER_TEMP/$name-$TUTTI_VERSION_NAME.apk" >> "$GITHUB_ENV"
 
       - name: Publish the GitHub Release
         env:

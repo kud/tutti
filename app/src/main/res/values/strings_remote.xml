@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- The room (the living room), not the app name. -->
     <string name="system_room">Salon</string>
     <string name="system_unreachable">%1$s injoignable</string>
     <string name="system_needs_pairing">%1$s : associer à nouveau</string>

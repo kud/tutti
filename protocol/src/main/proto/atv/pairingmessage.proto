@@ -9,7 +9,7 @@
 syntax = "proto3";
 package pairing;
 
-option java_package = "io.kud.salon.protocol.atv.proto.pairing";
+option java_package = "io.kud.tutti.protocol.atv.proto.pairing";
 
 enum RoleType {
   ROLE_TYPE_UNKNOWN = 0;

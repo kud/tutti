@@ -1,8 +1,8 @@
-# salon
+# tutti
 
 Native Android app that replaces Sony BRAVIA Connect day to day for one living room: a Sony BRAVIA 8 (K-xxXR80, Google TV, EU) and a BRAVIA Theatre Bar 9 (HT-A9000). The remote is the heart of it. Design direction: `docs/design.md`. Protocols and threat model: `docs/architecture.md`.
 
-The name is provisional and lives only in `gradle.properties` (`app.name`, `app.label`, `app.applicationId`). Kotlin packages stay `io.kud.salon.*` whatever the product is called.
+The name (tutti) lives only in `gradle.properties` (`app.name`, `app.label`, `app.applicationId`). Kotlin packages stay `io.kud.tutti.*` whatever the product is called.
 
 ## Modules
 

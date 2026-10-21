@@ -1,4 +1,4 @@
-# salon
+# tutti
 
 An Android remote and control app for a Sony BRAVIA 8 TV and a BRAVIA Theatre Bar 9, built to replace BRAVIA Connect for everyday use. Google TV–grade remote (touchpad, D-pad, live keyboard mirrored from the TV), soundbar sound controls, scenes, shortcuts, a home-screen widget and a Quick Settings tile. It works on the local network without a Sony account; Sony sign-in is an opt-in extra.
 
@@ -13,7 +13,7 @@ Setup, room calibration and speaker placement stay in BRAVIA Connect.
 
 ## Install
 
-Download the latest `salon-<version>.apk` from [Releases](../../releases) on the phone and open it (allow installs from your browser or file manager once). Later releases install over it.
+Download the latest `tutti-<version>.apk` from [Releases](../../releases) on the phone and open it (allow installs from your browser or file manager once). Later releases install over it.
 
 ## Build
 
@@ -37,7 +37,7 @@ A `vMAJOR.MINOR.PATCH` tag builds a signed release APK and publishes it on a Git
 Use one keystore forever: Android only installs an update signed with the same key. Create it once, for example:
 
 ```sh
-keytool -genkeypair -v -keystore release.jks -alias salon -keyalg RSA -keysize 4096 -validity 36500
+keytool -genkeypair -v -keystore release.jks -alias tutti -keyalg RSA -keysize 4096 -validity 36500
 ```
 
 Keep it (and its passwords) somewhere safe outside the repo. If a secret is missing, the release job fails and nothing is published.
