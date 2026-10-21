@@ -13,7 +13,7 @@ import javax.inject.Singleton
 
 /**
  * Secrets: the TV PSK and the pins. Lives in files/datastore/secure.preferences_pb, excluded
- * from backup (res/xml/*_rules.xml). Every value is encrypted by [SecretCipher]. Nothing here
+ * from backup (res/xml/data_extraction_rules.xml and backup_rules.xml). Every value is encrypted by [SecretCipher]. Nothing here
  * is ever logged; use Redact if a value must be mentioned.
  */
 @Singleton
