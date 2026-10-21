@@ -103,7 +103,7 @@ object RemoteMessages {
             edit_info = listOf(
                 RemoteEditInfo(
                     insert = 1,
-                    text_field_status = RemoteImeObject(start = text.length, end = text.length, value = text),
+                    text_field_status = RemoteImeObject(start = text.length, end = text.length, value_ = text),
                 ),
             ),
         ),

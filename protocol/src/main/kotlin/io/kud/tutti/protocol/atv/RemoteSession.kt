@@ -48,7 +48,7 @@ class RemoteSession(private val deviceInfo: ClientDeviceInfo = ClientDeviceInfo(
             if (field == null) return RemoteStep(state)
             return RemoteStep(
                 state.copy(
-                    ime = ImeField(field.value, field.label, field.start, field.end),
+                    ime = ImeField(field.value_, field.label, field.start, field.end),
                     fieldCounter = field.counter_field,
                 ),
             )
@@ -56,7 +56,7 @@ class RemoteSession(private val deviceInfo: ClientDeviceInfo = ClientDeviceInfo(
         message.remote_ime_batch_edit?.let { edit ->
             val latest = edit.edit_info.lastOrNull()?.text_field_status
             val ime = if (latest != null && state.ime != null) {
-                state.ime.copy(text = latest.value, selectionStart = latest.start, selectionEnd = latest.end)
+                state.ime.copy(text = latest.value_, selectionStart = latest.start, selectionEnd = latest.end)
             } else {
                 state.ime
             }

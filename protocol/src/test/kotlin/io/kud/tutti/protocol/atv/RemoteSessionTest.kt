@@ -55,7 +55,7 @@ class RemoteSessionTest {
     fun `ime show opens the field and batch edits update counters and text`() {
         val show = RemoteMessage(
             remote_ime_show_request = RemoteImeShowRequest(
-                remote_text_field_status = RemoteTextFieldStatus(counter_field = 5, value = "", label = "Rechercher sur YouTube"),
+                remote_text_field_status = RemoteTextFieldStatus(counter_field = 5, value_ = "", label = "Rechercher sur YouTube"),
             ),
         )
         var state = session.reduce(RemoteState(ready = true), show).state
@@ -66,7 +66,7 @@ class RemoteSessionTest {
             remote_ime_batch_edit = RemoteImeBatchEdit(
                 ime_counter = 9,
                 field_counter = 6,
-                edit_info = listOf(RemoteEditInfo(insert = 1, text_field_status = RemoteImeObject(start = 3, end = 3, value = "arte"))),
+                edit_info = listOf(RemoteEditInfo(insert = 1, text_field_status = RemoteImeObject(start = 3, end = 3, value_ = "arte"))),
             ),
         )
         state = session.reduce(state, edit).state
