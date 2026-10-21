@@ -5,7 +5,7 @@
 agp = "8.13.0"                 # AGP 8.x line; Gradle 8.14.3 wrapper
 kotlin = "2.3.20"              # (tag) v2.3.20; KSP 2.3.12 is built against it
 ksp = "2.3.12"                 # (tag) KSP2, Kotlin-version independent
-hilt = "2.59.2"                # (tag) last Dagger whose Hilt plugin accepts AGP 8 (2.60 requires AGP 9)
+hilt = "2.59"                  # (tag) last Dagger whose Hilt plugin accepts AGP 8: 2.59.1 raised the floor to AGP 9 (commit 141e5941)
 wire = "7.1.0"                 # (tag) requires Gradle 8.2+
 coroutines = "1.10.2"          # (tag)
 serialization = "1.9.0"        # (tag)

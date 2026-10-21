@@ -55,7 +55,7 @@ Acoustic Center Sync, sound calibration, speaker placement and first setup: a sh
 | BRAVIA REST method list and versions | From memory of Sony's public reference (site unreachable): **unverified on XR80**, hence capability-driven UI |
 | Sony picture mode values in starter scenes (`cinema`, `game`, `standard`) | Unverified; the editor offers the TV's own candidates |
 | Sony-cloud gRPC | Interface only, nothing on the wire |
-| Wire 7.1.0, Hilt 2.59.2, KSP 2.3.12, Kotlin 2.3.20 | Tags verified upstream; AGP 8.13.0 and AndroidX versions chosen without access to Google Maven, settled by CI |
+| Wire 7.1.0, Hilt 2.59, KSP 2.3.12, Kotlin 2.3.20 | Tags verified upstream; AGP 8.13.0 and AndroidX versions chosen without access to Google Maven, settled by CI |
 
 ## Threat model
 

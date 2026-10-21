@@ -15,7 +15,7 @@ Nothing else. A new concern goes into one of these two.
 ## Working here
 
 - Cloud sessions cannot reach Google Maven or Maven Central: **you cannot compile**. CI is the compiler. Write real APIs at real versions, check imports by re-reading, and verify library versions with `git ls-remote --tags` on the upstream repo.
-- Versions live in `gradle/libs.versions.toml`. AGP stays on 8.x and Hilt on 2.59.x until a deliberate move to AGP 9 + Gradle 9 + Hilt 2.60 (Dependabot ignores those majors).
+- Versions live in `gradle/libs.versions.toml`. AGP stays on 8.x and Hilt on 2.59 until a deliberate move to AGP 9 + Gradle 9 + Hilt 2.59.1+ (2.59.1 raised the Hilt plugin floor to AGP 9; Dependabot ignores those).
 - Tests: `./gradlew :protocol:test` for the protocol layer. New protocol behaviour comes with a test there.
 - Never block the UI on the network: reducers are optimistic, the UI reads `StateFlow`s.
 - Language: code, comments, commits and docs in English. The UI is French first: default `values/` is **French**, `values-en/` is English. Every string goes in both.
