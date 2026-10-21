@@ -76,10 +76,6 @@ android {
     lint {
         abortOnError = true
         checkReleaseBuilds = false
-        // Print every finding in the CI log, not only the first: the HTML report is an artifact
-        // that cloud sessions cannot download.
-        textReport = true
-        textOutput = file("stdout")
     }
 }
 
