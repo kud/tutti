@@ -1,5 +1,6 @@
 package io.kud.tutti
 
+import android.annotation.SuppressLint
 import android.os.Bundle
 import android.view.InputDevice
 import android.view.KeyEvent
@@ -55,7 +56,13 @@ class MainActivity : ComponentActivity() {
     /**
      * While the remote is in front: the phone's volume buttons drive the bar, and a hardware
      * keyboard drives the TV (arrows → D-pad, Enter → OK, Esc → Back, text → IME).
+     *
+     * RestrictedApi is a false positive here: this overrides the public
+     * android.app.Activity.dispatchKeyEvent, which androidx.core's ComponentActivity re-declares
+     * under @RestrictTo. Nothing restricted is called. onKeyDown would not do: it only sees keys
+     * that Compose's focus system left unhandled, and arrows/Enter must reach the TV first.
      */
+    @SuppressLint("RestrictedApi")
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (controller.remoteInFront) {
             val code = event.keyCode
