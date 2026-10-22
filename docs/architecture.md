@@ -32,7 +32,7 @@ Newline-delimited JSON `{"id","type":"get|set","feature","value"}` → `result` 
 
 ### 3. BRAVIA REST, JSON-RPC + PSK
 
-`POST /sony/{system|audio|avContent|appControl|video}` with `X-Auth-PSK`. `getMethodTypes` runs first per service; the settings UI shows only what the TV lists, and calls to unlisted methods fail fast. Picture (`get/setPictureQualitySettings`), sound output (`get/setSoundSettings`), speaker settings, inputs (`getCurrentExternalInputsStatus`, `setPlayContent`), apps (`getApplicationList`, `setActiveApp`), power and power saving, volume information, IRCC (`/sony/ircc` SOAP, codes from `getRemoteControllerInfo`). EU units may serve HTTPS only: the transport pins each host's certificate on first use.
+`POST /sony/{system|audio|avContent|appControl|video}` with `X-Auth-PSK` (HTTP port 80, or HTTPS port 443 on EU models under RED-DA). Discovery runs first: `guide.getSupportedApiInfo` (`/sony/guide`, no auth, the documented call), falling back to `getMethodTypes` per service (not in Sony's reference); the settings UI shows only what the TV lists, and calls to unlisted methods fail fast. Picture (`get/setPictureQualitySettings`), sound output (`get/setSoundSettings`), speaker settings, inputs (`getCurrentExternalInputsStatus`, `setPlayContent`), apps (`getApplicationList`, `setActiveApp`), power and power saving, volume information, IRCC (`/sony/ircc` SOAP, codes from `getRemoteControllerInfo`). EU units may serve HTTPS only: the transport pins each host's certificate on first use.
 
 ### 4. Sony-cloud gRPC (opt-in "Connexion Sony (expérimental)")
 
@@ -52,7 +52,12 @@ Acoustic Center Sync, sound calibration, speaker placement and first setup: a sh
 | Soundbar TCP 33336 vocabulary | Verified by bravia-quad-homeassistant on Theatre Quad; Bar 9 by one community report only |
 | Voice Zoom 3 (`audio.voicezoom3*`) | **Unverified** on Bar 9: shown only if a `get` probe answers |
 | `bluetooth.mode` values | Undocumented: displayed raw, never set |
-| BRAVIA REST method list and versions | From memory of Sony's public reference (site unreachable): **unverified on XR80**, hence capability-driven UI |
+| BRAVIA REST methods, services, versions, params, result shapes and auth levels | Verified against Sony's reference (pro-bravia.sony.net/remote-display-control/rest-api/reference, 2026-10-22), **still unverified on the XR80**, hence capability-driven UI. Auth none: `getInterfaceInformation`, `getPowerStatus`, `getPowerSavingMode`, `getRemoteControllerInfo`, `getVolumeInformation`, `getSpeakerSettings`, `getPictureQualitySettings`, `getCurrentExternalInputsStatus`; generic: every setter used; private: `getSystemInformation`, `getApplicationList`, `getPlayingContentInfo` |
+| `getMethodTypes`, `getSoundSettings` | Not in Sony's reference (only `setSoundSettings` 1.1 is): kept as fallback / capability-gated, **unverified** |
+| Error codes (3, 5, 7, 12, 14, 15, 401, 403, 404, 501, 40000, 40004, 40005) | Verified against the reference's common error table |
+| IRCC (`/sony/ircc`, `SOAPACTION "urn:schemas-sony-com:service:IRCC:1#X_SendIRCC"`, `text/xml; charset=UTF-8`, `X-Auth-PSK`) | Path and headers verified against the IRCC-IP page; the envelope body is not printed there and stays the community form |
+| PSK setup on the TV | Reference: Settings › Network & Internet › Local network (also written "Home network") › IP control › Authentication, "Normal and Pre-Shared Key" lets PSK clients reach generic/private methods; Remote device settings › Control remotely must be on (off by default on EU RED-DA models, which also take a 16 to 20 character key and HTTPS only). Pro-display wording: the consumer menu labels and French strings are unverified |
+| Power on over REST | `setPowerStatus(true)` works only from sleep, not suspend, and needs Remote start / Control remotely on; from suspend only Wake-on-LAN (UDP 7 or 9, MAC from `getSystemInformation`) helps. tutti does not send WoL |
 | Sony picture mode values in starter scenes (`cinema`, `game`, `standard`) | Unverified; the editor offers the TV's own candidates |
 | Sony-cloud gRPC | Interface only, nothing on the wire |
 | Wire 7.1.0, Hilt 2.58, KSP 2.3.12, Kotlin 2.3.20 | Tags verified upstream; AGP 8.13.0 and AndroidX versions chosen without access to Google Maven, settled by CI |

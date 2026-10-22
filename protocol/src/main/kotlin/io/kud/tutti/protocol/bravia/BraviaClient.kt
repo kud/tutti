@@ -7,6 +7,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
+import kotlinx.serialization.json.add
 import kotlinx.serialization.json.addJsonObject
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -15,8 +16,8 @@ import java.util.concurrent.atomic.AtomicInteger
  *
  * Call [discover] first: once a service's methods are known, calls to methods it does not
  * list fail fast with [BraviaError.Unsupported] and versions follow what the TV offers.
- * Method names and default versions are from Sony's public API reference, unverified on
- * the XR80 (docs/architecture.md).
+ * Method names, services, versions, params and auth levels checked against Sony's reference
+ * (pro-bravia.sony.net, REST API reference), still unverified on the XR80 (docs/architecture.md).
  */
 class BraviaClient(
     private val transport: BraviaTransport,
@@ -28,11 +29,25 @@ class BraviaClient(
     var capabilities: Capabilities = Capabilities.EMPTY
         private set
 
+    /**
+     * Sony documents `guide.getSupportedApiInfo` (auth none) as the discovery call; the older
+     * per-service `getMethodTypes` is not in the reference, so it is only the fallback.
+     */
     suspend fun discover(): BraviaResult<Capabilities> {
+        val guide = rawCall(
+            GUIDE_PATH,
+            "getSupportedApiInfo",
+            listOf(buildJsonObject { putJsonArray("services") { BraviaService.entries.forEach { add(it.id) } } }),
+            "1.0",
+        )
+        if (guide is BraviaResult.Ok) {
+            val found = BraviaParsers.supportedApiInfo(guide.value)
+            if (found.isNotEmpty()) return BraviaResult.Ok(Capabilities(found, SOURCE_GUIDE).also { capabilities = it })
+        }
         val found = mutableMapOf<BraviaService, List<MethodInfo>>()
         var lastError: BraviaError? = null
         for (service in BraviaService.entries) {
-            when (val result = rawCall(service, "getMethodTypes", listOf(JsonPrimitive("")), "1.0")) {
+            when (val result = rawCall(service.path, "getMethodTypes", listOf(JsonPrimitive("")), "1.0")) {
                 is BraviaResult.Ok -> found[service] = BraviaParsers.methodTypes(result.value)
                 is BraviaResult.Failure -> {
                     if (result.error == BraviaError.Unauthorized) return result
@@ -41,7 +56,7 @@ class BraviaClient(
             }
         }
         if (found.isEmpty()) return BraviaResult.Failure(lastError ?: BraviaError.Malformed("no service answered"))
-        return BraviaResult.Ok(Capabilities(found).also { capabilities = it })
+        return BraviaResult.Ok(Capabilities(found, SOURCE_METHOD_TYPES).also { capabilities = it })
     }
 
     /** Generic call, gated by [capabilities]. [version] defaults to the TV's highest, then to Sony's documented one. */
@@ -56,7 +71,7 @@ class BraviaClient(
             return BraviaResult.Failure(BraviaError.Unsupported(method))
         }
         val chosen = version ?: caps.version(service, method) ?: DEFAULT_VERSIONS[method] ?: "1.0"
-        return rawCall(service, method, params, chosen)
+        return rawCall(service.path, method, params, chosen)
     }
 
     suspend fun powerStatus() = call(BraviaService.SYSTEM, "getPowerStatus").map(BraviaParsers::powerStatus)
@@ -132,7 +147,7 @@ class BraviaClient(
     }
 
     private suspend fun rawCall(
-        service: BraviaService,
+        path: String,
         method: String,
         params: List<JsonElement>,
         version: String,
@@ -140,7 +155,7 @@ class BraviaClient(
         val id = ids.incrementAndGet()
         val reply = try {
             transport.post(
-                service.path,
+                path,
                 JsonRpc.request(method, id, params, version),
                 authHeaders() + ("Content-Type" to "application/json; charset=UTF-8"),
             )
@@ -184,6 +199,9 @@ class BraviaClient(
     companion object {
         const val PSK_HEADER = "X-Auth-PSK"
         const val IRCC_PATH = "/sony/ircc"
+        const val GUIDE_PATH = "/sony/guide"
+        const val SOURCE_GUIDE = "getSupportedApiInfo"
+        const val SOURCE_METHOD_TYPES = "getMethodTypes"
 
         /** Used only before [discover] has run, or when a service did not answer it. */
         val DEFAULT_VERSIONS: Map<String, String> = mapOf(

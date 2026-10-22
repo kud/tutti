@@ -14,10 +14,13 @@ enum class BraviaService(val id: String) {
 sealed interface BraviaError {
     /** JSON-RPC error array `[code, message]`. */
     data class Rpc(val code: Int, val message: String) : BraviaError {
-        /** 12 No Such Method, 14 Unsupported Version, 15 Unsupported. */
-        val isUnsupported: Boolean get() = code == 12 || code == 14 || code == 15
+        /**
+         * 12 No Such Method, 14 Unsupported Version, 15 Unsupported Operation, 404 no matching
+         * API version, 501 Not Implemented (Sony's common error codes).
+         */
+        val isUnsupported: Boolean get() = code == 12 || code == 14 || code == 15 || code == 404 || code == 501
 
-        /** 7 Illegal State, 40005 Display Is Turned Off: usually the TV is in standby. */
+        /** 7 Illegal State, 40005 Display is turned off: usually the TV is in standby. */
         val isIllegalState: Boolean get() = code == 7 || code == 40005
     }
 
@@ -94,7 +97,11 @@ data class MethodInfo(val name: String, val version: String)
  * What the TV says it can do: `getMethodTypes` per service. The settings UI is built from
  * this, never from a hard-coded list, since the method set is unverified on the XR80.
  */
-data class Capabilities(val methods: Map<BraviaService, List<MethodInfo>>) {
+data class Capabilities(
+    val methods: Map<BraviaService, List<MethodInfo>>,
+    /** Which discovery call answered: `getSupportedApiInfo` or `getMethodTypes`. */
+    val source: String? = null,
+) {
     fun isKnown(service: BraviaService): Boolean = methods[service] != null
 
     fun supports(service: BraviaService, method: String): Boolean = methods[service]?.any { it.name == method } == true

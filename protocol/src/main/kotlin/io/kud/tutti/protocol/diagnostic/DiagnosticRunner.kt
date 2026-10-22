@@ -160,6 +160,7 @@ class DiagnosticRunner(
         step(DiagnosticSteps.REST_METHODS) {
             expect(client.discover())
             val caps = client.capabilities
+            fact("discovery", caps.source ?: "none")
             for (service in BraviaService.entries) {
                 val methods = caps.methods[service]
                 fact(

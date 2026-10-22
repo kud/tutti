@@ -60,6 +60,52 @@ class BraviaClientTest {
     }
 
     @Test
+    fun `discovery prefers the documented guide service`() = runTest {
+        val transport = FakeTransport { path, method ->
+            when {
+                path == BraviaClient.GUIDE_PATH && method == "getSupportedApiInfo" -> ok(
+                    "[[{\"service\":\"avContent\",\"protocols\":[\"xhrpost:jsonizer\"],\"apis\":[" +
+                        "{\"name\":\"setPlayContent\",\"versions\":[{\"version\":\"1.0\",\"authLevel\":\"generic\"}]}," +
+                        "{\"name\":\"getCurrentExternalInputsStatus\",\"versions\":[{\"version\":\"1.1\"},{\"version\":\"1.0\"}]}]}," +
+                        "{\"service\":\"camera\",\"apis\":[{\"name\":\"x\",\"versions\":[{\"version\":\"1.0\"}]}]}]]",
+                )
+                else -> error("unexpected $path $method")
+            }
+        }
+        val client = BraviaClient(transport) { "0000" }
+        val caps = client.discover().getOrNull()
+        assertNotNull(caps)
+        assertEquals(BraviaClient.SOURCE_GUIDE, caps.source)
+        assertEquals("1.1", caps.version(BraviaService.AV_CONTENT, "getCurrentExternalInputsStatus"))
+        assertEquals(setOf(BraviaService.AV_CONTENT), caps.methods.keys)
+        val (_, body, _) = transport.calls.single()
+        assertTrue(body.contains("\"services\":[\"system\",\"audio\",\"avContent\",\"appControl\",\"video\"]"))
+    }
+
+    @Test
+    fun `discovery falls back to getMethodTypes when the guide is missing`() = runTest {
+        val transport = FakeTransport { path, method ->
+            when {
+                path == BraviaClient.GUIDE_PATH -> HttpReply(404, "")
+                method == "getMethodTypes" && path == "/sony/system" ->
+                    HttpReply(200, "{\"results\":[[\"getPowerStatus\",[],[],\"1.0\"]],\"id\":1}")
+                else -> HttpReply(200, "{\"error\":[12,\"No Such Method\"],\"id\":1}")
+            }
+        }
+        val caps = BraviaClient(transport) { "0000" }.discover().getOrNull()
+        assertNotNull(caps)
+        assertEquals(BraviaClient.SOURCE_METHOD_TYPES, caps.source)
+        assertTrue(caps.supports(BraviaService.SYSTEM, "getPowerStatus"))
+    }
+
+    @Test
+    fun `sony common errors 404 and 501 read as unsupported`() {
+        assertTrue(BraviaError.Rpc(404, "Not Found").isUnsupported)
+        assertTrue(BraviaError.Rpc(501, "Not Implemented").isUnsupported)
+        assertTrue(!BraviaError.Rpc(40005, "Display is turned off").isUnsupported)
+    }
+
+    @Test
     fun `auth failures are recognised in http and rpc form`() = runTest {
         assertEquals(
             BraviaResult.Failure(BraviaError.Unauthorized),

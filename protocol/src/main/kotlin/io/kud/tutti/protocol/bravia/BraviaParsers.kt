@@ -18,6 +18,19 @@ object BraviaParsers {
         MethodInfo(name, version)
     }
 
+    /** `guide.getSupportedApiInfo`: `[[{service, apis: [{name, versions: [{version, authLevel?}]}]}]]`. Unknown services are dropped. */
+    fun supportedApiInfo(result: JsonArray): Map<BraviaService, List<MethodInfo>> =
+        result.innerObjects().mapNotNull { entry ->
+            val service = BraviaService.entries.firstOrNull { it.id == entry.string("service") } ?: return@mapNotNull null
+            val methods = (entry["apis"] as? JsonArray).orEmpty().filterIsInstance<JsonObject>().flatMap { api ->
+                val name = api.string("name") ?: return@flatMap emptyList()
+                (api["versions"] as? JsonArray).orEmpty().filterIsInstance<JsonObject>().mapNotNull { v ->
+                    v.string("version")?.let { MethodInfo(name, it) }
+                }
+            }
+            service to methods
+        }.toMap()
+
     fun powerStatus(result: JsonArray): PowerStatus = when (result.firstObject()?.string("status")) {
         "active" -> PowerStatus.ACTIVE
         "standby" -> PowerStatus.STANDBY
