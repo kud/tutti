@@ -732,7 +732,8 @@ class TuttiController @Inject constructor(
                 }
             } catch (e: CancellationException) {
                 throw e
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
+                // Throwable, not Exception: an Error here (a missing class, a provider failure) would otherwise kill the app.
                 pairing.value = PairingUi.Failed(PairingError.UNREACHABLE, pairingCause(e, address))
                 return@launch
             }
@@ -754,11 +755,16 @@ class TuttiController @Inject constructor(
     }
 
     /** Exception classes and messages down the cause chain, with the address and anything identifying scrubbed. */
-    private fun pairingCause(error: Throwable, address: String): String =
-        generateSequence(error) { it.cause }
-            .take(3)
-            .joinToString(" ← ") { cause -> listOfNotNull(cause::class.java.simpleName, cause.message).joinToString(": ") }
-            .let { Redact.text(it, listOf(address)) }
+    /**
+     * Exception classes and messages down the cause chain, then where the deepest one was thrown,
+     * with the address and anything identifying scrubbed.
+     */
+    private fun pairingCause(error: Throwable, address: String): String {
+        val chain = generateSequence(error) { it.cause }.take(4).toList()
+        val causes = chain.joinToString(" ← ") { cause -> listOfNotNull(cause::class.java.simpleName, cause.message).joinToString(": ") }
+        val frames = chain.last().stackTrace.take(6).joinToString("\n") { "  at $it" }
+        return Redact.text("$causes\n$frames", listOf(address))
+    }
 
     fun submitPairingCode(code: String?) {
         codeAnswer?.complete(code)
