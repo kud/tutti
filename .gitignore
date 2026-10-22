@@ -16,6 +16,8 @@ captures/
 # Secrets: never commit release keys or device credentials
 *.jks
 *.keystore
+# The public debug key (password "android"), shared so debug builds update in place
+!app/debug.keystore
 keystore.properties
 *.p12
 *.pem

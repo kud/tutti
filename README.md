@@ -25,7 +25,7 @@ JDK 17. CI (`.github/workflows/android.yml`) runs tests, lint and a debug build 
 
 ## Release secrets
 
-A `vMAJOR.MINOR.PATCH` tag builds a signed release APK and publishes it on a GitHub Release. The repository needs these Actions secrets (*Settings → Secrets and variables → Actions*):
+A `vMAJOR.MINOR.PATCH` tag builds a signed release APK and publishes it on a GitHub Release; a `vMAJOR.MINOR.PATCH-dev.N` tag publishes a pre-release. Signing needs these Actions secrets (*Settings → Secrets and variables → Actions*):
 
 | Secret | Content |
 | --- | --- |
@@ -40,7 +40,7 @@ Use one keystore forever: Android only installs an update signed with the same k
 keytool -genkeypair -v -keystore release.jks -alias tutti -keyalg RSA -keysize 4096 -validity 36500
 ```
 
-Keep it (and its passwords) somewhere safe outside the repo. If a secret is missing, the release job fails and nothing is published.
+Keep it (and its passwords) somewhere safe outside the repo. If a secret is missing, the tag publishes the debug APK instead, as a pre-release only: it is signed with `app/debug.keystore`, a public debug key (password `android`) committed so every debug build installs over the last. It protects nothing; the release key never lives in the repo.
 
 ## Docs
 

@@ -50,7 +50,7 @@ jobs:
           if-no-files-found: ignore
 
   release:
-    name: Signed release APK
+    name: Release APK
     if: startsWith(github.ref, 'refs/tags/v')
     needs: build
     runs-on: ubuntu-latest
@@ -65,29 +65,41 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Refuse to continue without signing secrets
+      # With all four secrets: a signed release. Without them: the debug APK (public
+      # debug key), published only as a pre-release. Never an unsigned release APK.
+      - name: Choose signing
         run: |
           missing=()
           for name in ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
             [ -n "${!name}" ] || missing+=("$name")
           done
           if [ "${#missing[@]}" -gt 0 ]; then
-            echo "::error::Missing repository secrets: ${missing[*]}. An unsigned release is never published."
-            exit 1
+            echo "::warning::Missing repository secrets: ${missing[*]}. Publishing the debug APK as a pre-release."
+            echo "SIGNED=false" >> "$GITHUB_ENV"
+          else
+            echo "SIGNED=true" >> "$GITHUB_ENV"
           fi
 
       - name: Derive version from the tag
         run: |
           version="${GITHUB_REF_NAME#v}"
-          if ! [[ "$version" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
-            echo "::error::Tag $GITHUB_REF_NAME is not vMAJOR.MINOR.PATCH"
+          if ! [[ "$version" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)(-dev\.([0-9]+))?$ ]]; then
+            echo "::error::Tag $GITHUB_REF_NAME is not vMAJOR.MINOR.PATCH or vMAJOR.MINOR.PATCH-dev.N"
             exit 1
           fi
-          code=$(( BASH_REMATCH[1] * 1000000 + BASH_REMATCH[2] * 1000 + BASH_REMATCH[3] ))
+          # A dev build sorts below its final release: 0.1.0-dev.3 < 0.1.0.
+          dev="${BASH_REMATCH[5]:-99}"
+          if [ "$dev" -gt 98 ] && [ -n "${BASH_REMATCH[4]}" ]; then
+            echo "::error::dev numbers stop at 98"
+            exit 1
+          fi
+          code=$(( (BASH_REMATCH[1] * 1000000 + BASH_REMATCH[2] * 1000 + BASH_REMATCH[3]) * 100 + dev ))
           echo "TUTTI_VERSION_NAME=$version" >> "$GITHUB_ENV"
           echo "TUTTI_VERSION_CODE=$code" >> "$GITHUB_ENV"
+          if [ -n "${BASH_REMATCH[4]}" ]; then echo "PRERELEASE=true" >> "$GITHUB_ENV"; else echo "PRERELEASE=false" >> "$GITHUB_ENV"; fi
 
       - name: Restore the keystore
+        if: env.SIGNED == 'true'
         run: |
           echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.jks"
           echo "TUTTI_KEYSTORE_PATH=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
@@ -100,9 +112,11 @@ jobs:
       - uses: gradle/actions/setup-gradle@v6.4.0
 
       - name: Assemble release
+        if: env.SIGNED == 'true'
         run: ./gradlew --stacktrace :app:assembleRelease
 
       - name: Verify the signature
+        if: env.SIGNED == 'true'
         run: |
           apk=app/build/outputs/apk/release/app-release.apk
           if [ ! -f "$apk" ]; then
@@ -116,10 +130,23 @@ jobs:
           cp "$apk" "$RUNNER_TEMP/$name-$TUTTI_VERSION_NAME.apk"
           echo "RELEASE_APK=$RUNNER_TEMP/$name-$TUTTI_VERSION_NAME.apk" >> "$GITHUB_ENV"
 
+      - name: Assemble debug
+        if: env.SIGNED != 'true'
+        run: |
+          ./gradlew --stacktrace :app:assembleDebug
+          apk=app/build/outputs/apk/debug/app-debug.apk
+          [ -f "$apk" ] || { echo "::error::$apk not found"; ls -la app/build/outputs/apk/debug/ || true; exit 1; }
+          name=$(grep '^app.name=' gradle.properties | cut -d= -f2)
+          cp "$apk" "$RUNNER_TEMP/$name-$TUTTI_VERSION_NAME-debug.apk"
+          echo "RELEASE_APK=$RUNNER_TEMP/$name-$TUTTI_VERSION_NAME-debug.apk" >> "$GITHUB_ENV"
+
       - name: Publish the GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" "$RELEASE_APK" --verify-tag --generate-notes --title "$GITHUB_REF_NAME"
+        run: |
+          flags=()
+          if [ "$SIGNED" != "true" ] || [ "$PRERELEASE" = "true" ]; then flags+=(--prerelease); fi
+          gh release create "$GITHUB_REF_NAME" "$RELEASE_APK" --verify-tag --generate-notes --title "$GITHUB_REF_NAME" "${flags[@]}"
 
       - name: Remove the keystore
         if: always()

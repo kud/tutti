@@ -33,6 +33,14 @@ android {
     }
 
     signingConfigs {
+        // Public by design (password "android"): every CI debug build carries the same
+        // signature, so a newer debug APK installs over the last. Never a release key.
+        getByName("debug") {
+            storeFile = file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
         if (releaseKeystore != null) {
             create("release") {
                 storeFile = file(releaseKeystore)
@@ -46,6 +54,7 @@ android {
     buildTypes {
         debug {
             applicationIdSuffix = ".debug"
+            signingConfig = signingConfigs.getByName("debug")
         }
         release {
             // R8 stays off until a first signed release has run in CI; turn it on with keep rules then.
