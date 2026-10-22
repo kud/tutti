@@ -34,6 +34,7 @@ import io.kud.tutti.protocol.bravia.PowerStatus
 import io.kud.tutti.protocol.bravia.getOrNull
 import io.kud.tutti.protocol.grpc.SonyCloudPlane
 import io.kud.tutti.protocol.net.LanAddress
+import io.kud.tutti.protocol.net.Redact
 import io.kud.tutti.protocol.scenes.AppProfile
 import io.kud.tutti.protocol.scenes.AppProfiles
 import io.kud.tutti.protocol.scenes.DeviceSnapshot
@@ -732,7 +733,7 @@ class TuttiController @Inject constructor(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                pairing.value = PairingUi.Failed(PairingError.UNREACHABLE)
+                pairing.value = PairingUi.Failed(PairingError.UNREACHABLE, pairingCause(e, address))
                 return@launch
             }
             when (result) {
@@ -745,12 +746,19 @@ class TuttiController @Inject constructor(
                 is PairingResult.Failed -> pairing.value = when (result.failure) {
                     PairingFailure.Cancelled -> PairingUi.Idle
                     PairingFailure.BadCode -> PairingUi.Failed(PairingError.BAD_CODE)
-                    PairingFailure.Closed -> PairingUi.Failed(PairingError.UNREACHABLE)
-                    else -> PairingUi.Failed(PairingError.REFUSED)
+                    PairingFailure.Closed -> PairingUi.Failed(PairingError.UNREACHABLE, "closed before pairing finished")
+                    else -> PairingUi.Failed(PairingError.REFUSED, Redact.text(result.failure.toString(), listOf(address)))
                 }
             }
         }
     }
+
+    /** Exception classes and messages down the cause chain, with the address and anything identifying scrubbed. */
+    private fun pairingCause(error: Throwable, address: String): String =
+        generateSequence(error) { it.cause }
+            .take(3)
+            .joinToString(" ← ") { cause -> listOfNotNull(cause::class.java.simpleName, cause.message).joinToString(": ") }
+            .let { Redact.text(it, listOf(address)) }
 
     fun submitPairingCode(code: String?) {
         codeAnswer?.complete(code)

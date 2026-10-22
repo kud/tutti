@@ -73,7 +73,8 @@ sealed interface PairingUi {
 
     data object Done : PairingUi
 
-    data class Failed(val reason: PairingError) : PairingUi
+    /** [detail] is the scrubbed cause (exception class and message), shown so a failure can be reported. */
+    data class Failed(val reason: PairingError, val detail: String? = null) : PairingUi
 }
 
 enum class PairingError { UNREACHABLE, BAD_CODE, REFUSED }
