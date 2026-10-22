@@ -40,4 +40,8 @@
     <string name="diagnostic_step_bar_features">Reading settings</string>
     <string name="diagnostic_step_bar_voicezoom">Voice Zoom 3</string>
     <string name="diagnostic_step_cloud">Sony cloud plane</string>
+
+    <string name="crash_title">The app crashed</string>
+    <string name="crash_copy">Copy</string>
+    <string name="crash_close">Close</string>
 </resources>

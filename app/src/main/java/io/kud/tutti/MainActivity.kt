@@ -9,12 +9,17 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dagger.hilt.android.AndroidEntryPoint
 import io.kud.tutti.controller.TuttiController
+import io.kud.tutti.platform.diagnostic.CrashLog
 import io.kud.tutti.platform.diagnostic.Diagnostics
 import io.kud.tutti.platform.discovery.TvDiscovery
 import io.kud.tutti.ui.TuttiApp
+import io.kud.tutti.ui.common.CrashDialog
 import io.kud.tutti.ui.common.LocalHapticsEnabled
 import io.kud.tutti.ui.common.LocalReducedMotion
 import io.kud.tutti.ui.common.rememberReducedMotion
@@ -41,6 +46,13 @@ class MainActivity : ComponentActivity() {
                     LocalReducedMotion provides reducedMotion,
                 ) {
                     TuttiApp(controller, discovery, diagnostics, state)
+                    var crash by remember { mutableStateOf(CrashLog.read(this@MainActivity)) }
+                    crash?.let { report ->
+                        CrashDialog(report) {
+                            CrashLog.clear(this@MainActivity)
+                            crash = null
+                        }
+                    }
                 }
             }
         }

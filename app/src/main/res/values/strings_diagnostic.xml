@@ -40,4 +40,8 @@
     <string name="diagnostic_step_bar_features">Lecture des réglages</string>
     <string name="diagnostic_step_bar_voicezoom">Voice Zoom 3</string>
     <string name="diagnostic_step_cloud">Plan cloud Sony</string>
+
+    <string name="crash_title">L’app a planté</string>
+    <string name="crash_copy">Copier</string>
+    <string name="crash_close">Fermer</string>
 </resources>
