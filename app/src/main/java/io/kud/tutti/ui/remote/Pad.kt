@@ -128,32 +128,39 @@ fun Pad(
         }
     }
 
+    // The switch is the surface's sibling, not its child: touchpadGestures reads every touch,
+    // consumed or not, so a tap on a child button also reached the TV as OK.
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(36.dp))
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-            .semantics { contentDescription = padLabel }
-            .drawBehind {
-                if (glow.isSpecified && glowAlpha.value > 0f) {
-                    drawCircle(
-                        brush = Brush.radialGradient(
-                            colors = listOf(glowColor.copy(alpha = glowAlpha.value), glowColor.copy(alpha = 0f)),
-                            center = glow,
-                            radius = 120.dp.toPx(),
-                        ),
-                        radius = 120.dp.toPx(),
-                        center = glow,
-                    )
-                }
-            }
-            .then(gestures),
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh),
     ) {
-        if (mode == PadMode.DPAD) {
-            Canvas(Modifier.fillMaxSize()) {
-                val radius = min(size.width, size.height) / 2f
-                val stroke = radius * 0.30f
-                drawCircle(ringColor, radius = radius * 0.80f - stroke / 2f, style = Stroke(width = stroke))
-                drawCircle(centreColor, radius = radius * 0.30f)
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .semantics { contentDescription = padLabel }
+                .drawBehind {
+                    if (glow.isSpecified && glowAlpha.value > 0f) {
+                        drawCircle(
+                            brush = Brush.radialGradient(
+                                colors = listOf(glowColor.copy(alpha = glowAlpha.value), glowColor.copy(alpha = 0f)),
+                                center = glow,
+                                radius = 120.dp.toPx(),
+                            ),
+                            radius = 120.dp.toPx(),
+                            center = glow,
+                        )
+                    }
+                }
+                .then(gestures),
+        ) {
+            if (mode == PadMode.DPAD) {
+                Canvas(Modifier.fillMaxSize()) {
+                    val radius = min(size.width, size.height) / 2f
+                    val stroke = radius * 0.30f
+                    drawCircle(ringColor, radius = radius * 0.80f - stroke / 2f, style = Stroke(width = stroke))
+                    drawCircle(centreColor, radius = radius * 0.30f)
+                }
             }
         }
         IconButton(
