@@ -34,6 +34,7 @@ import io.kud.tutti.protocol.bravia.PowerStatus
 import io.kud.tutti.protocol.bravia.getOrNull
 import io.kud.tutti.protocol.grpc.SonyCloudPlane
 import io.kud.tutti.protocol.net.LanAddress
+import io.kud.tutti.protocol.net.ClientIdentity
 import io.kud.tutti.protocol.net.Redact
 import io.kud.tutti.protocol.scenes.AppProfile
 import io.kud.tutti.protocol.scenes.AppProfiles
@@ -722,13 +723,20 @@ class TuttiController @Inject constructor(
         pairingJob = scope.launch {
             pairing.value = PairingUi.Connecting
             atv.disconnect()
-            val result = try {
-                val identity = identities.getOrCreate()
+            suspend fun pairWith(identity: ClientIdentity) =
                 AtvPairing(tls, serviceName = "tutti", clientName = "Tutti").pair(address, identity) { attempt ->
                     val answer = CompletableDeferred<String?>()
                     codeAnswer = answer
                     pairing.value = PairingUi.AwaitingCode(attempt)
                     answer.await()
+                }
+            val result = try {
+                try {
+                    pairWith(identities.getOrCreate())
+                } catch (e: SSLException) {
+                    // The keystore key couldn't sign in the handshake: retry once with the software key.
+                    if (e.message?.contains("RSA routines") != true) throw e
+                    pairWith(identities.replaceWithSoftware())
                 }
             } catch (e: CancellationException) {
                 throw e

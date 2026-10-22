@@ -60,11 +60,30 @@ class ClientIdentityStore @Inject constructor(
         }
     }
 
+    /**
+     * When the TLS stack can't sign with the keystore key (some keystores refuse the raw RSA operation
+     * TLS 1.3 needs), replace the identity with the encrypted software key, the documented fallback.
+     */
+    suspend fun replaceWithSoftware(): ClientIdentity {
+        mutex.withLock {
+            return withContext(Dispatchers.IO) {
+                runCatching { keyStore().deleteEntry(ALIAS) }
+                certFile.delete()
+                softKeyFile.delete()
+                createSoftware().also {
+                    certFile.writeBytes(it.certificate.encoded)
+                    cached = it
+                }
+            }
+        }
+    }
+
     suspend fun forget() {
         mutex.withLock {
             withContext(Dispatchers.IO) {
                 cached = null
                 runCatching { keyStore().deleteEntry(ALIAS) }
+                runCatching { keyStore().deleteEntry(OLD_ALIAS) }
                 certFile.delete()
                 softKeyFile.delete()
             }
@@ -87,6 +106,7 @@ class ClientIdentityStore @Inject constructor(
     }
 
     private fun create(): ClientIdentity {
+        runCatching { keyStore().deleteEntry(OLD_ALIAS) }
         certFile.delete()
         softKeyFile.delete()
         val identity = runCatching { createInKeystore() }.getOrElse {
@@ -100,7 +120,14 @@ class ClientIdentityStore @Inject constructor(
     private fun createInKeystore(): ClientIdentity {
         val generator = KeyPairGenerator.getInstance(KeyProperties.KEY_ALGORITHM_RSA, SecretCipher.KEYSTORE)
         generator.initialize(
-            KeyGenParameterSpec.Builder(ALIAS, KeyProperties.PURPOSE_SIGN or KeyProperties.PURPOSE_VERIFY)
+            // TLS 1.3 signs with RSA-PSS, which Conscrypt does by padding the digest itself and asking
+            // the keystore for a raw private-key operation ("RSA/ECB/NoPadding" decrypt). Without
+            // PURPOSE_DECRYPT and ENCRYPTION_PADDING_NONE that fails as "RSA routines: internal error"
+            // in the handshake, which is how pairing with the TV first failed.
+            KeyGenParameterSpec.Builder(
+                ALIAS,
+                KeyProperties.PURPOSE_SIGN or KeyProperties.PURPOSE_VERIFY or KeyProperties.PURPOSE_DECRYPT,
+            )
                 .setKeySize(ClientCertificates.KEY_SIZE)
                 .setDigests(
                     KeyProperties.DIGEST_NONE,
@@ -110,6 +137,8 @@ class ClientIdentityStore @Inject constructor(
                 )
                 // TLS 1.2 signs with PKCS#1, TLS 1.3 with PSS: allow both.
                 .setSignaturePaddings(KeyProperties.SIGNATURE_PADDING_RSA_PKCS1, KeyProperties.SIGNATURE_PADDING_RSA_PSS)
+                .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+                .setRandomizedEncryptionRequired(false)
                 .build(),
         )
         val pair = generator.generateKeyPair()
@@ -126,7 +155,10 @@ class ClientIdentityStore @Inject constructor(
     private fun keyStore(): KeyStore = KeyStore.getInstance(SecretCipher.KEYSTORE).apply { load(null) }
 
     private companion object {
-        const val ALIAS = "tutti.atv.client"
+        // v2: keys made before PURPOSE_DECRYPT can't do TLS 1.3; a new alias makes the next pairing
+        // generate a fresh identity, and the old entry is deleted with it.
+        const val ALIAS = "tutti.atv.client.v2"
+        const val OLD_ALIAS = "tutti.atv.client"
         const val COMMON_NAME = "tutti"
     }
 }
