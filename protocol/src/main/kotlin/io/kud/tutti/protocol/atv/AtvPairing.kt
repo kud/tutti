@@ -27,6 +27,12 @@ class AtvPairing(
 ) {
     private val machine = PairingMachine(serviceName, clientName)
 
+    /** What went over the wire, in order (message kinds and statuses only, never the secret), for a failure report. */
+    val trace: List<String> get() = synchronized(events) { events.toList() }
+    private val events = mutableListOf<String>()
+
+    private fun note(event: String) = synchronized(events) { events += event }
+
     /**
      * @param askCode called when the TV shows its code; `attempt` starts at 1. Return null to cancel.
      *   A mistyped code is caught locally (hash check) and asked again, up to [maxAttempts].
@@ -42,7 +48,10 @@ class AtvPairing(
         try {
             suspend fun apply(transition: PairingTransition) {
                 state = transition.state
-                transition.send.forEach { connection.send(Framing.frame(it.encode())) }
+                transition.send.forEach {
+                    note("tx ${kindOf(it)}")
+                    connection.send(Framing.frame(it.encode()))
+                }
             }
             apply(machine.reduce(state, PairingInput.Start))
             val decoder = FrameDecoder()
@@ -55,6 +64,7 @@ class AtvPairing(
                         state = PairingState.Failed(PairingFailure.Unexpected("undecodable pairing message"))
                         break
                     }
+                    note("rx ${kindOf(message)} ${message.status}")
                     apply(machine.reduce(state, PairingInput.Received(message)))
                     if (state == PairingState.AwaitingCode) {
                         when (val answer = askSecret(connection, maxAttempts, askCode)) {
@@ -66,11 +76,13 @@ class AtvPairing(
                 // Stop reading as soon as the outcome is known; the TV may keep the socket open.
                 if (state.isTerminal) throw Finished()
             }
+            note("stream ended in $state")
         } catch (e: Finished) {
             // Normal end.
         } catch (e: FramingException) {
             state = PairingState.Failed(PairingFailure.Unexpected(e.message ?: "framing"))
         } catch (e: IOException) {
+            note("io ${e::class.java.simpleName} in $state")
             if (!state.isTerminal) state = PairingState.Failed(PairingFailure.Closed)
         } finally {
             connection.close()
@@ -98,6 +110,17 @@ class AtvPairing(
             PairingHash.compute(client, server, code)?.let { return PairingInput.Secret(it) }
         }
         return PairingFailure.BadCode
+    }
+
+    private fun kindOf(message: PairingMessage): String = when {
+        message.pairing_request != null -> "request"
+        message.pairing_request_ack != null -> "request_ack"
+        message.pairing_option != null -> "option"
+        message.pairing_configuration != null -> "configuration"
+        message.pairing_configuration_ack != null -> "configuration_ack"
+        message.pairing_secret != null -> "secret"
+        message.pairing_secret_ack != null -> "secret_ack"
+        else -> "empty"
     }
 
     private class Finished : Exception()

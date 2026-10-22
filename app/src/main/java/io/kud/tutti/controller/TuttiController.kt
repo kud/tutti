@@ -723,40 +723,61 @@ class TuttiController @Inject constructor(
         pairingJob = scope.launch {
             pairing.value = PairingUi.Connecting
             atv.disconnect()
-            suspend fun pairWith(identity: ClientIdentity) =
-                AtvPairing(tls, serviceName = "tutti", clientName = "Tutti").pair(address, identity) { attempt ->
+            val steps = mutableListOf<String>()
+            var session: AtvPairing? = null
+            fun report() = (steps + (session?.trace ?: emptyList())).joinToString(" · ")
+            var watchdog: Job? = null
+            suspend fun pairWith(identity: ClientIdentity): PairingResult {
+                val attempt = AtvPairing(tls, serviceName = "tutti", clientName = "Tutti").also { session = it }
+                return attempt.pair(address, identity) { tries ->
                     val answer = CompletableDeferred<String?>()
                     codeAnswer = answer
-                    pairing.value = PairingUi.AwaitingCode(attempt)
-                    answer.await()
+                    pairing.value = PairingUi.AwaitingCode(tries)
+                    answer.await().also { code ->
+                        if (code == null) return@also
+                        // The TV answers a right code at once; past this, something is stuck: say what we saw.
+                        pairing.value = PairingUi.Connecting
+                        watchdog?.cancel()
+                        watchdog = scope.launch {
+                            delay(SECRET_ACK_TIMEOUT_MS)
+                            pairingJob?.cancel()
+                            pairing.value = PairingUi.Failed(PairingError.REFUSED, Redact.text("no answer after the code: ${report()}", listOf(address)))
+                        }
+                    }
                 }
+            }
             val result = try {
                 try {
                     pairWith(identities.getOrCreate())
                 } catch (e: SSLException) {
                     // The keystore key couldn't sign in the handshake: retry once with the software key.
                     if (e.message?.contains("RSA routines") != true) throw e
+                    steps += "keystore key refused, software key"
                     pairWith(identities.replaceWithSoftware())
                 }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Throwable) {
                 // Throwable, not Exception: an Error here (a missing class, a provider failure) would otherwise kill the app.
-                pairing.value = PairingUi.Failed(PairingError.UNREACHABLE, pairingCause(e, address))
+                watchdog?.cancel()
+                pairing.value = PairingUi.Failed(PairingError.UNREACHABLE, pairingCause(e, address) + "\n" + Redact.text(report(), listOf(address)))
                 return@launch
             }
             when (result) {
                 is PairingResult.Paired -> {
+                    steps += "paired, saving pin"
                     secure.setTvRemotePin(result.serverPin)
+                    steps += "saving device"
                     store.updateDevices { it.copy(tv = (it.tv ?: TvDevice(address)).copy(host = address)) }
                     restart.update { it + 1 }
+                    watchdog?.cancel()
                     pairing.value = PairingUi.Done
                 }
-                is PairingResult.Failed -> pairing.value = when (result.failure) {
+                is PairingResult.Failed -> pairing.value = when (result.failure.also { watchdog?.cancel() }) {
                     PairingFailure.Cancelled -> PairingUi.Idle
-                    PairingFailure.BadCode -> PairingUi.Failed(PairingError.BAD_CODE)
-                    PairingFailure.Closed -> PairingUi.Failed(PairingError.UNREACHABLE, "closed before pairing finished")
-                    else -> PairingUi.Failed(PairingError.REFUSED, Redact.text(result.failure.toString(), listOf(address)))
+                    PairingFailure.BadCode -> PairingUi.Failed(PairingError.BAD_CODE, Redact.text(report(), listOf(address)))
+                    PairingFailure.Closed -> PairingUi.Failed(PairingError.UNREACHABLE, Redact.text("closed before pairing finished: ${report()}", listOf(address)))
+                    else -> PairingUi.Failed(PairingError.REFUSED, Redact.text("${result.failure}: ${report()}", listOf(address)))
                 }
             }
         }
@@ -934,5 +955,6 @@ class TuttiController @Inject constructor(
         private const val VOLUME_SEND_INTERVAL_MS = 60L
         private const val WAKE_SETTLE_MS = 1_500L
         private const val MAX_MACRO_WAIT_MS = 30_000L
+        private const val SECRET_ACK_TIMEOUT_MS = 12_000L
     }
 }
