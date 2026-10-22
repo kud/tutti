@@ -12,4 +12,7 @@ data class HttpReply(val status: Int, val body: String)
 interface BraviaTransport {
     /** @param path e.g. `/sony/system`. Throws `IOException` on network failure. */
     suspend fun post(path: String, body: String, headers: Map<String, String>): HttpReply
+
+    /** `https` or `http` once a request has gone through, for the diagnostic; null if unknown. */
+    val scheme: String? get() = null
 }

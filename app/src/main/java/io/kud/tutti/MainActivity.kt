@@ -12,6 +12,7 @@ import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dagger.hilt.android.AndroidEntryPoint
 import io.kud.tutti.controller.TuttiController
+import io.kud.tutti.platform.diagnostic.Diagnostics
 import io.kud.tutti.platform.discovery.TvDiscovery
 import io.kud.tutti.ui.TuttiApp
 import io.kud.tutti.ui.common.LocalHapticsEnabled
@@ -26,6 +27,8 @@ class MainActivity : ComponentActivity() {
 
     @Inject lateinit var discovery: TvDiscovery
 
+    @Inject lateinit var diagnostics: Diagnostics
+
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
@@ -37,7 +40,7 @@ class MainActivity : ComponentActivity() {
                     LocalHapticsEnabled provides state.prefs.haptics,
                     LocalReducedMotion provides reducedMotion,
                 ) {
-                    TuttiApp(controller, discovery, state)
+                    TuttiApp(controller, discovery, diagnostics, state)
                 }
             }
         }

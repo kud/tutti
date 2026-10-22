@@ -70,6 +70,7 @@ fun SettingsScreen(
     onBack: () -> Unit,
     onOpenTv: () -> Unit,
     onOpenBar: () -> Unit,
+    onOpenDiagnostic: () -> Unit,
     onPair: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -192,6 +193,14 @@ fun SettingsScreen(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 16.dp),
+            )
+
+            SectionTitle(stringResource(R.string.settings_diagnostic))
+            LinkRow(
+                title = stringResource(R.string.settings_diagnostic),
+                detail = stringResource(R.string.settings_diagnostic_detail),
+                enabled = true,
+                onClick = onOpenDiagnostic,
             )
 
             SectionTitle(stringResource(R.string.settings_bravia_connect))

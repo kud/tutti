@@ -52,6 +52,14 @@ class ClientIdentityStore @Inject constructor(
         }
     }
 
+    /** The identity if one exists; never creates one (the diagnostic must not change pairing state). */
+    suspend fun existing(): ClientIdentity? {
+        mutex.withLock {
+            cached?.let { return it }
+            return withContext(Dispatchers.IO) { load() }?.also { cached = it }
+        }
+    }
+
     suspend fun forget() {
         mutex.withLock {
             withContext(Dispatchers.IO) {

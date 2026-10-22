@@ -21,11 +21,13 @@ import io.kud.tutti.R
 import io.kud.tutti.controller.TuttiController
 import io.kud.tutti.controller.TuttiEvent
 import io.kud.tutti.controller.TuttiUiState
+import io.kud.tutti.platform.diagnostic.Diagnostics
 import io.kud.tutti.platform.discovery.TvDiscovery
 import io.kud.tutti.ui.common.rememberHaptics
 import io.kud.tutti.ui.onboarding.OnboardingScreen
 import io.kud.tutti.ui.remote.RemoteScreen
 import io.kud.tutti.ui.settings.BarSettingsScreen
+import io.kud.tutti.ui.settings.DiagnosticScreen
 import io.kud.tutti.ui.settings.SettingsScreen
 import io.kud.tutti.ui.settings.TvSettingsScreen
 import io.kud.tutti.ui.scenes.SceneEditorScreen
@@ -46,11 +48,13 @@ sealed interface Screen {
 
     data object BarSettings : Screen
 
+    data object Diagnostic : Screen
+
     data object Onboarding : Screen
 }
 
 @Composable
-fun TuttiApp(controller: TuttiController, discovery: TvDiscovery, state: TuttiUiState) {
+fun TuttiApp(controller: TuttiController, discovery: TvDiscovery, diagnostics: Diagnostics, state: TuttiUiState) {
     val stack = remember { mutableStateListOf<Screen>(Screen.Remote) }
     val haptics = rememberHaptics()
     val context = LocalContext.current
@@ -115,6 +119,7 @@ fun TuttiApp(controller: TuttiController, discovery: TvDiscovery, state: TuttiUi
                 onBack = ::pop,
                 onOpenTv = { push(Screen.TvSettings) },
                 onOpenBar = { push(Screen.BarSettings) },
+                onOpenDiagnostic = { push(Screen.Diagnostic) },
                 onPair = {
                     controller.resetPairing()
                     push(Screen.Onboarding)
@@ -122,6 +127,7 @@ fun TuttiApp(controller: TuttiController, discovery: TvDiscovery, state: TuttiUi
             )
             Screen.TvSettings -> TvSettingsScreen(state = state, controller = controller, onBack = ::pop)
             Screen.BarSettings -> BarSettingsScreen(state = state, controller = controller, onBack = ::pop)
+            Screen.Diagnostic -> DiagnosticScreen(diagnostics = diagnostics, onBack = ::pop)
             Screen.Onboarding -> OnboardingScreen(
                 state = state,
                 controller = controller,

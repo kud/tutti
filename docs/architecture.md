@@ -57,6 +57,10 @@ Acoustic Center Sync, sound calibration, speaker placement and first setup: a sh
 | Sony-cloud gRPC | Interface only, nothing on the wire |
 | Wire 7.1.0, Hilt 2.58, KSP 2.3.12, Kotlin 2.3.20 | Tags verified upstream; AGP 8.13.0 and AndroidX versions chosen without access to Google Maven, settled by CI |
 
+## Diagnostic (Réglages › Diagnostic)
+
+`:protocol`'s `DiagnosticRunner` walks every plane against the configured devices with its own read-only connections: mDNS discovery; REST `getInterfaceInformation` (no PSK), `getSystemInformation` (PSK), `getMethodTypes`, then only the getters the TV lists; the v2 remote's TLS connect and handshake (it answers configure, set-active and ping, and sends nothing else); the pairing port's TCP reachability; a `get` for every soundbar feature, Voice Zoom 3 included. Each step records ok / failed / skipped, its time, a short error class and what the device reported. `DiagnosticReport` renders the plain-text report, scrubbed through `Redact.text` with the hosts, PSK, pin and every identifying value seen in a reply (`JsonShape` keeps keys and types, values only for harmless keys). Pins seen during a run are never saved.
+
 ## Threat model
 
 Assets: the TV PSK, the TV pairing (client private key + TV pin), Sony OAuth tokens and session keys (opt-in), and control of the living-room devices.

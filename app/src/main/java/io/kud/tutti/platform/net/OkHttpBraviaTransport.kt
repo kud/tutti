@@ -53,6 +53,8 @@ class OkHttpBraviaTransport(
             .build()
     }
 
+    override val scheme: String? get() = if (useHttp) "http" else if (firstSeen != null || trust.expected != null) "https" else null
+
     override suspend fun post(path: String, body: String, headers: Map<String, String>): HttpReply =
         withContext(Dispatchers.IO) {
             requireLan(host)

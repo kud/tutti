@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_diagnostic">Diagnostic</string>
+    <string name="settings_diagnostic_detail">Tester chaque connexion et copier un rapport</string>
+
+    <string name="diagnostic_title">Diagnostic</string>
+    <string name="diagnostic_intro">Teste la découverte, l’API REST du téléviseur, la télécommande Android TV et la barre de son, étape par étape, sans rien allumer ni changer. Le rapport ne contient ni code, ni clé, ni adresse IP.</string>
+    <string name="diagnostic_run">Lancer</string>
+    <string name="diagnostic_rerun">Relancer</string>
+    <string name="diagnostic_stop">Arrêter</string>
+    <string name="diagnostic_copy">Copier le rapport</string>
+    <string name="diagnostic_share">Partager</string>
+    <string name="diagnostic_copied">Rapport copié</string>
+    <string name="diagnostic_share_subject">Rapport de diagnostic tutti</string>
+    <string name="diagnostic_summary">%1$d OK · %2$d en échec · %3$d ignorées</string>
+
+    <string name="diagnostic_status_pending">En attente</string>
+    <string name="diagnostic_status_running">En cours…</string>
+    <string name="diagnostic_status_ok">OK</string>
+    <string name="diagnostic_status_failed">Échec</string>
+    <string name="diagnostic_status_skipped">Ignorée</string>
+    <string name="diagnostic_millis">%1$d ms</string>
+
+    <string name="diagnostic_plane_discovery">Découverte</string>
+    <string name="diagnostic_plane_rest">Téléviseur · API REST</string>
+    <string name="diagnostic_plane_remote">Téléviseur · télécommande Android TV</string>
+    <string name="diagnostic_plane_bar">Barre de son</string>
+    <string name="diagnostic_plane_cloud">Connexion Sony</string>
+
+    <string name="diagnostic_step_discovery">Recherche sur le réseau (mDNS)</string>
+    <string name="diagnostic_step_rest_interface">Le téléviseur répond</string>
+    <string name="diagnostic_step_rest_auth">Code PSK accepté</string>
+    <string name="diagnostic_step_rest_methods">Méthodes proposées</string>
+    <string name="diagnostic_step_rest_read">Lecture : %1$s</string>
+    <string name="diagnostic_step_remote_identity">Association enregistrée</string>
+    <string name="diagnostic_step_remote_pairing_port">Port d’association</string>
+    <string name="diagnostic_step_remote_tls">Connexion chiffrée</string>
+    <string name="diagnostic_step_remote_session">Session de télécommande</string>
+    <string name="diagnostic_step_bar_connect">Connexion au port 33336</string>
+    <string name="diagnostic_step_bar_features">Lecture des réglages</string>
+    <string name="diagnostic_step_bar_voicezoom">Voice Zoom 3</string>
+    <string name="diagnostic_step_cloud">Plan cloud Sony</string>
+</resources>
