@@ -29,4 +29,11 @@ class RedactTest {
         assertTrue("<ip>" in Redact.text("10.0.0.1"))
         assertTrue("<mac>" in Redact.text("00-11-22-33-44-55"))
     }
+
+    @Test
+    fun `no pattern opens a class with a colon, which ICU on Android reads as a POSIX property`() {
+        for (regex in Redact.patterns) {
+            assertFalse("[:" in regex.pattern, "ICU rejects \"[:\" here: ${regex.pattern}")
+        }
+    }
 }
