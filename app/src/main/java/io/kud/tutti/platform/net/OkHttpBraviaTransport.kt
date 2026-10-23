@@ -64,9 +64,11 @@ class OkHttpBraviaTransport(
                 try {
                     return@withContext execute("https", path, body, headers).also { persistFirstSeen() }
                 } catch (e: ConnectException) {
-                    // Port 443 closed. Fall back to HTTP only if this TV was never seen over HTTPS.
+                    // Port 443 closed. Fall back to HTTP only if this TV was never seen over HTTPS,
+                    // and stay on HTTP only once it answers: a TV still booting refuses both ports,
+                    // and an HTTPS-only (EU) TV caught then was never tried over HTTPS again.
                     if (trust.expected != null) throw e
-                    useHttp = true
+                    return@withContext execute("http", path, body, headers).also { useHttp = true }
                 }
             }
             execute("http", path, body, headers)
