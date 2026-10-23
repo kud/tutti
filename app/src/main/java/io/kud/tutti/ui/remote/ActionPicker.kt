@@ -25,14 +25,21 @@ import androidx.compose.ui.unit.dp
 import io.kud.tutti.R
 import io.kud.tutti.controller.TuttiUiState
 import io.kud.tutti.platform.data.DockAction
-import io.kud.tutti.protocol.atv.AppCatalog
+import io.kud.tutti.protocol.apps.AppLibrary
+import io.kud.tutti.ui.common.AppIcon
 import io.kud.tutti.ui.common.ShortcutKeys
 import io.kud.tutti.ui.common.ToggleFeatures
 import io.kud.tutti.ui.common.featureLabel
 import io.kud.tutti.ui.common.glyphRes
 import io.kud.tutti.ui.common.keyLabel
 
-private data class Choice(val action: DockAction, val label: String, @DrawableRes val icon: Int)
+private data class Choice(
+    val action: DockAction,
+    val label: String,
+    @DrawableRes val icon: Int,
+    /** For an app: its package, so the row shows the TV's cached icon. */
+    val app: String? = null,
+)
 
 /** Picks what a dock slot or a long press does: an app, an input, a bar toggle, a scene or a TV key. */
 @Composable
@@ -45,8 +52,8 @@ fun ActionPickerDialog(
 ) {
     val sections = buildList {
         add(
-            stringResource(R.string.picker_apps) to AppCatalog.apps.map {
-                Choice(DockAction.LaunchApp(it.packageName, it.name), it.name, R.drawable.ic_apps)
+            stringResource(R.string.picker_apps) to state.apps.ifEmpty { AppLibrary.all(emptyList()) }.map {
+                Choice(DockAction.LaunchApp(it.packageName, it.name), it.name, R.drawable.ic_apps, it.packageName)
             },
         )
         if (state.tv.inputs.isNotEmpty()) {
@@ -94,7 +101,11 @@ fun ActionPickerDialog(
                                 .padding(vertical = 10.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Icon(painterResource(choice.icon), contentDescription = null, modifier = Modifier.size(20.dp))
+                            if (choice.app != null) {
+                                AppIcon(choice.label, state.appIcons[choice.app], size = 24.dp, corner = 6.dp)
+                            } else {
+                                Icon(painterResource(choice.icon), contentDescription = null, modifier = Modifier.size(24.dp))
+                            }
                             Spacer(Modifier.width(12.dp))
                             Text(choice.label, style = MaterialTheme.typography.bodyLarge)
                         }

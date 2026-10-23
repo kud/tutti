@@ -113,7 +113,14 @@ data class TuttiUiState(
     val powered: Boolean? = null,
     val pairing: PairingUi = PairingUi.Idle,
     val cloud: CloudPlaneState = CloudPlaneState.Disabled,
+    /** Every app tutti knows (catalog plus every app the TV ever listed), by name. */
+    val apps: List<io.kud.tutti.protocol.apps.KnownApp> = emptyList(),
+    /** Cached official icons: package name to a file in the cache dir. */
+    val appIcons: Map<String, String> = emptyMap(),
 ) {
+    /** IP control answers: the TV's own app list, its icons and `setActiveApp` are live. */
+    val ipControl: Boolean get() = links.rest == Link.ONLINE
+
     val muted: Boolean get() = bar.isOn(TheatreFeature.MUTE) == true
 
     val activeScene: SceneUi? get() = scenes.firstOrNull { it.status != SceneStatus.IDLE }

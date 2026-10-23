@@ -9,6 +9,16 @@ import io.kud.tutti.protocol.atv.proto.remote.RemoteKeyCode
  */
 object V2Key {
     const val HOME = 3
+    const val NUM_0 = 7
+    const val NUM_1 = 8
+    const val NUM_2 = 9
+    const val NUM_3 = 10
+    const val NUM_4 = 11
+    const val NUM_5 = 12
+    const val NUM_6 = 13
+    const val NUM_7 = 14
+    const val NUM_8 = 15
+    const val NUM_9 = 16
     const val BACK = 4
     const val DPAD_UP = 19
     const val DPAD_DOWN = 20
@@ -43,6 +53,7 @@ object V2Key {
     const val INFO = 165
     const val CHANNEL_UP = 166
     const val CHANNEL_DOWN = 167
+    const val TV = 170
     const val GUIDE = 172
     const val CAPTIONS = 175
     const val SETTINGS = 176
@@ -53,10 +64,19 @@ object V2Key {
     const val PROG_BLUE = 186
     const val APP_SWITCH = 187
     const val ASSIST = 219
+    const val MEDIA_AUDIO_TRACK = 222
+    const val LAST_CHANNEL = 229
     const val TV_INPUT_HDMI_1 = 243
     const val TV_INPUT_HDMI_2 = 244
     const val TV_INPUT_HDMI_3 = 245
     const val TV_INPUT_HDMI_4 = 246
+    const val ALL_APPS = 284
+
+    /** `NUM_0`..`NUM_9` by digit. */
+    fun digit(n: Int): Int {
+        require(n in 0..9) { "not a digit: $n" }
+        return NUM_0 + n
+    }
 }
 
 /** What a hardware-keyboard key does while the remote is in front. */

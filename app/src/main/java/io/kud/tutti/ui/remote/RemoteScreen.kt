@@ -36,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import io.kud.tutti.R
 import io.kud.tutti.controller.TuttiController
 import io.kud.tutti.controller.TuttiUiState
+import io.kud.tutti.platform.data.DockAction
 import io.kud.tutti.platform.data.SecondaryButton
 import io.kud.tutti.protocol.atv.V2Key
 import io.kud.tutti.ui.common.TonalRoundButton
@@ -64,6 +65,7 @@ fun RemoteScreen(
     val haptics = rememberHaptics()
     var picker by remember { mutableStateOf<PickerTarget?>(null) }
     var keyboardRequested by remember { mutableStateOf(false) }
+    var sheet2 by remember { mutableStateOf<RemoteSheet?>(null) }
     val imeOpen = state.remote.ime != null
     val keyboardOpen = imeOpen || keyboardRequested
 
@@ -178,6 +180,7 @@ fun RemoteScreen(
                         controller.key(V2Key.BACK)
                     },
                     onLongClick = { secondary(SecondaryButton.BACK) },
+                    size = ROW_BUTTON,
                 )
                 TonalRoundButton(
                     icon = R.drawable.ic_home,
@@ -187,6 +190,7 @@ fun RemoteScreen(
                         controller.key(V2Key.HOME)
                     },
                     onLongClick = { secondary(SecondaryButton.HOME) },
+                    size = ROW_BUTTON,
                 )
                 TonalRoundButton(
                     icon = R.drawable.ic_play_pause,
@@ -196,8 +200,9 @@ fun RemoteScreen(
                         controller.key(V2Key.MEDIA_PLAY_PAUSE)
                     },
                     onLongClick = { secondary(SecondaryButton.PLAY) },
+                    size = ROW_BUTTON,
                 )
-                VoiceButton(controller = controller, enabled = state.remote.ready)
+                VoiceButton(controller = controller, enabled = state.remote.ready, size = ROW_BUTTON)
                 TonalRoundButton(
                     icon = R.drawable.ic_keyboard,
                     contentDescription = stringResource(R.string.action_keyboard),
@@ -211,6 +216,7 @@ fun RemoteScreen(
                         }
                     },
                     active = keyboardOpen,
+                    size = ROW_BUTTON,
                 )
                 TonalRoundButton(
                     icon = if (state.muted) R.drawable.ic_volume_off else R.drawable.ic_volume_up,
@@ -221,6 +227,7 @@ fun RemoteScreen(
                     },
                     active = state.muted,
                     enabled = state.bar.connected,
+                    size = ROW_BUTTON,
                 )
             }
 
@@ -228,6 +235,14 @@ fun RemoteScreen(
                 Spacer(Modifier.height(12.dp))
                 Dock(
                     state = state,
+                    onApps = {
+                        haptics.click()
+                        sheet2 = RemoteSheet.APPS
+                    },
+                    onKeys = {
+                        haptics.click()
+                        sheet2 = RemoteSheet.KEYS
+                    },
                     onRun = { _, slot ->
                         haptics.click()
                         slot.primary?.let(controller::run)
@@ -240,6 +255,40 @@ fun RemoteScreen(
             }
             Spacer(Modifier.height(12.dp))
         }
+    }
+
+    when (sheet2) {
+        RemoteSheet.APPS -> AppsSheet(
+            state = state,
+            onLaunch = { app ->
+                haptics.click()
+                controller.launchApp(app.packageName)
+                sheet2 = null
+            },
+            onAllApps = {
+                haptics.click()
+                controller.openAllApps()
+                sheet2 = null
+            },
+            onPin = { app, index ->
+                haptics.longPress()
+                controller.assignDock(index, DockAction.LaunchApp(app.packageName, app.name), state.dock.slots.getOrNull(index)?.secondary)
+            },
+            onDismiss = { sheet2 = null },
+        )
+        RemoteSheet.KEYS -> MoreKeysSheet(
+            state = state,
+            onKey = {
+                haptics.click()
+                controller.key(it)
+            },
+            onLaunch = {
+                haptics.click()
+                controller.launchApp(it)
+            },
+            onDismiss = { sheet2 = null },
+        )
+        null -> Unit
     }
 
     when (val target = picker) {
@@ -273,6 +322,12 @@ fun secondaryLabel(button: SecondaryButton): String = when (button) {
     SecondaryButton.BACK -> stringResource(R.string.action_back)
     SecondaryButton.PLAY -> stringResource(R.string.action_play_pause)
 }
+
+/** Six round buttons (with the mic) must fit a 360dp phone: 6 × 52 + gaps inside 328dp. */
+private val ROW_BUTTON = 52.dp
+
+/** The full-height sheets the bottom row's doors open. */
+private enum class RemoteSheet { APPS, KEYS }
 
 /** The “Son” handle and its one-line summary. */
 private val SHEET_PEEK = 72.dp

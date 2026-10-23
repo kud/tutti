@@ -3,8 +3,10 @@ package io.kud.tutti.platform.net
 import io.kud.tutti.protocol.bravia.BraviaTransport
 import io.kud.tutti.protocol.bravia.HttpReply
 import io.kud.tutti.protocol.net.CertificatePin
+import io.kud.tutti.protocol.net.LanAddress
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -70,6 +72,25 @@ class OkHttpBraviaTransport(
             execute("http", path, body, headers)
         }
 
+    /**
+     * One app icon from the TV's own list. Only from the TV itself: HTTPS through the same
+     * pinned client (no pin yet, no icon), or HTTP to a private LAN address. No PSK header
+     * goes with it. Null on any failure or anything over [maxBytes].
+     */
+    suspend fun fetchIcon(url: String, maxBytes: Int = MAX_ICON_BYTES): ByteArray? = withContext(Dispatchers.IO) {
+        val parsed = url.toHttpUrlOrNull() ?: return@withContext null
+        if (!LanAddress.isPrivate(parsed.host)) return@withContext null
+        if (parsed.scheme == "https" && (parsed.host != host || (trust.expected == null && firstSeen == null))) return@withContext null
+        runCatching {
+            client.newCall(Request.Builder().url(parsed).get().build()).execute().use { response ->
+                if (!response.isSuccessful) return@use null
+                val declared = response.body.contentLength()
+                if (declared > maxBytes) return@use null
+                response.body.bytes().takeIf { it.isNotEmpty() && it.size <= maxBytes }
+            }
+        }.getOrNull()
+    }
+
     private suspend fun persistFirstSeen() {
         val seen = firstSeen ?: return
         if (trust.expected == null) {
@@ -91,4 +112,8 @@ class OkHttpBraviaTransport(
     }
 
     private fun urlHost(): String = if (host.contains(':')) "[$host]" else host
+
+    private companion object {
+        const val MAX_ICON_BYTES = 512 * 1024
+    }
 }

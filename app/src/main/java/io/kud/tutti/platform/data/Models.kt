@@ -87,11 +87,17 @@ data class DockConfig(
     companion object {
         const val SIZE = 4
 
+        /**
+         * A fresh install pins the two bar toggles the design asks for one tap away; apps live
+         * behind the Apps tile, and the other slots wait for his own pins. A dock already
+         * stored (any earlier assignment wrote all four slots) is read as it is: nothing in it
+         * is dropped or rewritten.
+         */
         val DEFAULT_SLOTS = listOf(
-            DockSlot(DockAction.LaunchApp("com.netflix.ninja", "Netflix")),
-            DockSlot(DockAction.LaunchApp("com.google.android.youtube.tv", "YouTube")),
             DockSlot(DockAction.ToggleBar("audio.nightmode")),
             DockSlot(DockAction.ToggleBar("audio.voiceenhancer")),
+            DockSlot(),
+            DockSlot(),
         )
     }
 }

@@ -24,7 +24,24 @@ class KeyMapTest {
             V2Key.TV_INPUT to RemoteKeyCode.KEYCODE_TV_INPUT,
             V2Key.ASSIST to RemoteKeyCode.KEYCODE_ASSIST,
             V2Key.TV_INPUT_HDMI_4 to RemoteKeyCode.KEYCODE_TV_INPUT_HDMI_4,
+            V2Key.NUM_0 to RemoteKeyCode.KEYCODE_0,
+            V2Key.NUM_9 to RemoteKeyCode.KEYCODE_9,
+            V2Key.TV to RemoteKeyCode.KEYCODE_TV,
+            V2Key.INFO to RemoteKeyCode.KEYCODE_INFO,
+            V2Key.GUIDE to RemoteKeyCode.KEYCODE_GUIDE,
+            V2Key.CAPTIONS to RemoteKeyCode.KEYCODE_CAPTIONS,
+            V2Key.MENU to RemoteKeyCode.KEYCODE_MENU,
+            V2Key.CHANNEL_UP to RemoteKeyCode.KEYCODE_CHANNEL_UP,
+            V2Key.CHANNEL_DOWN to RemoteKeyCode.KEYCODE_CHANNEL_DOWN,
+            V2Key.PROG_RED to RemoteKeyCode.KEYCODE_PROG_RED,
+            V2Key.PROG_GREEN to RemoteKeyCode.KEYCODE_PROG_GREEN,
+            V2Key.PROG_YELLOW to RemoteKeyCode.KEYCODE_PROG_YELLOW,
+            V2Key.PROG_BLUE to RemoteKeyCode.KEYCODE_PROG_BLUE,
+            V2Key.MEDIA_AUDIO_TRACK to RemoteKeyCode.KEYCODE_MEDIA_AUDIO_TRACK,
+            V2Key.LAST_CHANNEL to RemoteKeyCode.KEYCODE_LAST_CHANNEL,
+            V2Key.ALL_APPS to RemoteKeyCode.KEYCODE_ALL_APPS,
         )
+        (0..9).forEach { assertEquals("KEYCODE_$it", RemoteKeyCode.fromValue(V2Key.digit(it))?.name) }
         expected.forEach { (int, code) -> assertEquals(code.value, int, code.name) }
     }
 

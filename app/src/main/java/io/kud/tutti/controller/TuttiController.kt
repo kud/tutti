@@ -20,7 +20,11 @@ import io.kud.tutti.platform.net.OkHttpBraviaTransport
 import io.kud.tutti.platform.net.PinMismatchException
 import io.kud.tutti.platform.security.ClientIdentityStore
 import io.kud.tutti.platform.security.SecureStore
+import io.kud.tutti.protocol.apps.AppLibrary
+import io.kud.tutti.protocol.apps.KnownApp
 import io.kud.tutti.protocol.atv.AppCatalog
+import io.kud.tutti.protocol.bravia.TvApp
+import java.io.File
 import io.kud.tutti.protocol.atv.AtvPairing
 import io.kud.tutti.protocol.atv.AtvRemote
 import io.kud.tutti.protocol.atv.ClientDeviceInfo
@@ -120,6 +124,12 @@ class TuttiController @Inject constructor(
 
     @Volatile private var psk: String? = null
     @Volatile private var bravia: BraviaClient? = null
+    @Volatile private var braviaTransport: OkHttpBraviaTransport? = null
+
+    /** Official icons, cached by package in the app cache dir. */
+    private val iconDir: File get() = File(context.cacheDir, "app-icons")
+    private val icons = MutableStateFlow<Map<String, String>>(emptyMap())
+    private val library = combine(store.apps, icons) { seen, cached -> AppLibrary.all(seen) to cached }
 
     private val links = MutableStateFlow(Links())
     private val tv = MutableStateFlow(TvState())
@@ -165,7 +175,9 @@ class TuttiController @Inject constructor(
     private val live = combine(tv, atv.state, theatre.state, links, voiceZoom) { t, r, b, l, v -> Live(t, r, b, l, v) }
     private val extra = combine(progress, activeSceneId, pairing, cloud.state, overrides) { p, a, q, c, o -> Extra(p, a, q, c, o) }
 
-    val state: StateFlow<TuttiUiState> = combine(stored, live, extra) { s, l, e -> build(s, l, e) }
+    val state: StateFlow<TuttiUiState> = combine(stored, live, extra, library) { s, l, e, a ->
+        build(s, l, e).copy(apps = a.first, appIcons = a.second)
+    }
         .stateIn(scope, SharingStarted.Eagerly, TuttiUiState())
 
     /** Set by the remote screen while it is in front: volume rocker and hardware keyboard go to the devices. */
@@ -184,6 +196,10 @@ class TuttiController @Inject constructor(
     @Volatile private var codeAnswer: CompletableDeferred<String?>? = null
 
     init {
+        scope.launch(Dispatchers.IO) {
+            val cached = iconDir.listFiles().orEmpty().filter { it.isFile && it.length() > 0 && !it.name.endsWith(".part") }
+            icons.update { current -> cached.associate { it.name to it.path } + current }
+        }
         scope.launch {
             volumeTarget.filterNotNull().conflate().collect { level ->
                 theatre.setLevel(TheatreFeature.VOLUME, level)
@@ -364,10 +380,9 @@ class TuttiController @Inject constructor(
             tv.value = TvState()
             return
         }
-        val client = BraviaClient(
-            OkHttpBraviaTransport(device.host, secure.tvRestPin()) { secure.setTvRestPin(it) },
-            psk = { psk },
-        )
+        val transport = OkHttpBraviaTransport(device.host, secure.tvRestPin()) { secure.setTvRestPin(it) }
+        val client = BraviaClient(transport, psk = { psk })
+        braviaTransport = transport
         bravia = client
         var wait = MIN_BACKOFF_MS
         while (scope.isActive) {
@@ -413,6 +428,7 @@ class TuttiController @Inject constructor(
         val inputs = if (current.inputs.isEmpty() && active) client.externalInputs().getOrNull().orEmpty() else current.inputs
         val apps = if (current.apps.isEmpty() && active) client.applications().getOrNull().orEmpty() else current.apps
         tv.update { it.copy(power = power, input = input ?: it.input, pictureMode = pictureMode ?: it.pictureMode, inputs = inputs, apps = apps) }
+        if (current.apps.isEmpty() && apps.isNotEmpty()) scope.launch { rememberApps(apps) }
         return true
     }
 
@@ -552,10 +568,42 @@ class TuttiController @Inject constructor(
         scope.launch { launchLink(packageName) }
     }
 
+    /** Through IP control when the TV ever listed the app, else (or on failure) over the remote link. */
     private suspend fun launchLink(packageName: String): Boolean {
+        val client = bravia
+        if (client != null && links.value.rest == Link.ONLINE) {
+            val uri = tv.value.apps.firstOrNull { AppLibrary.packageOf(it.uri) == packageName }?.uri
+                ?: store.apps.first().firstOrNull { it.packageName == packageName }?.tvUri
+            if (uri != null && client.setActiveApp(uri) is BraviaResult.Ok) return true
+        }
         val link = AppCatalog.byPackage(packageName)?.launchLink ?: "market://launch?id=$packageName"
         return atv.launch(link)
     }
+
+    /** Keeps what the TV listed and fetches the icons not cached yet, one at a time. */
+    private suspend fun rememberApps(fresh: List<TvApp>) {
+        store.updateApps { AppLibrary.remember(it, fresh) }
+        val transport = braviaTransport ?: return
+        val dir = iconDir.apply { mkdirs() }
+        for (app in store.apps.first()) {
+            val url = app.iconUrl ?: continue
+            val name = iconFileName(app.packageName) ?: continue
+            if (icons.value.containsKey(name)) continue
+            val bytes = transport.fetchIcon(url) ?: continue
+            val path = withContextIO {
+                val part = File(dir, "$name.part")
+                part.writeBytes(bytes)
+                val target = File(dir, name)
+                if (part.renameTo(target)) target.path else null
+            } ?: continue
+            icons.update { it + (name to path) }
+        }
+    }
+
+    private suspend fun <T> withContextIO(block: () -> T): T = kotlinx.coroutines.withContext(Dispatchers.IO) { block() }
+
+    /** The TV's own apps screen, over the remote link (no IP control needed). */
+    fun openAllApps() = key(V2Key.ALL_APPS)
 
     fun switchInput(uri: String) {
         scope.launch {
@@ -1031,3 +1079,7 @@ class TuttiController @Inject constructor(
         private const val SECRET_ACK_TIMEOUT_MS = 12_000L
     }
 }
+
+/** The cache file for a package's icon: the package name itself, or null for anything that is not one. */
+internal fun iconFileName(packageName: String): String? =
+    packageName.takeIf { Regex("[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z0-9_]+)+").matches(it) }

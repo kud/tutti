@@ -4,6 +4,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
+import io.kud.tutti.protocol.apps.KnownApp
 import io.kud.tutti.protocol.scenes.AppProfile
 import io.kud.tutti.protocol.scenes.Scene
 import io.kud.tutti.protocol.scenes.SceneJson
@@ -29,6 +30,8 @@ class TuttiStore @Inject constructor(
     val prefs: Flow<AppPrefs> = field(PREFS, AppPrefs.serializer(), StoreJson) { AppPrefs() }
     val dock: Flow<DockConfig> = field(DOCK, DockConfig.serializer(), StoreJson) { DockConfig() }
     val scenes: Flow<List<Scene>> = field(SCENES, ListSerializer(Scene.serializer()), SceneJson) { StarterScenes.all }
+    /** Apps the TV ever listed, kept so the Apps sheet works without IP control. */
+    val apps: Flow<List<KnownApp>> = field(APPS, ListSerializer(KnownApp.serializer()), StoreJson) { emptyList() }
     val profiles: Flow<List<AppProfile>> = field(PROFILES, ListSerializer(AppProfile.serializer()), SceneJson) { emptyList() }
 
     suspend fun updateDevices(transform: (Devices) -> Devices) = update(DEVICES, Devices.serializer(), StoreJson, Devices(), transform)
@@ -39,6 +42,9 @@ class TuttiStore @Inject constructor(
 
     suspend fun updateScenes(transform: (List<Scene>) -> List<Scene>) =
         update(SCENES, ListSerializer(Scene.serializer()), SceneJson, StarterScenes.all, transform)
+
+    suspend fun updateApps(transform: (List<KnownApp>) -> List<KnownApp>) =
+        update(APPS, ListSerializer(KnownApp.serializer()), StoreJson, emptyList(), transform)
 
     suspend fun updateProfiles(transform: (List<AppProfile>) -> List<AppProfile>) =
         update(PROFILES, ListSerializer(AppProfile.serializer()), SceneJson, emptyList(), transform)
@@ -72,5 +78,6 @@ class TuttiStore @Inject constructor(
         private val DOCK = stringPreferencesKey("dock")
         private val SCENES = stringPreferencesKey("scenes")
         private val PROFILES = stringPreferencesKey("profiles")
+        private val APPS = stringPreferencesKey("apps")
     }
 }
