@@ -1,0 +1,26 @@
+---
+title: 🔒 Privacy and security
+description: What tutti keeps on the phone, how it trusts the devices, and what it never does.
+---
+
+tutti only talks to devices on the local network, and keeps everything it needs on the phone.
+
+## Local network only
+
+Every connection goes to a private LAN address. Plain HTTP is refused for anything else.
+
+## Trust on first use
+
+The TV's and the bar's certificates are pinned the first time tutti meets them. A changed certificate is refused rather than silently accepted, and TLS verification is never switched off.
+
+## Secrets on the phone
+
+The pairing material, the Pre-Shared Key and any Sony tokens are encrypted with an Android Keystore key and excluded from backups. "Forget device" wipes the pairing; signing out of Sony wipes the tokens.
+
+## Sony account
+
+Sony sign-in is optional. When used, it goes through OAuth with PKCE in a Custom Tab: tutti never sees the password and never uses a WebView for it.
+
+## Developer mode
+
+With developer mode on, errors show their technical details with a Copy button. Addresses, keys and tokens are redacted before anything is shown or copied.
