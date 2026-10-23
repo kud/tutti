@@ -1,6 +1,5 @@
 package io.kud.tutti.ui.remote
 
-import io.kud.tutti.controller.Link
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.runtime.Composable
@@ -8,6 +7,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.kud.tutti.R
+import io.kud.tutti.controller.Link
 import io.kud.tutti.controller.TuttiController
 import io.kud.tutti.controller.TuttiUiState
 import io.kud.tutti.platform.data.RowButton
@@ -15,6 +15,7 @@ import io.kud.tutti.platform.data.SecondaryButton
 import io.kud.tutti.protocol.atv.V2Key
 import io.kud.tutti.ui.common.Haptics
 import io.kud.tutti.ui.common.TonalRoundButton
+import io.kud.tutti.ui.common.actionLabel
 
 /** The icon a row button wears, in the row and in the edit mode's "add" chips. */
 @DrawableRes
@@ -116,6 +117,8 @@ fun LiveRowButton(
                 onClick = { controller.key(key) },
                 unreachable = state.devices.tv != null && state.links.tv == Link.UNREACHABLE,
                 onLongClick = secondary?.let { { onSecondary(it) } },
+                // Names the second action: read aloud by TalkBack, and tagged over the key when it lands.
+                onLongClickLabel = secondary?.let { state.dock.longPress[it] }?.let { actionLabel(it, state) },
                 size = size,
             )
         }
