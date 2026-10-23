@@ -1,5 +1,6 @@
 package io.kud.tutti.ui.remote
 
+import io.kud.tutti.ui.common.FeedbackEvent
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -149,10 +150,8 @@ fun RemoteScreen(
                     TonalRoundButton(
                         icon = R.drawable.ic_power,
                         contentDescription = stringResource(if (state.waking) R.string.power_waking else R.string.action_power),
-                        onClick = {
-                            haptics.select()
-                            controller.power()
-                        },
+                        onClick = { controller.power() },
+                        feedback = FeedbackEvent.SELECT,
                         active = state.powered == true,
                         size = 52.dp,
                     )

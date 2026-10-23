@@ -3,6 +3,7 @@ package io.kud.tutti.ui.motion
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.Easing
 import androidx.compose.animation.core.FiniteAnimationSpec
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.SpringSpec
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -35,6 +36,15 @@ object Motion {
 
     /** Once per screen at most: the TV found, the final tick. Damping 0.6, stiffness 400. */
     fun <T> bouncy(): SpringSpec<T> = spring(dampingRatio = 0.6f, stiffness = 400f)
+
+    /** A press landing: critically damped, no overshoot, about 60 ms (Iris's interaction spec). */
+    fun <T> pressIn(): SpringSpec<T> = spring(dampingRatio = 1f, stiffness = Spring.StiffnessHigh)
+
+    /** The pressed layer landing, in step with [pressIn]. */
+    const val PRESS_IN = 60
+
+    /** Layers and rings leaving, and arriving when motion is reduced. */
+    const val FADE_OUT = 120
 
     /** M3 emphasized: for things entering. */
     val Emphasized: Easing = CubicBezierEasing(0.2f, 0f, 0f, 1f)

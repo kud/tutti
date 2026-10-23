@@ -1,5 +1,13 @@
 package io.kud.tutti
 
+import androidx.compose.foundation.LocalIndication
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.unit.dp
+import io.kud.tutti.ui.common.ChipNudge
+import io.kud.tutti.ui.common.FeedbackPrefs
+import io.kud.tutti.ui.common.LocalChipNudge
+import io.kud.tutti.ui.common.LocalFeedbackPrefs
+import io.kud.tutti.ui.common.rememberTuttiIndication
 import android.annotation.SuppressLint
 import android.os.Bundle
 import android.view.InputDevice
@@ -23,7 +31,6 @@ import io.kud.tutti.platform.diagnostic.Diagnostics
 import io.kud.tutti.platform.discovery.TvDiscovery
 import io.kud.tutti.ui.TuttiApp
 import io.kud.tutti.ui.common.CrashDialog
-import io.kud.tutti.ui.common.LocalHapticsEnabled
 import io.kud.tutti.ui.common.LocalReducedMotion
 import io.kud.tutti.ui.common.rememberReducedMotion
 import io.kud.tutti.ui.intro.LaunchIntro
@@ -58,7 +65,10 @@ class MainActivity : ComponentActivity() {
             }
             TuttiTheme(darkTheme = dark, trueBlack = state.prefs.trueBlack) {
                 CompositionLocalProvider(
-                    LocalHapticsEnabled provides state.prefs.haptics,
+                    LocalFeedbackPrefs provides FeedbackPrefs(state.prefs.vibrationLevel, state.prefs.keySounds),
+                    // Rows and every plain clickable: Material ripple plus the inset focus ring.
+                    LocalIndication provides rememberTuttiIndication(RoundedCornerShape(12.dp), ripple = true, ringInset = true),
+                    LocalChipNudge provides remember { ChipNudge() },
                     LocalReducedMotion provides reducedMotion,
                 ) {
                     TuttiApp(controller, discovery, diagnostics, state)

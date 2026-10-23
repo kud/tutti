@@ -1,5 +1,6 @@
 package io.kud.tutti.ui.remote
 
+import io.kud.tutti.controller.Link
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.runtime.Composable
@@ -94,22 +95,16 @@ fun LiveRowButton(
         RowButton.KEYBOARD -> TonalRoundButton(
             icon = R.drawable.ic_keyboard,
             contentDescription = rowButtonLabel(button),
-            onClick = {
-                haptics.click()
-                onKeyboard()
-            },
+            onClick = onKeyboard,
             active = keyboardOpen,
             size = size,
         )
         RowButton.MUTE -> TonalRoundButton(
             icon = rowButtonIcon(button, state.muted),
             contentDescription = rowButtonLabel(button),
-            onClick = {
-                haptics.click()
-                controller.toggleMute()
-            },
+            onClick = { controller.toggleMute() },
             active = state.muted,
-            enabled = state.bar.connected,
+            unreachable = !state.bar.connected,
             size = size,
         )
         else -> {
@@ -118,10 +113,8 @@ fun LiveRowButton(
             TonalRoundButton(
                 icon = rowButtonIcon(button),
                 contentDescription = rowButtonLabel(button),
-                onClick = {
-                    haptics.click()
-                    controller.key(key)
-                },
+                onClick = { controller.key(key) },
+                unreachable = state.devices.tv != null && state.links.tv == Link.UNREACHABLE,
                 onLongClick = secondary?.let { { onSecondary(it) } },
                 size = size,
             )

@@ -1,5 +1,6 @@
 package io.kud.tutti.ui.scenes
 
+import io.kud.tutti.ui.motion.snappyOrFade
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
@@ -47,7 +48,6 @@ import io.kud.tutti.controller.TuttiUiState
 import io.kud.tutti.controller.SceneStatus
 import io.kud.tutti.controller.SceneUi
 import io.kud.tutti.ui.common.glyphRes
-import io.kud.tutti.ui.common.motion
 import io.kud.tutti.ui.common.rememberHaptics
 import io.kud.tutti.ui.remote.contentOn
 import io.kud.tutti.ui.remote.tonalOf
@@ -108,9 +108,9 @@ fun ScenesScreen(
 private fun SceneCard(ui: SceneUi, summary: String, onApply: () -> Unit, onEdit: () -> Unit) {
     val seed = Color(ui.scene.color)
     val active = ui.status == SceneStatus.ACTIVE
-    val container by animateColorAsState(if (active) seed else tonalOf(seed), motion(), label = "card")
+    val container by animateColorAsState(if (active) seed else tonalOf(seed), snappyOrFade(), label = "card")
     val content = if (active) contentOn(seed) else MaterialTheme.colorScheme.onSurface
-    val progress by animateFloatAsState(ui.progress ?: 0f, motion(), label = "progress")
+    val progress by animateFloatAsState(ui.progress ?: 0f, snappyOrFade(), label = "progress")
     val running = ui.progress != null
     val shape = RoundedCornerShape(28.dp)
     Column(

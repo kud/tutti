@@ -27,9 +27,21 @@ enum class PadMode { TOUCHPAD, DPAD }
 @Serializable
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
 
+/**
+ * How much tutti vibrates. Android's own touch vibration switch and intensity still apply on top.
+ * [ESSENTIALS] drops the per-key click and per-step tick, keeping state changes, walls and outcomes.
+ */
+@Serializable
+enum class VibrationLevel { OFF, ESSENTIALS, ALL }
+
 @Serializable
 data class AppPrefs(
+    /** The single switch before the Feedback group (2026-10-23); read only to migrate, see [vibrationLevel]. */
     val haptics: Boolean = true,
+    /** Null until he picks one in the Feedback group; [vibrationLevel] then falls back to [haptics]. */
+    val vibration: VibrationLevel? = null,
+    /** The platform click on single key presses. Off by default: the TV is the sound in this room. */
+    val keySounds: Boolean = false,
     val theme: ThemeMode = ThemeMode.SYSTEM,
     val trueBlack: Boolean = false,
     /** Apps left out of the Apps sheet and pickers, by package name. */
@@ -40,7 +52,11 @@ data class AppPrefs(
     val layout: RemoteLayout = RemoteLayout(),
     /** Technical details and "Copy details" under errors, and the diagnostics. Off by default, in every build. */
     val developerMode: Boolean = false,
-)
+) {
+    /** The old switch on reads as [VibrationLevel.ALL], off as [VibrationLevel.OFF]. */
+    val vibrationLevel: VibrationLevel
+        get() = vibration ?: if (haptics) VibrationLevel.ALL else VibrationLevel.OFF
+}
 
 /** The round buttons the row under the pad can hold. The first six are the row as it shipped. */
 @Serializable

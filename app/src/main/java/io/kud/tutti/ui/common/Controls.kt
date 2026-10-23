@@ -1,5 +1,10 @@
 package io.kud.tutti.ui.common
 
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.Icon
+import androidx.compose.material3.SwitchDefaults
+import androidx.compose.ui.res.painterResource
+import io.kud.tutti.R
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -66,10 +71,15 @@ fun SwitchRow(
     supporting: String? = null,
     reason: String? = null,
 ) {
+    val feedback = rememberFeedback()
+    val toggle: (Boolean) -> Unit = {
+        feedback.select()
+        onCheckedChange(it)
+    }
     Row(
         modifier
             .fillMaxWidth()
-            .clickable(enabled = reason == null) { onCheckedChange(!checked) }
+            .clickable(enabled = reason == null) { toggle(!checked) }
             .alpha(if (reason == null) 1f else 0.6f)
             .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -81,6 +91,15 @@ fun SwitchRow(
                 Text(secondary, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
-        Switch(checked = checked, onCheckedChange = onCheckedChange, enabled = reason == null)
+        Switch(
+            checked = checked,
+            onCheckedChange = toggle,
+            enabled = reason == null,
+            thumbContent = if (checked) {
+                { Icon(painterResource(R.drawable.ic_check), contentDescription = null, modifier = Modifier.size(SwitchDefaults.IconSize)) }
+            } else {
+                null
+            },
+        )
     }
 }

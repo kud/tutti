@@ -1,5 +1,8 @@
 package io.kud.tutti.ui.remote
 
+import io.kud.tutti.ui.common.FeedbackEvent
+import io.kud.tutti.ui.common.LocalReducedMotion
+import io.kud.tutti.ui.motion.Motion
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
@@ -96,7 +99,7 @@ fun Pad(
                     key(code)
                 },
                 onTap = { at ->
-                    haptics.select()
+                    haptics.click()
                     flash(at)
                     key(V2Key.DPAD_CENTER)
                 },
@@ -112,6 +115,12 @@ fun Pad(
                     haptics.tick()
                     volumeStep(delta)
                 },
+                // Finger down shows a soft halo under it, and nothing is sent.
+                onDown = { at ->
+                    glow = at
+                    scope.launch { glowAlpha.animateTo(HALO_ALPHA, tween(durationMillis = Motion.FADE_OUT)) }
+                },
+                onUp = { scope.launch { glowAlpha.animateTo(0f, tween(durationMillis = 260)) } },
                 onMove = { at -> glow = at },
             )
         }
@@ -122,6 +131,8 @@ fun Pad(
                     val zone = dpadZone(at, size.width.toFloat(), size.height.toFloat())
                     if (zone != null) {
                         pressedZone = zone
+                        // On down, in the frame: OK is a key (click), a direction a step (tick).
+                        haptics.perform(if (zone == V2Key.DPAD_CENTER) FeedbackEvent.KEY else FeedbackEvent.STEP)
                         pressAlpha.snapTo(1f)
                         tryAwaitRelease()
                         scope.launch { pressAlpha.animateTo(0f, tween(durationMillis = 180)) }
@@ -129,7 +140,6 @@ fun Pad(
                 },
                 onTap = { at ->
                     val code = dpadZone(at, size.width.toFloat(), size.height.toFloat()) ?: return@detectTapGestures
-                    if (code == V2Key.DPAD_CENTER) haptics.select() else haptics.tick()
                     key(code)
                 },
                 onLongPress = { at ->
@@ -198,7 +208,7 @@ fun Pad(
             .then(gestures),
     ) {
         if (mode == PadMode.DPAD) {
-            DpadFace(pressedZone = pressedZone, pressed = pressAlpha.value, modifier = Modifier.fillMaxSize())
+            DpadFace(pressedZone = pressedZone, pressed = pressAlpha.value, reduced = LocalReducedMotion.current, modifier = Modifier.fillMaxSize())
         }
     }
 }
@@ -210,7 +220,7 @@ fun Pad(
  * brings its chevron to full contrast. Tonal only: no outlines, no dividers.
  */
 @Composable
-internal fun DpadFace(pressedZone: Int?, pressed: Float, modifier: Modifier = Modifier) {
+internal fun DpadFace(pressedZone: Int?, pressed: Float, modifier: Modifier = Modifier, reduced: Boolean = false) {
     val scheme = MaterialTheme.colorScheme
     val disc = scheme.surfaceContainerHigh
     val chevron = scheme.onSurfaceVariant
@@ -240,16 +250,21 @@ internal fun DpadFace(pressedZone: Int?, pressed: Float, modifier: Modifier = Mo
             )
         }
 
-        drawCircle(centre, radius = inner - moat)
+        // OK tightens to 0.94 under the finger; the disc itself never scales.
+        val okPressed = if (pressedZone == V2Key.DPAD_CENTER && !reduced) pressed else 0f
+        val okRadius = (inner - moat) * (1f - (1f - OK_SCALE) * okPressed)
+        drawCircle(centre, radius = okRadius)
         if (pressedZone == V2Key.DPAD_CENTER && pressed > 0f) {
-            drawCircle(centreLayer.copy(alpha = PRESSED_LAYER * pressed), radius = inner - moat)
+            drawCircle(centreLayer.copy(alpha = PRESSED_LAYER * pressed), radius = okRadius)
         }
 
         val arm = ringWidth * 0.18f
-        val stroke = Stroke(width = 3.5.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
         for (code in DIRECTIONS) {
             val lit = if (code == pressedZone) pressed else 0f
-            drawChevron(code, ringMid, arm, lerp(chevron, chevronPressed, lit), stroke)
+            // Position and weight carry the press, not hue: the chevron steps 3 dp out and gets bolder.
+            val stroke = Stroke(width = (3.5f + 1.5f * lit).dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
+            val travel = if (reduced) 0f else CHEVRON_TRAVEL.toPx() * lit
+            drawChevron(code, ringMid + travel, arm, lerp(chevron, chevronPressed, lit), stroke)
         }
     }
 }
@@ -308,6 +323,15 @@ private const val SLACK_FRACTION = 0.06f
 /** Material 3's pressed state layer is 10%; a little more reads on a dark surface. */
 private const val PRESSED_LAYER = 0.14f
 
+/** OK's press, like a key's but a touch less: it is the biggest target. */
+private const val OK_SCALE = 0.94f
+
+/** How far a pressed chevron steps outward; none when motion is reduced. */
+private val CHEVRON_TRAVEL = 3.dp
+
+/** The touchpad's halo under a resting finger; a tap flashes brighter. */
+private const val HALO_ALPHA = 0.16f
+
 /**
  * One gesture at a time: a swipe emits a D-pad step every [STEP_DP] along its dominant axis;
  * a still finger held past the long-press timeout is a long Select; two fingers become
@@ -319,6 +343,8 @@ private suspend fun PointerInputScope.touchpadGestures(
     onLong: () -> Unit,
     onTwoFingerTap: () -> Unit,
     onTwoFingerStep: (Int) -> Unit,
+    onDown: (Offset) -> Unit,
+    onUp: () -> Unit,
     onMove: (Offset) -> Unit,
 ) {
     val stepPx = STEP_DP.dp.toPx()
@@ -327,6 +353,7 @@ private suspend fun PointerInputScope.touchpadGestures(
     val longPressMillis = viewConfiguration.longPressTimeoutMillis
     awaitEachGesture {
         val down = awaitFirstDown(requireUnconsumed = false)
+        onDown(down.position)
         var pointers = 1
         var moved = false
         var longFired = false
@@ -385,6 +412,7 @@ private suspend fun PointerInputScope.touchpadGestures(
             }
             event.changes.forEach { it.consume() }
         }
+        onUp()
         if (!moved && !longFired) {
             if (pointers >= 2) onTwoFingerTap() else onTap(down.position)
         }

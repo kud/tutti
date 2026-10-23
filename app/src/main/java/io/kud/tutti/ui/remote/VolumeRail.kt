@@ -1,5 +1,6 @@
 package io.kud.tutti.ui.remote
 
+import io.kud.tutti.ui.motion.snappyOrFade
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -38,7 +39,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import io.kud.tutti.R
 import io.kud.tutti.controller.TuttiController
-import io.kud.tutti.ui.common.motion
 import io.kud.tutti.ui.common.rememberHaptics
 import kotlin.math.roundToInt
 
@@ -68,7 +68,7 @@ fun VolumeRail(
     val setVolume by rememberUpdatedState(onVolume)
     val connected = enabled
     val shown = if (connected) dragLevel ?: volume else null
-    val fraction by animateFloatAsState((shown ?: 0) / TuttiController.MAX_VOLUME.toFloat(), motion(), label = "volume")
+    val fraction by animateFloatAsState((shown ?: 0) / TuttiController.MAX_VOLUME.toFloat(), snappyOrFade(), label = "volume")
     val scheme = MaterialTheme.colorScheme
     val fill = if (muted) scheme.outline else scheme.primary
     val onFill = if (muted) scheme.surface else scheme.onPrimary

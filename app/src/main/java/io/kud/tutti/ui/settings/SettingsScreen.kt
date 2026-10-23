@@ -1,5 +1,10 @@
 package io.kud.tutti.ui.settings
 
+import android.content.Intent
+import androidx.lifecycle.compose.LifecycleResumeEffect
+import io.kud.tutti.platform.data.AppPrefs
+import io.kud.tutti.platform.data.VibrationLevel
+import io.kud.tutti.ui.common.SystemFeedback
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
@@ -195,12 +200,6 @@ fun SettingsScreen(
             )
 
             SectionTitle(stringResource(R.string.settings_app))
-            SwitchRow(
-                label = stringResource(R.string.settings_haptics),
-                supporting = stringResource(R.string.settings_haptics_detail),
-                checked = state.prefs.haptics,
-                onCheckedChange = controller::setHaptics,
-            )
             ThemeRow(state.prefs.theme, controller::setTheme)
             SwitchRow(
                 label = stringResource(R.string.settings_true_black),
@@ -209,6 +208,9 @@ fun SettingsScreen(
                 onCheckedChange = controller::setTrueBlack,
             )
             QuickNotificationSetting()
+
+            SectionTitle(stringResource(R.string.settings_feedback))
+            FeedbackRows(state.prefs, onVibration = controller::setVibration, onKeySounds = controller::setKeySounds)
 
             SectionTitle(stringResource(R.string.settings_sony))
             LinkRow(
@@ -384,4 +386,66 @@ private fun AppsShownDialog(state: TuttiUiState, onShown: (String, Boolean) -> U
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.settings_apps_shown_done)) } },
     )
+}
+
+/**
+ * Vibration and key sounds (Iris's spec, Erwann's decisions of 2026-10-23). tutti follows Android
+ * and never overrides it: when the system's touch vibration or touch sounds are off, the row says
+ * so and links to Android's settings, read again each time the screen resumes.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun FeedbackRows(prefs: AppPrefs, onVibration: (VibrationLevel) -> Unit, onKeySounds: (Boolean) -> Unit) {
+    val context = LocalContext.current
+    var system by remember { mutableStateOf(SystemFeedback.read(context)) }
+    LifecycleResumeEffect(context) {
+        system = SystemFeedback.read(context)
+        onPauseOrDispose {}
+    }
+    val openSystem = {
+        runCatching {
+            context.startActivity(Intent(android.provider.Settings.ACTION_SOUND_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        }
+        Unit
+    }
+    val level = prefs.vibrationLevel
+    SwitchRow(
+        label = stringResource(R.string.settings_vibration),
+        supporting = stringResource(if (system.vibration) R.string.settings_vibration_detail else R.string.settings_vibration_system_off),
+        checked = level != VibrationLevel.OFF,
+        onCheckedChange = { onVibration(if (it) VibrationLevel.ALL else VibrationLevel.OFF) },
+    )
+    if (!system.vibration) {
+        OpenSystemLink(openSystem)
+    } else if (level != VibrationLevel.OFF) {
+        val options = listOf(
+            VibrationLevel.ALL to R.string.settings_vibration_all,
+            VibrationLevel.ESSENTIALS to R.string.settings_vibration_essentials,
+        )
+        SingleChoiceSegmentedButtonRow(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp)) {
+            options.forEachIndexed { index, (option, label) ->
+                SegmentedButton(
+                    selected = level == option,
+                    onClick = { onVibration(option) },
+                    shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size),
+                ) {
+                    Text(stringResource(label))
+                }
+            }
+        }
+    }
+    SwitchRow(
+        label = stringResource(R.string.settings_key_sounds),
+        supporting = stringResource(if (system.sounds) R.string.settings_key_sounds_detail else R.string.settings_key_sounds_system_off),
+        checked = prefs.keySounds,
+        onCheckedChange = onKeySounds,
+    )
+    if (!system.sounds) OpenSystemLink(openSystem)
+}
+
+@Composable
+private fun OpenSystemLink(onClick: () -> Unit) {
+    TextButton(onClick = onClick, modifier = Modifier.padding(start = 4.dp)) {
+        Text(stringResource(R.string.settings_open_system))
+    }
 }

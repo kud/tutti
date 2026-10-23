@@ -1,5 +1,6 @@
 package io.kud.tutti.ui.remote
 
+import io.kud.tutti.ui.motion.snappyOrFade
 import android.Manifest
 import android.app.Activity
 import android.os.SystemClock
@@ -53,7 +54,6 @@ import io.kud.tutti.controller.TuttiController
 import io.kud.tutti.protocol.atv.VoiceEvent
 import io.kud.tutti.protocol.atv.VoiceFailure
 import io.kud.tutti.protocol.atv.VoiceState
-import io.kud.tutti.ui.common.motion
 import io.kud.tutti.ui.common.rememberHaptics
 import io.kud.tutti.ui.common.rememberProblemReporter
 
@@ -127,14 +127,14 @@ fun VoiceButton(controller: TuttiController, enabled: Boolean, size: Dp = 56.dp)
     val slop = with(LocalDensity.current) { CANCEL_SLOP.toPx() }
     val scheme = MaterialTheme.colorScheme
     val talking = hold == Hold.TALKING
-    val corner by animateIntAsState(if (hold != Hold.NONE) 30 else 50, motion(), label = "corner")
+    val corner by animateIntAsState(if (hold != Hold.NONE) 30 else 50, snappyOrFade(), label = "corner")
     val scale by animateFloatAsState(
         when (hold) {
             Hold.TALKING -> 1.12f
             Hold.CANCELLING -> 0.92f
             Hold.NONE -> 1f
         },
-        motion(),
+        snappyOrFade(),
         label = "scale",
     )
     val container by animateColorAsState(
@@ -143,7 +143,7 @@ fun VoiceButton(controller: TuttiController, enabled: Boolean, size: Dp = 56.dp)
             Hold.CANCELLING -> scheme.errorContainer
             Hold.NONE -> scheme.secondaryContainer
         },
-        motion(),
+        snappyOrFade(),
         label = "container",
     )
     val content = when (hold) {

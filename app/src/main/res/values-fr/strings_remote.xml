@@ -5,6 +5,7 @@
     <string name="system_unreachable">%1$s injoignable</string>
     <string name="system_needs_pairing">%1$s : associer à nouveau</string>
     <string name="system_no_device">Aucun appareil</string>
+    <string name="system_nothing_reachable">Aucun appareil joignable</string>
     <string name="action_power">Allumer ou éteindre</string>
     <string name="power_waking">Réveil de la TV et de la barre</string>
     <string name="power_wake_failed_tv">La TV ne s’est pas réveillée. Sur la TV, activez Paramètres → Réseau et Internet → Démarrage à distance.</string>

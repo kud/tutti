@@ -1,5 +1,6 @@
 package io.kud.tutti.ui.remote
 
+import io.kud.tutti.ui.motion.snappyOrFade
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -37,7 +38,6 @@ import io.kud.tutti.R
 import io.kud.tutti.controller.SceneStatus
 import io.kud.tutti.controller.SceneUi
 import io.kud.tutti.ui.common.glyphRes
-import io.kud.tutti.ui.common.motion
 
 fun contentOn(color: Color): Color = if (color.luminance() > 0.45f) Color.Black else Color.White
 
@@ -77,11 +77,11 @@ fun ScenePill(ui: SceneUi, onClick: () -> Unit, onLongClick: () -> Unit, modifie
             SceneStatus.MODIFIED -> MaterialTheme.colorScheme.surfaceContainer
             SceneStatus.IDLE -> tonal
         },
-        motion(),
+        snappyOrFade(),
         label = "pill",
     )
     val content = if (ui.status == SceneStatus.ACTIVE) contentOn(seed) else MaterialTheme.colorScheme.onSurface
-    val progress by animateFloatAsState(ui.progress ?: 0f, motion(), label = "progress")
+    val progress by animateFloatAsState(ui.progress ?: 0f, snappyOrFade(), label = "progress")
     val shape = RoundedCornerShape(percent = 50)
     val running = ui.progress != null
     Row(

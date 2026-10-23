@@ -1,5 +1,24 @@
 package io.kud.tutti.ui.remote
 
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.snap
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.Icon
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.res.painterResource
+import io.kud.tutti.ui.common.LocalReducedMotion
+import io.kud.tutti.ui.common.PressStyle
+import io.kud.tutti.ui.common.rememberFeedback
+import io.kud.tutti.ui.common.rememberPress
+import io.kud.tutti.ui.common.rememberTuttiIndication
+import io.kud.tutti.ui.motion.Motion
+import io.kud.tutti.ui.motion.snappyOrFade
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -44,7 +63,6 @@ import io.kud.tutti.protocol.theatre.FeatureKind
 import io.kud.tutti.protocol.theatre.TheatreFeature
 import io.kud.tutti.ui.common.belowStatusBar
 import io.kud.tutti.ui.common.featureLabel
-import io.kud.tutti.ui.common.motion
 import io.kud.tutti.ui.common.openBraviaConnect
 import io.kud.tutti.ui.common.rememberHaptics
 import kotlin.math.roundToInt
@@ -123,7 +141,7 @@ fun SoundSheet(state: TuttiUiState, controller: TuttiController, modifier: Modif
                         state = state,
                         feature = feature,
                         onTap = {
-                            haptics.click()
+                            haptics.select()
                             when (val kind = feature.kind) {
                                 is FeatureKind.Toggle -> controller.toggleBar(feature)
                                 is FeatureKind.Choice -> {
@@ -164,19 +182,36 @@ private fun SoundTile(state: TuttiUiState, feature: TheatreFeature, onTap: () ->
         else -> false
     }
     val scheme = MaterialTheme.colorScheme
-    val container by animateColorAsState(if (on && reason == null) scheme.primaryContainer else scheme.surfaceContainerHigh, motion(), label = "tile")
+    val container by animateColorAsState(if (on && reason == null) scheme.primaryContainer else scheme.surfaceContainerHigh, snappyOrFade(), label = "tile")
     val content = if (on && reason == null) scheme.onPrimaryContainer else scheme.onSurface
+    val interaction = remember { MutableInteractionSource() }
+    val press = rememberPress(interaction, PressStyle.TILE)
+    val feedback = rememberFeedback()
+    val reduced = LocalReducedMotion.current
+    val corner by animateDpAsState(if (on && reason == null) 16.dp else 24.dp, if (reduced) snap() else Motion.snappy(), label = "corner")
     Column(
         modifier
             .heightIn(min = 76.dp)
-            .clip(RoundedCornerShape(24.dp))
-            .background(container)
-            .clickable(enabled = reason == null, role = Role.Switch, onClick = onTap)
+            .graphicsLayer {
+                scaleX = press.scale
+                scaleY = press.scale
+            }
+            .background(container, RoundedCornerShape(corner))
+            // A disabled tile still answers: a bump, and its reason stays in view (design.md: never hidden).
+            .clickable(
+                interactionSource = interaction,
+                indication = rememberTuttiIndication(TILE_SHAPE, layerColor = content),
+                role = Role.Switch,
+                onClick = { if (reason == null) onTap() else feedback.bump() },
+            )
             .alpha(if (reason == null) 1f else 0.6f)
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.Center,
     ) {
-        Text(stringResource(featureLabel(feature)), style = MaterialTheme.typography.titleSmall, color = content)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(stringResource(featureLabel(feature)), style = MaterialTheme.typography.titleSmall, color = content, modifier = Modifier.weight(1f))
+            TileMark(on = on, locked = reason != null, color = content, onColor = container)
+        }
         Text(
             text = reason ?: when (feature.kind) {
                 is FeatureKind.Choice -> choiceLabel(value)
@@ -188,6 +223,33 @@ private fun SoundTile(state: TuttiUiState, feature: TheatreFeature, onTap: () ->
         )
     }
 }
+
+/** Top right of a tile: an empty ring (off), a filled check (on), a lock in a dashed ring (unavailable). */
+@Composable
+private fun TileMark(on: Boolean, locked: Boolean, color: Color, onColor: Color) {
+    val dashed = MaterialTheme.colorScheme.outline
+    Box(
+        Modifier
+            .size(20.dp)
+            .drawBehind {
+                val width = 1.5.dp.toPx()
+                val radius = size.minDimension / 2f - width / 2f
+                when {
+                    locked -> drawCircle(dashed, radius, style = Stroke(width, pathEffect = PathEffect.dashPathEffect(floatArrayOf(3.dp.toPx(), 3.dp.toPx()))))
+                    on -> drawCircle(color)
+                    else -> drawCircle(color, radius, style = Stroke(width))
+                }
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        when {
+            locked -> Icon(painterResource(R.drawable.ic_lock), contentDescription = null, tint = dashed, modifier = Modifier.size(12.dp))
+            on -> Icon(painterResource(R.drawable.ic_check), contentDescription = null, tint = onColor, modifier = Modifier.size(14.dp))
+        }
+    }
+}
+
+private val TILE_SHAPE = RoundedCornerShape(24.dp)
 
 @Composable
 fun choiceLabel(value: String?): String = when (value) {

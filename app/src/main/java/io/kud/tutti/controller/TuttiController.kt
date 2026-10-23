@@ -1,5 +1,6 @@
 package io.kud.tutti.controller
 
+import io.kud.tutti.platform.data.VibrationLevel
 import android.app.UiModeManager
 import android.content.Context
 import android.net.ConnectivityManager
@@ -1308,8 +1309,13 @@ class TuttiController @Inject constructor(
 
     // region preferences
 
-    fun setHaptics(enabled: Boolean) {
-        scope.launch { store.updatePrefs { it.copy(haptics = enabled) } }
+    /** Keeps the old [AppPrefs.haptics] in step, so a downgrade reads the same switch. */
+    fun setVibration(level: VibrationLevel) {
+        scope.launch { store.updatePrefs { it.copy(vibration = level, haptics = level != VibrationLevel.OFF) } }
+    }
+
+    fun setKeySounds(enabled: Boolean) {
+        scope.launch { store.updatePrefs { it.copy(keySounds = enabled) } }
     }
 
     fun setDeveloperMode(enabled: Boolean) {
