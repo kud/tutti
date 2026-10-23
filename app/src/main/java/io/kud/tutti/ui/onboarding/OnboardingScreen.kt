@@ -1,5 +1,7 @@
 package io.kud.tutti.ui.onboarding
 
+import io.kud.tutti.ui.intro.LaunchMark
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
@@ -264,7 +266,12 @@ private fun WelcomeStep(onStart: () -> Unit) {
  */
 @Composable
 private fun WelcomeMark(modifier: Modifier = Modifier) {
-    IntroMark(waves = emptyList(), modifier = modifier)
+    // The launcher mark itself, so the first launch's intro lands on it (LaunchMark reports where
+    // it is). Its box is three times the visible remote, which IntroMark draws at a fifth of the
+    // smaller side: three fifths of that side, centred.
+    BoxWithConstraints(modifier, contentAlignment = Alignment.Center) {
+        LaunchMark(Modifier.size(minOf(maxWidth, maxHeight) * 0.6f))
+    }
 }
 
 /**
