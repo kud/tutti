@@ -3,6 +3,7 @@ package io.kud.tutti
 import android.animation.ValueAnimator
 import android.annotation.SuppressLint
 import android.os.Bundle
+import android.os.SystemClock
 import android.view.InputDevice
 import android.view.KeyEvent
 import androidx.activity.ComponentActivity
@@ -40,15 +41,19 @@ class MainActivity : ComponentActivity() {
         val splash = installSplashScreen()
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
-        // No hold: the splash leaves as soon as the first frame is ready, with a short fade
-        // (the mark grows a touch as it goes). Animations off → it simply goes.
+        // The app is never held: it draws underneath while the mark finishes its animation, then
+        // the splash fades out (the mark grows a touch as it goes). Leaving on the first frame
+        // cut the animation before it showed. Animations off → it simply goes.
         splash.setOnExitAnimationListener { provider ->
             if (!ValueAnimator.areAnimatorsEnabled()) {
                 provider.remove()
                 return@setOnExitAnimationListener
             }
-            provider.iconView.animate().scaleX(1.06f).scaleY(1.06f).setDuration(SPLASH_EXIT_MS).start()
-            provider.view.animate().alpha(0f).setDuration(SPLASH_EXIT_MS).withEndAction { provider.remove() }.start()
+            val left = provider.iconAnimationStartMillis + provider.iconAnimationDurationMillis - SystemClock.uptimeMillis()
+            val wait = left.coerceIn(0L, SPLASH_MAX_WAIT_MS)
+            provider.iconView.animate().scaleX(1.06f).scaleY(1.06f).setStartDelay(wait).setDuration(SPLASH_EXIT_MS).start()
+            provider.view.animate().alpha(0f).setStartDelay(wait).setDuration(SPLASH_EXIT_MS)
+                .withEndAction { provider.remove() }.start()
         }
         setContent {
             val state by controller.state.collectAsStateWithLifecycle()
@@ -113,3 +118,4 @@ class MainActivity : ComponentActivity() {
 }
 
 private const val SPLASH_EXIT_MS = 180L
+private const val SPLASH_MAX_WAIT_MS = 500L
