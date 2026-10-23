@@ -7,9 +7,13 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -20,6 +24,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -35,6 +40,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import io.kud.tutti.R
 import io.kud.tutti.controller.Link
@@ -44,6 +50,7 @@ import io.kud.tutti.platform.data.SecondaryButton
 import io.kud.tutti.platform.data.ThemeMode
 import io.kud.tutti.protocol.grpc.CloudPlaneState
 import io.kud.tutti.quick.settings.QuickNotificationSetting
+import io.kud.tutti.ui.common.AppIcon
 import io.kud.tutti.ui.common.SectionTitle
 import io.kud.tutti.ui.common.SwitchRow
 import io.kud.tutti.ui.common.actionLabel
@@ -81,6 +88,7 @@ fun SettingsScreen(
     var picker by remember { mutableStateOf<SecondaryButton?>(null) }
     var pskDialog by remember { mutableStateOf(false) }
     var forget by remember { mutableStateOf<Forget?>(null) }
+    var appsDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -165,6 +173,13 @@ fun SettingsScreen(
                 )
             }
 
+            LinkRow(
+                title = stringResource(R.string.settings_apps_shown),
+                detail = stringResource(R.string.settings_apps_shown_detail, state.visibleApps.size, state.apps.size),
+                enabled = state.apps.isNotEmpty(),
+                onClick = { appsDialog = true },
+            )
+
             SectionTitle(stringResource(R.string.settings_app))
             SwitchRow(
                 label = stringResource(R.string.settings_haptics),
@@ -219,6 +234,9 @@ fun SettingsScreen(
         }
     }
 
+    if (appsDialog) {
+        AppsShownDialog(state, controller::setAppShown) { appsDialog = false }
+    }
     picker?.let { button ->
         ActionPickerDialog(
             title = stringResource(R.string.longpress_assign_title, secondaryLabel(button)),
@@ -306,4 +324,41 @@ private fun ThemeRow(mode: ThemeMode, onChange: (ThemeMode) -> Unit) {
             }
         }
     }
+}
+
+/** Every app tutti knows, each with a switch: hidden ones leave the Apps sheet and pickers. */
+@Composable
+private fun AppsShownDialog(state: TuttiUiState, onShown: (String, Boolean) -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.settings_apps_shown)) },
+        text = {
+            Column {
+                Text(
+                    stringResource(if (state.ipControl) R.string.settings_apps_shown_live else R.string.settings_apps_shown_static),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(8.dp))
+                LazyColumn {
+                    items(state.apps, key = { it.packageName }) { app ->
+                        val shown = app.packageName !in state.prefs.hiddenApps
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .toggleable(value = shown, role = Role.Switch) { onShown(app.packageName, it) }
+                                .padding(vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            AppIcon(app.name, state.appIcons[app.packageName], packageName = app.packageName)
+                            Spacer(Modifier.width(12.dp))
+                            Text(app.name, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+                            Switch(checked = shown, onCheckedChange = null)
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.settings_apps_shown_done)) } },
+    )
 }

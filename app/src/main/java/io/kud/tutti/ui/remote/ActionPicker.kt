@@ -52,7 +52,7 @@ fun ActionPickerDialog(
 ) {
     val sections = buildList {
         add(
-            stringResource(R.string.picker_apps) to state.apps.ifEmpty { AppLibrary.all(emptyList()) }.map {
+            stringResource(R.string.picker_apps) to state.apps.ifEmpty { AppLibrary.all(emptyList()) }.filterNot { it.packageName in state.prefs.hiddenApps }.map {
                 Choice(DockAction.LaunchApp(it.packageName, it.name), it.name, R.drawable.ic_apps, it.packageName)
             },
         )

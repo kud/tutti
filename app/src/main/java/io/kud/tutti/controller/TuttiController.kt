@@ -1089,6 +1089,12 @@ class TuttiController @Inject constructor(
         scope.launch { store.updatePrefs { it.copy(haptics = enabled) } }
     }
 
+    fun setAppShown(packageName: String, shown: Boolean) {
+        scope.launch {
+            store.updatePrefs { it.copy(hiddenApps = if (shown) it.hiddenApps - packageName else it.hiddenApps + packageName) }
+        }
+    }
+
     fun setTheme(mode: ThemeMode) {
         scope.launch { store.updatePrefs { it.copy(theme = mode) } }
         // Android 12+ keeps this per app across restarts, and it reaches what Compose can't: the

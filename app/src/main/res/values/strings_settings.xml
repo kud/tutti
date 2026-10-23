@@ -114,4 +114,9 @@
     <string name="tv_device">Television</string>
     <string name="tv_device_model">Model</string>
     <string name="tv_device_generation">API generation</string>
+    <string name="settings_apps_shown">Apps shown</string>
+    <string name="settings_apps_shown_detail">%1$d of %2$d</string>
+    <string name="settings_apps_shown_live">These are the apps your TV reports. Switch off the ones you never use.</string>
+    <string name="settings_apps_shown_static">IP control is off, so the TV can’t say which apps it has: this is tutti’s list. Switch off the ones you don’t have.</string>
+    <string name="settings_apps_shown_done">Done</string>
 </resources>

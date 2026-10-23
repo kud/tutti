@@ -133,6 +133,10 @@ data class TuttiUiState(
     /** Cached official icons: package name to a file in the cache dir. */
     val appIcons: Map<String, String> = emptyMap(),
 ) {
+    /** [apps] minus the ones hidden in Settings: what the Apps sheet and pickers offer. */
+    val visibleApps: List<io.kud.tutti.protocol.apps.KnownApp>
+        get() = apps.filterNot { it.packageName in prefs.hiddenApps }
+
     /** IP control answers: the TV's own app list, its icons and `setActiveApp` are live. */
     val ipControl: Boolean get() = links.rest == Link.ONLINE
 

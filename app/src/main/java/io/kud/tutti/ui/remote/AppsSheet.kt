@@ -140,7 +140,7 @@ fun AppsSheetContent(
                 }
             }
         }
-        items(state.apps, key = { it.packageName }) { app ->
+        items(state.visibleApps, key = { it.packageName }) { app ->
             Column(
                 Modifier
                     .clip(RoundedCornerShape(16.dp))

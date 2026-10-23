@@ -27,6 +27,8 @@ data class AppPrefs(
     val haptics: Boolean = true,
     val theme: ThemeMode = ThemeMode.SYSTEM,
     val trueBlack: Boolean = false,
+    /** Apps left out of the Apps sheet and pickers, by package name. */
+    val hiddenApps: Set<String> = emptySet(),
     val padMode: PadMode = PadMode.TOUCHPAD,
     val onboarded: Boolean = false,
 )
