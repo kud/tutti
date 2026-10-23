@@ -25,6 +25,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
@@ -40,6 +41,10 @@ import io.kud.tutti.controller.TuttiUiState
 import io.kud.tutti.protocol.atv.AppCatalog
 import io.kud.tutti.protocol.atv.V2Key
 import io.kud.tutti.ui.common.AppIcon
+import io.kud.tutti.ui.common.pressScale
+import io.kud.tutti.ui.common.rememberFeedback
+import io.kud.tutti.ui.common.rememberPressSource
+import io.kud.tutti.ui.common.rememberTuttiIndication
 import io.kud.tutti.ui.common.TuttiSheet
 
 /**
@@ -194,9 +199,7 @@ private fun KeyTile(
     Column(
         modifier
             .height(height)
-            .clip(RoundedCornerShape(18.dp))
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-            .clickable(role = Role.Button, onClick = onClick)
+            .keyPress(onClick)
             .then(if (description != null) Modifier.semantics { contentDescription = description } else Modifier)
             .padding(horizontal = 6.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -220,9 +223,7 @@ private fun RowScope.ColourKey(@StringRes name: Int, colour: Color, keyCode: Int
         Modifier
             .weight(1f)
             .height(KeyHeight + 8.dp)
-            .clip(RoundedCornerShape(18.dp))
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-            .clickable(role = Role.Button) { onKey(keyCode) },
+            .keyPress { onKey(keyCode) },
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
@@ -244,9 +245,7 @@ private fun RowScope.AppKey(name: String, packageName: String, iconPath: String?
         Modifier
             .weight(1f)
             .height(KeyHeight)
-            .clip(RoundedCornerShape(18.dp))
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-            .clickable(role = Role.Button, onClick = onClick)
+            .keyPress(onClick)
             .padding(horizontal = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -255,3 +254,23 @@ private fun RowScope.AppKey(name: String, packageName: String, iconPath: String?
         Text(name, style = MaterialTheme.typography.labelMedium, maxLines = 2)
     }
 }
+
+/**
+ * A key of the sheet: the click plays on down and the key tightens, the command goes on release.
+ * Its surface, shape and layer live here so every key answers alike.
+ */
+private fun Modifier.keyPress(onClick: () -> Unit): Modifier = composed {
+    val feedback = rememberFeedback()
+    val press = rememberPressSource { feedback.click() }
+    pressScale(press.state)
+        .clip(KeyShape)
+        .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+        .clickable(
+            interactionSource = press.interaction,
+            indication = rememberTuttiIndication(KeyShape),
+            role = Role.Button,
+            onClick = onClick,
+        )
+}
+
+private val KeyShape = RoundedCornerShape(18.dp)

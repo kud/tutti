@@ -280,23 +280,18 @@ fun RemoteScreen(
                 Dock(
                     state = state,
                     onApps = {
-                        haptics.click()
                         sheet2 = RemoteSheet.APPS
                     },
                     onKeys = {
-                        haptics.click()
                         sheet2 = RemoteSheet.KEYS
                     },
                     onRun = { _, slot ->
-                        haptics.click()
                         slot.primary?.let(controller::run)
                     },
                     onAssign = { index ->
-                        haptics.click()
                         picker = PickerTarget.Slot(index)
                     },
                     onEdit = { index ->
-                        haptics.longPress()
                         picker = PickerTarget.Edit(index)
                     },
                     onRunSecondary = { _, action ->
@@ -331,11 +326,9 @@ fun RemoteScreen(
         RemoteSheet.KEYS -> MoreKeysSheet(
             state = state,
             onKey = {
-                haptics.click()
                 controller.key(it)
             },
             onLaunch = {
-                haptics.click()
                 controller.launchApp(it)
             },
             onDismiss = { sheet2 = null },

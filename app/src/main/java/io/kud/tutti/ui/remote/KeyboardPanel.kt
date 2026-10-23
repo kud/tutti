@@ -52,7 +52,9 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import io.kud.tutti.R
 import io.kud.tutti.protocol.atv.ImeField
+import io.kud.tutti.ui.common.PressStyle
 import io.kud.tutti.ui.common.rememberHaptics
+import io.kud.tutti.ui.common.rememberPressSource
 
 /**
  * The live keyboard. Opens on its own when the TV reports a focused field; the pad shrinks
@@ -165,18 +167,21 @@ fun KeyboardPanel(
                 .onFocusChanged { onTypingChange(it.isFocused) },
         )
         Spacer(Modifier.height(8.dp))
+        // The chips click on down, like every key; their command waits for release.
+        val paste = rememberPressSource(PressStyle.ROW) { haptics.click() }
+        val dictation = rememberPressSource(PressStyle.ROW) { haptics.click() }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             AssistChip(
+                interactionSource = paste.interaction,
                 onClick = {
-                    haptics.click()
                     clipboard.getText()?.text?.takeIf { it.isNotEmpty() }?.let { replace(join(value.text, it)) }
                 },
                 label = { Text(stringResource(R.string.keyboard_paste)) },
                 leadingIcon = { Icon(painterResource(R.drawable.ic_paste), contentDescription = null, modifier = Modifier.size(18.dp)) },
             )
             AssistChip(
+                interactionSource = dictation.interaction,
                 onClick = {
-                    haptics.click()
                     val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
                         .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
                     try {

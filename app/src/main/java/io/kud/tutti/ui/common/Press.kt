@@ -5,6 +5,7 @@ import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.interaction.InteractionSource
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -26,6 +27,7 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
@@ -88,6 +90,28 @@ fun rememberPress(interaction: InteractionSource, style: PressStyle, onDown: (()
         }
     }
     return remember(anim, style) { PressState(anim, style) }
+}
+
+/** An interaction source and its [PressState], for a tile or key that draws its own surface. */
+@Stable
+class PressSource internal constructor(val interaction: MutableInteractionSource, val state: PressState)
+
+/**
+ * The common case of [rememberPress]: [onDown] (usually `feedback.click()`) plays when the finger
+ * lands, and the command stays in `onClick`, on release. Pair it with [pressScale] and pass
+ * [PressSource.interaction] to the clickable, so the tile answers on down and nothing plays twice.
+ */
+@Composable
+fun rememberPressSource(style: PressStyle = PressStyle.TILE, onDown: (() -> Unit)? = null): PressSource {
+    val interaction = remember { MutableInteractionSource() }
+    val state = rememberPress(interaction, style, onDown)
+    return remember(interaction, state) { PressSource(interaction, state) }
+}
+
+/** Scales by the press, read at draw time so a press never recomposes. */
+fun Modifier.pressScale(press: PressState): Modifier = graphicsLayer {
+    scaleX = press.scale
+    scaleY = press.scale
 }
 
 /**

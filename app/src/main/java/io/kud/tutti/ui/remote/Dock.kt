@@ -49,6 +49,11 @@ import io.kud.tutti.platform.data.DockAction
 import io.kud.tutti.platform.data.DockConfig
 import io.kud.tutti.platform.data.DockSlot
 import io.kud.tutti.ui.common.AppIcon
+import io.kud.tutti.ui.common.PressSource
+import io.kud.tutti.ui.common.pressScale
+import io.kud.tutti.ui.common.rememberFeedback
+import io.kud.tutti.ui.common.rememberPressSource
+import io.kud.tutti.ui.common.rememberTuttiIndication
 import io.kud.tutti.ui.common.actionIcon
 import io.kud.tutti.ui.common.actionLabel
 import io.kud.tutti.ui.common.pinGlyphRes
@@ -135,11 +140,19 @@ fun Dock(
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun DoorTile(@DrawableRes icon: Int, label: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val feedback = rememberFeedback()
+    val press = rememberPressSource { feedback.click() }
+    val content = MaterialTheme.colorScheme.onSecondaryContainer
     Tile(
         background = MaterialTheme.colorScheme.secondaryContainer,
-        content = MaterialTheme.colorScheme.onSecondaryContainer,
+        content = content,
         label = label,
-        modifier = Modifier.combinedClickable(onClick = onClick),
+        press = press,
+        modifier = Modifier.combinedClickable(
+            interactionSource = press.interaction,
+            indication = rememberTuttiIndication(TileShape, layerColor = content),
+            onClick = onClick,
+        ),
         outer = modifier,
     ) { tint ->
         Icon(painterResource(icon), contentDescription = null, tint = tint, modifier = Modifier.size(22.dp))
@@ -160,14 +173,24 @@ private fun PinTile(
     val edit = stringResource(R.string.dock_reassign)
     val secondary = slot.secondary
     var menu by remember { mutableStateOf(false) }
+    // The click plays on down; the command waits for release, since a long press means another.
+    val feedback = rememberFeedback()
+    val press = rememberPressSource { feedback.click() }
+    val content = MaterialTheme.colorScheme.onSurfaceVariant
     Box(modifier) {
         Tile(
             background = MaterialTheme.colorScheme.surfaceContainerHigh,
-            content = MaterialTheme.colorScheme.onSurfaceVariant,
+            content = content,
             label = label,
+            press = press,
             modifier = Modifier.combinedClickable(
+                interactionSource = press.interaction,
+                indication = rememberTuttiIndication(TileShape, layerColor = content),
                 onLongClickLabel = if (secondary != null) actionLabel(secondary, state) else edit,
-                onLongClick = { if (secondary != null) menu = true else onEdit() },
+                onLongClick = {
+                    feedback.longPress()
+                    if (secondary != null) menu = true else onEdit()
+                },
                 onClick = onClick,
             ),
         ) { tint ->
@@ -237,6 +260,7 @@ private fun Tile(
     background: Color,
     content: Color,
     label: String,
+    press: PressSource,
     modifier: Modifier,
     outer: Modifier = Modifier.fillMaxWidth(),
     icon: @Composable (Color) -> Unit,
@@ -244,7 +268,8 @@ private fun Tile(
     Column(
         modifier = outer
             .height(64.dp)
-            .clip(RoundedCornerShape(20.dp))
+            .pressScale(press.state)
+            .clip(TileShape)
             .background(background)
             .then(modifier)
             .semantics { contentDescription = label }
@@ -265,3 +290,4 @@ private fun Tile(
 }
 
 private val GAP = 6.dp
+private val TileShape = RoundedCornerShape(20.dp)
