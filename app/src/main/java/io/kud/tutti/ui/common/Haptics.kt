@@ -13,7 +13,8 @@ val LocalHapticsEnabled = staticCompositionLocalOf { true }
 
 /**
  * Haptics are primary feedback (design.md): light tick per D-pad or swipe step, firmer click
- * on Select, soft bump at volume limits and caps, double pulse when a scene finishes.
+ * on Select, soft bump at volume limits and caps, double pulse when a scene finishes;
+ * confirm when an action succeeds, reject when it fails (the motion spec's outcome pair).
  * Always fired before any network call. Richer constants are API-guarded (minSdk 29).
  */
 @Stable
@@ -39,6 +40,16 @@ class Haptics internal constructor(private val view: View, private val enabled: 
             HapticFeedbackConstants.CONTEXT_CLICK
         },
     )
+
+    /** An action went through (paired, added, saved). CONFIRM from API 30, else a click. */
+    fun confirm() = perform(
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) HapticFeedbackConstants.CONFIRM else HapticFeedbackConstants.KEYBOARD_TAP,
+    )
+
+    /** An action failed. REJECT from API 30, else the soft bump. */
+    fun reject() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) perform(HapticFeedbackConstants.REJECT) else bump()
+    }
 
     fun doublePulse() {
         select()
