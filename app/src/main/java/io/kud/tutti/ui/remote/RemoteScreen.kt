@@ -218,8 +218,6 @@ fun RemoteScreen(
                     PadModeSwitch(
                         mode = state.prefs.padMode,
                         onModeChange = controller::setPadMode,
-                        hintSeen = state.prefs.padSwitchHintSeen,
-                        onHintSeen = controller::markPadSwitchHintSeen,
                     )
                     Spacer(Modifier.height(belowSwitch))
                 }
