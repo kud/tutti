@@ -9,6 +9,7 @@ import android.view.KeyEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -18,6 +19,7 @@ import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dagger.hilt.android.AndroidEntryPoint
 import io.kud.tutti.controller.TuttiController
+import io.kud.tutti.platform.data.ThemeMode
 import io.kud.tutti.platform.diagnostic.CrashLog
 import io.kud.tutti.platform.diagnostic.Diagnostics
 import io.kud.tutti.platform.discovery.TvDiscovery
@@ -58,7 +60,13 @@ class MainActivity : ComponentActivity() {
         setContent {
             val state by controller.state.collectAsStateWithLifecycle()
             val reducedMotion = rememberReducedMotion()
-            TuttiTheme(trueBlack = state.prefs.trueBlack) {
+            val theme = state.prefs.theme
+            val dark = when (theme) {
+                ThemeMode.SYSTEM -> isSystemInDarkTheme()
+                ThemeMode.LIGHT -> false
+                ThemeMode.DARK -> true
+            }
+            TuttiTheme(darkTheme = dark, trueBlack = state.prefs.trueBlack) {
                 CompositionLocalProvider(
                     LocalHapticsEnabled provides state.prefs.haptics,
                     LocalReducedMotion provides reducedMotion,

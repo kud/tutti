@@ -18,9 +18,14 @@ data class Devices(val tv: TvDevice? = null, val bar: BarDevice? = null) {
 @Serializable
 enum class PadMode { TOUCHPAD, DPAD }
 
+/** Light or dark: follow the phone, or force one. */
+@Serializable
+enum class ThemeMode { SYSTEM, LIGHT, DARK }
+
 @Serializable
 data class AppPrefs(
     val haptics: Boolean = true,
+    val theme: ThemeMode = ThemeMode.SYSTEM,
     val trueBlack: Boolean = false,
     val padMode: PadMode = PadMode.TOUCHPAD,
     val onboarded: Boolean = false,

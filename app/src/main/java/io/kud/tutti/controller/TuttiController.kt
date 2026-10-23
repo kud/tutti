@@ -1,14 +1,17 @@
 package io.kud.tutti.controller
 
+import android.app.UiModeManager
 import android.content.Context
 import android.net.ConnectivityManager
 import android.net.Network
+import android.os.Build
 import dagger.hilt.android.qualifiers.ApplicationContext
 import io.kud.tutti.platform.data.DockAction
 import io.kud.tutti.platform.data.DockConfig
 import io.kud.tutti.platform.data.DockSlot
 import io.kud.tutti.platform.data.MacroStep
 import io.kud.tutti.platform.data.PadMode
+import io.kud.tutti.platform.data.ThemeMode
 import io.kud.tutti.platform.data.TuttiStore
 import io.kud.tutti.platform.data.SecondaryButton
 import io.kud.tutti.platform.data.TvDevice
@@ -922,6 +925,22 @@ class TuttiController @Inject constructor(
 
     fun setHaptics(enabled: Boolean) {
         scope.launch { store.updatePrefs { it.copy(haptics = enabled) } }
+    }
+
+    fun setTheme(mode: ThemeMode) {
+        scope.launch { store.updatePrefs { it.copy(theme = mode) } }
+        // Android 12+ keeps this per app across restarts, and it reaches what Compose can't: the
+        // launch screen, the system bars and the quick overlay. Set only on a choice, never from
+        // state, so a start before prefs load can't flip it and recreate the screen.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            context.getSystemService(UiModeManager::class.java)?.setApplicationNightMode(
+                when (mode) {
+                    ThemeMode.SYSTEM -> UiModeManager.MODE_NIGHT_AUTO
+                    ThemeMode.LIGHT -> UiModeManager.MODE_NIGHT_NO
+                    ThemeMode.DARK -> UiModeManager.MODE_NIGHT_YES
+                },
+            )
+        }
     }
 
     fun setTrueBlack(enabled: Boolean) {

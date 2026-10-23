@@ -17,6 +17,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -38,6 +41,7 @@ import io.kud.tutti.controller.Link
 import io.kud.tutti.controller.TuttiController
 import io.kud.tutti.controller.TuttiUiState
 import io.kud.tutti.platform.data.SecondaryButton
+import io.kud.tutti.platform.data.ThemeMode
 import io.kud.tutti.protocol.grpc.CloudPlaneState
 import io.kud.tutti.quick.settings.QuickNotificationSetting
 import io.kud.tutti.ui.common.SectionTitle
@@ -167,6 +171,7 @@ fun SettingsScreen(
                 checked = state.prefs.haptics,
                 onCheckedChange = controller::setHaptics,
             )
+            ThemeRow(state.prefs.theme, controller::setTheme)
             SwitchRow(
                 label = stringResource(R.string.settings_true_black),
                 supporting = stringResource(R.string.settings_true_black_detail),
@@ -272,5 +277,32 @@ fun LinkRow(title: String, detail: String, enabled: Boolean, onClick: () -> Unit
     ) {
         Text(title, style = MaterialTheme.typography.bodyLarge)
         Text(detail, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ThemeRow(mode: ThemeMode, onChange: (ThemeMode) -> Unit) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
+        Text(stringResource(R.string.settings_theme), style = MaterialTheme.typography.bodyLarge)
+        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(top = 8.dp)) {
+            ThemeMode.entries.forEachIndexed { index, entry ->
+                SegmentedButton(
+                    selected = entry == mode,
+                    onClick = { onChange(entry) },
+                    shape = SegmentedButtonDefaults.itemShape(index, ThemeMode.entries.size),
+                ) {
+                    Text(
+                        stringResource(
+                            when (entry) {
+                                ThemeMode.SYSTEM -> R.string.settings_theme_system
+                                ThemeMode.LIGHT -> R.string.settings_theme_light
+                                ThemeMode.DARK -> R.string.settings_theme_dark
+                            },
+                        ),
+                    )
+                }
+            }
+        }
     }
 }
