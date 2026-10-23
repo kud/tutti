@@ -129,6 +129,17 @@ fun SystemChip(state: TuttiUiState, onClick: () -> Unit, modifier: Modifier = Mo
                             color = MaterialTheme.colorScheme.error,
                             maxLines = 1,
                         )
+                    } else {
+                        // The app on screen, when the catalogue knows it (daily-state: current app).
+                        foregroundAppName(state)?.let { app ->
+                            Text(
+                                stringResource(R.string.system_current_app, app),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
                     }
                 }
             }

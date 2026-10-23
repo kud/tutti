@@ -43,4 +43,5 @@
     <string name="picker_keys">Touches</string>
     <string name="picker_remove">Retirer</string>
     <string name="pad_volume_tag">Vol. %1$d</string>
+    <string name="system_current_app">Sur la TV : %1$s</string>
 </resources>
