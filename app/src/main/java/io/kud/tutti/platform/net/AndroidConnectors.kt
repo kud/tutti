@@ -28,17 +28,26 @@ internal fun requireLan(host: String) {
     if (!LanAddress.isPrivate(host)) throw IOException("not a private LAN address")
 }
 
-/** Soundbar port 33336. The controller polls every ~20 s, so a long silence means a dead link. */
+/**
+ * Soundbar port 33336. The controller polls every ~20 s, so a long silence means a dead link.
+ * The internal constructor is the test seam: the device simulator listens on loopback, which
+ * [requireLan] rightly refuses, and a test cannot wait out the real read timeout.
+ */
 @Singleton
-class AndroidTcpConnector @Inject constructor() : TcpConnector {
+class AndroidTcpConnector internal constructor(
+    private val checkHost: (String) -> Unit,
+    private val readTimeoutMs: Int,
+) : TcpConnector {
+    @Inject constructor() : this(::requireLan, BAR_READ_TIMEOUT_MS)
+
     override suspend fun connect(host: String, port: Int): Connection = withContext(Dispatchers.IO) {
-        requireLan(host)
+        checkHost(host)
         val socket = Socket()
         try {
             socket.connect(InetSocketAddress(host, port), CONNECT_TIMEOUT_MS)
             socket.tcpNoDelay = true
             socket.keepAlive = true
-            socket.soTimeout = BAR_READ_TIMEOUT_MS
+            socket.soTimeout = readTimeoutMs
             SocketConnection(socket)
         } catch (e: Exception) {
             runCatching { socket.close() }
@@ -54,24 +63,30 @@ class AndroidTcpConnector @Inject constructor() : TcpConnector {
 
 /**
  * TLS with the client identity and a TOFU pin on the TV. The TV pings about every 5 s on
- * the remote port, so a 20 s read timeout marks the link dead.
+ * the remote port, so a 20 s read timeout marks the link dead. The internal constructor is the
+ * test seam, as on [AndroidTcpConnector].
  */
 @Singleton
-class AndroidTlsConnector @Inject constructor() : TlsConnector {
+class AndroidTlsConnector internal constructor(
+    private val checkHost: (String) -> Unit,
+    private val readTimeoutMs: Int,
+) : TlsConnector {
+    @Inject constructor() : this(::requireLan, TV_READ_TIMEOUT_MS)
+
     override suspend fun connect(
         host: String,
         port: Int,
         identity: ClientIdentity,
         expectedPin: CertificatePin?,
     ): TlsConnection = withContext(Dispatchers.IO) {
-        requireLan(host)
+        checkHost(host)
         val context = SSLContext.getInstance("TLS")
         context.init(arrayOf(IdentityKeyManager(identity)), arrayOf(PinningTrustManager(expectedPin)), SecureRandom())
         val raw = Socket()
         try {
             raw.connect(InetSocketAddress(host, port), CONNECT_TIMEOUT_MS)
             raw.tcpNoDelay = true
-            raw.soTimeout = TV_READ_TIMEOUT_MS
+            raw.soTimeout = readTimeoutMs
             val ssl = context.socketFactory.createSocket(raw, host, port, true) as SSLSocket
             ssl.useClientMode = true
             ssl.startHandshake()

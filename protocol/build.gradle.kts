@@ -6,6 +6,8 @@ plugins {
     alias(libs.plugins.kotlin.jvm)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.wire)
+    // The device simulator (src/testFixtures) is shared with :app's tests.
+    `java-test-fixtures`
 }
 
 java {

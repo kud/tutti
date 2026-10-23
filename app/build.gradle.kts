@@ -121,4 +121,5 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
 
     testImplementation(libs.junit)
+    testImplementation(testFixtures(project(":protocol")))
 }

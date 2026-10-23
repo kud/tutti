@@ -26,12 +26,21 @@ import javax.net.ssl.SSLContext
  * been recorded for this TV, and only towards a private address. Once a pin exists, HTTPS
  * is the only way in. Headers (they carry the PSK) are never logged: there is no logging
  * interceptor on this client.
+ *
+ * The internal constructor is the test seam: the device simulator listens on loopback ports.
  */
-class OkHttpBraviaTransport(
+class OkHttpBraviaTransport internal constructor(
     private val host: String,
     initialPin: CertificatePin?,
     private val savePin: suspend (CertificatePin) -> Unit,
+    private val httpsPort: Int,
+    private val httpPort: Int,
+    private val checkHost: (String) -> Unit,
+    private val readTimeoutMs: Long,
 ) : BraviaTransport {
+    constructor(host: String, initialPin: CertificatePin?, savePin: suspend (CertificatePin) -> Unit) :
+        this(host, initialPin, savePin, HTTPS_PORT, HTTP_PORT, ::requireLan, READ_TIMEOUT_MS)
+
     @Volatile private var firstSeen: CertificatePin? = null
     @Volatile private var useHttp = false
     private val trust = PinningTrustManager(initialPin) { firstSeen = it }
@@ -49,7 +58,7 @@ class OkHttpBraviaTransport(
                 leaf != null && pin != null && pin.matches(leaf)
             }
             .connectTimeout(4, TimeUnit.SECONDS)
-            .readTimeout(8, TimeUnit.SECONDS)
+            .readTimeout(readTimeoutMs, TimeUnit.MILLISECONDS)
             .writeTimeout(8, TimeUnit.SECONDS)
             .retryOnConnectionFailure(false)
             .build()
@@ -59,7 +68,7 @@ class OkHttpBraviaTransport(
 
     override suspend fun post(path: String, body: String, headers: Map<String, String>): HttpReply =
         withContext(Dispatchers.IO) {
-            requireLan(host)
+            checkHost(host)
             if (!useHttp) {
                 try {
                     return@withContext execute("https", path, body, headers).also { persistFirstSeen() }
@@ -104,7 +113,7 @@ class OkHttpBraviaTransport(
     private fun execute(scheme: String, path: String, body: String, headers: Map<String, String>): HttpReply {
         val contentType = headers.entries.firstOrNull { it.key.equals("Content-Type", ignoreCase = true) }?.value
         val request = Request.Builder()
-            .url("$scheme://${urlHost()}$path")
+            .url("$scheme://${urlHost()}:${if (scheme == "https") httpsPort else httpPort}$path")
             .post(body.toRequestBody(contentType?.toMediaTypeOrNull()))
             .apply { headers.forEach { (name, value) -> if (!name.equals("Content-Type", true)) header(name, value) } }
             .build()
@@ -117,5 +126,8 @@ class OkHttpBraviaTransport(
 
     private companion object {
         const val MAX_ICON_BYTES = 512 * 1024
+        const val HTTPS_PORT = 443
+        const val HTTP_PORT = 80
+        const val READ_TIMEOUT_MS = 8_000L
     }
 }
