@@ -55,6 +55,7 @@ import io.kud.tutti.protocol.atv.VoiceFailure
 import io.kud.tutti.protocol.atv.VoiceState
 import io.kud.tutti.ui.common.motion
 import io.kud.tutti.ui.common.rememberHaptics
+import io.kud.tutti.ui.common.rememberProblemReporter
 
 private enum class Hold { NONE, TALKING, CANCELLING }
 
@@ -72,6 +73,7 @@ fun VoiceButton(controller: TuttiController, enabled: Boolean, size: Dp = 56.dp)
     val haptics = rememberHaptics()
     val voice by controller.voice.collectAsState()
     var hold by remember { mutableStateOf(Hold.NONE) }
+    val reportProblem = rememberProblemReporter()
     var rationale by remember { mutableStateOf(false) }
 
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -118,7 +120,7 @@ fun VoiceButton(controller: TuttiController, enabled: Boolean, size: Dp = 56.dp)
             VoiceFailure.NO_REPLY -> R.string.voice_no_reply
             VoiceFailure.DISCONNECTED -> R.string.voice_disconnected
         }
-        Toast.makeText(context, text, Toast.LENGTH_LONG).show()
+        reportProblem(context.getString(text), controller.failureDetail("voice: hold to talk", outcome = failed.reason.name))
         controller.clearVoiceFailure()
     }
 

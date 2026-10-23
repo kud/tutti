@@ -10,7 +10,6 @@
     <string name="diagnostic_stop">Arrêter</string>
     <string name="diagnostic_copy">Copier le rapport</string>
     <string name="diagnostic_share">Partager</string>
-    <string name="diagnostic_copied">Rapport copié</string>
     <string name="diagnostic_share_subject">Rapport de diagnostic tutti</string>
     <string name="diagnostic_summary">%1$d OK · %2$d en échec · %3$d ignorées</string>
 

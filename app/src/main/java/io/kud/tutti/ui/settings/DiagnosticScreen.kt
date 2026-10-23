@@ -1,11 +1,7 @@
 package io.kud.tutti.ui.settings
 
-import android.content.ClipData
-import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
-import android.os.Build
-import android.widget.Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -45,6 +41,7 @@ import io.kud.tutti.protocol.diagnostic.Plane
 import io.kud.tutti.protocol.diagnostic.StepResult
 import io.kud.tutti.protocol.diagnostic.StepStatus
 import io.kud.tutti.ui.common.SectionTitle
+import io.kud.tutti.ui.common.copyDetails
 
 /** Settings › Diagnostic: every probe live, then a scrubbed plain-text report to copy or share. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -199,12 +196,7 @@ private fun stepLabel(id: String): String {
 }
 
 private fun copy(context: Context, report: String) {
-    val clipboard = context.getSystemService(ClipboardManager::class.java) ?: return
-    clipboard.setPrimaryClip(ClipData.newPlainText(context.getString(R.string.diagnostic_share_subject), report))
-    // Android 13+ confirms clipboard writes itself.
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
-        Toast.makeText(context, R.string.diagnostic_copied, Toast.LENGTH_SHORT).show()
-    }
+    copyDetails(context, report, context.getString(R.string.diagnostic_share_subject))
 }
 
 private fun share(context: Context, report: String) {

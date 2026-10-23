@@ -51,6 +51,7 @@ import io.kud.tutti.platform.data.ThemeMode
 import io.kud.tutti.protocol.grpc.CloudPlaneState
 import io.kud.tutti.quick.settings.QuickNotificationSetting
 import io.kud.tutti.ui.common.AppIcon
+import io.kud.tutti.ui.common.ProblemNote
 import io.kud.tutti.ui.common.SectionTitle
 import io.kud.tutti.ui.common.SwitchRow
 import io.kud.tutti.ui.common.actionLabel
@@ -124,6 +125,11 @@ fun SettingsScreen(
                     TextButton(onClick = { pskDialog = true }) { Text(stringResource(R.string.settings_psk)) }
                     TextButton(onClick = { forget = Forget.TV }) { Text(stringResource(R.string.settings_forget)) }
                 }
+                ProblemNote(
+                    message = null,
+                    detail = listOfNotNull(state.linkNotes.tv, state.linkNotes.rest).joinToString("\n\n").ifEmpty { null },
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                )
             }
             val bar = state.devices.bar
             if (bar != null) {
@@ -135,6 +141,7 @@ fun SettingsScreen(
                 Row(Modifier.padding(horizontal = 8.dp)) {
                     TextButton(onClick = { forget = Forget.BAR }) { Text(stringResource(R.string.settings_forget)) }
                 }
+                ProblemNote(message = null, detail = state.linkNotes.bar, modifier = Modifier.padding(horizontal = 16.dp))
             }
             if (tv == null || bar == null) {
                 TextButton(onClick = onPair, modifier = Modifier.padding(horizontal = 8.dp)) {
@@ -223,13 +230,21 @@ fun SettingsScreen(
                 modifier = Modifier.padding(horizontal = 16.dp),
             )
 
-            SectionTitle(stringResource(R.string.settings_diagnostic))
-            LinkRow(
-                title = stringResource(R.string.settings_diagnostic),
-                detail = stringResource(R.string.settings_diagnostic_detail),
-                enabled = true,
-                onClick = onOpenDiagnostic,
+            SectionTitle(stringResource(R.string.settings_developer))
+            SwitchRow(
+                label = stringResource(R.string.settings_developer_mode),
+                supporting = stringResource(R.string.settings_developer_mode_detail),
+                checked = state.prefs.developerMode,
+                onCheckedChange = controller::setDeveloperMode,
             )
+            if (state.prefs.developerMode) {
+                LinkRow(
+                    title = stringResource(R.string.settings_diagnostic),
+                    detail = stringResource(R.string.settings_diagnostic_detail),
+                    enabled = true,
+                    onClick = onOpenDiagnostic,
+                )
+            }
 
             SectionTitle(stringResource(R.string.settings_bravia_connect))
             LinkRow(

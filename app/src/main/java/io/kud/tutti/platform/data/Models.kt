@@ -38,6 +38,8 @@ data class AppPrefs(
     val onboarded: Boolean = false,
     /** What the remote screen shows and in what order; the default is the screen as it always was. */
     val layout: RemoteLayout = RemoteLayout(),
+    /** Technical details and "Copy details" under errors, and the diagnostics. Off by default, in every build. */
+    val developerMode: Boolean = false,
 )
 
 /** The round buttons the row under the pad can hold. The first six are the row as it shipped. */

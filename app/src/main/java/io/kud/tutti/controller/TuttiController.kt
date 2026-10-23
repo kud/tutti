@@ -16,6 +16,7 @@ import io.kud.tutti.platform.data.RemoteLayout
 import io.kud.tutti.platform.data.TuttiStore
 import io.kud.tutti.platform.data.SecondaryButton
 import io.kud.tutti.platform.data.TvDevice
+import io.kud.tutti.platform.diagnostic.AppVersion
 import io.kud.tutti.platform.data.BarDevice
 import io.kud.tutti.platform.net.OkHttpBraviaTransport
 import io.kud.tutti.platform.net.PinMismatchException
@@ -44,7 +45,7 @@ import io.kud.tutti.protocol.bravia.getOrNull
 import io.kud.tutti.protocol.grpc.SonyCloudPlane
 import io.kud.tutti.protocol.net.LanAddress
 import io.kud.tutti.protocol.net.ClientIdentity
-import io.kud.tutti.protocol.net.Redact
+import io.kud.tutti.protocol.diagnostic.FailureReport
 import io.kud.tutti.protocol.net.WakeOnLan
 import io.kud.tutti.protocol.scenes.AppProfile
 import io.kud.tutti.protocol.scenes.AppProfiles
@@ -136,6 +137,7 @@ class TuttiController @Inject constructor(
     private val library = combine(store.apps, icons) { seen, cached -> AppLibrary.all(seen) to cached }
 
     private val links = MutableStateFlow(Links())
+    private val linkNotes = MutableStateFlow(LinkNotes())
     private val tv = MutableStateFlow(TvState())
     private val voiceZoom = MutableStateFlow(false)
     private val progress = MutableStateFlow<Map<String, Float>>(emptyMap())
@@ -176,16 +178,17 @@ class TuttiController @Inject constructor(
         val cloud: io.kud.tutti.protocol.grpc.CloudPlaneState,
         val overrides: Overrides,
         val waking: Boolean,
+        val linkNotes: LinkNotes,
     )
 
     private val stored = combine(store.devices, store.prefs, store.dock, store.scenes, store.profiles) { d, p, k, s, f -> Stored(d, p, k, s, f) }
     private val live = combine(tv, atv.state, theatre.state, links, voiceZoom) { t, r, b, l, v -> Live(t, r, b, l, v) }
-    private val extra = combine(progress, activeSceneId, pairing, cloud.state, combine(overrides, waking, ::Pair)) { p, a, q, c, o ->
-        Extra(p, a, q, c, o.first, o.second)
+    private val extra = combine(progress, activeSceneId, pairing, cloud.state, combine(overrides, waking, linkNotes, ::Triple)) { p, a, q, c, o ->
+        Extra(p, a, q, c, o.first, o.second, o.third)
     }
 
     val state: StateFlow<TuttiUiState> = combine(stored, live, extra, library) { s, l, e, a ->
-        build(s, l, e).copy(apps = a.first, appIcons = a.second)
+        build(s, l, e).copy(apps = a.first, appIcons = a.second, linkNotes = e.linkNotes)
     }
         .stateIn(scope, SharingStarted.Eagerly, TuttiUiState())
 
@@ -304,10 +307,12 @@ class TuttiController @Inject constructor(
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
+                    linkNotes.update { it.copy(bar = failureDetail("soundbar: connect (TCP 33336)", outcome = "unreachable", error = e)) }
                     false
                 }
                 if (connected) {
                     links.update { it.copy(bar = Link.ONLINE) }
+                    linkNotes.update { it.copy(bar = null) }
                     wait = MIN_BACKOFF_MS
                     coroutineScope {
                         val probe = launch { voiceZoom.value = theatre.probe(TheatreFeature.VOICE_ZOOM) }
@@ -324,6 +329,7 @@ class TuttiController @Inject constructor(
                         probe.cancel()
                         poll.cancel()
                     }
+                    linkNotes.update { it.copy(bar = failureDetail("soundbar: session", outcome = "connected, then the bar closed the link or stopped answering")) }
                 }
                 links.update { it.copy(bar = Link.UNREACHABLE) }
                 backoff(wait)
@@ -342,6 +348,7 @@ class TuttiController @Inject constructor(
         val pin = secure.tvRemotePin()
         if (pin == null) {
             links.update { it.copy(tv = Link.NEEDS_PAIRING) }
+            linkNotes.update { it.copy(tv = failureDetail("tv remote: connect (TLS 6466)", outcome = "no pairing stored on this phone: pair the TV")) }
             return
         }
         val identity = identities.getOrCreate()
@@ -352,10 +359,16 @@ class TuttiController @Inject constructor(
                 links.update { it.copy(tv = Link.CONNECTING) }
                 val outcome = try {
                     atv.connect(device.host, identity, pin)
-                    if (withTimeoutOrNull(READY_TIMEOUT_MS) { atv.state.first { it.ready } } != null) Link.ONLINE else Link.UNREACHABLE
+                    if (withTimeoutOrNull(READY_TIMEOUT_MS) { atv.state.first { it.ready } } != null) {
+                        Link.ONLINE
+                    } else {
+                        linkNotes.update { it.copy(tv = failureDetail("tv remote: connect (TLS 6466)", outcome = "connected, not ready after $READY_TIMEOUT_MS ms")) }
+                        Link.UNREACHABLE
+                    }
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
+                    linkNotes.update { it.copy(tv = failureDetail("tv remote: connect (TLS 6466)", outcome = "handshake failures in a row: $handshakeFailures", error = e)) }
                     when {
                         e.hasCause<PinMismatchException>() -> Link.NEEDS_PAIRING
                         e is ConnectException || e is SocketTimeoutException || e is NoRouteToHostException -> Link.UNREACHABLE
@@ -372,7 +385,9 @@ class TuttiController @Inject constructor(
                     handshakeFailures = 0
                     wait = MIN_BACKOFF_MS
                     links.update { it.copy(tv = Link.ONLINE) }
+                    linkNotes.update { it.copy(tv = null) }
                     atv.state.first { !it.ready }
+                    linkNotes.update { it.copy(tv = failureDetail("tv remote: session", outcome = "connected, then the link dropped")) }
                 }
                 atv.disconnect()
                 links.update { it.copy(tv = Link.UNREACHABLE) }
@@ -402,6 +417,7 @@ class TuttiController @Inject constructor(
                 is BraviaResult.Ok -> {
                     wait = MIN_BACKOFF_MS
                     links.update { it.copy(rest = Link.ONLINE) }
+                    linkNotes.update { it.copy(rest = null) }
                     tv.update { it.copy(capabilities = found.value) }
                     learnMac(client, device.host)
                     while (scope.isActive) {
@@ -409,10 +425,12 @@ class TuttiController @Inject constructor(
                         delay(POLL_TV_MS)
                     }
                     links.update { it.copy(rest = Link.UNREACHABLE) }
+                    linkNotes.update { it.copy(rest = failureDetail("tv ip control: poll", outcome = "answered, then stopped answering getPowerStatus")) }
                 }
                 is BraviaResult.Failure -> {
                     val link = if (found.error == BraviaError.Unauthorized) Link.UNAUTHORIZED else Link.UNREACHABLE
                     links.update { it.copy(rest = link) }
+                    linkNotes.update { it.copy(rest = failureDetail("tv ip control: discover (HTTPS/HTTP + PSK)", outcome = "$link: ${found.error}")) }
                     // A wrong PSK will not fix itself: wait for a new one (restart) or a long while.
                     if (link == Link.UNAUTHORIZED) wait = MAX_BACKOFF_MS
                 }
@@ -568,7 +586,7 @@ class TuttiController @Inject constructor(
                     throw e
                 } catch (e: Exception) {
                     atv.cancelVoice()
-                    mutableEvents.tryEmit(TuttiEvent.MicUnavailable)
+                    mutableEvents.tryEmit(TuttiEvent.MicUnavailable(failureDetail("voice: stream the phone's mic", error = e)))
                 }
             }
         }
@@ -633,7 +651,7 @@ class TuttiController @Inject constructor(
     fun switchInput(uri: String) {
         scope.launch {
             tv.update { it.copy(input = uri) }
-            if (bravia?.setPlayContent(uri) !is BraviaResult.Ok) mutableEvents.tryEmit(TuttiEvent.ActionFailed)
+            bravia?.setPlayContent(uri).let { if (it !is BraviaResult.Ok) actionFailed("switch input to $uri", outcomeOf(it)) }
         }
     }
 
@@ -700,7 +718,7 @@ class TuttiController @Inject constructor(
                 } != null
                 if (reached) {
                     setOverride { it.copy(powered = true) }
-                    if (!tvPowerAfterWake(packetsSent = packets != null)) mutableEvents.tryEmit(TuttiEvent.ActionFailed)
+                    if (!tvPowerAfterWake(packetsSent = packets != null)) actionFailed("power: switch the tv on after waking it", "tv answered, power-on not confirmed")
                 }
                 reached
             }
@@ -719,7 +737,10 @@ class TuttiController @Inject constructor(
             packets?.cancel()
             result
         }
-        if (!tvAnswered || !barAnswered) mutableEvents.tryEmit(TuttiEvent.WakeFailed(tv = !tvAnswered))
+        if (!tvAnswered || !barAnswered) {
+            val detail = failureDetail("power: wake the devices", outcome = "tv answered $tvAnswered, bar answered $barAnswered within $WAKE_TIMEOUT_MS ms")
+            mutableEvents.tryEmit(TuttiEvent.WakeFailed(tv = !tvAnswered, detail = detail))
+        }
     }
 
     /**
@@ -829,13 +850,18 @@ class TuttiController @Inject constructor(
         val steps = SceneEngine.plan(scene, snapshot())
         sceneJob?.cancel()
         sceneJob = scope.launch {
-            var failed = 0
+            var failed = emptyList<SceneStep>()
             SceneRunner(actuator).run(steps).collect { p ->
-                failed = p.failed.size
+                failed = p.failed
                 progress.update { it + (sceneId to p.fraction) }
             }
             progress.update { it - sceneId }
-            mutableEvents.emit(TuttiEvent.SceneFinished(sceneId, failed))
+            val detail = if (failed.isEmpty()) {
+                null
+            } else {
+                failureDetail("scene: apply", outcome = "${failed.size} of ${steps.size} steps failed", steps = failed.map { "failed $it" })
+            }
+            mutableEvents.emit(TuttiEvent.SceneFinished(sceneId, failed.size, detail))
         }
     }
 
@@ -908,10 +934,10 @@ class TuttiController @Inject constructor(
             is DockAction.SetBar -> setBarValue(action.featureKey, action.value)
             is DockAction.Key -> if (action.long) atv.longPress(action.keyCode) else atv.sendKey(action.keyCode)
             is DockAction.Ircc -> {
-                val client = bravia
-                if (client == null || client.sendIrcc(action.code) !is BraviaResult.Ok) mutableEvents.tryEmit(TuttiEvent.ActionFailed)
+                val result = bravia?.sendIrcc(action.code)
+                if (result !is BraviaResult.Ok) actionFailed("shortcut: IRCC key", outcomeOf(result))
             }
-            is DockAction.PictureMode -> if (bravia == null) mutableEvents.tryEmit(TuttiEvent.ActionFailed) else setTvSetting(TvSettingGroup.PICTURE, "pictureMode", action.mode)
+            is DockAction.PictureMode -> if (bravia == null) actionFailed("shortcut: picture mode ${action.mode}", outcomeOf(null)) else setTvSetting(TvSettingGroup.PICTURE, "pictureMode", action.mode)
             is DockAction.Macro -> for (step in action.steps) {
                 when (step) {
                     is MacroStep.Wait -> delay(step.millis.coerceIn(0, MAX_MACRO_WAIT_MS))
@@ -981,7 +1007,7 @@ class TuttiController @Inject constructor(
     fun pairTv(host: String) {
         val address = host.trim()
         if (!LanAddress.isPrivate(address)) {
-            pairing.value = PairingUi.Failed(PairingError.UNREACHABLE)
+            pairing.value = PairingUi.Failed(PairingError.UNREACHABLE, failureDetail("pair tv", outcome = "not a private LAN address", sensitive = listOf(address)))
             return
         }
         pairingJob?.cancel()
@@ -990,7 +1016,9 @@ class TuttiController @Inject constructor(
             atv.disconnect()
             val steps = mutableListOf<String>()
             var session: AtvPairing? = null
-            fun report() = (steps + (session?.trace ?: emptyList())).joinToString(" · ")
+            fun trace() = steps + (session?.trace ?: emptyList())
+            fun detail(outcome: String, error: Throwable? = null) =
+                failureDetail("pair tv (TLS 6467)", outcome = outcome, steps = trace(), error = error, sensitive = listOf(address))
             var watchdog: Job? = null
             suspend fun pairWith(identity: ClientIdentity): PairingResult {
                 val attempt = AtvPairing(tls, serviceName = "tutti", clientName = "Tutti").also { session = it }
@@ -1006,7 +1034,7 @@ class TuttiController @Inject constructor(
                         watchdog = scope.launch {
                             delay(SECRET_ACK_TIMEOUT_MS)
                             pairingJob?.cancel()
-                            pairing.value = PairingUi.Failed(PairingError.REFUSED, Redact.text("no answer after the code: ${report()}", listOf(address)))
+                            pairing.value = PairingUi.Failed(PairingError.REFUSED, detail("no answer after the code"))
                         }
                     }
                 }
@@ -1025,7 +1053,7 @@ class TuttiController @Inject constructor(
             } catch (e: Throwable) {
                 // Throwable, not Exception: an Error here (a missing class, a provider failure) would otherwise kill the app.
                 watchdog?.cancel()
-                pairing.value = PairingUi.Failed(PairingError.UNREACHABLE, pairingCause(e, address) + "\n" + Redact.text(report(), listOf(address)))
+                pairing.value = PairingUi.Failed(PairingError.UNREACHABLE, detail("failed before pairing finished", e))
                 return@launch
             }
             when (result) {
@@ -1040,24 +1068,51 @@ class TuttiController @Inject constructor(
                 }
                 is PairingResult.Failed -> pairing.value = when (result.failure.also { watchdog?.cancel() }) {
                     PairingFailure.Cancelled -> PairingUi.Idle
-                    PairingFailure.BadCode -> PairingUi.Failed(PairingError.BAD_CODE, Redact.text(report(), listOf(address)))
-                    PairingFailure.Closed -> PairingUi.Failed(PairingError.UNREACHABLE, Redact.text("closed before pairing finished: ${report()}", listOf(address)))
-                    else -> PairingUi.Failed(PairingError.REFUSED, Redact.text("${result.failure}: ${report()}", listOf(address)))
+                    PairingFailure.BadCode -> PairingUi.Failed(PairingError.BAD_CODE, detail("the TV rejected the code"))
+                    PairingFailure.Closed -> PairingUi.Failed(PairingError.UNREACHABLE, detail("closed before pairing finished"))
+                    else -> PairingUi.Failed(PairingError.REFUSED, detail("refused: ${result.failure}"))
                 }
             }
         }
     }
 
-    /** Exception classes and messages down the cause chain, with the address and anything identifying scrubbed. */
     /**
-     * Exception classes and messages down the cause chain, then where the deepest one was thrown,
-     * with the address and anything identifying scrubbed.
+     * The redacted detail behind a failure the UI shows, for "Copy details": [FailureReport] with
+     * the app version, Android, live link states and what is configured (yes or no, never values).
+     * Hosts, the MAC and the PSK are scrubbed by value, on top of [FailureReport]'s own patterns.
      */
-    private fun pairingCause(error: Throwable, address: String): String {
-        val chain = generateSequence(error) { it.cause }.take(4).toList()
-        val causes = chain.joinToString(" ← ") { cause -> listOfNotNull(cause::class.java.simpleName, cause.message).joinToString(": ") }
-        val frames = chain.last().stackTrace.take(6).joinToString("\n") { "  at $it" }
-        return Redact.text("$causes\n$frames", listOf(address))
+    fun failureDetail(
+        what: String,
+        outcome: String? = null,
+        steps: List<String> = emptyList(),
+        error: Throwable? = null,
+        sensitive: List<String> = emptyList(),
+    ): String {
+        val devices = state.value.devices
+        val l = links.value
+        return FailureReport.render(
+            what = what,
+            outcome = outcome,
+            steps = steps,
+            error = error,
+            context = listOf(
+                "app" to AppVersion.of(context),
+                "android" to "${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})",
+                "links" to "remote ${l.tv}, rest ${l.rest}, bar ${l.bar}",
+                "configured" to "tv ${devices.tv != null}, bar ${devices.bar != null}, psk ${psk != null}",
+            ),
+            sensitive = sensitive + listOfNotNull(devices.tv?.host, devices.tv?.mac, devices.bar?.host, psk),
+        )
+    }
+
+    private fun actionFailed(what: String, outcome: String) {
+        mutableEvents.tryEmit(TuttiEvent.ActionFailed(failureDetail(what, outcome)))
+    }
+
+    private fun outcomeOf(result: BraviaResult<*>?): String = when (result) {
+        null -> "no IP control session (rest ${links.value.rest})"
+        is BraviaResult.Failure -> result.error.toString()
+        is BraviaResult.Ok -> "ok"
     }
 
     fun submitPairingCode(code: String?) {
@@ -1181,7 +1236,7 @@ class TuttiController @Inject constructor(
                 TvSettingGroup.SPEAKER -> client.setSpeakerSetting(target, value)
             }
             if (result !is BraviaResult.Ok) {
-                mutableEvents.tryEmit(TuttiEvent.ActionFailed)
+                actionFailed("tv setting: $group $target = $value", outcomeOf(result))
                 loadTvSettings()
             }
         }
@@ -1191,8 +1246,9 @@ class TuttiController @Inject constructor(
         val client = bravia ?: return
         tv.update { it.copy(settings = it.settings.copy(wol = enabled)) }
         scope.launch {
-            if (client.setWolMode(enabled) !is BraviaResult.Ok) {
-                mutableEvents.tryEmit(TuttiEvent.ActionFailed)
+            val result = client.setWolMode(enabled)
+            if (result !is BraviaResult.Ok) {
+                actionFailed("tv setting: wake-on-lan = $enabled", outcomeOf(result))
                 loadTvSettings()
             }
         }
@@ -1202,8 +1258,9 @@ class TuttiController @Inject constructor(
         val client = bravia ?: return
         tv.update { it.copy(settings = it.settings.copy(scene = it.settings.scene?.copy(currentValue = value))) }
         scope.launch {
-            if (client.setSceneSetting(value) !is BraviaResult.Ok) {
-                mutableEvents.tryEmit(TuttiEvent.ActionFailed)
+            val result = client.setSceneSetting(value)
+            if (result !is BraviaResult.Ok) {
+                actionFailed("tv setting: scene = $value", outcomeOf(result))
                 loadTvSettings()
             }
         }
@@ -1213,8 +1270,9 @@ class TuttiController @Inject constructor(
     fun setOutputTerminal(value: String) {
         val client = bravia ?: return
         scope.launch {
-            if (client.setSoundSetting(io.kud.tutti.protocol.bravia.TvSetting.OUTPUT_TERMINAL, value) !is BraviaResult.Ok) {
-                mutableEvents.tryEmit(TuttiEvent.ActionFailed)
+            val result = client.setSoundSetting(io.kud.tutti.protocol.bravia.TvSetting.OUTPUT_TERMINAL, value)
+            if (result !is BraviaResult.Ok) {
+                actionFailed("tv setting: sound output = $value", outcomeOf(result))
             }
         }
     }
@@ -1224,7 +1282,8 @@ class TuttiController @Inject constructor(
         val client = bravia ?: return
         val code = tv.value.settings.sleepCode ?: return
         scope.launch {
-            if (client.sendIrcc(code) !is BraviaResult.Ok) mutableEvents.tryEmit(TuttiEvent.ActionFailed)
+            val result = client.sendIrcc(code)
+            if (result !is BraviaResult.Ok) actionFailed("tv: sleep timer key", outcomeOf(result))
         }
     }
 
@@ -1232,8 +1291,9 @@ class TuttiController @Inject constructor(
         val client = bravia ?: return
         tv.update { it.copy(settings = it.settings.copy(powerSaving = mode)) }
         scope.launch {
-            if (client.setPowerSavingMode(mode) !is BraviaResult.Ok) {
-                mutableEvents.tryEmit(TuttiEvent.ActionFailed)
+            val result = client.setPowerSavingMode(mode)
+            if (result !is BraviaResult.Ok) {
+                actionFailed("tv setting: power saving = $mode", outcomeOf(result))
                 loadTvSettings()
             }
         }
@@ -1245,6 +1305,10 @@ class TuttiController @Inject constructor(
 
     fun setHaptics(enabled: Boolean) {
         scope.launch { store.updatePrefs { it.copy(haptics = enabled) } }
+    }
+
+    fun setDeveloperMode(enabled: Boolean) {
+        scope.launch { store.updatePrefs { it.copy(developerMode = enabled) } }
     }
 
     fun setAppShown(packageName: String, shown: Boolean) {

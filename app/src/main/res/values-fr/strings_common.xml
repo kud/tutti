@@ -38,4 +38,15 @@
     <string name="key_assistant">Assistant</string>
     <string name="key_info">Infos</string>
     <string name="key_generic">Touche %1$d</string>
+    <string name="problem_copy">Copier les détails</string>
+    <string name="problem_copied">Détails copiés</string>
+    <string name="problem_details_show">Détails</string>
+    <string name="problem_details_hide">Masquer les détails</string>
+    <string name="problem_clip_label">Détails tutti</string>
+    <string name="scene_failed_steps">Une partie de la scène ne s’est pas appliquée</string>
+    <string name="settings_developer">Développeur</string>
+    <string name="settings_developer_mode">Mode développeur</string>
+    <string name="settings_developer_mode_detail">Affiche les détails techniques sous les erreurs, avec Copier les détails, et les diagnostics.</string>
+    <string name="pairing_code_field">Code d’association</string>
+    <string name="pairing_code_progress">Saisis : %1$d sur %2$d</string>
 </resources>

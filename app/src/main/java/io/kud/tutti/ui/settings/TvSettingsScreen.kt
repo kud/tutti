@@ -36,6 +36,7 @@ import io.kud.tutti.controller.TuttiController.TvSettingGroup
 import io.kud.tutti.controller.TuttiUiState
 import io.kud.tutti.protocol.bravia.TvSetting
 import io.kud.tutti.ui.common.ChoiceRow
+import io.kud.tutti.ui.common.ProblemNote
 import io.kud.tutti.ui.common.SectionTitle
 import io.kud.tutti.ui.common.SwitchRow
 import io.kud.tutti.ui.onboarding.PskDialog
@@ -70,7 +71,7 @@ fun TvSettingsScreen(state: TuttiUiState, controller: TuttiController, onBack: (
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(bottom = 32.dp)) {
             if (rest != Link.ONLINE) {
-                RestExplainer(rest, onEnterPsk = { pskDialog = true })
+                RestExplainer(rest, note = state.linkNotes.rest, onEnterPsk = { pskDialog = true })
                 return@Column
             }
             if (settings.loading) LinearProgressIndicator(Modifier.fillMaxWidth())
@@ -192,7 +193,7 @@ fun TvSettingsScreen(state: TuttiUiState, controller: TuttiController, onBack: (
 }
 
 @Composable
-private fun RestExplainer(rest: Link, onEnterPsk: () -> Unit) {
+private fun RestExplainer(rest: Link, note: String?, onEnterPsk: () -> Unit) {
     if (rest == Link.CONNECTING) LinearProgressIndicator(Modifier.fillMaxWidth())
     val (title, body) = when (rest) {
         Link.CONNECTING -> R.string.tv_rest_connecting to null
@@ -212,6 +213,7 @@ private fun RestExplainer(rest: Link, onEnterPsk: () -> Unit) {
                 Text(stringResource(R.string.tv_rest_enter_psk))
             }
         }
+        if (rest != Link.CONNECTING) ProblemNote(message = null, detail = note, modifier = Modifier.padding(top = 8.dp))
     }
 }
 

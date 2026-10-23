@@ -32,6 +32,12 @@ enum class Link {
     UNAUTHORIZED,
 }
 
+/**
+ * The redacted detail behind each channel's last failure ([io.kud.tutti.protocol.diagnostic.FailureReport]),
+ * for "Copy details" beside a link that is down. Null once the channel connects again.
+ */
+data class LinkNotes(val tv: String? = null, val rest: String? = null, val bar: String? = null)
+
 /** tv = remote v2 (6466), rest = BRAVIA REST + PSK, bar = TCP 33336. */
 data class Links(val tv: Link = Link.ABSENT, val rest: Link = Link.ABSENT, val bar: Link = Link.ABSENT)
 
@@ -92,29 +98,30 @@ sealed interface PairingUi {
 
     data object Done : PairingUi
 
-    /** [detail] is the scrubbed cause (exception class and message), shown so a failure can be reported. */
+    /** [detail] is the redacted technical detail (steps, cause chain, context), for "Copy details". */
     data class Failed(val reason: PairingError, val detail: String? = null) : PairingUi
 }
 
 enum class PairingError { UNREACHABLE, BAD_CODE, REFUSED }
 
 sealed interface TuttiEvent {
-    /** A scene finished applying: double pulse. */
-    data class SceneFinished(val sceneId: String, val failedSteps: Int) : TuttiEvent
+    /** A scene finished applying: double pulse. [detail] says which steps failed, when any did. */
+    data class SceneFinished(val sceneId: String, val failedSteps: Int, val detail: String? = null) : TuttiEvent
 
     /** Volume hit 0, 100 or the active scene's cap: soft bump. */
     data object VolumeLimit : TuttiEvent
 
-    data object ActionFailed : TuttiEvent
+    /** [detail] is the redacted technical detail, for "Copy details". */
+    data class ActionFailed(val detail: String) : TuttiEvent
 
     /** The phone's mic would not open for TV voice. */
-    data object MicUnavailable : TuttiEvent
+    data class MicUnavailable(val detail: String) : TuttiEvent
 
     /**
      * Power was pressed while a device was out of reach, and it never came back.
      * [tv] is true when the TV was one of them: the fix is its "Remote start" setting.
      */
-    data class WakeFailed(val tv: Boolean) : TuttiEvent
+    data class WakeFailed(val tv: Boolean, val detail: String) : TuttiEvent
 }
 
 data class TuttiUiState(
@@ -124,6 +131,7 @@ data class TuttiUiState(
     val prefs: AppPrefs = AppPrefs(),
     val dock: DockConfig = DockConfig(),
     val links: Links = Links(),
+    val linkNotes: LinkNotes = LinkNotes(),
     val tv: TvState = TvState(),
     val remote: RemoteState = RemoteState(),
     val bar: TheatreState = TheatreState(),

@@ -1,7 +1,6 @@
 package io.kud.tutti.platform.diagnostic
 
 import android.content.Context
-import android.content.pm.PackageManager
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.os.Build
@@ -134,7 +133,7 @@ class Diagnostics @Inject constructor(
         val links = ui.links
         fun yes(value: Boolean) = if (value) "yes" else "no"
         return listOf(
-            "app" to appVersion(),
+            "app" to AppVersion.of(context),
             "android" to "${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})",
             "phone" to "${Build.MANUFACTURER} ${Build.MODEL}",
             "network" to if (onWifi()) "wifi" else "not wifi",
@@ -145,16 +144,6 @@ class Diagnostics @Inject constructor(
             "bar settings" to "answered ${ui.bar.confirmed.size}, refused ${ui.bar.refused.sorted().joinToString().ifEmpty { "none" }}",
         )
     }
-
-    private fun appVersion(): String = runCatching {
-        val info = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            context.packageManager.getPackageInfo(context.packageName, PackageManager.PackageInfoFlags.of(0))
-        } else {
-            @Suppress("DEPRECATION")
-            context.packageManager.getPackageInfo(context.packageName, 0)
-        }
-        "${info.versionName} (${info.longVersionCode})"
-    }.getOrDefault("unknown")
 
     private fun onWifi(): Boolean {
         val cm = context.getSystemService(ConnectivityManager::class.java) ?: return false

@@ -10,17 +10,16 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import io.kud.tutti.R
 
-/** Shown once after a crash: the scrubbed stack trace, to copy into a report. */
+/** Shown once after a crash: the scrubbed stack trace, to copy into a report. Copyable whatever the developer mode. */
 @Composable
 fun CrashDialog(report: String, onDismiss: () -> Unit) {
-    val clipboard = LocalClipboardManager.current
+    val context = LocalContext.current
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.crash_title)) },
@@ -35,7 +34,7 @@ fun CrashDialog(report: String, onDismiss: () -> Unit) {
             }
         },
         confirmButton = {
-            TextButton(onClick = { clipboard.setText(AnnotatedString(report)) }) {
+            TextButton(onClick = { copyDetails(context, report) }) {
                 Text(stringResource(R.string.crash_copy))
             }
         },
