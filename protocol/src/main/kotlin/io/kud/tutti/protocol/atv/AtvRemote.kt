@@ -86,6 +86,8 @@ class AtvRemote(
             } catch (e: Exception) {
                 mutableState.update { it.copy(error = e.message ?: "connection lost") }
             } finally {
+                // EOF or a read timeout leaves our end open: close it, or the TV keeps a dead session.
+                conn.close()
                 if (connection === conn) {
                     connection = null
                     mutableState.update { it.copy(ready = false) }

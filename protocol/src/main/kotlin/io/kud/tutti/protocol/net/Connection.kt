@@ -14,6 +14,13 @@ interface Connection {
 
     suspend fun send(bytes: ByteArray)
 
+    /**
+     * How long one read may wait for the peer before [incoming] fails (0: forever). It applies to
+     * reads started afterwards, so set it before collecting: the reader runs ahead of the collector.
+     */
+    fun setReadTimeout(millis: Int) = Unit
+
+    /** Ends a read blocked in [incoming] at once. Close before awaiting the reader, never after. */
     fun close()
 }
 

@@ -54,6 +54,8 @@ class TheatreClient(
             } catch (e: Exception) {
                 // Socket error: handled as a disconnect below.
             } finally {
+                // EOF or a read timeout leaves our end open: close it, or the bar keeps a dead client.
+                conn.close()
                 if (connection === conn) {
                     connection = null
                     dispatch(TheatreEvent.Connected(false))
