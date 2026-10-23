@@ -1,5 +1,6 @@
 package io.kud.tutti.platform.data
 
+import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
@@ -13,6 +14,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.KSerializer
+import dagger.hilt.android.qualifiers.ApplicationContext
+import io.kud.tutti.R
 import kotlinx.serialization.builtins.ListSerializer
 import javax.inject.Inject
 import javax.inject.Named
@@ -25,11 +28,13 @@ import javax.inject.Singleton
 @Singleton
 class TuttiStore @Inject constructor(
     @Named(TUTTI) private val store: DataStore<Preferences>,
+    @ApplicationContext private val context: Context,
 ) {
     val devices: Flow<Devices> = field(DEVICES, Devices.serializer(), StoreJson) { Devices() }
     val prefs: Flow<AppPrefs> = field(PREFS, AppPrefs.serializer(), StoreJson) { AppPrefs() }
     val dock: Flow<DockConfig> = field(DOCK, DockConfig.serializer(), StoreJson) { DockConfig() }
     val scenes: Flow<List<Scene>> = field(SCENES, ListSerializer(Scene.serializer()), SceneJson) { StarterScenes.all }
+        .map(::localiseStarters)
     /** Apps the TV ever listed, kept so the Apps sheet works without IP control. */
     val apps: Flow<List<KnownApp>> = field(APPS, ListSerializer(KnownApp.serializer()), StoreJson) { emptyList() }
     val profiles: Flow<List<AppProfile>> = field(PROFILES, ListSerializer(AppProfile.serializer()), SceneJson) { emptyList() }
@@ -41,7 +46,16 @@ class TuttiStore @Inject constructor(
     suspend fun updateDock(transform: (DockConfig) -> DockConfig) = update(DOCK, DockConfig.serializer(), StoreJson, DockConfig(), transform)
 
     suspend fun updateScenes(transform: (List<Scene>) -> List<Scene>) =
-        update(SCENES, ListSerializer(Scene.serializer()), SceneJson, StarterScenes.all, transform)
+        update(SCENES, ListSerializer(Scene.serializer()), SceneJson, StarterScenes.all) { transform(localiseStarters(it)) }
+
+    /**
+     * Starter scenes still carrying their shipped name read in the phone's language. A name he
+     * changed is his and stays as typed.
+     */
+    private fun localiseStarters(scenes: List<Scene>): List<Scene> = scenes.map { scene ->
+        val shipped = STARTER_NAMES[scene.id] ?: return@map scene
+        if (scene.name == StarterScenes.all.first { it.id == scene.id }.name) scene.copy(name = context.getString(shipped)) else scene
+    }
 
     suspend fun updateApps(transform: (List<KnownApp>) -> List<KnownApp>) =
         update(APPS, ListSerializer(KnownApp.serializer()), StoreJson, emptyList(), transform)
@@ -81,3 +95,13 @@ class TuttiStore @Inject constructor(
         private val APPS = stringPreferencesKey("apps")
     }
 }
+
+private val STARTER_NAMES = mapOf(
+    "starter-cinema" to R.string.scene_starter_cinema,
+    "starter-serie" to R.string.scene_starter_serie,
+    "starter-nuit" to R.string.scene_starter_nuit,
+    "starter-musique" to R.string.scene_starter_musique,
+    "starter-sport" to R.string.scene_starter_sport,
+    "starter-jeu" to R.string.scene_starter_jeu,
+    "starter-info" to R.string.scene_starter_info,
+)

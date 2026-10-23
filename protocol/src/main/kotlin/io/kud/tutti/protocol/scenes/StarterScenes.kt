@@ -5,8 +5,8 @@ import io.kud.tutti.protocol.scenes.SceneValue.Level
 import io.kud.tutti.protocol.scenes.SceneValue.Text
 
 /**
- * The starter gallery. Names are French on purpose: they are user data once installed,
- * editable like any scene. Picture mode values (`cinema`, `game`, `standard`) follow Sony's
+ * The starter gallery. These French names are the stored originals; the app shows each in the
+ * phone's language until it is renamed (`TuttiStore.localiseStarters`). Picture mode values (`cinema`, `game`, `standard`) follow Sony's
  * documented candidates and are unverified on the XR80; the editor offers the TV's own list.
  */
 object StarterScenes {

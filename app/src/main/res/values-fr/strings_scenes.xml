@@ -40,4 +40,11 @@
     <string name="editor_dock">Placer dans le dock</string>
     <string name="editor_done">OK</string>
     <string name="editor_free_value">Valeur telle que la TV l’écrit</string>
+    <string name="scene_starter_cinema">Cinéma</string>
+    <string name="scene_starter_serie">Série du soir</string>
+    <string name="scene_starter_nuit">Nuit</string>
+    <string name="scene_starter_musique">Musique</string>
+    <string name="scene_starter_sport">Sport</string>
+    <string name="scene_starter_jeu">Jeu</string>
+    <string name="scene_starter_info">Info</string>
 </resources>
