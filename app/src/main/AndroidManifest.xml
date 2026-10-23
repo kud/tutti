@@ -15,12 +15,9 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- ===== quick access: permissions (end) ===== -->
 
-    <!-- Finds BRAVIA Connect by its launcher label for "Recalibrer dans BRAVIA Connect". -->
+    <!-- Lets "Recalibrer dans BRAVIA Connect" see whether Sony's app is installed. -->
     <queries>
-        <intent>
-            <action android:name="android.intent.action.MAIN" />
-            <category android:name="android.intent.category.LAUNCHER" />
-        </intent>
+        <package android:name="jp.co.sony.hes.home" />
     </queries>
 
     <application
