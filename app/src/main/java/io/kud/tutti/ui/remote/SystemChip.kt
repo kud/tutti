@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import io.kud.tutti.R
 import io.kud.tutti.controller.Link
 import io.kud.tutti.controller.TuttiUiState
+import io.kud.tutti.ui.common.AppIcon
 
 private val Online = Color(0xFF4CD18A)
 private val Pending = Color(0xFFF2B84B)
@@ -135,15 +136,34 @@ fun SystemChip(state: TuttiUiState, onClick: () -> Unit, modifier: Modifier = Mo
                             maxLines = 1,
                         )
                     } else {
-                        // The app on screen, when the catalogue knows it (daily-state: current app).
-                        foregroundAppName(state)?.let { app ->
-                            Text(
-                                stringResource(R.string.system_current_app, app),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
+                        // What is on screen: the tuner's channel and programme, an input, or the
+                        // app the catalogue knows (daily-state: now playing). Text says it all;
+                        // the app's icon is decoration beside its name.
+                        nowShowing(state)?.let { now ->
+                            val what = when (now) {
+                                is NowShowing.Channel -> now.text ?: stringResource(R.string.system_tv_channel)
+                                is NowShowing.Input -> now.title
+                                is NowShowing.App -> now.name
+                            }
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                if (now is NowShowing.App) {
+                                    AppIcon(
+                                        name = now.name,
+                                        iconPath = state.appIcons[now.packageName],
+                                        packageName = now.packageName,
+                                        size = 14.dp,
+                                        corner = 3.dp,
+                                    )
+                                    Spacer(Modifier.width(4.dp))
+                                }
+                                Text(
+                                    stringResource(R.string.system_current_app, what),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
                         }
                     }
                 }

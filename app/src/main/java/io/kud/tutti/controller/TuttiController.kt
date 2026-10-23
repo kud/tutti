@@ -462,7 +462,12 @@ class TuttiController @Inject constructor(
         }
         val caps = client.capabilities
         val active = power == PowerStatus.ACTIVE
-        val input = if (active) client.playingContent().getOrNull()?.uri else null
+        // getPlayingContentInfo is a `private` method: without a PSK it can only be refused, so it is
+        // not asked. It rides this poll (POLL_TV_MS), never a loop of its own. A failed or empty
+        // answer (what an app playing is expected to give) clears [TvState.playing], so the chip
+        // falls back to the app name rather than keeping a stale channel.
+        val playing = if (active && !psk.isNullOrEmpty()) client.playingContent().getOrNull() else null
+        val input = playing?.uri
         val pictureMode = if (active && caps.supports(BraviaService.VIDEO, "getPictureQualitySettings")) {
             client.pictureSettings("pictureMode").getOrNull()?.firstOrNull { it.target == "pictureMode" }?.currentValue
         } else {
@@ -471,7 +476,7 @@ class TuttiController @Inject constructor(
         val current = tv.value
         val inputs = if (current.inputs.isEmpty() && active) client.externalInputs().getOrNull().orEmpty() else current.inputs
         val apps = if (current.apps.isEmpty() && active) client.applications().getOrNull().orEmpty() else current.apps
-        tv.update { it.copy(power = power, input = input ?: it.input, pictureMode = pictureMode ?: it.pictureMode, inputs = inputs, apps = apps) }
+        tv.update { it.copy(power = power, input = input ?: it.input, playing = playing, pictureMode = pictureMode ?: it.pictureMode, inputs = inputs, apps = apps) }
         if (current.apps.isEmpty() && apps.isNotEmpty()) scope.launch { rememberApps(apps) }
         return true
     }

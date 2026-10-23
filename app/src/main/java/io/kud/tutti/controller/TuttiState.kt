@@ -71,6 +71,8 @@ data class TvState(
     val power: PowerStatus = PowerStatus.UNKNOWN,
     /** Current source URI from getPlayingContentInfo (e.g. `extInput:hdmi?port=2`). */
     val input: String? = null,
+    /** The last getPlayingContentInfo answer; null when the TV gave none (an app, standby, no PSK). */
+    val playing: io.kud.tutti.protocol.bravia.PlayingContent? = null,
     val inputs: List<ExternalInput> = emptyList(),
     val apps: List<TvApp> = emptyList(),
     val capabilities: Capabilities = Capabilities.EMPTY,
