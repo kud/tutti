@@ -117,8 +117,11 @@ class AtvPairing(
         } catch (e: FramingException) {
             state = PairingState.Failed(PairingFailure.Unexpected(e.message ?: "framing"))
         } catch (e: IOException) {
-            note("io ${e::class.java.simpleName} in $state")
+            // Once the outcome is known we close the socket under the reader ourselves, and on a
+            // real socket that read can fail before collect has left: not an error, and the trace
+            // must not end on one after "done: paired".
             if (!state.isTerminal) {
+                note("io ${e::class.java.simpleName} in $state")
                 state = PairingState.Failed(if (silentTv) PairingFailure.Unexpected("no answer from the TV") else PairingFailure.Closed)
             }
         } finally {
