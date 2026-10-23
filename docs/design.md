@@ -50,6 +50,6 @@ Quick Settings tile (opens a compact remote overlay), phone volume buttons drive
 - Pad: one large quiet surface, no grid lines. D-pad mode is a tonal disc with a chevron at each point and an OK centre set off by a thin moat; the drawn zones are the hit zones, and the one under the finger lights until release. Volume second loudest. Everything else tonal, not outlined.
 - Haptics are primary feedback: light tick per D-pad/swipe step, firmer click on Select, soft bump at volume limits/cap, double pulse when a scene finishes.
 - Motion: springs under ~250 ms; reduced motion → fades.
-- Launch: the launcher mark animates in on the system splash (500 ms: the remote rises, its OK button presses in, the line of sound runs), then fades out as soon as the first frame is ready; nothing holds the app. Ivory on ink in dark, ink on ivory in light.
+- Launch: the system splash shows the launcher mark still; on a cold start an in-app intro (`ui/intro/LaunchIntro.kt`) takes over at the same place and size, the OK button takes one breath (it warms and cools, Sacha's B), and the splash dissolves into the remote, which is already drawn underneath. About 0.9 s; a tap skips it; none with animations off. Ivory on ink in dark, ink on ivory in light.
 - Performance target: visual and haptic response within one frame of a tap, before any network round trip.
 - UI in French first, English second.

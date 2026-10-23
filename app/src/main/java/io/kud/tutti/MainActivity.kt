@@ -1,9 +1,7 @@
 package io.kud.tutti
 
-import android.animation.ValueAnimator
 import android.annotation.SuppressLint
 import android.os.Bundle
-import android.os.SystemClock
 import android.view.InputDevice
 import android.view.KeyEvent
 import androidx.activity.ComponentActivity
@@ -28,6 +26,8 @@ import io.kud.tutti.ui.common.CrashDialog
 import io.kud.tutti.ui.common.LocalHapticsEnabled
 import io.kud.tutti.ui.common.LocalReducedMotion
 import io.kud.tutti.ui.common.rememberReducedMotion
+import io.kud.tutti.ui.intro.LaunchIntro
+import io.kud.tutti.ui.intro.LaunchIntroOverlay
 import io.kud.tutti.ui.theme.TuttiTheme
 import javax.inject.Inject
 
@@ -43,20 +43,10 @@ class MainActivity : ComponentActivity() {
         val splash = installSplashScreen()
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
-        // The app is never held: it draws underneath while the mark finishes its animation, then
-        // the splash fades out (the mark grows a touch as it goes). Leaving on the first frame
-        // cut the animation before it showed. Animations off → it simply goes.
-        splash.setOnExitAnimationListener { provider ->
-            if (!ValueAnimator.areAnimatorsEnabled()) {
-                provider.remove()
-                return@setOnExitAnimationListener
-            }
-            val left = provider.iconAnimationStartMillis + provider.iconAnimationDurationMillis - SystemClock.uptimeMillis()
-            val wait = left.coerceIn(0L, SPLASH_MAX_WAIT_MS)
-            provider.iconView.animate().scaleX(1.06f).scaleY(1.06f).setStartDelay(wait).setDuration(SPLASH_EXIT_MS).start()
-            provider.view.animate().alpha(0f).setStartDelay(wait).setDuration(SPLASH_EXIT_MS)
-                .withEndAction { provider.remove() }.start()
-        }
+        // The system splash is only a still bridge; on a cold start the intro takes over at the
+        // same place and plays on the app's own frame clock over the already-drawn remote.
+        val intro = LaunchIntro(enabled = savedInstanceState == null)
+        splash.setOnExitAnimationListener(intro::takeOver)
         setContent {
             val state by controller.state.collectAsStateWithLifecycle()
             val reducedMotion = rememberReducedMotion()
@@ -72,6 +62,7 @@ class MainActivity : ComponentActivity() {
                     LocalReducedMotion provides reducedMotion,
                 ) {
                     TuttiApp(controller, discovery, diagnostics, state)
+                    LaunchIntroOverlay(intro)
                     var crash by remember { mutableStateOf(CrashLog.read(this@MainActivity)) }
                     crash?.let { report ->
                         CrashDialog(report) {
@@ -124,6 +115,3 @@ class MainActivity : ComponentActivity() {
         return !device.isVirtual && (device.sources and InputDevice.SOURCE_KEYBOARD) == InputDevice.SOURCE_KEYBOARD
     }
 }
-
-private const val SPLASH_EXIT_MS = 180L
-private const val SPLASH_MAX_WAIT_MS = 500L

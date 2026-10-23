@@ -4,5 +4,7 @@
     <color name="splash_background">#FF1C1B22</color>
     <color name="splash_body">#FFF2EDE4</color>
     <color name="splash_button">#FF1C1B22</color>
+    <!-- The OK button at the top of its breath (Sacha, B). -->
+    <color name="splash_button_warm">#FF57474D</color>
     <color name="splash_line">#FFE3A35B</color>
 </resources>

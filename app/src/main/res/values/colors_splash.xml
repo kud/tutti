@@ -4,5 +4,7 @@
     <color name="splash_background">#FFF2EDE4</color>
     <color name="splash_body">#FF1C1B22</color>
     <color name="splash_button">#FFF2EDE4</color>
+    <!-- The OK button at the top of its breath: ivory a quarter of the way to amber. -->
+    <color name="splash_button_warm">#FFEEDAC2</color>
     <color name="splash_line">#FFE3A35B</color>
 </resources>
