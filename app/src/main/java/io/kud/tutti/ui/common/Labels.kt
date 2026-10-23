@@ -257,6 +257,7 @@ fun actionLabel(action: DockAction, state: TuttiUiState): String = when (action)
     is DockAction.Key -> keyLabel(action.keyCode).let { if (action.long) stringResource(R.string.action_held, it) else it }
     is DockAction.Ircc -> Ircc.displayName(action.name)
     is DockAction.PictureMode -> stringResource(R.string.action_picture, action.label)
+    is DockAction.TvSoundOutput -> stringResource(tvSoundOutputLabel(action.terminal))
     is DockAction.Macro -> action.name.ifBlank {
         action.steps.count { it is io.kud.tutti.platform.data.MacroStep.Run }.let { pluralStringResource(R.plurals.macro_steps, it, it) }
     }
@@ -272,6 +273,7 @@ fun actionIcon(action: DockAction, state: TuttiUiState): Int = when (action) {
     is DockAction.Key -> keyIcon(action.keyCode)
     is DockAction.Ircc -> R.drawable.ic_tv
     is DockAction.PictureMode -> R.drawable.ic_tune
+    is DockAction.TvSoundOutput -> tvSoundOutputIcon(action.terminal)
     is DockAction.Macro -> R.drawable.ic_bolt
 }
 
@@ -288,3 +290,14 @@ fun barIcon(featureKey: String): Int = when (featureKey) {
 @DrawableRes
 fun slotIcon(slot: DockSlot, state: TuttiUiState): Int? =
     slot.icon?.let(::pinGlyphRes) ?: slot.primary?.let { actionIcon(it, state) }
+
+/** "Sound to the bar" / "Sound to the TV speakers": the shortcut names where the sound goes, not the wire value. */
+@StringRes
+fun tvSoundOutputLabel(terminal: String): Int = when (terminal) {
+    io.kud.tutti.protocol.bravia.TvSetting.TERMINAL_SPEAKER -> R.string.action_tv_sound_speaker
+    else -> R.string.action_tv_sound_bar
+}
+
+@DrawableRes
+fun tvSoundOutputIcon(terminal: String): Int =
+    if (terminal == io.kud.tutti.protocol.bravia.TvSetting.TERMINAL_SPEAKER) R.drawable.ic_tv else R.drawable.ic_speaker

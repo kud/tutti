@@ -149,4 +149,7 @@
         <item quantity="one">%d step</item>
         <item quantity="other">%d steps</item>
     </plurals>
+    <string name="picker_tv_sound">Sound output</string>
+    <string name="action_tv_sound_bar">Sound to the bar</string>
+    <string name="action_tv_sound_speaker">Sound to the TV speakers</string>
 </resources>

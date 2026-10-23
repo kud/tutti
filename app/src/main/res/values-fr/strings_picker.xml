@@ -150,4 +150,7 @@
         <item quantity="many">%d étapes</item>
         <item quantity="other">%d étapes</item>
     </plurals>
+    <string name="picker_tv_sound">Sortie audio</string>
+    <string name="action_tv_sound_bar">Son sur la barre</string>
+    <string name="action_tv_sound_speaker">Son sur les haut-parleurs de la TV</string>
 </resources>

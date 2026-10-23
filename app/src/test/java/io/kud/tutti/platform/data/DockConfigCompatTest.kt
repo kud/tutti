@@ -39,6 +39,7 @@ class DockConfigCompatTest {
                 DockSlot(DockAction.Key(90, long = true)),
                 DockSlot(DockAction.Ircc("ActionMenu", "AAAAAgAAAMQAAABAAw==")),
                 DockSlot(DockAction.PictureMode("cinema", "Cinéma")),
+                DockSlot(DockAction.TvSoundOutput("audioSystem")),
             ),
             longPress = mapOf(SecondaryButton.BACK to DockAction.ToggleBar("audio.voiceenhancer")),
         )

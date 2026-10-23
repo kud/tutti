@@ -146,6 +146,14 @@ sealed interface DockAction {
     @SerialName("picture")
     data class PictureMode(val mode: String, val label: String) : DockAction
 
+    /**
+     * The TV's sound output (setSoundSettings `outputTerminal`), one of `TvSetting.OUTPUT_TERMINALS`:
+     * `audioSystem` sends sound to the bar, `speaker` to the TV's own speakers. Needs IP control.
+     */
+    @Serializable
+    @SerialName("tv.sound")
+    data class TvSoundOutput(val terminal: String) : DockAction
+
     /** Ordered steps with optional waits. Nested macros are flattened out at edit time. */
     @Serializable
     @SerialName("macro")

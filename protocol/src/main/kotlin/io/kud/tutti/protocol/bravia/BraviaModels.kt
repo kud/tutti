@@ -90,6 +90,10 @@ data class TvSetting(
 
         const val SCENE_TARGET = "sceneSetting"
         const val OUTPUT_TERMINAL = "outputTerminal"
+
+        /** The two outputs a shortcut offers, from [OUTPUT_TERMINALS]: the HDMI audio system (the bar) and the TV's own speakers. */
+        const val TERMINAL_AUDIO_SYSTEM = "audioSystem"
+        const val TERMINAL_SPEAKER = "speaker"
     }
 }
 

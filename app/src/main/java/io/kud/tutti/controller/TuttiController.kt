@@ -951,6 +951,13 @@ class TuttiController @Inject constructor(
                 if (result !is BraviaResult.Ok) actionFailed("shortcut: IRCC key", outcomeOf(result))
             }
             is DockAction.PictureMode -> if (bravia == null) actionFailed("shortcut: picture mode ${action.mode}", outcomeOf(null)) else setTvSetting(TvSettingGroup.PICTURE, "pictureMode", action.mode)
+            is DockAction.TvSoundOutput -> when {
+                bravia == null -> actionFailed("shortcut: sound output ${action.terminal}", outcomeOf(null))
+                // Readable on this TV: the optimistic setter, which the settings screen also reads back.
+                tv.value.settings.sound.any { it.target == io.kud.tutti.protocol.bravia.TvSetting.OUTPUT_TERMINAL } ->
+                    setTvSetting(TvSettingGroup.SOUND, io.kud.tutti.protocol.bravia.TvSetting.OUTPUT_TERMINAL, action.terminal)
+                else -> setOutputTerminal(action.terminal)
+            }
             is DockAction.Macro -> for (step in action.steps) {
                 when (step) {
                     is MacroStep.Wait -> delay(step.millis.coerceIn(0, MAX_MACRO_WAIT_MS))

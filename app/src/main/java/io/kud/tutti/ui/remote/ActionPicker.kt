@@ -53,6 +53,9 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.kud.tutti.R
+import io.kud.tutti.protocol.bravia.TvSetting
+import io.kud.tutti.ui.common.tvSoundOutputIcon
+import io.kud.tutti.ui.common.tvSoundOutputLabel
 import io.kud.tutti.controller.Link
 import io.kud.tutti.controller.TuttiUiState
 import io.kud.tutti.platform.data.DockAction
@@ -142,6 +145,13 @@ fun ActionPickerContent(
     val pictureModes = state.tv.settings.picture.firstOrNull { it.target == "pictureMode" }
         ?.candidates.orEmpty().filter { it.isAvailable }.map { (it.title ?: it.value) to it.value }
     val ircc = state.tv.settings.ircc
+    // Sound output: offered when the TV lists setSoundSettings, readable or write-only.
+    val soundOutputs = if (state.tv.settings.outputWriteOnly || state.tv.settings.sound.any { it.target == TvSetting.OUTPUT_TERMINAL }) {
+        listOf(TvSetting.TERMINAL_AUDIO_SYSTEM, TvSetting.TERMINAL_SPEAKER)
+    } else {
+        emptyList()
+    }
+    val soundLabels = soundOutputs.associateWith { stringResource(tvSoundOutputLabel(it)) }
     val sceneRows = state.scenes.map { it.scene }
 
     val keyRows: List<Pair<KeyGroup?, List<Int>>> = when {
@@ -154,9 +164,10 @@ fun ActionPickerContent(
     val barRows = barOffer.offered.filter { matches(barLabels.getValue(it)) }
     val pictureRows = pictureModes.filter { matches(it.first) }
     val irccRows = ircc.filter { matches(Ircc.displayName(it.name)) }
+    val soundRows = soundOutputs.filter { matches(soundLabels.getValue(it)) }
     val scenesShown = sceneRows.filter { matches(it.name) }
     val nothing = searching && keyRows.all { it.second.isEmpty() } && appRows.isEmpty() && inputRows.isEmpty() &&
-        barRows.isEmpty() && pictureRows.isEmpty() && irccRows.isEmpty() && scenesShown.isEmpty()
+        barRows.isEmpty() && pictureRows.isEmpty() && irccRows.isEmpty() && soundRows.isEmpty() && scenesShown.isEmpty()
 
     LazyColumn(
         modifier = modifier.fillMaxWidth(),
@@ -280,7 +291,7 @@ fun ActionPickerContent(
             }
         }
 
-        if (shows(Category.TV) && (pictureRows.isNotEmpty() || irccRows.isNotEmpty() || !searching)) {
+        if (shows(Category.TV) && (pictureRows.isNotEmpty() || irccRows.isNotEmpty() || soundRows.isNotEmpty() || !searching)) {
             header("tv", R.string.picker_tv)
             if (!state.ipControl) {
                 if (!searching) item(key = "tv-why") { Note(stringResource(R.string.picker_no_ip)) }
@@ -293,13 +304,19 @@ fun ActionPickerContent(
                         PickRow(label, R.drawable.ic_tune) { onPick(DockAction.PictureMode(mode, label)) }
                     }
                 }
+                if (soundRows.isNotEmpty()) {
+                    header("tv-sound", R.string.picker_tv_sound, sub = true)
+                    items(soundRows, key = { "sound-$it" }) { terminal ->
+                        PickRow(soundLabels.getValue(terminal), tvSoundOutputIcon(terminal)) { onPick(DockAction.TvSoundOutput(terminal)) }
+                    }
+                }
                 if (irccRows.isNotEmpty()) {
                     header("tv-keys", R.string.picker_tv_keys, sub = true)
                     items(irccRows, key = { "ircc-${it.name}" }) { code ->
                         PickRow(Ircc.displayName(code.name), R.drawable.ic_tv) { onPick(DockAction.Ircc(code.name, code.value)) }
                     }
                 }
-                if (pictureModes.isEmpty() && ircc.isEmpty() && !searching) item(key = "tv-none") { Note(stringResource(R.string.picker_tv_none)) }
+                if (pictureModes.isEmpty() && ircc.isEmpty() && soundOutputs.isEmpty() && !searching) item(key = "tv-none") { Note(stringResource(R.string.picker_tv_none)) }
             }
         }
 
