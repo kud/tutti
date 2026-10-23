@@ -90,6 +90,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import java.net.ConnectException
@@ -1020,6 +1021,10 @@ class TuttiController @Inject constructor(
             fun detail(outcome: String, error: Throwable? = null) =
                 failureDetail("pair tv (TLS 6467)", outcome = outcome, steps = trace(), error = error, sensitive = listOf(address))
             var watchdog: Job? = null
+            // The watchdog lives in the app scope: it must stop with this attempt and only ever
+            // cancel this attempt, never a newer one started after a cancel.
+            val attemptJob = coroutineContext.job
+            attemptJob.invokeOnCompletion { watchdog?.cancel() }
             suspend fun pairWith(identity: ClientIdentity): PairingResult {
                 val attempt = AtvPairing(tls, serviceName = "tutti", clientName = "Tutti").also { session = it }
                 return attempt.pair(address, identity) { tries ->
@@ -1033,8 +1038,8 @@ class TuttiController @Inject constructor(
                         watchdog?.cancel()
                         watchdog = scope.launch {
                             delay(SECRET_ACK_TIMEOUT_MS)
-                            pairingJob?.cancel()
                             pairing.value = PairingUi.Failed(PairingError.REFUSED, detail("no answer after the code"))
+                            attemptJob.cancel()
                         }
                     }
                 }
