@@ -3,6 +3,7 @@ package io.kud.tutti.ui.remote
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationVector1D
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
@@ -57,6 +58,7 @@ import io.kud.tutti.platform.data.PadMode
 import io.kud.tutti.protocol.atv.V2Key
 import io.kud.tutti.ui.common.FeedbackEvent
 import io.kud.tutti.ui.common.LocalReducedMotion
+import io.kud.tutti.ui.common.RING_DELAY_MS
 import io.kud.tutti.ui.common.ValueTag
 import io.kud.tutti.ui.common.rememberHaptics
 import io.kud.tutti.ui.motion.Motion
@@ -104,6 +106,10 @@ fun Pad(
     // D-pad press feedback: the zone under the finger lights from press to release, then fades.
     var pressedZone by remember { mutableStateOf<Int?>(null) }
     val pressAlpha = remember { Animatable(0f) }
+    // OK held: a ring runs inside the moat from 150 ms to the long-press timeout, linear, so it
+    // tells the time honestly. Reduced motion: no sweep, it appears whole at the timeout.
+    val okRing = remember { Animatable(0f) }
+    val reducedNow by rememberUpdatedState(LocalReducedMotion.current)
 
     fun flash(at: Offset) {
         glow = at
@@ -185,8 +191,28 @@ fun Pad(
                         // On down, in the frame: OK is a key (click), a direction a step (tick).
                         haptics.perform(if (zone == V2Key.DPAD_CENTER) FeedbackEvent.KEY else FeedbackEvent.STEP)
                         pressAlpha.snapTo(1f)
+                        val timeout = viewConfiguration.longPressTimeoutMillis
+                        val ring = if (zone != V2Key.DPAD_CENTER) {
+                            null
+                        } else {
+                            scope.launch {
+                                okRing.snapTo(0f)
+                                delay(RING_DELAY_MS)
+                                val rest = (timeout - RING_DELAY_MS).coerceAtLeast(1L)
+                                if (reducedNow) {
+                                    delay(rest)
+                                    okRing.snapTo(1f)
+                                } else {
+                                    okRing.animateTo(1f, tween(rest.toInt(), easing = LinearEasing))
+                                }
+                            }
+                        }
                         tryAwaitRelease()
                         scope.launch { pressAlpha.animateTo(0f, tween(durationMillis = 180)) }
+                        if (ring != null) {
+                            ring.cancel()
+                            scope.launch { okRing.animateTo(0f, tween(durationMillis = Motion.FADE_OUT)) }
+                        }
                     }
                 },
                 onTap = { at ->
@@ -272,7 +298,13 @@ fun Pad(
             )
         }
         if (mode == PadMode.DPAD) {
-            DpadFace(pressedZone = pressedZone, pressed = pressAlpha.value, reduced = LocalReducedMotion.current, modifier = Modifier.fillMaxSize())
+            DpadFace(
+                pressedZone = pressedZone,
+                pressed = pressAlpha.value,
+                reduced = LocalReducedMotion.current,
+                okRing = okRing.value,
+                modifier = Modifier.fillMaxSize(),
+            )
         }
     }
 }
@@ -281,10 +313,11 @@ fun Pad(
  * The D-pad face. Geometry comes from the same fractions as [dpadZone], so what is drawn is
  * what answers: the OK disc and its moat are the centre zone, each quarter of the ring between
  * the diagonals is a direction. [pressed] (0..1) lights [pressedZone] with a state layer and
- * brings its chevron to full contrast. Tonal only: no outlines, no dividers.
+ * brings its chevron to full contrast. Tonal only: no outlines, no dividers. [okRing] (0..1) is
+ * the long-press sweep, drawn in the moat round OK.
  */
 @Composable
-internal fun DpadFace(pressedZone: Int?, pressed: Float, modifier: Modifier = Modifier, reduced: Boolean = false) {
+internal fun DpadFace(pressedZone: Int?, pressed: Float, modifier: Modifier = Modifier, reduced: Boolean = false, okRing: Float = 0f) {
     val scheme = MaterialTheme.colorScheme
     val disc = scheme.surfaceContainerHigh
     val chevron = scheme.onSurfaceVariant
@@ -292,6 +325,7 @@ internal fun DpadFace(pressedZone: Int?, pressed: Float, modifier: Modifier = Mo
     val ringLayer = scheme.onSurface
     val centre = scheme.secondaryContainer
     val centreLayer = scheme.onSecondaryContainer
+    val ringColor = scheme.onSurface
     Canvas(modifier) {
         val radius = min(size.width, size.height) / 2f
         val outer = radius * DISC_FRACTION
@@ -320,6 +354,18 @@ internal fun DpadFace(pressedZone: Int?, pressed: Float, modifier: Modifier = Mo
         drawCircle(centre, radius = okRadius)
         if (pressedZone == V2Key.DPAD_CENTER && pressed > 0f) {
             drawCircle(centreLayer.copy(alpha = PRESSED_LAYER * pressed), radius = okRadius)
+        }
+        if (okRing > 0f) {
+            val ringRadius = inner - moat / 2f
+            drawArc(
+                color = ringColor,
+                startAngle = -90f,
+                sweepAngle = 360f * okRing.coerceAtMost(1f),
+                useCenter = false,
+                topLeft = center - Offset(ringRadius, ringRadius),
+                size = Size(ringRadius * 2f, ringRadius * 2f),
+                style = Stroke(width = OK_RING_WIDTH.toPx(), cap = StrokeCap.Round),
+            )
         }
 
         val arm = ringWidth * 0.18f
@@ -389,6 +435,9 @@ private const val PRESSED_LAYER = 0.14f
 
 /** OK's press, like a key's but a touch less: it is the biggest target. */
 private const val OK_SCALE = 0.94f
+
+/** The long-press ring round OK: it fits the 4 dp moat. */
+private val OK_RING_WIDTH = 3.dp
 
 /** How far a pressed chevron steps outward; none when motion is reduced. */
 private val CHEVRON_TRAVEL = 3.dp
