@@ -1,5 +1,6 @@
 package io.kud.tutti
 
+import android.animation.ValueAnimator
 import android.annotation.SuppressLint
 import android.os.Bundle
 import android.view.InputDevice
@@ -12,6 +13,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dagger.hilt.android.AndroidEntryPoint
 import io.kud.tutti.controller.TuttiController
@@ -35,8 +37,19 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var diagnostics: Diagnostics
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        val splash = installSplashScreen()
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+        // No hold: the splash leaves as soon as the first frame is ready, with a short fade
+        // (the mark grows a touch as it goes). Animations off → it simply goes.
+        splash.setOnExitAnimationListener { provider ->
+            if (!ValueAnimator.areAnimatorsEnabled()) {
+                provider.remove()
+                return@setOnExitAnimationListener
+            }
+            provider.iconView.animate().scaleX(1.06f).scaleY(1.06f).setDuration(SPLASH_EXIT_MS).start()
+            provider.view.animate().alpha(0f).setDuration(SPLASH_EXIT_MS).withEndAction { provider.remove() }.start()
+        }
         setContent {
             val state by controller.state.collectAsStateWithLifecycle()
             val reducedMotion = rememberReducedMotion()
@@ -98,3 +111,5 @@ class MainActivity : ComponentActivity() {
         return !device.isVirtual && (device.sources and InputDevice.SOURCE_KEYBOARD) == InputDevice.SOURCE_KEYBOARD
     }
 }
+
+private const val SPLASH_EXIT_MS = 180L

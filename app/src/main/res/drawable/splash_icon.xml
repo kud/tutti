@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Launch screen: the shipped launcher mark (ic_launcher_foreground), drawn in its rest state so
+  Android 10 and 11, which show it still, get the finished mark. 500ms, all keyframes from 0 so
+  nothing pops at a start offset:
+  the remote rises in (0-250ms), its OK button presses in with a small overshoot (175-500ms),
+  the line of sound runs left to right (275-500ms). Animator duration scale 0 shows the last frame.
+-->
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt">
+    <aapt:attr name="android:drawable">
+        <vector
+            android:width="108dp"
+            android:height="108dp"
+            android:viewportWidth="108"
+            android:viewportHeight="108">
+            <group
+                android:name="body"
+                android:pivotX="54"
+                android:pivotY="54">
+                <path
+                    android:name="shell"
+                    android:fillColor="@color/splash_body"
+                    android:pathData="M50,28h8a14,14 0,0 1,14 14v24a14,14 0,0 1,-14 14h-8a14,14 0,0 1,-14 -14v-24a14,14 0,0 1,14 -14z" />
+                <group
+                    android:name="ok"
+                    android:pivotX="54"
+                    android:pivotY="48">
+                    <path
+                        android:fillColor="@color/splash_button"
+                        android:pathData="M54,39a9,9 0,1 1,0 18a9,9 0,1 1,0 -18z" />
+                </group>
+                <path
+                    android:name="line"
+                    android:pathData="M48,68H60"
+                    android:strokeWidth="4"
+                    android:strokeColor="@color/splash_line"
+                    android:strokeLineCap="round" />
+            </group>
+        </vector>
+    </aapt:attr>
+
+    <target android:name="body">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="500">
+                <propertyValuesHolder android:propertyName="scaleX" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="0.72" />
+                    <keyframe android:fraction="0.5" android:interpolator="@android:interpolator/decelerate_cubic" android:value="1" />
+                    <keyframe android:fraction="1" android:value="1" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="scaleY" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="0.72" />
+                    <keyframe android:fraction="0.5" android:interpolator="@android:interpolator/decelerate_cubic" android:value="1" />
+                    <keyframe android:fraction="1" android:value="1" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="translateY" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="6" />
+                    <keyframe android:fraction="0.5" android:interpolator="@android:interpolator/decelerate_cubic" android:value="0" />
+                    <keyframe android:fraction="1" android:value="0" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+
+    <target android:name="shell">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="500">
+                <propertyValuesHolder android:propertyName="fillAlpha" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="0" />
+                    <keyframe android:fraction="0.3" android:value="1" />
+                    <keyframe android:fraction="1" android:value="1" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+
+    <target android:name="ok">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="500">
+                <propertyValuesHolder android:propertyName="scaleX" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="0" />
+                    <keyframe android:fraction="0.35" android:value="0" />
+                    <keyframe android:fraction="0.75" android:interpolator="@android:interpolator/decelerate_quad" android:value="1.12" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="1" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="scaleY" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="0" />
+                    <keyframe android:fraction="0.35" android:value="0" />
+                    <keyframe android:fraction="0.75" android:interpolator="@android:interpolator/decelerate_quad" android:value="1.12" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="1" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+
+    <target android:name="line">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="500">
+                <propertyValuesHolder android:propertyName="trimPathEnd" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="0" />
+                    <keyframe android:fraction="0.55" android:value="0" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/decelerate_cubic" android:value="1" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+</animated-vector>

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Launch screen, dark: the launcher icon itself (ivory remote on ink). -->
+<resources>
+    <color name="splash_background">#FF1C1B22</color>
+    <color name="splash_body">#FFF2EDE4</color>
+    <color name="splash_button">#FF1C1B22</color>
+    <color name="splash_line">#FFE3A35B</color>
+</resources>

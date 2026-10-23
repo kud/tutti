@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Launch screen, light: the brand's mark on light surfaces (ink remote on ivory). Brand palette, design/branding. -->
+<resources>
+    <color name="splash_background">#FFF2EDE4</color>
+    <color name="splash_body">#FF1C1B22</color>
+    <color name="splash_button">#FFF2EDE4</color>
+    <color name="splash_line">#FFE3A35B</color>
+</resources>
