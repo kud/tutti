@@ -95,7 +95,15 @@ object BraviaParsers {
     }
 
     fun playingContent(result: JsonArray): PlayingContent? = result.firstObject()?.let {
-        PlayingContent(uri = it.string("uri"), source = it.string("source"), title = it.string("title"))
+        PlayingContent(
+            uri = it.string("uri"),
+            source = it.string("source"),
+            title = it.string("title"),
+            programTitle = it.string("programTitle"),
+            dispNum = it.string("dispNum"),
+            startDateTime = it.string("startDateTime"),
+            durationSec = it.int("durationSec"),
+        )
     }
 
     fun powerSavingMode(result: JsonArray): String? = result.firstObject()?.string("mode")
