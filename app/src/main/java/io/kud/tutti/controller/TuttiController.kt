@@ -1277,6 +1277,10 @@ class TuttiController @Inject constructor(
         scope.launch { store.updatePrefs { it.copy(padMode = mode) } }
     }
 
+    fun markPadSwitchHintSeen() {
+        scope.launch { store.updatePrefs { it.copy(padSwitchHintSeen = true) } }
+    }
+
     // endregion
 
     private inline fun <reified T : Throwable> Throwable.hasCause(): Boolean {

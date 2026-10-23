@@ -35,6 +35,8 @@ data class AppPrefs(
     /** Apps left out of the Apps sheet and pickers, by package name. */
     val hiddenApps: Set<String> = emptySet(),
     val padMode: PadMode = PadMode.TOUCHPAD,
+    /** The pad switch's "swipe to change mode" hint has been shown once (or a swipe made it moot). */
+    val padSwitchHintSeen: Boolean = false,
     val onboarded: Boolean = false,
     /** What the remote screen shows and in what order; the default is the screen as it always was. */
     val layout: RemoteLayout = RemoteLayout(),

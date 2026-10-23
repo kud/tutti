@@ -24,6 +24,10 @@
     <string name="pad_left">Left</string>
     <string name="pad_right">Right</string>
     <string name="pad_switch_touchpad">Switch to touchpad</string>
+    <string name="pad_mode_label">Pad mode</string>
+    <string name="pad_mode_dpad">D-pad</string>
+    <string name="pad_mode_touchpad">Touchpad</string>
+    <string name="pad_mode_hint">Swipe to change mode</string>
     <string name="volume_label">Bar volume</string>
     <string name="volume_state_muted">%1$d, muted</string>
     <string name="volume_state_disconnected">Soundbar not connected</string>

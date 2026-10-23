@@ -183,24 +183,46 @@ fun RemoteScreen(
             // Normal is the pad as it shipped. Large takes the margins back; compact keeps the
             // rail full height and stands a shorter pad at its foot, nearer the thumb.
             val large = layout.padSize == PadSize.LARGE
+            val rowPadding = if (large) 4.dp else 12.dp
             Row(
                 Modifier
                     .weight(1f)
                     .fillMaxWidth()
-                    .padding(horizontal = if (large) 8.dp else 16.dp, vertical = if (large) 4.dp else 12.dp),
+                    .padding(horizontal = if (large) 8.dp else 16.dp, vertical = rowPadding),
             ) {
-                Pad(
-                    mode = state.prefs.padMode,
-                    onModeChange = controller::setPadMode,
-                    onKey = controller::key,
-                    onLongSelect = { controller.longPress(V2Key.DPAD_CENTER) },
-                    onPlayPause = { controller.key(V2Key.MEDIA_PLAY_PAUSE) },
-                    onVolumeStep = controller::volumeStep,
-                    modifier = Modifier
-                        .weight(1f)
-                        .align(Alignment.Bottom)
-                        .fillMaxHeight(if (layout.padSize == PadSize.COMPACT) COMPACT_SHARE else 1f),
-                )
+                // The mode switch stands under the pad, outside its surface, with at least
+                // SWITCH_CLEARANCE above the button row so a thumb heading there lands on neither.
+                val belowSwitch = SWITCH_CLEARANCE - rowPadding
+                Column(
+                    Modifier.weight(1f).fillMaxHeight(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    if (layout.padSize == PadSize.COMPACT) {
+                        Spacer(Modifier.weight(1f - COMPACT_SHARE))
+                    } else if (!keyboardOpen) {
+                        // As much room above as the switch takes below, so the pad's middle stays
+                        // level with the rail's, where it always was.
+                        Spacer(Modifier.height(SWITCH_GAP + PAD_SWITCH_HEIGHT + belowSwitch))
+                    }
+                    Pad(
+                        mode = state.prefs.padMode,
+                        onKey = controller::key,
+                        onLongSelect = { controller.longPress(V2Key.DPAD_CENTER) },
+                        onPlayPause = { controller.key(V2Key.MEDIA_PLAY_PAUSE) },
+                        onVolumeStep = controller::volumeStep,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(if (layout.padSize == PadSize.COMPACT) COMPACT_SHARE else 1f),
+                    )
+                    Spacer(Modifier.height(SWITCH_GAP))
+                    PadModeSwitch(
+                        mode = state.prefs.padMode,
+                        onModeChange = controller::setPadMode,
+                        hintSeen = state.prefs.padSwitchHintSeen,
+                        onHintSeen = controller::markPadSwitchHintSeen,
+                    )
+                    Spacer(Modifier.height(belowSwitch))
+                }
                 Spacer(Modifier.width(if (large) 8.dp else 12.dp))
                 VolumeRail(
                     volume = state.volume,
@@ -374,6 +396,12 @@ private const val COMPACT_SHARE = 0.78f
 
 /** The full-height sheets the bottom row's doors open. */
 private enum class RemoteSheet { APPS, KEYS }
+
+/** Between the pad's edge and the mode switch. */
+private val SWITCH_GAP = 14.dp
+
+/** At least this much between the mode switch's bottom edge and the button row under it. */
+private val SWITCH_CLEARANCE = 32.dp
 
 /** The “Son” handle and its one-line summary. */
 private val SHEET_PEEK = 72.dp

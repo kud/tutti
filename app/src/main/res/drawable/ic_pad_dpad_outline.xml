@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Stand-in from Iris (round 4, K1); Sacha's final art replaces this file as is. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- A cross with a hollow centre, so it never reads as "+". -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="1.7"
+        android:strokeLineJoin="round"
+        android:pathData="M9.5,2.5h5v7h7v5h-7v7h-5v-7h-7v-5h7z" />
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="1.7"
+        android:pathData="M12,9.7a2.3,2.3 0,1 0,0 4.6a2.3,2.3 0,1 0,0 -4.6z" />
+</vector>

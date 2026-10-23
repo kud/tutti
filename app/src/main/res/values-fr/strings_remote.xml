@@ -25,6 +25,10 @@
     <string name="pad_left">Gauche</string>
     <string name="pad_right">Droite</string>
     <string name="pad_switch_touchpad">Passer en pavé tactile</string>
+    <string name="pad_mode_label">Mode du pavé</string>
+    <string name="pad_mode_dpad">Croix</string>
+    <string name="pad_mode_touchpad">Pavé tactile</string>
+    <string name="pad_mode_hint">Glissez pour changer de mode</string>
     <string name="volume_label">Volume de la barre</string>
     <string name="volume_state_muted">%1$d, son coupé</string>
     <string name="volume_state_disconnected">Barre de son non connectée</string>

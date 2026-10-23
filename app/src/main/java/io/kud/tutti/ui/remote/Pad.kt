@@ -10,10 +10,7 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -22,7 +19,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
@@ -41,7 +37,6 @@ import androidx.compose.ui.input.pointer.PointerEvent
 import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.contentDescription
@@ -59,13 +54,12 @@ import kotlin.math.min
 
 /**
  * The pad: one large quiet surface, no grid lines. Touchpad (swipe steps) or D-pad (a disc with
- * a chevron at each point and an OK centre), switchable in one move. Tap = OK; long press = held Select for the TV.
+ * a chevron at each point and an OK centre); [PadModeSwitch] under it switches in one move. Tap = OK; long press = held Select for the TV.
  * Two gestures only, in touchpad mode: two-finger tap = play/pause, two-finger vertical drag = bar volume.
  */
 @Composable
 fun Pad(
     mode: PadMode,
-    onModeChange: (PadMode) -> Unit,
     onKey: (Int) -> Unit,
     onLongSelect: () -> Unit,
     onPlayPause: () -> Unit,
@@ -181,50 +175,30 @@ fun Pad(
         label = "padSurface",
     )
 
-    // The switch is the surface's sibling, not its child: touchpadGestures reads every touch,
-    // consumed or not, so a tap on a child button also reached the TV as OK.
+    // The mode switch lives under the pad (PadModeSwitch), never on it: touchpadGestures reads
+    // every touch, consumed or not, so anything drawn over the surface also reached the TV as OK.
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(36.dp))
-            .background(surfaceColor),
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .then(semanticsModifier)
-                .drawBehind {
-                    if (glow.isSpecified && glowAlpha.value > 0f) {
-                        drawCircle(
-                            brush = Brush.radialGradient(
-                                colors = listOf(glowColor.copy(alpha = glowAlpha.value), glowColor.copy(alpha = 0f)),
-                                center = glow,
-                                radius = 120.dp.toPx(),
-                            ),
-                            radius = 120.dp.toPx(),
+            .background(surfaceColor)
+            .then(semanticsModifier)
+            .drawBehind {
+                if (glow.isSpecified && glowAlpha.value > 0f) {
+                    drawCircle(
+                        brush = Brush.radialGradient(
+                            colors = listOf(glowColor.copy(alpha = glowAlpha.value), glowColor.copy(alpha = 0f)),
                             center = glow,
-                        )
-                    }
+                            radius = 120.dp.toPx(),
+                        ),
+                        radius = 120.dp.toPx(),
+                        center = glow,
+                    )
                 }
-                .then(gestures),
-        ) {
-            if (mode == PadMode.DPAD) {
-                DpadFace(pressedZone = pressedZone, pressed = pressAlpha.value, modifier = Modifier.fillMaxSize())
             }
-        }
-        IconButton(
-            onClick = {
-                haptics.click()
-                onModeChange(if (mode == PadMode.TOUCHPAD) PadMode.DPAD else PadMode.TOUCHPAD)
-            },
-            modifier = Modifier.align(Alignment.TopEnd).padding(6.dp),
-        ) {
-            Icon(
-                painter = painterResource(if (mode == PadMode.TOUCHPAD) R.drawable.ic_dpad else R.drawable.ic_touchpad),
-                contentDescription = stringResource(
-                    if (mode == PadMode.TOUCHPAD) R.string.pad_switch_dpad else R.string.pad_switch_touchpad,
-                ),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            .then(gestures),
+    ) {
+        if (mode == PadMode.DPAD) {
+            DpadFace(pressedZone = pressedZone, pressed = pressAlpha.value, modifier = Modifier.fillMaxSize())
         }
     }
 }
