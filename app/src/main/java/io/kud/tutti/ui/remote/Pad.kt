@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
@@ -45,6 +46,8 @@ import androidx.compose.ui.input.pointer.PointerEvent
 import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.contentDescription
@@ -61,6 +64,7 @@ import io.kud.tutti.ui.common.LocalReducedMotion
 import io.kud.tutti.ui.common.RING_DELAY_MS
 import io.kud.tutti.ui.common.ValueTag
 import io.kud.tutti.ui.common.rememberHaptics
+import io.kud.tutti.ui.intro.LocalIntroAnchors
 import io.kud.tutti.ui.motion.Motion
 import kotlin.math.abs
 import kotlin.math.min
@@ -298,12 +302,15 @@ fun Pad(
             )
         }
         if (mode == PadMode.DPAD) {
+            // The launch intro's OK lands here: it reads where the live D-pad is drawn.
+            val anchors = LocalIntroAnchors.current
+            DisposableEffect(anchors) { onDispose { anchors.pad = null } }
             DpadFace(
                 pressedZone = pressedZone,
                 pressed = pressAlpha.value,
                 reduced = LocalReducedMotion.current,
                 okRing = okRing.value,
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.fillMaxSize().onGloballyPositioned { anchors.pad = it.boundsInWindow() },
             )
         }
     }
@@ -420,6 +427,12 @@ private fun dpadZone(at: Offset, width: Float, height: Float): Int? {
 }
 
 private val DIRECTIONS = listOf(V2Key.DPAD_UP, V2Key.DPAD_DOWN, V2Key.DPAD_LEFT, V2Key.DPAD_RIGHT)
+
+/** The D-pad's OK radius in a face of [width] x [height] px, moat of [moat] px off, as [DpadFace] draws it. */
+internal fun dpadOkRadius(width: Float, height: Float, moat: Float): Float = min(width, height) / 2f * CENTRE_FRACTION - moat
+
+/** The D-pad disc's outer edge in a face of [width] x [height] px, as [DpadFace] draws it. */
+internal fun dpadEdgeRadius(width: Float, height: Float): Float = min(width, height) / 2f * DISC_FRACTION
 
 /** Disc radius, as a fraction of half the pad's shorter side. */
 private const val DISC_FRACTION = 0.94f

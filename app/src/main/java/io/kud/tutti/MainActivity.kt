@@ -33,8 +33,10 @@ import io.kud.tutti.ui.TuttiApp
 import io.kud.tutti.ui.common.CrashDialog
 import io.kud.tutti.ui.common.LocalReducedMotion
 import io.kud.tutti.ui.common.rememberReducedMotion
+import io.kud.tutti.ui.intro.IntroAnchors
 import io.kud.tutti.ui.intro.LaunchIntro
 import io.kud.tutti.ui.intro.LaunchIntroOverlay
+import io.kud.tutti.ui.intro.LocalIntroAnchors
 import io.kud.tutti.ui.theme.TuttiTheme
 import javax.inject.Inject
 
@@ -50,9 +52,10 @@ class MainActivity : ComponentActivity() {
         val splash = installSplashScreen()
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
-        // The system splash is only a still bridge; on a cold start the intro takes over at the
-        // same place and plays on the app's own frame clock over the already-drawn remote.
-        val intro = LaunchIntro(enabled = savedInstanceState == null)
+        // The system splash is only a still bridge; the intro takes over at the same place and
+        // plays on the app's own frame clock over the already-drawn remote: in full on a cold
+        // start, short on a warm one, not at all for a recreated activity.
+        val intro = LaunchIntro(LaunchIntro.kindFor(restored = savedInstanceState != null))
         splash.setOnExitAnimationListener(intro::takeOver)
         setContent {
             val state by controller.state.collectAsStateWithLifecycle()
@@ -70,9 +73,13 @@ class MainActivity : ComponentActivity() {
                     LocalIndication provides rememberTuttiIndication(RoundedCornerShape(12.dp), ripple = true, ringInset = true),
                     LocalChipNudge provides remember { ChipNudge() },
                     LocalReducedMotion provides reducedMotion,
+                    LocalIntroAnchors provides remember { IntroAnchors() },
                 ) {
                     TuttiApp(controller, discovery, diagnostics, state)
-                    LaunchIntroOverlay(intro)
+                    LaunchIntroOverlay(
+                        intro,
+                        firstLaunch = if (state.loaded) state.devices.isEmpty && !state.prefs.onboarded else null,
+                    )
                     var crash by remember { mutableStateOf(CrashLog.read(this@MainActivity)) }
                     crash?.let { report ->
                         CrashDialog(report) {
