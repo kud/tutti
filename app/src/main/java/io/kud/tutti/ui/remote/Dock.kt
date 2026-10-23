@@ -34,13 +34,13 @@ import io.kud.tutti.platform.data.DockAction
 import io.kud.tutti.platform.data.DockConfig
 import io.kud.tutti.platform.data.DockSlot
 import io.kud.tutti.ui.common.AppIcon
-import io.kud.tutti.ui.common.actionIcon
-import io.kud.tutti.ui.common.actionLabel
+import io.kud.tutti.ui.common.slotIcon
+import io.kud.tutti.ui.common.slotLabel
 
 /**
  * The bottom row: two fixed doors, Apps and Keys (the rest of the remote), then his four pins.
  * The doors share a tone so they read as one family, apart from the pins. A pin runs on tap
- * and reassigns on long press; an empty one asks on tap.
+ * and opens its editor (name, icon, action) on long press; an empty one asks on tap.
  */
 @Composable
 fun Dock(
@@ -49,6 +49,7 @@ fun Dock(
     onKeys: () -> Unit,
     onRun: (index: Int, slot: DockSlot) -> Unit,
     onAssign: (index: Int) -> Unit,
+    onEdit: (index: Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Row(modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -61,7 +62,7 @@ fun Dock(
                 slot = slot,
                 state = state,
                 onClick = { if (slot.primary != null) onRun(index, slot) else onAssign(index) },
-                onLongClick = { onAssign(index) },
+                onLongClick = { onEdit(index) },
                 modifier = Modifier.weight(1f),
             )
         }
@@ -91,19 +92,19 @@ private fun PinTile(
     modifier: Modifier = Modifier,
 ) {
     val action = slot.primary
-    val label = if (action != null) actionLabel(action, state) else stringResource(R.string.dock_add)
-    val assign = stringResource(R.string.dock_reassign)
+    val label = slotLabel(slot, state) ?: stringResource(R.string.dock_add)
+    val edit = stringResource(R.string.dock_reassign)
     Tile(
         background = MaterialTheme.colorScheme.surfaceContainerHigh,
         content = MaterialTheme.colorScheme.onSurfaceVariant,
         label = label,
-        modifier = modifier.combinedClickable(onLongClickLabel = assign, onLongClick = onLongClick, onClick = onClick),
+        modifier = modifier.combinedClickable(onLongClickLabel = edit, onLongClick = onLongClick, onClick = onClick),
     ) { tint ->
-        if (action is DockAction.LaunchApp) {
+        if (action is DockAction.LaunchApp && slot.icon == null) {
             AppIcon(action.label, state.appIcons[action.packageName], size = 24.dp, corner = 6.dp, packageName = action.packageName)
         } else {
             Icon(
-                painter = painterResource(if (action != null) actionIcon(action, state) else R.drawable.ic_add),
+                painter = painterResource(slotIcon(slot, state) ?: R.drawable.ic_add),
                 contentDescription = null,
                 tint = tint,
                 modifier = Modifier.size(20.dp),

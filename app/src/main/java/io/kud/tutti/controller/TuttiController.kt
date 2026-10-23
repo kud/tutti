@@ -790,12 +790,39 @@ class TuttiController @Inject constructor(
             is DockAction.Input -> switchInput(action.uri)
             is DockAction.ToggleBar -> TheatreFeature.fromKey(action.featureKey)?.let(::toggleBar)
             is DockAction.RunScene -> applyScene(action.sceneId)
-            is DockAction.Key -> atv.sendKey(action.keyCode)
+            is DockAction.SetBar -> setBarValue(action.featureKey, action.value)
+            is DockAction.Key -> if (action.long) atv.longPress(action.keyCode) else atv.sendKey(action.keyCode)
+            is DockAction.Ircc -> {
+                val client = bravia
+                if (client == null || client.sendIrcc(action.code) !is BraviaResult.Ok) mutableEvents.tryEmit(TuttiEvent.ActionFailed)
+            }
+            is DockAction.PictureMode -> if (bravia == null) mutableEvents.tryEmit(TuttiEvent.ActionFailed) else setTvSetting(TvSettingGroup.PICTURE, "pictureMode", action.mode)
             is DockAction.Macro -> for (step in action.steps) {
                 when (step) {
                     is MacroStep.Wait -> delay(step.millis.coerceIn(0, MAX_MACRO_WAIT_MS))
                     is MacroStep.Run -> if (step.action !is DockAction.Macro) perform(step.action)
                 }
+            }
+        }
+    }
+
+    /** A shortcut's "set to a value" on the bar: a level as its number, anything else as the wire string. */
+    private suspend fun setBarValue(featureKey: String, value: String) {
+        val feature = TheatreFeature.fromKey(featureKey) ?: return
+        when (feature.kind) {
+            is FeatureKind.Level -> value.toIntOrNull()?.let { theatre.setLevel(feature, it) }
+            is FeatureKind.Toggle, is FeatureKind.Choice -> theatre.set(feature, value)
+            FeatureKind.ReadOnly -> Unit
+        }
+    }
+
+    /** Replaces pin [index] whole: action, long press, name and icon. */
+    fun saveSlot(index: Int, slot: DockSlot) {
+        scope.launch {
+            store.updateDock { dock ->
+                val slots = (dock.slots + List(DockConfig.SIZE) { DockSlot() }).take(DockConfig.SIZE).toMutableList()
+                slots[index] = slot
+                dock.copy(slots = slots)
             }
         }
     }
@@ -972,11 +999,12 @@ class TuttiController @Inject constructor(
             val saving = if (caps.supports(BraviaService.SYSTEM, "getPowerSavingMode")) client.powerSavingMode().getOrNull() else null
             val wol = if (caps.supports(BraviaService.SYSTEM, "getWolMode")) client.wolMode().getOrNull() else null
             val scene = if (caps.supports(BraviaService.VIDEO_SCREEN, "getSceneSetting")) client.sceneSetting().getOrNull() else null
-            val sleep = if (caps.supports(BraviaService.SYSTEM, "getRemoteControllerInfo")) {
-                client.remoteControllerInfo().getOrNull()?.let(io.kud.tutti.protocol.bravia.Ircc::sleepTimerCode)
+            val ircc = if (caps.supports(BraviaService.SYSTEM, "getRemoteControllerInfo")) {
+                client.remoteControllerInfo().getOrNull().orEmpty()
             } else {
-                null
+                emptyList()
             }
+            val sleep = io.kud.tutti.protocol.bravia.Ircc.sleepTimerCode(ircc)
             val system = if (caps.supports(BraviaService.SYSTEM, "getSystemInformation")) client.systemInformation().getOrNull() else null
             val inputs = client.externalInputs().getOrNull()
             tv.update {
@@ -993,6 +1021,8 @@ class TuttiController @Inject constructor(
                         scene = scene,
                         outputWriteOnly = sound == null && caps.supports(BraviaService.AUDIO, "setSoundSettings"),
                         sleepCode = sleep,
+                        ircc = io.kud.tutti.protocol.bravia.Ircc.shortcuts(ircc),
+                        loaded = true,
                         system = system,
                     ),
                 )

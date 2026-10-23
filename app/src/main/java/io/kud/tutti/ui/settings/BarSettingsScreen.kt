@@ -144,7 +144,7 @@ private fun Info(state: TuttiUiState, feature: TheatreFeature) {
 }
 
 @Composable
-private fun optionLabel(value: String?): String = when (value) {
+fun optionLabel(value: String?): String = when (value) {
     "main" -> stringResource(R.string.bar_option_main)
     "sub" -> stringResource(R.string.bar_option_sub)
     "main_sub" -> stringResource(R.string.bar_option_main_sub)

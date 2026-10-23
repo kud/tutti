@@ -53,9 +53,25 @@ sealed interface DockAction {
     @SerialName("scene")
     data class RunScene(val sceneId: String) : DockAction
 
+    /** Sets one bar setting to a wire value, by `TheatreFeature.key` (a level travels as its number). */
+    @Serializable
+    @SerialName("bar.set")
+    data class SetBar(val featureKey: String, val value: String) : DockAction
+
+    /** A remote v2 key; [long] holds it (START_LONG / END_LONG) instead of a short press. */
     @Serializable
     @SerialName("key")
-    data class Key(val keyCode: Int) : DockAction
+    data class Key(val keyCode: Int, val long: Boolean = false) : DockAction
+
+    /** One of the TV's own IRCC keys, as getRemoteControllerInfo listed it. Needs IP control. */
+    @Serializable
+    @SerialName("ircc")
+    data class Ircc(val name: String, val code: String) : DockAction
+
+    /** The TV's picture mode (videoSettings pictureMode); [label] is the TV's own title for it. Needs IP control. */
+    @Serializable
+    @SerialName("picture")
+    data class PictureMode(val mode: String, val label: String) : DockAction
 
     /** Ordered steps with optional waits. Nested macros are flattened out at edit time. */
     @Serializable
@@ -74,8 +90,19 @@ sealed interface MacroStep {
     data class Wait(val millis: Long) : MacroStep
 }
 
+/**
+ * A pin: what it does, plus the name and icon he gave it. [label] and [icon] are null until he
+ * sets them, and then the pin names itself after its action. Every field has a default, so a
+ * dock stored before they existed reads unchanged.
+ */
 @Serializable
-data class DockSlot(val primary: DockAction? = null, val secondary: DockAction? = null)
+data class DockSlot(
+    val primary: DockAction? = null,
+    val secondary: DockAction? = null,
+    val label: String? = null,
+    /** A name from `PinGlyphs`; null follows the action. */
+    val icon: String? = null,
+)
 
 /** Secondary buttons that accept a long-press action. */
 @Serializable

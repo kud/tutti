@@ -54,6 +54,10 @@ data class TvSettingsState(
     val outputWriteOnly: Boolean = false,
     /** IRCC code for the TV's own sleep timer, when getRemoteControllerInfo lists one. */
     val sleepCode: String? = null,
+    /** Every IRCC key getRemoteControllerInfo listed, for the action picker (`Ircc.shortcuts`). */
+    val ircc: List<io.kud.tutti.protocol.bravia.IrccCode> = emptyList(),
+    /** True once a load finished: an empty list then means the TV listed nothing, not "not asked yet". */
+    val loaded: Boolean = false,
     val system: SystemInfo? = null,
 )
 

@@ -56,7 +56,7 @@ import io.kud.tutti.ui.common.SwitchRow
 import io.kud.tutti.ui.common.actionLabel
 import io.kud.tutti.ui.common.openBraviaConnect
 import io.kud.tutti.ui.onboarding.PskDialog
-import io.kud.tutti.ui.remote.ActionPickerDialog
+import io.kud.tutti.ui.remote.ActionPickerSheet
 import io.kud.tutti.ui.remote.secondaryLabel
 
 private enum class Forget { TV, BAR }
@@ -238,7 +238,7 @@ fun SettingsScreen(
         AppsShownDialog(state, controller::setAppShown) { appsDialog = false }
     }
     picker?.let { button ->
-        ActionPickerDialog(
+        ActionPickerSheet(
             title = stringResource(R.string.longpress_assign_title, secondaryLabel(button)),
             state = state,
             allowRemove = state.dock.longPress[button] != null,
@@ -246,6 +246,7 @@ fun SettingsScreen(
                 controller.assignLongPress(button, it)
                 picker = null
             },
+            onLoadTv = controller::loadTvSettings,
             onDismiss = { picker = null },
         )
     }

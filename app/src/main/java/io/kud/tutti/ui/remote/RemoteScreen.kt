@@ -37,6 +37,7 @@ import io.kud.tutti.R
 import io.kud.tutti.controller.TuttiController
 import io.kud.tutti.controller.TuttiUiState
 import io.kud.tutti.platform.data.DockAction
+import io.kud.tutti.platform.data.DockSlot
 import io.kud.tutti.platform.data.SecondaryButton
 import io.kud.tutti.protocol.atv.V2Key
 import io.kud.tutti.ui.common.TonalRoundButton
@@ -46,6 +47,9 @@ private sealed interface PickerTarget {
     data class Slot(val index: Int) : PickerTarget
 
     data class LongPress(val button: SecondaryButton) : PickerTarget
+
+    /** A pin's editor (long press on it). */
+    data class Edit(val index: Int) : PickerTarget
 }
 
 /**
@@ -248,8 +252,12 @@ fun RemoteScreen(
                         slot.primary?.let(controller::run)
                     },
                     onAssign = { index ->
-                        haptics.longPress()
+                        haptics.click()
                         picker = PickerTarget.Slot(index)
+                    },
+                    onEdit = { index ->
+                        haptics.longPress()
+                        picker = PickerTarget.Edit(index)
                     },
                 )
             }
@@ -292,7 +300,7 @@ fun RemoteScreen(
     }
 
     when (val target = picker) {
-        is PickerTarget.Slot -> ActionPickerDialog(
+        is PickerTarget.Slot -> ActionPickerSheet(
             title = stringResource(R.string.dock_assign_title, target.index + 1),
             state = state,
             allowRemove = state.dock.slots.getOrNull(target.index)?.primary != null,
@@ -300,9 +308,10 @@ fun RemoteScreen(
                 controller.assignDock(target.index, action, state.dock.slots.getOrNull(target.index)?.secondary)
                 picker = null
             },
+            onLoadTv = controller::loadTvSettings,
             onDismiss = { picker = null },
         )
-        is PickerTarget.LongPress -> ActionPickerDialog(
+        is PickerTarget.LongPress -> ActionPickerSheet(
             title = stringResource(R.string.longpress_assign_title, secondaryLabel(target.button)),
             state = state,
             allowRemove = state.dock.longPress[target.button] != null,
@@ -310,6 +319,18 @@ fun RemoteScreen(
                 controller.assignLongPress(target.button, action)
                 picker = null
             },
+            onLoadTv = controller::loadTvSettings,
+            onDismiss = { picker = null },
+        )
+        is PickerTarget.Edit -> PinEditorSheet(
+            index = target.index,
+            slot = state.dock.slots.getOrNull(target.index) ?: DockSlot(),
+            state = state,
+            onSave = { slot ->
+                controller.saveSlot(target.index, slot)
+                picker = null
+            },
+            onLoadTv = controller::loadTvSettings,
             onDismiss = { picker = null },
         )
         null -> Unit
