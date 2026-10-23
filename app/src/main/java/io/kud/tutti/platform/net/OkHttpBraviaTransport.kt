@@ -6,16 +6,23 @@ import io.kud.tutti.protocol.net.CertificatePin
 import io.kud.tutti.protocol.net.LanAddress
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.Call
+import okhttp3.EventListener
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import java.io.IOException
+import java.io.InterruptedIOException
 import java.net.ConnectException
+import java.net.InetSocketAddress
+import java.net.Proxy
 import java.security.SecureRandom
 import java.security.cert.X509Certificate
 import java.util.concurrent.TimeUnit
 import javax.net.ssl.SSLContext
+import javax.net.ssl.SSLException
 
 /**
  * BRAVIA REST over OkHttp, LAN only.
@@ -61,6 +68,7 @@ class OkHttpBraviaTransport internal constructor(
             .readTimeout(readTimeoutMs, TimeUnit.MILLISECONDS)
             .writeTimeout(8, TimeUnit.SECONDS)
             .retryOnConnectionFailure(false)
+            .eventListener(FreshConnectionListener)
             .build()
     }
 
@@ -110,15 +118,45 @@ class OkHttpBraviaTransport internal constructor(
         }
     }
 
+    /**
+     * One POST, retried once on a fresh connection when it failed on a pooled one. The TV closes
+     * idle keep-alive connections, and OkHttp only probes an idle connection before reusing it
+     * after 10 s idle, so a call within 10 s of the last one (the poll's own period) was written
+     * to a dead socket and failed with "unexpected end of stream". Timeouts are never retried,
+     * and neither is a failure on a connection opened for this call: those are real answers.
+     */
     private fun execute(scheme: String, path: String, body: String, headers: Map<String, String>): HttpReply {
+        val attempt = Attempt()
+        return try {
+            executeOnce(scheme, path, body, headers, attempt)
+        } catch (e: IOException) {
+            if (attempt.freshConnection || e is InterruptedIOException || e is SSLException) throw e
+            client.connectionPool.evictAll()
+            executeOnce(scheme, path, body, headers, Attempt())
+        }
+    }
+
+    private fun executeOnce(scheme: String, path: String, body: String, headers: Map<String, String>, attempt: Attempt): HttpReply {
         val contentType = headers.entries.firstOrNull { it.key.equals("Content-Type", ignoreCase = true) }?.value
         val request = Request.Builder()
             .url("$scheme://${urlHost()}:${if (scheme == "https") httpsPort else httpPort}$path")
             .post(body.toRequestBody(contentType?.toMediaTypeOrNull()))
             .apply { headers.forEach { (name, value) -> if (!name.equals("Content-Type", true)) header(name, value) } }
+            .tag(Attempt::class.java, attempt)
             .build()
         client.newCall(request).execute().use { response ->
             return HttpReply(response.code, response.body.string())
+        }
+    }
+
+    /** Whether a call opened its own connection rather than reusing a pooled one. */
+    private class Attempt {
+        @Volatile var freshConnection = false
+    }
+
+    private object FreshConnectionListener : EventListener() {
+        override fun connectStart(call: Call, inetSocketAddress: InetSocketAddress, proxy: Proxy) {
+            call.request().tag(Attempt::class.java)?.freshConnection = true
         }
     }
 
