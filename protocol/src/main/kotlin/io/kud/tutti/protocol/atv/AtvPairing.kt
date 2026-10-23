@@ -73,8 +73,14 @@ class AtvPairing(
                         }
                     }
                 }
-                // Stop reading as soon as the outcome is known; the TV may keep the socket open.
-                if (state.isTerminal) throw Finished()
+                // Stop reading as soon as the outcome is known. The TV keeps the socket open after
+                // its secret ack, and leaving collect waits for the reader, which is blocked in a read
+                // nothing will answer: close first, so that read ends and collect can return.
+                if (state.isTerminal) {
+                    note("done: ${outcomeOf(state)}")
+                    connection.close()
+                    throw Finished()
+                }
             }
             note("stream ended in $state")
         } catch (e: Finished) {
@@ -122,6 +128,8 @@ class AtvPairing(
         message.pairing_secret_ack != null -> "secret_ack"
         else -> "empty"
     }
+
+    private fun outcomeOf(state: PairingState): String = if (state == PairingState.Paired) "paired" else "failed"
 
     private class Finished : Exception()
 

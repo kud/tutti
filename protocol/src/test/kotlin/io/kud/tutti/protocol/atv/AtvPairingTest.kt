@@ -9,27 +9,54 @@ import io.kud.tutti.protocol.net.CertificatePin
 import io.kud.tutti.protocol.net.ClientIdentity
 import io.kud.tutti.protocol.net.TlsConnection
 import io.kud.tutti.protocol.net.TlsConnector
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.consumeAsFlow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.test.runTest
+import java.io.IOException
+import java.io.PipedInputStream
+import java.io.PipedOutputStream
 import java.security.cert.X509Certificate
 import java.security.interfaces.RSAPublicKey
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 /** An in-memory TV that answers each pairing step; the secret it receives is recorded. */
-private class FakeTv(private val client: ClientIdentity, private val server: ClientIdentity) : TlsConnector {
+private class FakeTv(
+    private val client: ClientIdentity,
+    private val server: ClientIdentity,
+    private val blockingRead: Boolean = false,
+) : TlsConnector {
     var receivedSecret: ByteArray? = null
 
     override suspend fun connect(host: String, port: Int, identity: ClientIdentity, expectedPin: CertificatePin?): TlsConnection {
         val inbox = Channel<ByteArray>(Channel.UNLIMITED)
+        // Like a socket: a blocking read on its own thread that only a close can end. The TV keeps
+        // the pairing socket open after its secret ack, so nothing else ever arrives.
+        val wire = PipedInputStream(64 * 1024)
+        val wireIn = PipedOutputStream(wire)
         val decoder = FrameDecoder()
         val ok = PairingMessage.Status.STATUS_OK
         return object : TlsConnection {
             override val localCertificate: X509Certificate = client.certificate
             override val peerCertificate: X509Certificate = server.certificate
-            override val incoming: Flow<ByteArray> = inbox.consumeAsFlow()
+            override val incoming: Flow<ByteArray> = if (blockingRead) {
+                flow {
+                    val buffer = ByteArray(4096)
+                    while (true) {
+                        val read = try { wire.read(buffer) } catch (e: IOException) { -1 }
+                        if (read < 0) break
+                        emit(buffer.copyOf(read))
+                    }
+                }.flowOn(Dispatchers.IO)
+            } else {
+                inbox.consumeAsFlow()
+            }
 
             override suspend fun send(bytes: ByteArray) {
                 for (frame in decoder.feed(bytes)) {
@@ -44,12 +71,22 @@ private class FakeTv(private val client: ClientIdentity, private val server: Cli
                         }
                         else -> null
                     }
-                    reply?.let { inbox.send(Framing.frame(it.encode())) }
+                    reply?.let {
+                        val bytes = Framing.frame(it.encode())
+                        if (blockingRead) {
+                            wireIn.write(bytes)
+                            wireIn.flush()
+                        } else {
+                            inbox.send(bytes)
+                        }
+                    }
                 }
             }
 
             override fun close() {
                 inbox.close()
+                // A blocked pipe read ignores its own close; closing the writer ends it, as closing a socket would.
+                wireIn.close()
             }
         }
     }
@@ -87,5 +124,20 @@ class AtvPairingTest {
     fun `cancelling at the code prompt fails cleanly`() = runTest {
         val result = AtvPairing(FakeTv(client, server)).pair("192.168.1.10", client) { null }
         assertEquals(PairingResult.Failed(PairingFailure.Cancelled), result)
+    }
+
+    @Test
+    fun `returns as soon as the TV acks the secret, though it keeps the socket open`() {
+        val code = displayedCode()
+        var result: PairingResult? = null
+        val session = AtvPairing(FakeTv(client, server, blockingRead = true))
+        val pairing = Thread {
+            result = runBlocking { session.pair("192.168.1.10", client) { code } }
+        }
+        pairing.isDaemon = true
+        pairing.start()
+        pairing.join(5_000)
+        assertTrue(!pairing.isAlive, "pair() still waiting on the open socket after the secret ack: ${session.trace}")
+        assertEquals(PairingResult.Paired(CertificatePin.of(server.certificate)), result)
     }
 }
