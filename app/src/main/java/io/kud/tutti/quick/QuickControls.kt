@@ -1,5 +1,6 @@
 package io.kud.tutti.quick
 
+import io.kud.tutti.platform.data.VibrationLevel
 import kotlinx.coroutines.flow.StateFlow
 
 /**
@@ -54,6 +55,9 @@ data class QuickState(
     val activeSceneModified: Boolean = false,
     /** In strip order. */
     val scenes: List<QuickScene> = emptyList(),
+    /** The app's Feedback settings, so the overlay vibrates exactly as the remote does. */
+    val vibration: VibrationLevel = VibrationLevel.ALL,
+    val keySounds: Boolean = false,
 ) {
     val activeScene: QuickScene? get() = scenes.firstOrNull { it.id == activeSceneId }
 }

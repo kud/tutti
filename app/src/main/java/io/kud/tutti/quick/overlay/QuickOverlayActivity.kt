@@ -37,6 +37,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -47,7 +48,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -58,11 +58,13 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.kud.tutti.MainActivity
 import io.kud.tutti.R
 import io.kud.tutti.quick.QuickControls
-import io.kud.tutti.quick.QuickHaptics
 import io.kud.tutti.quick.QuickRuntime
 import io.kud.tutti.quick.QuickScene
 import io.kud.tutti.quick.QuickState
 import io.kud.tutti.quick.quickControls
+import io.kud.tutti.ui.common.FeedbackPrefs
+import io.kud.tutti.ui.common.LocalFeedbackPrefs
+import io.kud.tutti.ui.common.rememberFeedback
 import io.kud.tutti.ui.theme.TuttiTheme
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -84,17 +86,19 @@ class QuickOverlayActivity : ComponentActivity() {
         setContent {
             TuttiTheme {
                 val state by stateFlow.collectAsStateWithLifecycle()
-                QuickOverlay(
-                    state = state,
-                    act = { block -> QuickRuntime.act(this, block) },
-                    onOpenApp = {
-                        startActivity(
-                            Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                        )
-                        finish()
-                    },
-                    onDismiss = ::finish,
-                )
+                CompositionLocalProvider(LocalFeedbackPrefs provides FeedbackPrefs(state.vibration, state.keySounds)) {
+                    QuickOverlay(
+                        state = state,
+                        act = { block -> QuickRuntime.act(this, block) },
+                        onOpenApp = {
+                            startActivity(
+                                Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                            )
+                            finish()
+                        },
+                        onDismiss = ::finish,
+                    )
+                }
             }
         }
     }
@@ -133,7 +137,7 @@ private fun QuickOverlay(
     onOpenApp: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val view = LocalView.current
+    val feedback = rememberFeedback()
     val scope = rememberCoroutineScope()
     val enabled = state.connected
 
@@ -166,7 +170,7 @@ private fun QuickOverlay(
                 Header(
                     state = state,
                     onPower = {
-                        QuickHaptics.click(view)
+                        feedback.click()
                         act { togglePower() }
                     },
                 )
@@ -176,12 +180,12 @@ private fun QuickOverlay(
                     enabled = enabled,
                     onStep = { up ->
                         val atLimit = if (up) state.volume >= state.volumeLimit else state.volume <= 0
-                        if (atLimit) QuickHaptics.bump(view) else QuickHaptics.tick(view)
+                        if (atLimit) feedback.bump() else feedback.tick()
                         act { if (up) volumeUp() else volumeDown() }
                     },
                     onSet = { level -> act { setVolume(level) } },
                     onMute = {
-                        QuickHaptics.click(view)
+                        feedback.click()
                         act { toggleMute() }
                     },
                 )
@@ -198,10 +202,10 @@ private fun QuickOverlay(
                                 modified = scene.id == state.activeSceneId && state.activeSceneModified,
                                 enabled = enabled,
                                 onClick = {
-                                    QuickHaptics.click(view)
+                                    feedback.click()
                                     scope.launch {
                                         act { applyScene(scene.id) }?.join()
-                                        QuickHaptics.sceneDone(view)
+                                        feedback.doublePulse()
                                     }
                                 },
                             )
@@ -289,7 +293,7 @@ private fun VolumeRow(
     onSet: (Int) -> Unit,
     onMute: () -> Unit,
 ) {
-    val view = LocalView.current
+    val feedback = rememberFeedback()
     // While dragging, the thumb follows the finger; the controller only hears the release.
     var dragging by remember { mutableStateOf<Float?>(null) }
     val shown = dragging ?: state.volume.toFloat()
@@ -313,7 +317,7 @@ private fun VolumeRow(
             onValueChange = { raw ->
                 val next = raw.coerceAtMost(limit)
                 if (next.roundToInt() != shown.roundToInt()) {
-                    if (raw > limit) QuickHaptics.bump(view) else QuickHaptics.tick(view)
+                    if (raw > limit) feedback.bump() else feedback.tick()
                 }
                 dragging = next
             },

@@ -72,6 +72,8 @@ class ControllerQuickControls @Inject constructor(
             activeSceneId = active?.scene?.id,
             activeSceneModified = active?.status == SceneStatus.MODIFIED,
             scenes = scenes.map { QuickScene(it.scene.id, it.scene.name, it.scene.color) },
+            vibration = prefs.vibrationLevel,
+            keySounds = prefs.keySounds,
         )
     }
 
