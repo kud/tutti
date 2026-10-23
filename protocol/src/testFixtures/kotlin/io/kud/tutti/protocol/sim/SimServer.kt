@@ -10,6 +10,8 @@ import io.kud.tutti.protocol.net.TlsConnector
 import java.io.IOException
 import java.net.InetAddress
 import java.net.InetSocketAddress
+import java.net.BindException
+import java.net.ConnectException
 import java.net.ServerSocket
 import java.net.Socket
 import java.net.StandardSocketOptions
@@ -123,7 +125,13 @@ abstract class SimServer(private val name: String) : AutoCloseable {
         // Sockets accepted before a sleep may linger (FIN_WAIT) until the client closes its end;
         // SO_REUSEPORT lets the woken port bind beside them, as a rebooted TV's would.
         if (StandardSocketOptions.SO_REUSEPORT in socket.supportedOptions()) socket.setOption(StandardSocketOptions.SO_REUSEPORT, true)
-        socket.bind(InetSocketAddress(InetAddress.getLoopbackAddress(), port), 16)
+        try {
+            socket.bind(InetSocketAddress(InetAddress.getLoopbackAddress(), port), 16)
+        } catch (e: BindException) {
+            // The port went to another simulator while this one slept (Gradle runs the protocol
+            // and app suites side by side). The connectors follow [port], so take a fresh one.
+            socket.bind(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 16)
+        }
         port = socket.localPort
         server = socket
         awake = true
@@ -159,6 +167,15 @@ abstract class SimServer(private val name: String) : AutoCloseable {
         runCatching { server?.close() }
         server = null
         dropConnections()
+    }
+
+    /**
+     * Throws as a TCP connect to a port in standby does. The connectors check this before
+     * dialling, because a port released by [sleep] is free for any process to take: a simulator in
+     * the other test JVM once took it, and AtvSimTest "connected to a sleeping TV".
+     */
+    fun refuseIfAsleep() {
+        if (!awake) throw ConnectException("$name is in standby: connection refused")
     }
 
     /** Closes every live socket mid-stream; the port stays open. */
@@ -241,12 +258,17 @@ abstract class TlsSimServer(name: String, identity: ClientIdentity, private val 
  * (6466, 6467, 33336), the simulator listens wherever the OS put it.
  */
 class SimTlsConnector(private val real: TlsConnector, private val ports: Map<Int, SimServer>) : TlsConnector {
-    override suspend fun connect(host: String, port: Int, identity: ClientIdentity, expectedPin: CertificatePin?): TlsConnection =
-        real.connect(host, ports[port]?.port ?: port, identity, expectedPin)
+    override suspend fun connect(host: String, port: Int, identity: ClientIdentity, expectedPin: CertificatePin?): TlsConnection {
+        ports[port]?.refuseIfAsleep()
+        return real.connect(host, ports[port]?.port ?: port, identity, expectedPin)
+    }
 }
 
 class SimTcpConnector(private val real: TcpConnector, private val ports: Map<Int, SimServer>) : TcpConnector {
-    override suspend fun connect(host: String, port: Int): Connection = real.connect(host, ports[port]?.port ?: port)
+    override suspend fun connect(host: String, port: Int): Connection {
+        ports[port]?.refuseIfAsleep()
+        return real.connect(host, ports[port]?.port ?: port)
+    }
 }
 
 /** Polls [condition] for up to [millis]: the simulator runs on its own threads. */
