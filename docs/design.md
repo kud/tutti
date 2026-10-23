@@ -28,6 +28,12 @@ Sound field, Voice, Night, DRC, Auto volume, IMAX, 360 Spatial as large toggles;
 - Long-press on any dock slot or secondary button (Home, Back, Play) assigns a second action.
 - Pad gestures, two only: two-finger tap = play/pause; two-finger vertical drag = bar volume.
 
+### Edit mode
+- Settings › Shortcuts › "Remote layout", or "Edit the remote layout" at the foot of a pin's editor, turns the remote into its own edit mode: the same screen, what can change in a dashed frame, what can't under a lock. Changes save as they are made; "Done" (or Back) leaves.
+- Adjustable: the round-button row (up to six, from Back, Home, Play/Pause, Voice, Keyboard, Mute, Info, Subtitles, Input, Guide, TV settings; drag sideways or TalkBack's move left / right), the scene strip (shown or hidden), the pad in three steps (Compact stands a shorter pad at the rail's foot, Normal is the pad as it shipped, Large takes the margins back), and the pins' order within a page (drag, or move left / right; tap opens the pin's editor).
+- Anchors never move or hide: Power, the volume rail, the pad's place and the Son sheet. "Reset the layout" asks first and puts the row, the scenes and the pad back; pins stay.
+- Stored with every field defaulted to today's screen, so a phone that never opens edit mode sees no change.
+
 ## Scenes (templates)
 - A scene holds any subset of TV settings (input or app, picture mode), bar settings (sound field, voice, night, bass, volume, optional volume cap) and a final action (launch an app).
 - Main creation path: "Capturer l'état actuel" — every captured value becomes a removable chip; name, colour and glyph. Blank form is the fallback.

@@ -13,8 +13,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import io.kud.tutti.R
@@ -56,6 +59,8 @@ sealed interface Screen {
 @Composable
 fun TuttiApp(controller: TuttiController, discovery: TvDiscovery, diagnostics: Diagnostics, state: TuttiUiState) {
     val stack = remember { mutableStateListOf<Screen>(Screen.Remote) }
+    // The remote's edit mode is a state of the remote screen, not a screen of its own.
+    var editingLayout by remember { mutableStateOf(false) }
     val haptics = rememberHaptics()
     val context = LocalContext.current
 
@@ -101,6 +106,8 @@ fun TuttiApp(controller: TuttiController, discovery: TvDiscovery, diagnostics: D
                 onOpenScenes = { push(Screen.Scenes) },
                 onOpenSettings = { push(Screen.Settings) },
                 onEditScene = { push(Screen.SceneEditor(it)) },
+                editing = editingLayout,
+                onEditingChange = { editingLayout = it },
             )
             Screen.Scenes -> ScenesScreen(
                 state = state,
@@ -121,6 +128,10 @@ fun TuttiApp(controller: TuttiController, discovery: TvDiscovery, diagnostics: D
                 onOpenTv = { push(Screen.TvSettings) },
                 onOpenBar = { push(Screen.BarSettings) },
                 onOpenDiagnostic = { push(Screen.Diagnostic) },
+                onEditLayout = {
+                    editingLayout = true
+                    pop()
+                },
                 onPair = {
                     controller.resetPairing()
                     push(Screen.Onboarding)

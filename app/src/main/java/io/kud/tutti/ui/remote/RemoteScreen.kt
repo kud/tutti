@@ -1,6 +1,6 @@
 package io.kud.tutti.ui.remote
 
-import androidx.compose.foundation.layout.Arrangement
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -37,6 +37,7 @@ import io.kud.tutti.R
 import io.kud.tutti.controller.TuttiController
 import io.kud.tutti.controller.TuttiUiState
 import io.kud.tutti.platform.data.DockAction
+import io.kud.tutti.platform.data.PadSize
 import io.kud.tutti.platform.data.SecondaryButton
 import io.kud.tutti.protocol.atv.V2Key
 import io.kud.tutti.ui.common.TonalRoundButton
@@ -64,8 +65,12 @@ fun RemoteScreen(
     onOpenScenes: () -> Unit,
     onOpenSettings: () -> Unit,
     onEditScene: (String) -> Unit,
+    editing: Boolean = false,
+    onEditingChange: (Boolean) -> Unit = {},
 ) {
     val haptics = rememberHaptics()
+    val layout = state.prefs.layout
+    BackHandler(enabled = editing) { onEditingChange(false) }
     var picker by remember { mutableStateOf<PickerTarget?>(null) }
     var keyboardRequested by remember { mutableStateOf(false) }
     var sheet2 by remember { mutableStateOf<RemoteSheet?>(null) }
@@ -92,11 +97,25 @@ fun RemoteScreen(
     val navigationInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     BottomSheetScaffold(
         scaffoldState = sheet,
-        sheetPeekHeight = if (keyboardOpen) 0.dp else SHEET_PEEK + navigationInset,
+        sheetPeekHeight = if (keyboardOpen || editing) 0.dp else SHEET_PEEK + navigationInset,
+        sheetSwipeEnabled = !editing,
         sheetContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
         containerColor = MaterialTheme.colorScheme.background,
         sheetContent = { SoundSheet(state, controller) },
     ) { padding ->
+        if (editing) {
+            LayoutEditor(
+                state = state,
+                onLayout = controller::updateLayout,
+                onReset = controller::resetLayout,
+                onMovePin = controller::moveDockSlot,
+                onEditPin = { picker = PickerTarget.Edit(it) },
+                onAddPage = controller::addDockPage,
+                onDone = { onEditingChange(false) },
+                modifier = Modifier.padding(padding),
+            )
+            return@BottomSheetScaffold
+        }
         Column(
             Modifier
                 .fillMaxSize()
@@ -128,15 +147,17 @@ fun RemoteScreen(
                 )
             }
 
-            SceneStrip(
-                scenes = state.scenes,
-                onApply = {
-                    haptics.click()
-                    controller.applyScene(it)
-                },
-                onEdit = onEditScene,
-                modifier = Modifier.padding(vertical = 4.dp),
-            )
+            if (layout.scenes) {
+                SceneStrip(
+                    scenes = state.scenes,
+                    onApply = {
+                        haptics.click()
+                        controller.applyScene(it)
+                    },
+                    onEdit = onEditScene,
+                    modifier = Modifier.padding(vertical = 4.dp),
+                )
+            }
 
             if (keyboardOpen) {
                 KeyboardPanel(
@@ -151,7 +172,15 @@ fun RemoteScreen(
                 )
             }
 
-            Row(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
+            // Normal is the pad as it shipped. Large takes the margins back; compact keeps the
+            // rail full height and stands a shorter pad at its foot, nearer the thumb.
+            val large = layout.padSize == PadSize.LARGE
+            Row(
+                Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .padding(horizontal = if (large) 8.dp else 16.dp, vertical = if (large) 4.dp else 12.dp),
+            ) {
                 Pad(
                     mode = state.prefs.padMode,
                     onModeChange = controller::setPadMode,
@@ -159,9 +188,12 @@ fun RemoteScreen(
                     onLongSelect = { controller.longPress(V2Key.DPAD_CENTER) },
                     onPlayPause = { controller.key(V2Key.MEDIA_PLAY_PAUSE) },
                     onVolumeStep = controller::volumeStep,
-                    modifier = Modifier.weight(1f).fillMaxHeight(),
+                    modifier = Modifier
+                        .weight(1f)
+                        .align(Alignment.Bottom)
+                        .fillMaxHeight(if (layout.padSize == PadSize.COMPACT) COMPACT_SHARE else 1f),
                 )
-                Spacer(Modifier.width(12.dp))
+                Spacer(Modifier.width(if (large) 8.dp else 12.dp))
                 VolumeRail(
                     volume = state.volume,
                     cap = state.volumeCap,
@@ -171,67 +203,32 @@ fun RemoteScreen(
                 )
             }
 
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                TonalRoundButton(
-                    icon = R.drawable.ic_back,
-                    contentDescription = stringResource(R.string.action_back),
-                    onClick = {
-                        haptics.click()
-                        controller.key(V2Key.BACK)
-                    },
-                    onLongClick = { secondary(SecondaryButton.BACK) },
-                    size = ROW_BUTTON,
-                )
-                TonalRoundButton(
-                    icon = R.drawable.ic_home,
-                    contentDescription = stringResource(R.string.action_home),
-                    onClick = {
-                        haptics.click()
-                        controller.key(V2Key.HOME)
-                    },
-                    onLongClick = { secondary(SecondaryButton.HOME) },
-                    size = ROW_BUTTON,
-                )
-                TonalRoundButton(
-                    icon = R.drawable.ic_play_pause,
-                    contentDescription = stringResource(R.string.action_play_pause),
-                    onClick = {
-                        haptics.click()
-                        controller.key(V2Key.MEDIA_PLAY_PAUSE)
-                    },
-                    onLongClick = { secondary(SecondaryButton.PLAY) },
-                    size = ROW_BUTTON,
-                )
-                VoiceButton(controller = controller, enabled = state.remote.ready, size = ROW_BUTTON)
-                TonalRoundButton(
-                    icon = R.drawable.ic_keyboard,
-                    contentDescription = stringResource(R.string.action_keyboard),
-                    onClick = {
-                        haptics.click()
-                        if (keyboardOpen) {
-                            controller.dismissKeyboard()
-                            keyboardRequested = false
-                        } else {
-                            keyboardRequested = true
-                        }
-                    },
-                    active = keyboardOpen,
-                    size = ROW_BUTTON,
-                )
-                TonalRoundButton(
-                    icon = if (state.muted) R.drawable.ic_volume_off else R.drawable.ic_volume_up,
-                    contentDescription = stringResource(R.string.action_mute),
-                    onClick = {
-                        haptics.click()
-                        controller.toggleMute()
-                    },
-                    active = state.muted,
-                    enabled = state.bar.connected,
-                    size = ROW_BUTTON,
-                )
+            val row = layout.shownRow
+            if (row.isNotEmpty()) {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                    horizontalArrangement = rowArrangement(row.size),
+                ) {
+                    row.forEach { button ->
+                        LiveRowButton(
+                            button = button,
+                            state = state,
+                            controller = controller,
+                            haptics = haptics,
+                            keyboardOpen = keyboardOpen,
+                            onKeyboard = {
+                                if (keyboardOpen) {
+                                    controller.dismissKeyboard()
+                                    keyboardRequested = false
+                                } else {
+                                    keyboardRequested = true
+                                }
+                            },
+                            onSecondary = ::secondary,
+                            size = ROW_BUTTON,
+                        )
+                    }
+                }
             }
 
             if (!keyboardOpen) {
@@ -344,6 +341,14 @@ fun RemoteScreen(
                 controller.removeDockPage(page)
                 picker = null
             },
+            onEditLayout = if (editing) {
+                null
+            } else {
+                {
+                    picker = null
+                    onEditingChange(true)
+                }
+            },
         )
         null -> Unit
     }
@@ -356,8 +361,8 @@ fun secondaryLabel(button: SecondaryButton): String = when (button) {
     SecondaryButton.PLAY -> stringResource(R.string.action_play_pause)
 }
 
-/** Six round buttons (with the mic) must fit a 360dp phone: 6 × 52 + gaps inside 328dp. */
-private val ROW_BUTTON = 52.dp
+/** A compact pad's share of the height the normal one fills. */
+private const val COMPACT_SHARE = 0.78f
 
 /** The full-height sheets the bottom row's doors open. */
 private enum class RemoteSheet { APPS, KEYS }

@@ -82,6 +82,7 @@ fun SettingsScreen(
     onOpenTv: () -> Unit,
     onOpenBar: () -> Unit,
     onOpenDiagnostic: () -> Unit,
+    onEditLayout: () -> Unit = {},
     onPair: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -163,6 +164,12 @@ fun SettingsScreen(
             )
 
             SectionTitle(stringResource(R.string.settings_shortcuts))
+            LinkRow(
+                title = stringResource(R.string.layout_entry),
+                detail = stringResource(R.string.layout_entry_detail),
+                enabled = true,
+                onClick = onEditLayout,
+            )
             for (button in SecondaryButton.entries) {
                 val action = state.dock.longPress[button]
                 LinkRow(

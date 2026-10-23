@@ -12,6 +12,7 @@ import io.kud.tutti.platform.data.DockSlot
 import io.kud.tutti.platform.data.MacroStep
 import io.kud.tutti.platform.data.PadMode
 import io.kud.tutti.platform.data.ThemeMode
+import io.kud.tutti.platform.data.RemoteLayout
 import io.kud.tutti.platform.data.TuttiStore
 import io.kud.tutti.platform.data.SecondaryButton
 import io.kud.tutti.platform.data.TvDevice
@@ -823,6 +824,21 @@ class TuttiController @Inject constructor(
 
     fun assignDock(index: Int, primary: DockAction?, secondary: DockAction?) {
         scope.launch { store.updateDock { it.withSlot(index, DockSlot(primary, secondary)) } }
+    }
+
+    /** Pin [from] moved to [to] (flat index across pages), from the layout editor. */
+    fun moveDockSlot(from: Int, to: Int) {
+        scope.launch { store.updateDock { it.withSlotMoved(from, to) } }
+    }
+
+    /** The remote screen's layout, changed against what is stored now (never a stale copy). */
+    fun updateLayout(transform: (RemoteLayout) -> RemoteLayout) {
+        scope.launch { store.updatePrefs { it.copy(layout = transform(it.layout)) } }
+    }
+
+    /** Back to the screen as it shipped; pins and their pages are his and stay. */
+    fun resetLayout() {
+        scope.launch { store.updatePrefs { it.copy(layout = RemoteLayout()) } }
     }
 
     /** A new empty page of pins at the end (three at most). */

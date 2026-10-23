@@ -3,6 +3,8 @@ package io.kud.tutti.ui.remote
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -193,12 +195,24 @@ private fun PinDialog(app: KnownApp, state: TuttiUiState, onPick: (Int) -> Unit,
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.apps_pin_title, app.name)) },
         text = {
-            Column {
-                for (index in 0 until DockConfig.SIZE) {
-                    val current = state.dock.slots.getOrNull(index)?.primary
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                val pages = state.dock.pages
+                for (index in 0 until pages.size * DockConfig.PAGE_SIZE) {
+                    val page = index / DockConfig.PAGE_SIZE
+                    val offset = index % DockConfig.PAGE_SIZE
+                    // Every page's pins, each page under its own heading once there are two.
+                    if (pages.size > 1 && offset == 0) {
+                        Text(
+                            stringResource(R.string.apps_pin_page, page + 1),
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(start = 8.dp, top = if (page > 0) 8.dp else 0.dp, bottom = 2.dp),
+                        )
+                    }
+                    val current = state.dock.slot(index).primary
                     val what = current?.let { actionLabel(it, state) } ?: stringResource(R.string.apps_slot_empty)
                     Text(
-                        stringResource(R.string.apps_slot, index + 1, what),
+                        stringResource(R.string.apps_slot, offset + 1, what),
                         style = MaterialTheme.typography.bodyLarge,
                         modifier = Modifier
                             .fillMaxWidth()

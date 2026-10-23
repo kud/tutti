@@ -23,6 +23,7 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
@@ -57,6 +58,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.kud.tutti.R
+import io.kud.tutti.ui.common.reorderActions
+import io.kud.tutti.ui.common.reorderable
+import io.kud.tutti.ui.common.rememberReorderState
 import io.kud.tutti.controller.TuttiUiState
 import io.kud.tutti.platform.data.DockAction
 import io.kud.tutti.platform.data.DockConfig
@@ -91,13 +95,24 @@ fun PinEditorSheet(
     onTry: (DockAction) -> Unit = {},
     onAddPage: () -> Unit = {},
     onRemovePage: (page: Int) -> Unit = {},
+    onEditLayout: (() -> Unit)? = null,
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
     ) {
-        PinEditorContent(index, slot, state, onSave, onLoadTv, onTry = onTry, onAddPage = onAddPage, onRemovePage = onRemovePage)
+        PinEditorContent(
+            index,
+            slot,
+            state,
+            onSave,
+            onLoadTv,
+            onTry = onTry,
+            onAddPage = onAddPage,
+            onRemovePage = onRemovePage,
+            onEditLayout = onEditLayout,
+        )
     }
 }
 
@@ -119,7 +134,12 @@ fun PinEditorContent(
     onTry: (DockAction) -> Unit = {},
     onAddPage: () -> Unit = {},
     onRemovePage: (page: Int) -> Unit = {},
+    onEditLayout: (() -> Unit)? = null,
 ) {
+    var confirmRemovePage by remember { mutableStateOf(false) }
+    val reorder = rememberReorderState()
+    val up = stringResource(R.string.layout_move_up)
+    val down = stringResource(R.string.layout_move_down)
     val steps = remember(slot) { mutableStateListOf<MacroStep>().apply { addAll(slot.primary.asSteps()) } }
     var secondary by remember(slot) { mutableStateOf(slot.secondary) }
     var name by rememberSaveable(slot) { mutableStateOf(slot.label.orEmpty()) }
@@ -242,9 +262,16 @@ fun PinEditorContent(
             Column(
                 Modifier.clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surfaceContainerHigh),
             ) {
+                val moveStep: (Int, Int) -> Unit = { from, to ->
+                    if (from in steps.indices && to in steps.indices) steps.add(to, steps.removeAt(from))
+                }
                 steps.forEachIndexed { at, step ->
                     if (at > 0) HorizontalDivider(color = MaterialTheme.colorScheme.surfaceContainerLow)
                     StepRow(
+                        // Hold and drag inside the scrolling sheet; ↑ ↓ stay as the accessible path.
+                        modifier = Modifier
+                            .reorderable(reorder, at, vertical = true, onMove = moveStep, afterLongPress = true)
+                            .reorderActions(at, steps.size, up, down, moveStep),
                         number = at + 1,
                         step = step,
                         state = state,
@@ -330,7 +357,7 @@ fun PinEditorContent(
                 }
             }
             if (pages > 1) {
-                TextButton(onClick = { onRemovePage(page) }) {
+                TextButton(onClick = { if (state.dock.pageIsEmpty(page)) onRemovePage(page) else confirmRemovePage = true }) {
                     Icon(painterResource(R.drawable.ic_delete), contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
                     Text(stringResource(R.string.pin_page_remove))
@@ -353,6 +380,31 @@ fun PinEditorContent(
                 Text(stringResource(R.string.pin_remove))
             }
         }
+        if (onEditLayout != null) {
+            HorizontalDivider(Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.outlineVariant)
+            TextButton(onClick = onEditLayout) {
+                Icon(painterResource(R.drawable.ic_edit), contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(stringResource(R.string.layout_edit_from_pin))
+            }
+        }
+    }
+
+    if (confirmRemovePage) {
+        AlertDialog(
+            onDismissRequest = { confirmRemovePage = false },
+            title = { Text(stringResource(R.string.pin_page_remove_title, page + 1)) },
+            text = { Text(stringResource(R.string.pin_page_remove_body)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmRemovePage = false
+                    onRemovePage(page)
+                }) { Text(stringResource(R.string.pin_page_remove_confirm), color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmRemovePage = false }) { Text(stringResource(R.string.cancel)) }
+            },
+        )
     }
 
     when (val target = picking) {
@@ -445,6 +497,7 @@ private fun ActionGlyph(action: DockAction?, state: TuttiUiState) {
  */
 @Composable
 private fun StepRow(
+    modifier: Modifier,
     number: Int,
     step: MacroStep,
     state: TuttiUiState,
@@ -463,7 +516,8 @@ private fun StepRow(
     }
     val description = stringResource(R.string.pin_step_desc, number, label)
     Row(
-        Modifier
+        modifier
+            .background(colors.surfaceContainerHigh)
             .fillMaxWidth()
             .heightIn(min = 56.dp)
             .then(if (step is MacroStep.Run) Modifier.clickable(onClick = onChange) else Modifier)

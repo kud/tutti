@@ -31,7 +31,57 @@ data class AppPrefs(
     val hiddenApps: Set<String> = emptySet(),
     val padMode: PadMode = PadMode.TOUCHPAD,
     val onboarded: Boolean = false,
+    /** What the remote screen shows and in what order; the default is the screen as it always was. */
+    val layout: RemoteLayout = RemoteLayout(),
 )
+
+/** The round buttons the row under the pad can hold. The first six are the row as it shipped. */
+@Serializable
+enum class RowButton { BACK, HOME, PLAY, VOICE, KEYBOARD, MUTE, INFO, CAPTIONS, INPUT, GUIDE, TV_SETTINGS }
+
+/** Three steps, not a slider: the pad as it shipped is [NORMAL]. */
+@Serializable
+enum class PadSize { COMPACT, NORMAL, LARGE }
+
+/**
+ * The parts of the remote screen he may arrange. Power, the volume rail, the pad's place and the
+ * Son sheet are anchors and have no field here, so no stored layout can move or hide them.
+ * Every field has a default, and the defaults draw today's screen exactly, so prefs stored
+ * before layouts existed read as the screen they always showed.
+ */
+@Serializable
+data class RemoteLayout(
+    val row: List<RowButton> = DEFAULT_ROW,
+    val scenes: Boolean = true,
+    val padSize: PadSize = PadSize.NORMAL,
+) {
+    /** The row as drawn: no button twice, never more than [MAX_ROW]. */
+    val shownRow: List<RowButton> get() = row.distinct().take(MAX_ROW)
+
+    /** What could still go in the row, in the enum's order. */
+    val addable: List<RowButton> get() = RowButton.entries.filter { it !in shownRow }
+
+    fun withAdded(button: RowButton): RemoteLayout =
+        if (button in shownRow || shownRow.size >= MAX_ROW) this else copy(row = shownRow + button)
+
+    fun withRemoved(button: RowButton): RemoteLayout = copy(row = shownRow - button)
+
+    /** The button at [from] moved to [to], both clamped to the row. */
+    fun withMoved(from: Int, to: Int): RemoteLayout = copy(row = shownRow.moved(from, to))
+
+    companion object {
+        const val MAX_ROW = 6
+        val DEFAULT_ROW = listOf(RowButton.BACK, RowButton.HOME, RowButton.PLAY, RowButton.VOICE, RowButton.KEYBOARD, RowButton.MUTE)
+    }
+}
+
+/** This list with the item at [from] taken out and put back at [to]; out-of-range is a no-op. */
+fun <T> List<T>.moved(from: Int, to: Int): List<T> {
+    if (from !in indices) return this
+    val target = to.coerceIn(indices)
+    if (target == from) return this
+    return toMutableList().apply { add(target, removeAt(from)) }
+}
 
 /** What a dock slot or a secondary (long-press) button does. */
 @Serializable
@@ -160,6 +210,15 @@ data class DockConfig(
         padded[index] = slot
         return copy(slots = padded.take(MAX_PAGES * PAGE_SIZE))
     }
+
+    /** Pin [from] moved to [to], counted across pages; the pins between shift along. */
+    fun withSlotMoved(from: Int, to: Int): DockConfig {
+        val all = pages.flatten()
+        return copy(slots = all.moved(from, to))
+    }
+
+    /** True when page [page] holds no pin at all, so removing it loses nothing. */
+    fun pageIsEmpty(page: Int): Boolean = pages.getOrNull(page)?.all { it.primary == null && it.secondary == null } ?: true
 
     /** One more empty page at the end, while there is room. */
     fun withPageAdded(): DockConfig =

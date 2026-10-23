@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="layout_title">Modifier la télécommande</string>
+    <string name="layout_done">OK</string>
+    <string name="layout_entry">Disposition de la télécommande</string>
+    <string name="layout_entry_detail">Boutons de la rangée, scènes, taille du pavé</string>
+    <string name="layout_edit_from_pin">Modifier la disposition</string>
+    <string name="layout_fixed">Fixe</string>
+    <string name="layout_scenes">Scènes</string>
+    <string name="layout_scenes_hidden">Masquées</string>
+    <string name="layout_scenes_show">Afficher les scènes</string>
+    <string name="layout_scenes_hide">Masquer les scènes</string>
+    <string name="layout_pad">Pavé</string>
+    <string name="layout_pad_size">Taille du pavé</string>
+    <string name="layout_pad_compact">Compact</string>
+    <string name="layout_pad_normal">Normal</string>
+    <string name="layout_pad_large">Grand</string>
+    <string name="layout_row">Rangée</string>
+    <string name="layout_row_add">Ajouter à la rangée (%1$d au plus)</string>
+    <string name="layout_row_full">La rangée est pleine : retirez un bouton pour en ajouter un</string>
+    <string name="layout_row_empty">Aucun bouton dans la rangée</string>
+    <string name="layout_row_remove">Retirer %1$s de la rangée</string>
+    <string name="layout_move_left">Déplacer à gauche</string>
+    <string name="layout_move_right">Déplacer à droite</string>
+    <string name="layout_move_up">Monter</string>
+    <string name="layout_move_down">Descendre</string>
+    <string name="layout_pins">Boutons · page %1$d sur %2$d</string>
+    <string name="layout_pins_add_page">Page</string>
+    <string name="layout_pins_hint">Glisser pour réordonner · toucher pour modifier</string>
+    <string name="layout_reset">Réinitialiser la disposition</string>
+    <string name="layout_reset_title">Réinitialiser la disposition ?</string>
+    <string name="layout_reset_body">La rangée, les scènes et le pavé reviennent comme au premier jour. Vos boutons restent.</string>
+    <string name="layout_reset_confirm">Réinitialiser</string>
+    <string name="layout_anchors">Power, volume et Son ne bougent jamais</string>
+    <string name="row_info">Info</string>
+    <string name="row_captions">Sous-titres</string>
+    <string name="row_input">Entrée</string>
+    <string name="row_guide">Guide</string>
+    <string name="row_tv_settings">Réglages TV</string>
+    <string name="row_voice">Voix</string>
+    <string name="pin_page_remove_title">Supprimer la page %1$d ?</string>
+    <string name="pin_page_remove_body">Ses boutons partent avec elle.</string>
+    <string name="pin_page_remove_confirm">Supprimer</string>
+    <string name="apps_pin_page">Page %1$d</string>
+    <string name="pin_step_drag">Glisser pour réordonner</string>
+    <string name="layout_volume">Volume</string>
+</resources>

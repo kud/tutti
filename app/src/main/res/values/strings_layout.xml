@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="layout_title">Edit the remote</string>
+    <string name="layout_done">Done</string>
+    <string name="layout_entry">Remote layout</string>
+    <string name="layout_entry_detail">Row buttons, scenes, pad size</string>
+    <string name="layout_edit_from_pin">Edit the remote layout</string>
+    <string name="layout_fixed">Fixed</string>
+    <string name="layout_scenes">Scenes</string>
+    <string name="layout_scenes_hidden">Hidden</string>
+    <string name="layout_scenes_show">Show the scenes</string>
+    <string name="layout_scenes_hide">Hide the scenes</string>
+    <string name="layout_pad">Pad</string>
+    <string name="layout_pad_size">Pad size</string>
+    <string name="layout_pad_compact">Compact</string>
+    <string name="layout_pad_normal">Normal</string>
+    <string name="layout_pad_large">Large</string>
+    <string name="layout_row">Row</string>
+    <string name="layout_row_add">Add to the row (%1$d at most)</string>
+    <string name="layout_row_full">The row is full: remove a button to add another</string>
+    <string name="layout_row_empty">No buttons in the row</string>
+    <string name="layout_row_remove">Remove %1$s from the row</string>
+    <string name="layout_move_left">Move left</string>
+    <string name="layout_move_right">Move right</string>
+    <string name="layout_move_up">Move up</string>
+    <string name="layout_move_down">Move down</string>
+    <string name="layout_pins">Pins · page %1$d of %2$d</string>
+    <string name="layout_pins_add_page">Page</string>
+    <string name="layout_pins_hint">Drag to reorder · tap to edit</string>
+    <string name="layout_reset">Reset the layout</string>
+    <string name="layout_reset_title">Reset the layout?</string>
+    <string name="layout_reset_body">The row, the scenes and the pad go back to how they first were. Your pins stay.</string>
+    <string name="layout_reset_confirm">Reset</string>
+    <string name="layout_anchors">Power, volume and Sound never move</string>
+    <string name="row_info">Info</string>
+    <string name="row_captions">Subtitles</string>
+    <string name="row_input">Input</string>
+    <string name="row_guide">Guide</string>
+    <string name="row_tv_settings">TV settings</string>
+    <string name="row_voice">Voice</string>
+    <string name="pin_page_remove_title">Remove page %1$d?</string>
+    <string name="pin_page_remove_body">Its pins go with it.</string>
+    <string name="pin_page_remove_confirm">Remove</string>
+    <string name="apps_pin_page">Page %1$d</string>
+    <string name="pin_step_drag">Drag to reorder</string>
+    <string name="layout_volume">Volume</string>
+</resources>
