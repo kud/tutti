@@ -18,6 +18,8 @@ data class RemoteState(
     val imeCounter: Int = 0,
     val fieldCounter: Int = 0,
     val error: String? = null,
+    /** The TV's feature mask from its configure (`code1`): bit 3 is voice. Null until it arrives. */
+    val tvFeatures: Int? = null,
 )
 
 data class RemoteStep(val state: RemoteState, val replies: List<RemoteMessage> = emptyList())
@@ -29,7 +31,7 @@ data class RemoteStep(val state: RemoteState, val replies: List<RemoteMessage> =
 class RemoteSession(private val deviceInfo: ClientDeviceInfo = ClientDeviceInfo()) {
     fun reduce(state: RemoteState, message: RemoteMessage): RemoteStep {
         message.remote_configure?.let {
-            return RemoteStep(state.copy(ready = true, error = null), listOf(RemoteMessages.configure(deviceInfo)))
+            return RemoteStep(state.copy(ready = true, error = null, tvFeatures = it.code1), listOf(RemoteMessages.configure(deviceInfo)))
         }
         message.remote_set_active?.let {
             return RemoteStep(state, listOf(RemoteMessages.setActive()))

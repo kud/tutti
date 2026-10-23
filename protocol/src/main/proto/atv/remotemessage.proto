@@ -42,16 +42,21 @@ message RemoteStart {
   bool started = 1;
 }
 
+// Voice: field numbers from tronikos/androidtvremote2's remotemessage.proto (see docs/architecture.md).
 message RemoteVoiceEnd {
-
+  int32 session_id = 1;
 }
 
 message RemoteVoicePayload {
-
+  int32 session_id = 1;
+  // 16-bit little-endian PCM, 8 kHz, mono.
+  bytes samples = 2;
 }
 
 message RemoteVoiceBegin {
-
+  int32 session_id = 1;
+  // Set by the TV when it opens a session; not needed when the client echoes the begin.
+  string package_name = 2;
 }
 
 message RemoteTextFieldStatus {

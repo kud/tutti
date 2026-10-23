@@ -7,7 +7,7 @@
   net/      Connection, TcpConnector, TlsConnector (TOFU pin), CertificatePin, LanAddress, LineSplitter, Redact
   theatre/  soundbar TCP 33336: TheatreCodec, TheatreReducer (optimistic), TheatreClient
   atv/      Android TV Remote v2: Wire protos, Framing, PairingHash, PairingMachine, AtvPairing,
-            RemoteSession, AtvRemote, KeyMap, AppCatalog, ClientCertificates
+            RemoteSession, AtvRemote, VoiceSession, KeyMap, AppCatalog, ClientCertificates
   bravia/   REST JSON-RPC + PSK: JsonRpc, BraviaParsers, Capabilities, BraviaClient, Ircc
   grpc/     Sony-cloud plane: interface, field paths, PKCE, UnavailableSonyCloudPlane
   scenes/   Scene model, SceneEngine (plan / match / capture), SceneRunner, StarterScenes
@@ -25,6 +25,18 @@
 - Pairing: Request → Ack, Option → Option, Configuration → Ack, the TV shows a 6-hex code, Secret → SecretAck. Secret = SHA-256(client modulus ‖ client exponent ‖ server modulus ‖ server exponent ‖ last two code bytes), numbers as unsigned big-endian bytes; the first hash byte must equal the first code byte (typos caught locally).
 - Session: the TV sends configure / set-active / pings (~5 s) which the client answers; then key injects (short / long press), IME batch edits (`ime_counter`, `field_counter` from the TV), app links (`market://launch?id=<package>`). The TV reports `RemoteImeShowRequest` (focused field, text, label), `RemoteImeKeyInject.app_info.app_package` (foreground app), power and volume.
 - Key codes are Android `KeyEvent` codes; `KeyMap` maps them and the hardware keyboard.
+
+#### Voice (hold to talk to the TV's assistant)
+
+Reverse-engineered by [tronikos/androidtvremote2](https://github.com/tronikos/androidtvremote2) ([`remote.py`](https://github.com/tronikos/androidtvremote2/blob/main/src/androidtvremote2/remote.py), [`remotemessage.proto`](https://github.com/tronikos/androidtvremote2/blob/main/src/androidtvremote2/remotemessage.proto), [`demo.py`](https://github.com/tronikos/androidtvremote2/blob/main/src/demo.py)); no official documentation exists. `VoiceSession` implements it from these facts (no code copied):
+
+- Feature mask: bits `PING 1, KEY 2, IME 4, VOICE 8, POWER 32, VOLUME 64, APP_LINK 512`. androidtvremote2 answers the TV's `remote_configure` with its own mask ANDed with the TV's `code1`, and `remote_set_active` with its mask; voice is enabled only when bit 8 survives. Our fixed 622 already carries bit 8; tutti keeps the TV's `code1` (`RemoteState.tvFeatures`) and, when bit 8 is absent, does not try.
+- Messages (field numbers from that proto): `RemoteVoiceBegin { int32 session_id = 1; string package_name = 2 }`, `RemoteVoicePayload { int32 session_id = 1; bytes samples = 2 }`, `RemoteVoiceEnd { int32 session_id = 1 }`, at `RemoteMessage` fields 30, 31, 32.
+- Sequence: the client sends `KEYCODE_SEARCH` (84, not `KEYCODE_VOICE_ASSIST`); the TV answers `remote_voice_begin { session_id }` (the TV fills `package_name`); the client echoes `remote_voice_begin { session_id }` ("required by the protocol"); then payloads; then `remote_voice_end { session_id }`, with no reply awaited. androidtvremote2 gives the TV 2 s to answer.
+- Audio: 16-bit PCM, 8 kHz, mono ("Default audio sample payload ... split into 20 KB messages"; the audio configuration in `RemoteVoiceBegin` is unknown). Payloads at most 20 480 bytes; a shorter piece is padded with zero bytes to 8 192. No pacing or acknowledgement: chunks go as they are captured (the demo's buffers are ~1 s). The demo caps a stream at 10 s; tutti caps at 15 s and closes the session itself.
+- Community notes, single devices, unverified here: on a TCL TV 8 KiB messages were ignored and 20 KiB worked; the TV detects end of speech itself ([azylman/mirrormere#607](https://github.com/azylman/mirrormere/issues/607)); an older report says some TVs close the connection after payloads ([XDA](https://xdaforums.com/t/voice-input-in-android-tv-remote-control.4712015/)).
+- Fallback when the TV does not offer voice: the search key alone opens the TV's own search screen, where the physical remote's mic or tutti's keyboard can take over; tutti says so.
+- tutti's flow: the phone mic opens on press (before the TV answers; up to 15 s of audio is held meanwhile), full 20 KiB chunks stream as they fill, release sends the padded remainder and the end; sliding off, backgrounding or a mic error sends the end without the remainder. A begin that arrives after a cancel or a timeout is closed with an end. Phones whose mic refuses 8 kHz record 16 kHz and `VoicePcm.halve` averages pairs (crude low-pass, no plain decimation).
 
 ### 2. Soundbar IP control, TCP 33336
 
@@ -60,6 +72,7 @@ Acoustic Center Sync, sound calibration, speaker placement and first setup: a sh
 | Power on over REST | `setPowerStatus(true)` works only from sleep, not suspend, and needs Remote start / Control remotely on; from suspend only Wake-on-LAN (UDP 7 or 9, MAC from `getSystemInformation`) helps. tutti does not send WoL |
 | Sony picture mode values in starter scenes (`cinema`, `game`, `standard`) | Unverified; the editor offers the TV's own candidates |
 | Sony-cloud gRPC | Interface only, nothing on the wire |
+| v2 voice (search key → begin → 8 kHz PCM payloads → end) | Facts from androidtvremote2 (Python, Home Assistant's library); **never run by tutti against any TV**, the XR80 included. Whether the BRAVIA's assistant (Gemini or Google Assistant) accepts it, and whether 20 KiB chunks give a live transcript, are open |
 | Wire 7.1.0, Hilt 2.58, KSP 2.3.12, Kotlin 2.3.20 | Tags verified upstream; AGP 8.13.0 and AndroidX versions chosen without access to Google Maven, settled by CI |
 
 ## Diagnostic (Réglages › Diagnostic)

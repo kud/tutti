@@ -8,13 +8,18 @@ import io.kud.tutti.protocol.net.TlsConnector
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import okio.ByteString.Companion.toByteString
 import java.io.IOException
 
 /**
@@ -35,6 +40,17 @@ class AtvRemote(
     val state: StateFlow<RemoteState> = mutableState.asStateFlow()
 
     private val writeLock = Mutex()
+
+    private val voiceLock = Mutex()
+    private val mutableVoice = MutableStateFlow<VoiceState>(VoiceState.Idle)
+
+    /** The TV voice session (hold-to-talk). Audio never appears in it beyond byte counts. */
+    val voice: StateFlow<VoiceState> = mutableVoice.asStateFlow()
+
+    private val mutableVoiceEvents = MutableSharedFlow<VoiceEvent>(extraBufferCapacity = 8)
+    val voiceEvents: SharedFlow<VoiceEvent> = mutableVoiceEvents.asSharedFlow()
+
+    private var voiceTimer: Job? = null
 
     @Volatile private var connection: TlsConnection? = null
     private var readJob: Job? = null
@@ -60,6 +76,9 @@ class AtvRemote(
                             step.state
                         }
                         replies.forEach { write(conn, it) }
+                        message.remote_voice_begin?.let { begin ->
+                            voiceStep { VoiceSession.begin(it, begin.session_id, now()) }
+                        }
                     }
                 }
             } catch (e: CancellationException) {
@@ -70,6 +89,7 @@ class AtvRemote(
                 if (connection === conn) {
                     connection = null
                     mutableState.update { it.copy(ready = false) }
+                    mutableVoice.update { VoiceSession.disconnected(it, now()) }
                 }
             }
         }
@@ -81,7 +101,65 @@ class AtvRemote(
         readJob?.cancel()
         conn?.close()
         mutableState.update { it.copy(ready = false, ime = null) }
+        mutableVoice.update { VoiceSession.disconnected(it, now()) }
     }
+
+    /**
+     * Hold-to-talk pressed: sends the search key; the TV answers with a session. Start the mic
+     * at once and feed [voiceAudio]: audio captured before the TV answers is held, not lost.
+     */
+    suspend fun startVoice() {
+        val ready = connection != null && mutableState.value.ready
+        voiceStep { VoiceSession.start(it, now(), ready, mutableState.value.tvFeatures) }
+        voiceTimer?.cancel()
+        voiceTimer = scope.launch {
+            while (true) {
+                delay(VOICE_TICK_MS)
+                val state = voiceStep { VoiceSession.tick(it, now()) }
+                if (state !is VoiceState.Opening && state !is VoiceState.Listening) break
+            }
+        }
+    }
+
+    /** 16-bit LE PCM, 8 kHz mono. */
+    suspend fun voiceAudio(pcm: ByteArray) {
+        voiceStep { VoiceSession.audio(it, pcm.toByteString(), now()) }
+    }
+
+    suspend fun finishVoice() {
+        voiceStep { VoiceSession.finish(it) }
+    }
+
+    suspend fun cancelVoice() {
+        voiceStep { VoiceSession.cancel(it) }
+    }
+
+    /** Clears a failure once it has been shown. */
+    fun clearVoiceFailure() {
+        mutableVoice.update { if (it is VoiceState.Failed) VoiceState.Idle else it }
+    }
+
+    private suspend fun voiceStep(transition: (VoiceState) -> VoiceStep): VoiceState = voiceLock.withLock {
+        val step = transition(mutableVoice.value)
+        mutableVoice.value = step.state
+        val conn = connection
+        if (conn != null) {
+            for (message in step.out) {
+                try {
+                    write(conn, message)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    mutableVoice.value = VoiceSession.disconnected(step.state, now())
+                    break
+                }
+            }
+        }
+        step.event?.let { mutableVoiceEvents.tryEmit(it) }
+        mutableVoice.value
+    }
+
+    private fun now(): Long = System.nanoTime() / 1_000_000
 
     /** Returns false when not connected or [keyCode] is not a v2 key. */
     suspend fun sendKey(keyCode: Int, direction: KeyDirection = KeyDirection.SHORT): Boolean {
@@ -126,5 +204,6 @@ class AtvRemote(
 
     companion object {
         const val PORT = 6466
+        private const val VOICE_TICK_MS = 250L
     }
 }
