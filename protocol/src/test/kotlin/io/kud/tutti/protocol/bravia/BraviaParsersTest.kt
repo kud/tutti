@@ -48,6 +48,27 @@ class BraviaParsersTest {
     }
 
     @Test
+    fun `system information and network settings carry the macs`() {
+        val system = BraviaParsers.systemInformation(
+            array("""[{"product":"TV","model":"K-00XR00","name":"BRAVIA","generation":"5.0.0","macAddr":"02:00:00:00:00:01"}]"""),
+        )
+        assertEquals("02:00:00:00:00:01", system?.mac)
+        val interfaces = BraviaParsers.networkSettings(
+            array(
+                """[[{"netif":"eth0","hwAddr":"02:00:00:00:00:01","ipAddrV4":""},""" +
+                    """{"netif":"wlan0","hwAddr":"02:00:00:00:00:02","ipAddrV4":"192.168.1.20"}]]""",
+            ),
+        )
+        assertEquals(
+            listOf(
+                NetworkInterfaceInfo("eth0", "02:00:00:00:00:01", ""),
+                NetworkInterfaceInfo("wlan0", "02:00:00:00:00:02", "192.168.1.20"),
+            ),
+            interfaces,
+        )
+    }
+
+    @Test
     fun `remote controller info and power`() {
         val codes = BraviaParsers.remoteControllerInfo(
             array("""[{"bundled":true,"type":"RM-J1100"},[{"name":"PowerOff","value":"AAAAAQAAAAEAAAAvAw=="},{"name":"Input","value":"AAAAAQAAAAEAAAAlAw=="}]]"""),

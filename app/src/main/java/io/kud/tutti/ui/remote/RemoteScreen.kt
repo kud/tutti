@@ -1,6 +1,7 @@
 package io.kud.tutti.ui.remote
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -18,6 +19,7 @@ import androidx.compose.material3.BottomSheetScaffold
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.rememberBottomSheetScaffoldState
 import androidx.compose.foundation.layout.width
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -135,16 +137,22 @@ fun RemoteScreen(
                 IconButton(onClick = onOpenSettings) {
                     Icon(painterResource(R.drawable.ic_settings), contentDescription = stringResource(R.string.action_settings))
                 }
-                TonalRoundButton(
-                    icon = R.drawable.ic_power,
-                    contentDescription = stringResource(R.string.action_power),
-                    onClick = {
-                        haptics.select()
-                        controller.power()
-                    },
-                    active = state.powered == true,
-                    size = 52.dp,
-                )
+                // Waking a sleeping TV takes seconds: a turning ring says so (not a colour), and the label follows.
+                Box(contentAlignment = Alignment.Center) {
+                    TonalRoundButton(
+                        icon = R.drawable.ic_power,
+                        contentDescription = stringResource(if (state.waking) R.string.power_waking else R.string.action_power),
+                        onClick = {
+                            haptics.select()
+                            controller.power()
+                        },
+                        active = state.powered == true,
+                        size = 52.dp,
+                    )
+                    if (state.waking) {
+                        CircularProgressIndicator(Modifier.matchParentSize(), strokeWidth = 3.dp)
+                    }
+                }
             }
 
             if (layout.scenes) {

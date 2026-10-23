@@ -110,7 +110,11 @@ data class VolumeInfo(val target: String, val volume: Int, val muted: Boolean, v
 
 data class PlayingContent(val uri: String?, val source: String?, val title: String?)
 
-data class SystemInfo(val model: String?, val product: String?, val generation: String?, val name: String?)
+/** [mac] is `macAddr`, often the wired interface's: prefer [NetworkInterfaceInfo] for Wake-on-LAN. Never log it. */
+data class SystemInfo(val model: String?, val product: String?, val generation: String?, val name: String?, val mac: String? = null)
+
+/** One of the TV's network interfaces. Never log [mac]. */
+data class NetworkInterfaceInfo(val name: String?, val mac: String?, val ipv4: String?)
 
 data class MethodInfo(val name: String, val version: String)
 

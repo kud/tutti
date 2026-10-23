@@ -6,6 +6,9 @@
     <string name="system_needs_pairing">%1$s : associer à nouveau</string>
     <string name="system_no_device">Aucun appareil</string>
     <string name="action_power">Allumer ou éteindre</string>
+    <string name="power_waking">Réveil de la TV et de la barre</string>
+    <string name="power_wake_failed_tv">La TV ne s’est pas réveillée. Sur la TV, activez Paramètres → Réseau et Internet → Démarrage à distance.</string>
+    <string name="power_wake_failed_bar">La barre de son n’a pas répondu</string>
     <string name="action_back">Retour</string>
     <string name="action_home">Accueil</string>
     <string name="action_play_pause">Lecture / pause</string>

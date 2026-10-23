@@ -117,7 +117,18 @@ object BraviaParsers {
     }
 
     fun systemInformation(result: JsonArray): SystemInfo? = result.firstObject()?.let {
-        SystemInfo(model = it.string("model"), product = it.string("product"), generation = it.string("generation"), name = it.string("name"))
+        SystemInfo(
+            model = it.string("model"),
+            product = it.string("product"),
+            generation = it.string("generation"),
+            name = it.string("name"),
+            mac = it.string("macAddr"),
+        )
+    }
+
+    /** `system.getNetworkSettings`: `[[{netif, hwAddr, ipAddrV4, …}, …]]`, one entry per interface. */
+    fun networkSettings(result: JsonArray): List<NetworkInterfaceInfo> = result.innerObjects().map {
+        NetworkInterfaceInfo(name = it.string("netif"), mac = it.string("hwAddr"), ipv4 = it.string("ipAddrV4"))
     }
 
     // Results come either flat `[{…}]` or nested `[[{…}, …]]`; accept both.

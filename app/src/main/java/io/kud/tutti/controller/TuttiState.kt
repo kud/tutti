@@ -109,6 +109,12 @@ sealed interface TuttiEvent {
 
     /** The phone's mic would not open for TV voice. */
     data object MicUnavailable : TuttiEvent
+
+    /**
+     * Power was pressed while a device was out of reach, and it never came back.
+     * [tv] is true when the TV was one of them: the fix is its "Remote start" setting.
+     */
+    data class WakeFailed(val tv: Boolean) : TuttiEvent
 }
 
 data class TuttiUiState(
@@ -130,6 +136,8 @@ data class TuttiUiState(
     /** Ceiling from the active scene (e.g. Nuit: 20). */
     val volumeCap: Int? = null,
     val powered: Boolean? = null,
+    /** Power was pressed with a device out of reach: waking it and waiting for it to answer. */
+    val waking: Boolean = false,
     val pairing: PairingUi = PairingUi.Idle,
     val cloud: CloudPlaneState = CloudPlaneState.Disabled,
     /** Every app tutti knows (catalog plus every app the TV ever listed), by name. */

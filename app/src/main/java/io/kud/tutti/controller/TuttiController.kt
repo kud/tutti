@@ -19,6 +19,7 @@ import io.kud.tutti.platform.data.TvDevice
 import io.kud.tutti.platform.data.BarDevice
 import io.kud.tutti.platform.net.OkHttpBraviaTransport
 import io.kud.tutti.platform.net.PinMismatchException
+import io.kud.tutti.platform.net.WakeOnLanSender
 import io.kud.tutti.platform.security.ClientIdentityStore
 import io.kud.tutti.platform.security.SecureStore
 import io.kud.tutti.protocol.apps.AppLibrary
@@ -44,6 +45,7 @@ import io.kud.tutti.protocol.grpc.SonyCloudPlane
 import io.kud.tutti.protocol.net.LanAddress
 import io.kud.tutti.protocol.net.ClientIdentity
 import io.kud.tutti.protocol.net.Redact
+import io.kud.tutti.protocol.net.WakeOnLan
 import io.kud.tutti.protocol.scenes.AppProfile
 import io.kud.tutti.protocol.scenes.AppProfiles
 import io.kud.tutti.protocol.scenes.DeviceSnapshot
@@ -68,6 +70,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -142,6 +145,8 @@ class TuttiController @Inject constructor(
     private val restart = MutableStateFlow(0)
     private val wake = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     private val volumeTarget = MutableStateFlow<Int?>(null)
+    private val waking = MutableStateFlow(false)
+    private val wakeOnLan = WakeOnLanSender(context)
 
     private val mutableEvents = MutableSharedFlow<TuttiEvent>(extraBufferCapacity = 16)
     val events: SharedFlow<TuttiEvent> = mutableEvents.asSharedFlow()
@@ -170,11 +175,14 @@ class TuttiController @Inject constructor(
         val pairing: PairingUi,
         val cloud: io.kud.tutti.protocol.grpc.CloudPlaneState,
         val overrides: Overrides,
+        val waking: Boolean,
     )
 
     private val stored = combine(store.devices, store.prefs, store.dock, store.scenes, store.profiles) { d, p, k, s, f -> Stored(d, p, k, s, f) }
     private val live = combine(tv, atv.state, theatre.state, links, voiceZoom) { t, r, b, l, v -> Live(t, r, b, l, v) }
-    private val extra = combine(progress, activeSceneId, pairing, cloud.state, overrides) { p, a, q, c, o -> Extra(p, a, q, c, o) }
+    private val extra = combine(progress, activeSceneId, pairing, cloud.state, combine(overrides, waking, ::Pair)) { p, a, q, c, o ->
+        Extra(p, a, q, c, o.first, o.second)
+    }
 
     val state: StateFlow<TuttiUiState> = combine(stored, live, extra, library) { s, l, e, a ->
         build(s, l, e).copy(apps = a.first, appIcons = a.second)
@@ -266,7 +274,9 @@ class TuttiController @Inject constructor(
 
     private suspend fun runSessions() {
         psk = secure.tvPsk()
-        combine(store.devices, restart) { devices, _ -> devices }.collectLatest { devices ->
+        // A learnt MAC is not a reason to drop and reopen every session.
+        val hosts = store.devices.map { it.copy(tv = it.tv?.copy(mac = null)) }.distinctUntilChanged()
+        combine(hosts, restart) { devices, _ -> devices }.collectLatest { devices ->
             coroutineScope {
                 launch { barLoop(devices.bar) }
                 launch { tvRemoteLoop(devices.tv) }
@@ -393,6 +403,7 @@ class TuttiController @Inject constructor(
                     wait = MIN_BACKOFF_MS
                     links.update { it.copy(rest = Link.ONLINE) }
                     tv.update { it.copy(capabilities = found.value) }
+                    learnMac(client, device.host)
                     while (scope.isActive) {
                         if (!refreshTv(client)) break
                         delay(POLL_TV_MS)
@@ -408,6 +419,18 @@ class TuttiController @Inject constructor(
             }
             backoff(wait)
             wait = (wait * 2).coerceAtMost(MAX_BACKOFF_MS)
+        }
+    }
+
+    /** Keeps the TV's MAC for Wake-on-LAN: the interface that carries [host], else the system one. Never logged. */
+    private suspend fun learnMac(client: BraviaClient, host: String) {
+        val interfaces = client.networkSettings().getOrNull().orEmpty()
+        val systemMac = if (interfaces.isEmpty()) client.systemInformation().getOrNull()?.mac else null
+        val mac = WakeOnLan.macFor(host, interfaces.map { it.ipv4 to it.mac }, systemMac) ?: return
+        if (store.devices.first().tv?.mac == mac) return
+        store.updateDevices { devices ->
+            val current = devices.tv
+            if (current == null || current.host != host) devices else devices.copy(tv = current.copy(mac = mac))
         }
     }
 
@@ -478,6 +501,7 @@ class TuttiController @Inject constructor(
             volume = e.overrides.volume ?: l.bar.level(TheatreFeature.VOLUME),
             volumeCap = cap,
             powered = powered,
+            waking = e.waking,
             pairing = e.pairing,
             cloud = e.cloud,
         )
@@ -613,12 +637,102 @@ class TuttiController @Inject constructor(
         }
     }
 
-    /** One Power for both. Optimistic for a few seconds, then the devices' own reports win. */
+    /**
+     * One Power for both. A device in reach gets the command at once, optimistic for a few
+     * seconds, then its own reports win. Turning on with one out of reach (the TV in standby)
+     * wakes it instead: the sessions retry now rather than at the end of their backoff, the
+     * TV gets a Wake-on-LAN packet when its MAC is known, [TuttiUiState.waking] shows, and the
+     * command follows once it answers, or [TuttiEvent.WakeFailed] if it never does.
+     */
     fun power() {
-        val on = state.value.powered != true
-        setOverride { it.copy(powered = on) }
-        scope.launch { tvPower(on) }
-        scope.launch { theatre.setToggle(TheatreFeature.POWER, on) }
+        if (waking.value) return
+        val current = state.value
+        val on = current.powered != true
+        val tvDevice = current.devices.tv
+        val tvNow = tvDevice != null && tvReachable()
+        val barNow = current.devices.bar != null && theatre.state.value.connected
+        if (tvNow || barNow) {
+            setOverride { it.copy(powered = on) }
+            if (tvNow) scope.launch { tvPower(on) }
+            if (barNow) scope.launch { theatre.setToggle(TheatreFeature.POWER, on) }
+        }
+        // Turning off: whatever is out of reach is asleep already.
+        if (!on) return
+        val tvAway = tvDevice?.takeIf { !tvNow }
+        val barAway = current.devices.bar != null && !barNow
+        if (tvAway == null && !barAway) return
+        waking.value = true
+        scope.launch {
+            try {
+                wakeAndPower(tvAway, barAway)
+            } finally {
+                waking.value = false
+            }
+        }
+    }
+
+    private fun tvReachable(): Boolean = atv.state.value.ready || (bravia != null && links.value.rest == Link.ONLINE)
+
+    private suspend fun wakeAndPower(tvDevice: TvDevice?, bar: Boolean) {
+        val mac = tvDevice?.mac
+        val (tvAnswered, barAnswered) = coroutineScope {
+            val kick = launch {
+                // The sessions may sit in backoff for up to MAX_BACKOFF_MS: retry now, and again while waiting.
+                while (isActive) {
+                    wake.tryEmit(Unit)
+                    delay(WAKE_RETRY_MS)
+                }
+            }
+            val packets = if (tvDevice != null && mac != null) {
+                launch {
+                    repeat(WOL_SENDS) { i ->
+                        if (i > 0) delay(WOL_RESEND_MS)
+                        wakeOnLan.send(tvDevice.host, mac)
+                    }
+                }
+            } else {
+                null
+            }
+            val tvJob = async {
+                if (tvDevice == null) return@async true
+                val reached = withTimeoutOrNull(WAKE_TIMEOUT_MS) {
+                    combine(atv.state, links) { _, _ -> tvReachable() }.first { it }
+                } != null
+                if (reached) {
+                    setOverride { it.copy(powered = true) }
+                    if (!tvPowerAfterWake(packetsSent = packets != null)) mutableEvents.tryEmit(TuttiEvent.ActionFailed)
+                }
+                reached
+            }
+            val barJob = async {
+                if (!bar) return@async true
+                // The bar often wakes with the TV over HDMI-CEC; it gets the command either way.
+                val reached = withTimeoutOrNull(WAKE_TIMEOUT_MS) { theatre.state.first { it.connected } } != null
+                if (reached) {
+                    setOverride { it.copy(powered = true) }
+                    theatre.setToggle(TheatreFeature.POWER, true)
+                }
+                reached
+            }
+            val result = tvJob.await() to barJob.await()
+            kick.cancel()
+            packets?.cancel()
+            result
+        }
+        if (!tvAnswered || !barAnswered) mutableEvents.tryEmit(TuttiEvent.WakeFailed(tv = !tvAnswered))
+    }
+
+    /**
+     * The TV just came back: it states its power right after the handshake, so wait for that
+     * rather than send a blind Power key. If it never says and a magic packet went out, the
+     * packet already switched it on, and a blind toggle would switch it off again.
+     */
+    private suspend fun tvPowerAfterWake(packetsSent: Boolean): Boolean {
+        val known = withTimeoutOrNull(POWER_KNOWN_MS) {
+            combine(atv.state, links) { remote, link -> remote.powered != null || link.rest == Link.ONLINE }.first { it }
+        } != null
+        if (!known && packetsSent) return true
+        return tvPower(true)
     }
 
     private suspend fun tvPower(on: Boolean): Boolean {
@@ -1183,6 +1297,12 @@ class TuttiController @Inject constructor(
         private const val POLL_BAR_MS = 20_000L
         private const val POLL_TV_MS = 10_000L
         private const val OVERRIDE_MS = 2_500L
+        /** How long Power waits for a sleeping device: a TV woken by a magic packet needs a few seconds for its network. */
+        private const val WAKE_TIMEOUT_MS = 12_000L
+        private const val WAKE_RETRY_MS = 1_500L
+        private const val WOL_SENDS = 3
+        private const val WOL_RESEND_MS = 2_000L
+        private const val POWER_KNOWN_MS = 2_000L
         private const val VOLUME_SEND_INTERVAL_MS = 60L
         private const val WAKE_SETTLE_MS = 1_500L
         private const val MAX_MACRO_WAIT_MS = 30_000L

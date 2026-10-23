@@ -79,6 +79,11 @@ fun TuttiApp(controller: TuttiController, discovery: TvDiscovery, diagnostics: D
                 TuttiEvent.VolumeLimit -> haptics.bump()
                 TuttiEvent.ActionFailed -> Toast.makeText(context, R.string.error_action_failed, Toast.LENGTH_SHORT).show()
                 TuttiEvent.MicUnavailable -> Toast.makeText(context, R.string.voice_mic_unavailable, Toast.LENGTH_SHORT).show()
+                is TuttiEvent.WakeFailed -> if (event.tv) {
+                    Toast.makeText(context, R.string.power_wake_failed_tv, Toast.LENGTH_LONG).show()
+                } else {
+                    Toast.makeText(context, R.string.power_wake_failed_bar, Toast.LENGTH_SHORT).show()
+                }
             }
         }
     }

@@ -81,6 +81,10 @@ class BraviaClient(
 
     suspend fun systemInformation() = call(BraviaService.SYSTEM, "getSystemInformation").map(BraviaParsers::systemInformation)
 
+    /** Every interface (empty `netif` asks for all), with its MAC: what Wake-on-LAN needs. */
+    suspend fun networkSettings() =
+        call(BraviaService.SYSTEM, "getNetworkSettings", listOf(buildJsonObject { put("netif", "") })).map(BraviaParsers::networkSettings)
+
     suspend fun powerSavingMode() = call(BraviaService.SYSTEM, "getPowerSavingMode").map(BraviaParsers::powerSavingMode)
 
     /** Sony modes: `off`, `low`, `high`, `pictureOff`. */

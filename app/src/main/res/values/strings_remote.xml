@@ -5,6 +5,9 @@
     <string name="system_needs_pairing">%1$s: pair again</string>
     <string name="system_no_device">No device</string>
     <string name="action_power">Power on or off</string>
+    <string name="power_waking">Waking the TV and the bar</string>
+    <string name="power_wake_failed_tv">The TV did not wake. On the TV, turn on Settings → Network &amp; Internet → Remote start.</string>
+    <string name="power_wake_failed_bar">The soundbar did not answer</string>
     <string name="action_back">Back</string>
     <string name="action_home">Home</string>
     <string name="action_play_pause">Play / pause</string>

@@ -5,7 +5,12 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
 @Serializable
-data class TvDevice(val host: String, val name: String = "BRAVIA 8")
+data class TvDevice(
+    val host: String,
+    val name: String = "BRAVIA 8",
+    /** Learnt from the TV over IP control, for Wake-on-LAN. Not a secret, but a device identifier: never log it. */
+    val mac: String? = null,
+)
 
 @Serializable
 data class BarDevice(val host: String, val name: String = "Bar 9")
