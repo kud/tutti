@@ -1,5 +1,16 @@
 package io.kud.tutti.ui.onboarding
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.keyframes
+import androidx.compose.foundation.layout.offset
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.unit.IntOffset
+import io.kud.tutti.ui.common.LocalReducedMotion
+import io.kud.tutti.ui.common.rememberFeedback
+import io.kud.tutti.ui.motion.Motion
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -43,16 +54,53 @@ import io.kud.tutti.protocol.atv.PairingCode
  * cells are only drawn from its value. Hex only, uppercased ([PairingCode.normalise]); the caret
  * always sits at the end, so backspace takes the last character. The current cell wears a thicker
  * border and a caret, never colour alone. TalkBack reads "Pairing code, 3 of 6 entered".
+ *
+ * Motion (Iris's spec, step 3 and 4): each typed character pops 1.1 → 1 with a tick; [locked]
+ * (the code is on its way) takes the cells to 70 % and stops input; a new [mismatch] count shakes
+ * the row 3 × 6 dp with a reject. Reduced motion keeps the haptics and drops the pop and shake.
  */
 @Composable
-fun PairingCodeField(code: String, onCodeChange: (String) -> Unit, onDone: () -> Unit, modifier: Modifier = Modifier) {
+fun PairingCodeField(
+    code: String,
+    onCodeChange: (String) -> Unit,
+    onDone: () -> Unit,
+    modifier: Modifier = Modifier,
+    locked: Boolean = false,
+    mismatch: Int = 0,
+) {
     val focus = remember { FocusRequester() }
     LaunchedEffect(Unit) { focus.requestFocus() }
     val label = stringResource(R.string.pairing_code_field)
     val progress = stringResource(R.string.pairing_code_progress, code.length, PairingCode.LENGTH)
+    val feedback = rememberFeedback()
+    val reduced = LocalReducedMotion.current
+    val shake = remember { Animatable(0f) }
+    LaunchedEffect(mismatch) {
+        if (mismatch == 0) return@LaunchedEffect
+        feedback.reject()
+        if (reduced) return@LaunchedEffect
+        shake.snapTo(0f)
+        shake.animateTo(
+            0f,
+            keyframes {
+                durationMillis = Motion.MEDIUM
+                SHAKE_DP at 42
+                -SHAKE_DP at 83
+                SHAKE_DP at 125
+                -SHAKE_DP at 167
+                SHAKE_DP at 208
+            },
+        )
+    }
+    val dim by animateFloatAsState(if (locked) LOCKED_ALPHA else 1f, Motion.fade(), label = "locked")
     BasicTextField(
         value = TextFieldValue(code, selection = TextRange(code.length)),
-        onValueChange = { onCodeChange(PairingCode.normalise(it.text)) },
+        onValueChange = {
+            val next = PairingCode.normalise(it.text)
+            if (next.length > code.length) feedback.tick()
+            onCodeChange(next)
+        },
+        readOnly = locked,
         singleLine = true,
         keyboardOptions = KeyboardOptions(
             capitalization = KeyboardCapitalization.Characters,
@@ -70,9 +118,20 @@ fun PairingCodeField(code: String, onCodeChange: (String) -> Unit, onDone: () ->
         decorationBox = {
             // The inner text field is never drawn: the cells are the field.
             // Six equal shares of whatever width the dialog gives: fixed cells overflowed a narrow one.
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .offset { IntOffset(shake.value.dp.roundToPx(), 0) }
+                    .graphicsLayer { alpha = dim },
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
                 for (index in 0 until PairingCode.LENGTH) {
-                    Cell(char = code.getOrNull(index), current = index == code.length, modifier = Modifier.weight(1f))
+                    Cell(
+                        char = code.getOrNull(index),
+                        current = !locked && index == code.length,
+                        pop = !reduced,
+                        modifier = Modifier.weight(1f),
+                    )
                 }
             }
         },
@@ -80,11 +139,26 @@ fun PairingCodeField(code: String, onCodeChange: (String) -> Unit, onDone: () ->
 }
 
 @Composable
-private fun Cell(char: Char?, current: Boolean, modifier: Modifier) {
+private fun Cell(char: Char?, current: Boolean, pop: Boolean, modifier: Modifier) {
     val colors = MaterialTheme.colorScheme
     val shape = RoundedCornerShape(12.dp)
+    val scale = remember { Animatable(1f) }
+    // A character arriving pops; one already there when the field appears does not.
+    val seen = remember { mutableStateOf(char) }
+    LaunchedEffect(char) {
+        val arrived = char != null && seen.value == null
+        seen.value = char
+        if (arrived && pop) {
+            scale.snapTo(POP_SCALE)
+            scale.animateTo(1f, Motion.snappy())
+        }
+    }
     Box(
         modifier
+            .graphicsLayer {
+                scaleX = scale.value
+                scaleY = scale.value
+            }
             .widthIn(max = 48.dp)
             .height(56.dp)
             .background(colors.surfaceContainerHighest, shape)
@@ -102,3 +176,7 @@ private fun Cell(char: Char?, current: Boolean, modifier: Modifier) {
         }
     }
 }
+
+private const val POP_SCALE = 1.1f
+private const val LOCKED_ALPHA = 0.7f
+private const val SHAKE_DP = 6f
