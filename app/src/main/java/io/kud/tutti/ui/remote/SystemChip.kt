@@ -20,6 +20,7 @@ import androidx.compose.ui.graphics.drawscope.rotate
 import io.kud.tutti.ui.common.LocalChipNudge
 import io.kud.tutti.ui.motion.Motion
 import io.kud.tutti.ui.motion.snappyOrFade
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -67,7 +68,8 @@ fun SystemChip(state: TuttiUiState, onClick: () -> Unit, modifier: Modifier = Mo
         configured.isEmpty() -> DotState.NONE
         down.size == configured.size -> DotState.DOWN
         down.isNotEmpty() -> DotState.PARTIAL
-        configured.any { it.second == Link.CONNECTING } -> DotState.CONNECTING
+        // Waking the TV: the open ring until it answers, then the full dot (motion spec).
+        configured.any { it.second == Link.CONNECTING } || (state.waking && tv != null) -> DotState.CONNECTING
         else -> DotState.ONLINE
     }
     val dotTarget = when (dotState) {
@@ -96,7 +98,10 @@ fun SystemChip(state: TuttiUiState, onClick: () -> Unit, modifier: Modifier = Mo
         },
     ) {
         Row(Modifier.padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-            StatusDot(dotState, dot, Modifier.size(12.dp))
+            // Ring to dot (and back) is a short fade between shapes; the colour follows on its own.
+            Crossfade(dotState, Modifier.size(12.dp), animationSpec = tween(Motion.SHORT), label = "dotShape") { shape ->
+                StatusDot(shape, dot, Modifier.size(12.dp))
+            }
             Spacer(Modifier.width(10.dp))
             Column {
                 if (configured.isEmpty()) {
