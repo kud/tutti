@@ -5,11 +5,13 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -126,6 +128,20 @@ fun TonalRoundButton(
     ) {
         Icon(painterResource(icon), contentDescription = contentDescription, tint = content)
     }
+}
+
+/** A small label over a control: the value a gesture sets ("Vol 24"), or the action a long press ran. */
+@Composable
+fun ValueTag(text: String, modifier: Modifier = Modifier) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.inverseOnSurface,
+        maxLines = 1,
+        modifier = modifier
+            .background(MaterialTheme.colorScheme.inverseSurface, RoundedCornerShape(8.dp))
+            .padding(horizontal = 10.dp, vertical = 4.dp),
+    )
 }
 
 @Composable

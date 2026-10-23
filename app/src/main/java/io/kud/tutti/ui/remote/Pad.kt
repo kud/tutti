@@ -1,10 +1,9 @@
 package io.kud.tutti.ui.remote
 
-import io.kud.tutti.ui.common.FeedbackEvent
-import io.kud.tutti.ui.common.LocalReducedMotion
-import io.kud.tutti.ui.motion.Motion
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.AnimationVector1D
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -13,15 +12,19 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
@@ -34,8 +37,9 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.pointer.PointerEvent
 import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.pointerInput
@@ -48,17 +52,28 @@ import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import io.kud.tutti.R
+import io.kud.tutti.controller.TuttiController
 import io.kud.tutti.platform.data.PadMode
 import io.kud.tutti.protocol.atv.V2Key
+import io.kud.tutti.ui.common.FeedbackEvent
+import io.kud.tutti.ui.common.LocalReducedMotion
+import io.kud.tutti.ui.common.ValueTag
 import io.kud.tutti.ui.common.rememberHaptics
-import kotlinx.coroutines.launch
+import io.kud.tutti.ui.motion.Motion
 import kotlin.math.abs
 import kotlin.math.min
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /**
  * The pad: one large quiet surface, no grid lines. Touchpad (swipe steps) or D-pad (a disc with
  * a chevron at each point and an OK centre); [PadModeSwitch] under it switches in one move. Tap = OK; long press = held Select for the TV.
  * Two gestures only, in touchpad mode: two-finger tap = play/pause, two-finger vertical drag = bar volume.
+ *
+ * Each swipe step leaves a dot behind the halo that fades over 250 ms; a two-finger step shows a
+ * "Vol 24" tag at the top, from [volume] and [volumeCap], ticking inside the range (the walls are
+ * the controller's bump).
  */
 @Composable
 fun Pad(
@@ -68,6 +83,8 @@ fun Pad(
     onPlayPause: () -> Unit,
     onVolumeStep: (Int) -> Unit,
     modifier: Modifier = Modifier,
+    volume: Int? = null,
+    volumeCap: Int? = null,
 ) {
     val haptics = rememberHaptics()
     val scope = rememberCoroutineScope()
@@ -77,6 +94,12 @@ fun Pad(
     val longSelect by rememberUpdatedState(onLongSelect)
     val playPause by rememberUpdatedState(onPlayPause)
     val volumeStep by rememberUpdatedState(onVolumeStep)
+    val currentVolume by rememberUpdatedState(volume)
+    val currentCap by rememberUpdatedState(volumeCap)
+    val dots = remember { mutableStateListOf<StepDot>() }
+    var tagVisible by remember { mutableStateOf(false) }
+    var tagLevel by remember { mutableIntStateOf(0) }
+    var tagJob by remember { mutableStateOf<Job?>(null) }
     val glowColor = MaterialTheme.colorScheme.primary
     // D-pad press feedback: the zone under the finger lights from press to release, then fades.
     var pressedZone by remember { mutableStateOf<Int?>(null) }
@@ -90,12 +113,40 @@ fun Pad(
         }
     }
 
+    // A step leaves a dot where the finger was, fading behind the halo.
+    fun dot() {
+        val at = glow
+        if (!at.isSpecified) return
+        val dot = StepDot(at)
+        dots += dot
+        scope.launch {
+            dot.alpha.animateTo(0f, tween(durationMillis = DOT_FADE_MS))
+            dots.remove(dot)
+        }
+    }
+
+    // The two-finger level, counted from the tag while it shows so quick steps never read a stale state.
+    fun volumeTag(delta: Int) {
+        val base = (if (tagVisible) tagLevel else null) ?: currentVolume ?: return
+        val ceiling = currentCap ?: TuttiController.MAX_VOLUME
+        val next = VolumeSteps.step(base, delta, ceiling)
+        if (VolumeSteps.ticks(next, ceiling)) haptics.tick()
+        tagLevel = next
+        tagVisible = true
+        tagJob?.cancel()
+        tagJob = scope.launch {
+            delay(TAG_MS)
+            tagVisible = false
+        }
+    }
+
     val padLabel = stringResource(R.string.pad_label)
     val gestures = if (mode == PadMode.TOUCHPAD) {
         Modifier.pointerInput(haptics) {
             touchpadGestures(
                 onStep = { code ->
                     haptics.tick()
+                    dot()
                     key(code)
                 },
                 onTap = { at ->
@@ -112,7 +163,7 @@ fun Pad(
                     playPause()
                 },
                 onTwoFingerStep = { delta ->
-                    haptics.tick()
+                    volumeTag(delta)
                     volumeStep(delta)
                 },
                 // Finger down shows a soft halo under it, and nothing is sent.
@@ -193,6 +244,9 @@ fun Pad(
             .background(surfaceColor)
             .then(semanticsModifier)
             .drawBehind {
+                dots.forEach { dot ->
+                    drawCircle(glowColor.copy(alpha = DOT_ALPHA * dot.alpha.value), radius = DOT_RADIUS.toPx(), center = dot.at)
+                }
                 if (glow.isSpecified && glowAlpha.value > 0f) {
                     drawCircle(
                         brush = Brush.radialGradient(
@@ -207,6 +261,16 @@ fun Pad(
             }
             .then(gestures),
     ) {
+        val tagAlpha by animateFloatAsState(if (tagVisible) 1f else 0f, tween(durationMillis = Motion.FADE_OUT), label = "volumeTag")
+        if (tagAlpha > 0f) {
+            ValueTag(
+                stringResource(R.string.pad_volume_tag, tagLevel),
+                Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 16.dp)
+                    .graphicsLayer { alpha = tagAlpha },
+            )
+        }
         if (mode == PadMode.DPAD) {
             DpadFace(pressedZone = pressedZone, pressed = pressAlpha.value, reduced = LocalReducedMotion.current, modifier = Modifier.fillMaxSize())
         }
@@ -328,6 +392,18 @@ private const val OK_SCALE = 0.94f
 
 /** How far a pressed chevron steps outward; none when motion is reduced. */
 private val CHEVRON_TRAVEL = 3.dp
+
+/** A swipe step's dot: where the finger was, fading over [DOT_FADE_MS]. */
+private class StepDot(val at: Offset) {
+    val alpha: Animatable<Float, AnimationVector1D> = Animatable(1f)
+}
+
+private const val DOT_FADE_MS = 250
+private const val DOT_ALPHA = 0.5f
+private val DOT_RADIUS = 5.dp
+
+/** How long the "Vol 24" tag stays after the last two-finger step. */
+private const val TAG_MS = 900L
 
 /** The touchpad's halo under a resting finger; a tap flashes brighter. */
 private const val HALO_ALPHA = 0.16f

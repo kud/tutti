@@ -226,6 +226,8 @@ fun RemoteScreen(
                         onLongSelect = { controller.longPress(V2Key.DPAD_CENTER) },
                         onPlayPause = { controller.key(V2Key.MEDIA_PLAY_PAUSE) },
                         onVolumeStep = controller::volumeStep,
+                        volume = state.volume.takeIf { state.bar.connected },
+                        volumeCap = state.volumeCap,
                         modifier = Modifier
                             .fillMaxWidth()
                             .weight(if (layout.padSize == PadSize.COMPACT) COMPACT_SHARE else 1f),

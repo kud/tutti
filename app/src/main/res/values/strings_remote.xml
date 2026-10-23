@@ -41,4 +41,5 @@
     <string name="picker_scenes">Scenes</string>
     <string name="picker_keys">Keys</string>
     <string name="picker_remove">Remove</string>
+    <string name="pad_volume_tag">Vol %1$d</string>
 </resources>
