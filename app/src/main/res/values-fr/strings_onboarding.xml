@@ -24,5 +24,10 @@
     <string name="pairing_refused">La TV a refusé l’association.</string>
     <string name="pairing_code_title">Code affiché sur la TV</string>
     <string name="pairing_code_retry">Ce code ne correspond pas, vérifiez-le.</string>
-    <string name="pairing_confirm">Valider</string>
+    <string name="progress_connecting">Connexion…</string>
+    <string name="progress_checking">Vérification…</string>
+    <string name="pairing_step_code">Code sur la TV…</string>
+    <string name="pairing_step_sending">Envoi…</string>
+    <string name="bar_added">Barre connectée</string>
+    <string name="bar_add_unreachable">Barre injoignable : vérifiez son adresse et que le Contrôle externe est activé.</string>
 </resources>

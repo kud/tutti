@@ -1,6 +1,8 @@
 package io.kud.tutti.ui.remote
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -42,8 +44,11 @@ import io.kud.tutti.platform.data.DockAction
 import io.kud.tutti.platform.data.PadSize
 import io.kud.tutti.platform.data.SecondaryButton
 import io.kud.tutti.protocol.atv.V2Key
+import io.kud.tutti.ui.common.LocalReducedMotion
 import io.kud.tutti.ui.common.TonalRoundButton
 import io.kud.tutti.ui.common.rememberHaptics
+import io.kud.tutti.ui.motion.Motion
+import io.kud.tutti.ui.motion.rememberWaiting
 
 private sealed interface PickerTarget {
     data class Slot(val index: Int) : PickerTarget
@@ -138,6 +143,8 @@ fun RemoteScreen(
                     Icon(painterResource(R.drawable.ic_settings), contentDescription = stringResource(R.string.action_settings))
                 }
                 // Waking a sleeping TV takes seconds: a turning ring says so (not a colour), and the label follows.
+                // The ring keeps the loading rules: not before 150 ms, then at least 400 ms; held still when motion is reduced.
+                val wakingRing = rememberWaiting(state.waking)
                 Box(contentAlignment = Alignment.Center) {
                     TonalRoundButton(
                         icon = R.drawable.ic_power,
@@ -149,8 +156,18 @@ fun RemoteScreen(
                         active = state.powered == true,
                         size = 52.dp,
                     )
-                    if (state.waking) {
-                        CircularProgressIndicator(Modifier.matchParentSize(), strokeWidth = 3.dp)
+                    // Box scope inside a Row: the plain overload, named, so the Row's one isn't picked.
+                    androidx.compose.animation.AnimatedVisibility(
+                        visible = wakingRing.spinner,
+                        enter = fadeIn(Motion.fade()),
+                        exit = fadeOut(Motion.exit()),
+                        modifier = Modifier.matchParentSize(),
+                    ) {
+                        if (LocalReducedMotion.current) {
+                            CircularProgressIndicator(progress = { 0.75f }, modifier = Modifier.fillMaxSize(), strokeWidth = 3.dp)
+                        } else {
+                            CircularProgressIndicator(Modifier.fillMaxSize(), strokeWidth = 3.dp)
+                        }
                     }
                 }
             }

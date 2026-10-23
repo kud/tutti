@@ -24,5 +24,10 @@
     <string name="pairing_refused">The TV refused pairing.</string>
     <string name="pairing_code_title">Code shown on the TV</string>
     <string name="pairing_code_retry">That code does not match, check it.</string>
-    <string name="pairing_confirm">Confirm</string>
+    <string name="progress_connecting">Connecting…</string>
+    <string name="progress_checking">Checking…</string>
+    <string name="pairing_step_code">Code on the TV…</string>
+    <string name="pairing_step_sending">Sending…</string>
+    <string name="bar_added">Bar connected</string>
+    <string name="bar_add_unreachable">Bar unreachable: check its address and that External control is on.</string>
 </resources>

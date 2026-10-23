@@ -30,11 +30,15 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -51,7 +55,12 @@ import io.kud.tutti.platform.discovery.TvDiscovery
 import io.kud.tutti.protocol.atv.PairingCode
 import io.kud.tutti.protocol.net.LanAddress
 import io.kud.tutti.ui.common.ProblemNote
+import io.kud.tutti.ui.motion.ActionPhase
+import io.kud.tutti.ui.motion.ProgressButton
 import io.kud.tutti.ui.settings.linkLabel
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * Add the TV (IP, then the code it shows), the bar (IP; "External control" must be on in
@@ -71,6 +80,21 @@ fun OnboardingScreen(
     var barError by remember { mutableStateOf(false) }
     var psk by remember { mutableStateOf("") }
     var pskSaved by remember { mutableStateOf(false) }
+    var pairPressed by remember { mutableStateOf(false) }
+    var codeSent by remember { mutableStateOf(false) }
+    var barAttempt by remember { mutableIntStateOf(0) }
+    var barAdded by remember { mutableStateOf<String?>(null) }
+    var barResult by remember { mutableStateOf<BarOutcome?>(null) }
+
+    // Adding the bar only writes its address: the answer is its link settling, read here
+    // rather than in the controller, with an end to the wait.
+    val latest by rememberUpdatedState(state)
+    LaunchedEffect(barAttempt) {
+        val host = barAdded ?: return@LaunchedEffect
+        barResult = withTimeoutOrNull(BAR_ADD_TIMEOUT_MS) {
+            snapshotFlow { barOutcome(host, latest.devices.bar?.host, latest.links.bar) }.filterNotNull().first()
+        } ?: BarOutcome.UNREACHABLE
+    }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -114,17 +138,34 @@ fun OnboardingScreen(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
                     modifier = Modifier.fillMaxWidth(),
                 )
-                FilledTonalButton(
-                    onClick = { controller.pairTv(tvHost) },
-                    enabled = LanAddress.isPrivate(tvHost) && state.pairing !is PairingUi.Connecting && state.pairing !is PairingUi.AwaitingCode,
-                ) { Text(stringResource(R.string.onboarding_pair)) }
                 val pairingNow = state.pairing
-                if (pairingNow is PairingUi.Failed) {
-                    ProblemNote(message = pairingStatus(pairingNow)?.first, detail = pairingNow.detail)
-                } else {
-                    pairingStatus(pairingNow)?.let { (text, _) ->
-                        Text(text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
+                val step = pairStep(pairingNow, codeSent = codeSent, pressed = pairPressed)
+                ProgressButton(
+                    phase = step.phase,
+                    label = stringResource(R.string.onboarding_pair),
+                    onClick = {
+                        pairPressed = true
+                        codeSent = false
+                        controller.pairTv(tvHost)
+                    },
+                    enabled = LanAddress.isPrivate(tvHost),
+                    pendingLabel = stringResource(
+                        when (step) {
+                            PairStep.CODE_ON_TV -> R.string.pairing_step_code
+                            PairStep.CHECKING -> R.string.progress_checking
+                            else -> R.string.progress_connecting
+                        },
+                    ),
+                    successLabel = stringResource(R.string.pairing_done),
+                    failureMessage = if (pairingNow is PairingUi.Failed) pairingStatus(pairingNow)?.first else null,
+                )
+                when {
+                    // The button says why; the note keeps "Copy details".
+                    pairingNow is PairingUi.Failed -> ProblemNote(message = null, detail = pairingNow.detail)
+                    pairingNow is PairingUi.AwaitingCode || (pairingNow is PairingUi.Done && step == PairStep.IDLE) ->
+                        pairingStatus(pairingNow)?.let { (text, _) ->
+                            Text(text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
                 }
             }
 
@@ -134,21 +175,35 @@ fun OnboardingScreen(
                     onValueChange = {
                         barHost = it.trim()
                         barError = false
+                        barAdded = null
                     },
                     label = { Text(stringResource(R.string.onboarding_ip)) },
                     singleLine = true,
                     isError = barError,
-                    supportingText = if (barError) {
-                        { Text(stringResource(R.string.onboarding_lan_only)) }
-                    } else {
-                        null
-                    },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
                     modifier = Modifier.fillMaxWidth(),
                 )
-                FilledTonalButton(onClick = { barError = !controller.addBar(barHost) }, enabled = barHost.isNotBlank()) {
-                    Text(stringResource(R.string.onboarding_add_bar))
-                }
+                ProgressButton(
+                    phase = when {
+                        barError -> ActionPhase.FAILURE
+                        barAdded == null -> ActionPhase.IDLE
+                        barResult == null -> ActionPhase.PENDING
+                        barResult == BarOutcome.ONLINE -> ActionPhase.SUCCESS
+                        else -> ActionPhase.FAILURE
+                    },
+                    label = stringResource(R.string.onboarding_add_bar),
+                    onClick = {
+                        val added = controller.addBar(barHost)
+                        barError = !added
+                        barAdded = barHost.takeIf { added }
+                        barResult = null
+                        barAttempt++
+                    },
+                    enabled = barHost.isNotBlank(),
+                    pendingLabel = stringResource(R.string.progress_connecting),
+                    successLabel = stringResource(R.string.bar_added),
+                    failureMessage = stringResource(if (barError) R.string.onboarding_lan_only else R.string.bar_add_unreachable),
+                )
                 if (state.devices.bar != null) {
                     Text(
                         linkLabel(state.links.bar),
@@ -196,7 +251,10 @@ fun OnboardingScreen(
     if (pairing is PairingUi.AwaitingCode) {
         PairingCodeDialog(
             attempt = pairing.attempt,
-            onSubmit = controller::submitPairingCode,
+            onSubmit = {
+                codeSent = true
+                controller.submitPairingCode(it)
+            },
             onCancel = controller::resetPairing,
         )
     }
@@ -235,6 +293,11 @@ private fun pairingStatus(pairing: PairingUi): Pair<String, Boolean>? = when (pa
 @Composable
 fun PairingCodeDialog(attempt: Int, onSubmit: (String) -> Unit, onCancel: () -> Unit) {
     var code by remember(attempt) { mutableStateOf("") }
+    var sent by remember(attempt) { mutableStateOf(false) }
+    val submit = {
+        sent = true
+        onSubmit(code)
+    }
     AlertDialog(
         onDismissRequest = onCancel,
         title = { Text(stringResource(R.string.pairing_code_title)) },
@@ -247,14 +310,25 @@ fun PairingCodeDialog(attempt: Int, onSubmit: (String) -> Unit, onCancel: () -> 
                         // The sixth character sends it: nothing is left to confirm.
                         val completed = PairingCode.isComplete(it) && !PairingCode.isComplete(code)
                         code = it
-                        if (completed) onSubmit(it)
+                        if (completed) submit()
                     },
-                    onDone = { if (PairingCode.isComplete(code)) onSubmit(code) },
+                    onDone = { if (PairingCode.isComplete(code)) submit() },
                 )
             }
         },
-        // No Confirm: the code sends itself on its sixth character, so Cancel is the only button.
-        confirmButton = { TextButton(onClick = onCancel) { Text(stringResource(R.string.cancel)) } },
+        // No Confirm: the code sends itself, and the slot only shows it going. A code asked again
+        // clears the cells and the note above says why.
+        confirmButton = {
+            if (sent) {
+                ProgressButton(
+                    phase = ActionPhase.PENDING,
+                    label = stringResource(R.string.pairing_step_sending),
+                    onClick = {},
+                    enabled = false,
+                )
+            }
+        },
+        dismissButton = { TextButton(onClick = onCancel) { Text(stringResource(R.string.cancel)) } },
     )
 }
 
