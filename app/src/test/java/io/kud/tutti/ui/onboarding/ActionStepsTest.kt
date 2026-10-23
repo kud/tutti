@@ -38,4 +38,39 @@ class ActionStepsTest {
         assertEquals(BarOutcome.ONLINE, barOutcome("192.168.1.20", configured = "192.168.1.20", link = Link.ONLINE))
         assertEquals(BarOutcome.UNREACHABLE, barOutcome("192.168.1.20", configured = "192.168.1.20", link = Link.UNREACHABLE))
     }
+
+    @Test
+    fun `the bar checklist ticks a prefix and stops at a failure`() {
+        val w = CheckState.WAITING
+        assertEquals(listOf(w, w, w), barChecks(added = false, link = Link.ABSENT, read = false, outcome = null))
+        assertEquals(listOf(CheckState.ACTIVE, w, w), barChecks(true, Link.CONNECTING, read = false, outcome = null))
+        assertEquals(listOf(CheckState.FAILED, w, w), barChecks(true, Link.UNREACHABLE, read = false, outcome = BarOutcome.UNREACHABLE))
+        assertEquals(listOf(CheckState.DONE, CheckState.ACTIVE, w), barChecks(true, Link.ONLINE, read = false, outcome = BarOutcome.ONLINE))
+        assertEquals(List(3) { CheckState.DONE }, barChecks(true, Link.ONLINE, read = true, outcome = BarOutcome.ONLINE))
+    }
+
+    @Test
+    fun `answers landing together still tick one at a time`() {
+        val done = List(3) { CheckState.DONE }
+        assertEquals(listOf(CheckState.ACTIVE, CheckState.WAITING, CheckState.WAITING), stageChecks(done, 0))
+        assertEquals(listOf(CheckState.DONE, CheckState.DONE, CheckState.ACTIVE), stageChecks(done, 2))
+        assertEquals(done, stageChecks(done, 3))
+        val failed = listOf(CheckState.FAILED, CheckState.WAITING, CheckState.WAITING)
+        assertEquals(failed, stageChecks(failed, 0))
+    }
+
+    @Test
+    fun `only the sixth character sends the code`() {
+        assertEquals(false, completesCode("4F2A", "4F2A9"))
+        assertEquals(true, completesCode("4F2A9", "4F2A9C"))
+        assertEquals(false, completesCode("4F2A9C", "4F2A9C"))
+    }
+
+    @Test
+    fun `a TV's dot keeps its place on the radar`() {
+        val angle = radarAngle("192.168.1.42")
+        assertEquals(angle, radarAngle("192.168.1.42"), 0f)
+        assertEquals(true, angle in 0f..360f)
+        assertEquals(true, radarAngle("") in 0f..360f)
+    }
 }
