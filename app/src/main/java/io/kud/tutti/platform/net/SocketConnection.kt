@@ -69,10 +69,14 @@ internal open class SocketConnection(private val socket: Socket) : Connection {
         runCatching { socket.close() }
     }
 
-    /** Closes from under a read blocked on another thread, without waiting for it. */
+    /**
+     * Closes from under a read blocked on another thread, without waiting for it. Closes this
+     * socket directly, never through [close]: a subclass's close() calls this, and going back
+     * through it recursed until the stack overflowed (dev.36).
+     */
     protected fun closeUnder(raw: Socket) {
         runCatching { raw.close() }
-        close()
+        runCatching { socket.close() }
     }
 
     private companion object {

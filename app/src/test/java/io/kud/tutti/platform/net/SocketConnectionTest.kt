@@ -8,6 +8,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.net.InetAddress
 import java.net.InetSocketAddress
@@ -55,5 +56,18 @@ class SocketConnectionTest {
         val connection = SocketConnection(socket)
         val chunk = runBlocking { withTimeoutOrNull(2_000) { connection.incoming.first() } }
         assertArrayEquals(byteArrayOf(1, 2, 3), chunk)
+    }
+
+    /** Wraps one socket over another, like TlsSocketConnection over its plain socket. */
+    private class Layered(socket: Socket, private val raw: Socket) : SocketConnection(socket) {
+        override fun close() = closeUnder(raw)
+    }
+
+    @Test
+    fun `closing a layered connection closes both sockets and returns`() = withPeer { socket, peer ->
+        // dev.36: closeUnder went back through close() and recursed until the stack overflowed.
+        Layered(socket, raw = peer).close()
+        assertTrue(peer.isClosed)
+        assertTrue(socket.isClosed)
     }
 }
