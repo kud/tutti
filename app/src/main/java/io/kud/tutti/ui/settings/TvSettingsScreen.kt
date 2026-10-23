@@ -12,6 +12,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
@@ -29,26 +30,30 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import io.kud.tutti.R
+import io.kud.tutti.controller.Link
 import io.kud.tutti.controller.TuttiController
 import io.kud.tutti.controller.TuttiController.TvSettingGroup
 import io.kud.tutti.controller.TuttiUiState
-import io.kud.tutti.protocol.bravia.BraviaService
 import io.kud.tutti.protocol.bravia.TvSetting
 import io.kud.tutti.ui.common.ChoiceRow
 import io.kud.tutti.ui.common.SectionTitle
+import io.kud.tutti.ui.common.SwitchRow
+import io.kud.tutti.ui.onboarding.PskDialog
 import io.kud.tutti.ui.scenes.inputName
 import kotlin.math.roundToInt
 
 /**
- * TV settings built only from what the TV lists (getMethodTypes) and returns: nothing here is
- * hard-coded, because the method set is unverified on the XR80.
+ * TV settings built only from what the TV lists (getSupportedApiInfo, else getMethodTypes) and
+ * returns: nothing here is hard-coded, because the method set is unverified on the XR80. While
+ * REST is not ONLINE the screen explains how to turn IP control on instead of showing dead rows.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TvSettingsScreen(state: TuttiUiState, controller: TuttiController, onBack: () -> Unit) {
-    LaunchedEffect(Unit) { controller.loadTvSettings() }
+    val rest = state.links.rest
+    LaunchedEffect(rest) { if (rest == Link.ONLINE) controller.loadTvSettings() }
+    var pskDialog by remember { mutableStateOf(false) }
     val settings = state.tv.settings
-    val caps = state.tv.capabilities
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
@@ -64,15 +69,42 @@ fun TvSettingsScreen(state: TuttiUiState, controller: TuttiController, onBack: (
         },
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(bottom = 32.dp)) {
+            if (rest != Link.ONLINE) {
+                RestExplainer(rest, onEnterPsk = { pskDialog = true })
+                return@Column
+            }
             if (settings.loading) LinearProgressIndicator(Modifier.fillMaxWidth())
 
             if (settings.picture.isNotEmpty()) {
                 SectionTitle(stringResource(R.string.tv_picture))
                 settings.picture.forEach { TvSettingRow(it, TvSettingGroup.PICTURE, controller) }
             }
+            settings.scene?.let { scene ->
+                if (settings.picture.isEmpty()) SectionTitle(stringResource(R.string.tv_picture))
+                val names = mapOf(
+                    "auto" to stringResource(R.string.tv_scene_auto),
+                    "auto24pSync" to stringResource(R.string.tv_scene_auto_24p),
+                    "general" to stringResource(R.string.tv_scene_general),
+                )
+                ChoiceRow(
+                    label = stringResource(R.string.tv_target_scene),
+                    valueLabel = scene.currentValue?.let { names[it] ?: it } ?: "—",
+                    options = scene.candidates.map { it.value to (names[it.value] ?: it.value) },
+                    onSelect = controller::setScene,
+                )
+            }
             if (settings.sound.isNotEmpty()) {
                 SectionTitle(stringResource(R.string.tv_sound_output))
                 settings.sound.forEach { TvSettingRow(it, TvSettingGroup.SOUND, controller) }
+            } else if (settings.outputWriteOnly) {
+                SectionTitle(stringResource(R.string.tv_sound_output))
+                val outputs = outputNames()
+                ChoiceRow(
+                    label = stringResource(R.string.tv_target_output_terminal),
+                    valueLabel = stringResource(R.string.tv_output_write_only),
+                    options = TvSetting.OUTPUT_TERMINALS.map { it to (outputs[it] ?: it) },
+                    onSelect = controller::setOutputTerminal,
+                )
             }
             if (settings.speaker.isNotEmpty()) {
                 SectionTitle(stringResource(R.string.tv_speaker))
@@ -96,8 +128,10 @@ fun TvSettingsScreen(state: TuttiUiState, controller: TuttiController, onBack: (
                     )
                 }
             }
-            if (caps.supports(BraviaService.SYSTEM, "setPowerSavingMode")) {
-                SectionTitle(stringResource(R.string.tv_power_saving))
+            if (settings.powerSavingSupported || settings.wol != null || settings.sleepCode != null) {
+                SectionTitle(stringResource(R.string.tv_power))
+            }
+            if (settings.powerSavingSupported) {
                 val modes = listOf(
                     "off" to stringResource(R.string.tv_power_saving_off),
                     "low" to stringResource(R.string.tv_power_saving_low),
@@ -111,7 +145,35 @@ fun TvSettingsScreen(state: TuttiUiState, controller: TuttiController, onBack: (
                     onSelect = controller::setPowerSaving,
                 )
             }
-            if (!settings.loading && settings.picture.isEmpty() && settings.sound.isEmpty() && settings.speaker.isEmpty()) {
+            settings.wol?.let { wol ->
+                SwitchRow(
+                    label = stringResource(R.string.tv_wol),
+                    supporting = stringResource(R.string.tv_wol_detail),
+                    checked = wol,
+                    onCheckedChange = controller::setWol,
+                )
+            }
+            if (settings.sleepCode != null) {
+                LinkRow(
+                    title = stringResource(R.string.tv_sleep_timer),
+                    detail = stringResource(R.string.tv_sleep_timer_detail),
+                    enabled = true,
+                    onClick = controller::pressSleepTimer,
+                )
+            }
+            settings.system?.let { system ->
+                val rows = listOfNotNull(
+                    system.model?.let { stringResource(R.string.tv_device_model) to it },
+                    system.generation?.let { stringResource(R.string.tv_device_generation) to it },
+                )
+                if (rows.isNotEmpty()) {
+                    SectionTitle(stringResource(R.string.tv_device))
+                    rows.forEach { (title, value) -> LinkRow(title = title, detail = value, enabled = false, onClick = {}) }
+                }
+            }
+            val nothing = settings.picture.isEmpty() && settings.scene == null && settings.sound.isEmpty() &&
+                !settings.outputWriteOnly && settings.speaker.isEmpty() && !settings.powerSavingSupported && settings.wol == null
+            if (!settings.loading && nothing) {
                 Text(
                     stringResource(R.string.tv_nothing_listed),
                     style = MaterialTheme.typography.bodyMedium,
@@ -121,7 +183,45 @@ fun TvSettingsScreen(state: TuttiUiState, controller: TuttiController, onBack: (
             }
         }
     }
+    if (pskDialog) {
+        PskDialog(onSave = {
+            controller.setPsk(it)
+            pskDialog = false
+        }, onDismiss = { pskDialog = false })
+    }
 }
+
+@Composable
+private fun RestExplainer(rest: Link, onEnterPsk: () -> Unit) {
+    if (rest == Link.CONNECTING) LinearProgressIndicator(Modifier.fillMaxWidth())
+    val (title, body) = when (rest) {
+        Link.CONNECTING -> R.string.tv_rest_connecting to null
+        Link.UNAUTHORIZED -> R.string.tv_rest_unauthorized_title to R.string.tv_rest_unauthorized_body
+        else -> R.string.tv_rest_offline_title to R.string.tv_rest_offline_body
+    }
+    Column(Modifier.fillMaxWidth().padding(16.dp)) {
+        Text(stringResource(title), style = MaterialTheme.typography.titleMedium)
+        if (body != null) {
+            Text(
+                stringResource(body),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 8.dp),
+            )
+            OutlinedButton(onClick = onEnterPsk, modifier = Modifier.padding(top = 16.dp)) {
+                Text(stringResource(R.string.tv_rest_enter_psk))
+            }
+        }
+    }
+}
+
+@Composable
+private fun outputNames(): Map<String, String> = mapOf(
+    "speaker" to stringResource(R.string.tv_output_speaker),
+    "speaker_hdmi" to stringResource(R.string.tv_output_speaker_hdmi),
+    "hdmi" to stringResource(R.string.tv_output_hdmi),
+    "audioSystem" to stringResource(R.string.tv_output_audio_system),
+)
 
 @Composable
 private fun TvSettingRow(setting: TvSetting, group: TvSettingGroup, controller: TuttiController) {
@@ -187,6 +287,12 @@ private fun settingTitle(setting: TvSetting): String {
         "outputTerminal" -> R.string.tv_target_output_terminal
         "tvPosition" -> R.string.tv_target_tv_position
         "subwooferLevel" -> R.string.tv_target_subwoofer_level
+        "subwooferFreq" -> R.string.tv_target_subwoofer_freq
+        "subwooferPhase" -> R.string.tv_target_subwoofer_phase
+        "subwooferPower" -> R.string.tv_target_subwoofer_power
+        "colorSpace" -> R.string.tv_target_color_space
+        "autoLocalDimming" -> R.string.tv_target_auto_local_dimming
+        "xtendedDynamicRange" -> R.string.tv_target_xdr
         else -> null
     }
     return known?.let { stringResource(it) } ?: setting.title ?: setting.target

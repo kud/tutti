@@ -141,7 +141,8 @@ fun SettingsScreen(
                 } else {
                     stringResource(R.string.settings_tv_settings_needs, linkLabel(state.links.rest))
                 },
-                enabled = state.links.rest == Link.ONLINE,
+                // Open whenever a TV is paired: offline, the screen explains how to turn IP control on.
+                enabled = tv != null,
                 onClick = onOpenTv,
             )
 

@@ -7,6 +7,7 @@ import io.kud.tutti.protocol.atv.RemoteState
 import io.kud.tutti.protocol.bravia.Capabilities
 import io.kud.tutti.protocol.bravia.ExternalInput
 import io.kud.tutti.protocol.bravia.PowerStatus
+import io.kud.tutti.protocol.bravia.SystemInfo
 import io.kud.tutti.protocol.bravia.TvApp
 import io.kud.tutti.protocol.bravia.TvSetting
 import io.kud.tutti.protocol.grpc.CloudPlaneState
@@ -40,6 +41,20 @@ data class TvSettingsState(
     val sound: List<TvSetting> = emptyList(),
     val speaker: List<TvSetting> = emptyList(),
     val powerSaving: String? = null,
+    /** getPowerSavingMode or setPowerSavingMode listed. */
+    val powerSavingSupported: Boolean = false,
+    /** Wake-on-LAN (getWolMode); null when the TV does not list it. */
+    val wol: Boolean? = null,
+    /** Scene select for the current input (videoScreen.getSceneSetting); null when not offered. */
+    val scene: TvSetting? = null,
+    /**
+     * Sony documents setSoundSettings (outputTerminal) but no getter: when the TV lists the setter
+     * and not getSoundSettings, the output shows as a write-only choice of the documented values.
+     */
+    val outputWriteOnly: Boolean = false,
+    /** IRCC code for the TV's own sleep timer, when getRemoteControllerInfo lists one. */
+    val sleepCode: String? = null,
+    val system: SystemInfo? = null,
 )
 
 data class TvState(

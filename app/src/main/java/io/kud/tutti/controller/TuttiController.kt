@@ -965,6 +965,14 @@ class TuttiController @Inject constructor(
             val sound = if (caps.supports(BraviaService.AUDIO, "getSoundSettings")) client.soundSettings().getOrNull() else null
             val speaker = if (caps.supports(BraviaService.AUDIO, "getSpeakerSettings")) client.speakerSettings().getOrNull() else null
             val saving = if (caps.supports(BraviaService.SYSTEM, "getPowerSavingMode")) client.powerSavingMode().getOrNull() else null
+            val wol = if (caps.supports(BraviaService.SYSTEM, "getWolMode")) client.wolMode().getOrNull() else null
+            val scene = if (caps.supports(BraviaService.VIDEO_SCREEN, "getSceneSetting")) client.sceneSetting().getOrNull() else null
+            val sleep = if (caps.supports(BraviaService.SYSTEM, "getRemoteControllerInfo")) {
+                client.remoteControllerInfo().getOrNull()?.let(io.kud.tutti.protocol.bravia.Ircc::sleepTimerCode)
+            } else {
+                null
+            }
+            val system = if (caps.supports(BraviaService.SYSTEM, "getSystemInformation")) client.systemInformation().getOrNull() else null
             val inputs = client.externalInputs().getOrNull()
             tv.update {
                 it.copy(
@@ -975,6 +983,12 @@ class TuttiController @Inject constructor(
                         sound = sound.orEmpty(),
                         speaker = speaker.orEmpty(),
                         powerSaving = saving,
+                        powerSavingSupported = saving != null || caps.supports(BraviaService.SYSTEM, "setPowerSavingMode"),
+                        wol = wol,
+                        scene = scene,
+                        outputWriteOnly = sound == null && caps.supports(BraviaService.AUDIO, "setSoundSettings"),
+                        sleepCode = sleep,
+                        system = system,
                     ),
                 )
             }
@@ -1007,6 +1021,47 @@ class TuttiController @Inject constructor(
                 mutableEvents.tryEmit(TuttiEvent.ActionFailed)
                 loadTvSettings()
             }
+        }
+    }
+
+    fun setWol(enabled: Boolean) {
+        val client = bravia ?: return
+        tv.update { it.copy(settings = it.settings.copy(wol = enabled)) }
+        scope.launch {
+            if (client.setWolMode(enabled) !is BraviaResult.Ok) {
+                mutableEvents.tryEmit(TuttiEvent.ActionFailed)
+                loadTvSettings()
+            }
+        }
+    }
+
+    fun setScene(value: String) {
+        val client = bravia ?: return
+        tv.update { it.copy(settings = it.settings.copy(scene = it.settings.scene?.copy(currentValue = value))) }
+        scope.launch {
+            if (client.setSceneSetting(value) !is BraviaResult.Ok) {
+                mutableEvents.tryEmit(TuttiEvent.ActionFailed)
+                loadTvSettings()
+            }
+        }
+    }
+
+    /** Write-only: no documented getter, so nothing to roll back to on failure beyond the event. */
+    fun setOutputTerminal(value: String) {
+        val client = bravia ?: return
+        scope.launch {
+            if (client.setSoundSetting(io.kud.tutti.protocol.bravia.TvSetting.OUTPUT_TERMINAL, value) !is BraviaResult.Ok) {
+                mutableEvents.tryEmit(TuttiEvent.ActionFailed)
+            }
+        }
+    }
+
+    /** One press of the TV's own sleep-timer key: the TV cycles its steps and shows the choice. */
+    fun pressSleepTimer() {
+        val client = bravia ?: return
+        val code = tv.value.settings.sleepCode ?: return
+        scope.launch {
+            if (client.sendIrcc(code) !is BraviaResult.Ok) mutableEvents.tryEmit(TuttiEvent.ActionFailed)
         }
     }
 
