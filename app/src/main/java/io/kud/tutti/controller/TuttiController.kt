@@ -142,7 +142,7 @@ class TuttiController @Inject constructor(
     private val linkNotes = MutableStateFlow(LinkNotes())
     private val tv = MutableStateFlow(TvState())
     private val voiceZoom = MutableStateFlow(false)
-    private val progress = MutableStateFlow<Map<String, Float>>(emptyMap())
+    private val progress = MutableStateFlow<Map<String, SceneRun>>(emptyMap())
     private val activeSceneId = MutableStateFlow<String?>(null)
     private val pairing = MutableStateFlow<PairingUi>(PairingUi.Idle)
     private val overrides = MutableStateFlow(Overrides())
@@ -174,7 +174,7 @@ class TuttiController @Inject constructor(
     )
 
     private data class Extra(
-        val progress: Map<String, Float>,
+        val progress: Map<String, SceneRun>,
         val activeSceneId: String?,
         val pairing: PairingUi,
         val cloud: io.kud.tutti.protocol.grpc.CloudPlaneState,
@@ -484,13 +484,15 @@ class TuttiController @Inject constructor(
         val snapshot = snapshotOf(l.tv, l.remote, l.bar)
         val active = e.activeSceneId
         val scenes = s.scenes.map { scene ->
-            val running = e.progress[scene.id]
+            val run = e.progress[scene.id]
+            val running = run?.fraction
+            val failure = run?.failure
             if (scene.id != active) {
-                SceneUi(scene, SceneStatus.IDLE, running)
+                SceneUi(scene, SceneStatus.IDLE, running, failure = failure)
             } else {
                 when (val match = SceneEngine.match(scene, snapshot)) {
-                    SceneMatch.Matches -> SceneUi(scene, SceneStatus.ACTIVE, running)
-                    is SceneMatch.Modified -> SceneUi(scene, SceneStatus.MODIFIED, running, match.keys)
+                    SceneMatch.Matches -> SceneUi(scene, SceneStatus.ACTIVE, running, failure = failure)
+                    is SceneMatch.Modified -> SceneUi(scene, SceneStatus.MODIFIED, running, match.keys, failure)
                 }
             }
         }
@@ -853,11 +855,20 @@ class TuttiController @Inject constructor(
         sceneJob?.cancel()
         sceneJob = scope.launch {
             var failed = emptyList<SceneStep>()
-            SceneRunner(actuator).run(steps).collect { p ->
-                failed = p.failed
-                progress.update { it + (sceneId to p.fraction) }
+            var finished = false
+            try {
+                SceneRunner(actuator).run(steps).collect { p ->
+                    failed = p.failed
+                    progress.update { it + (sceneId to SceneRun(p.fraction)) }
+                }
+                finished = true
+            } finally {
+                // A failed run keeps its count on the card and pill until the scene is applied again;
+                // a cancelled one (another scene took over) clears, so no fill is left stuck half-way.
+                progress.update {
+                    if (!finished || failed.isEmpty()) it - sceneId else it + (sceneId to SceneRun(null, SceneFailure(failed.size, steps.size)))
+                }
             }
-            progress.update { it - sceneId }
             val detail = if (failed.isEmpty()) {
                 null
             } else {

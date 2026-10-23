@@ -7,6 +7,14 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.graphicsLayer
+import io.kud.tutti.ui.common.PressStyle
+import io.kud.tutti.ui.common.rememberFeedback
+import io.kud.tutti.ui.common.rememberPress
+import io.kud.tutti.ui.common.rememberTuttiIndication
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -63,8 +71,28 @@ fun SceneStrip(
 }
 
 /**
- * A pill in its own tonal colour. Active: filled. Changed by hand: outlined and marked
- * "modifiée". Applying: fills left to right with the run's progress.
+ * Whether a run's progress moved [before] -> [now] by a step worth a tick. The last step is left
+ * to the outcome (doublePulse or reject), so a scene never ends on two haptics.
+ */
+internal fun isSceneStep(before: Float?, now: Float?): Boolean = before != null && now != null && now > before && now < 1f
+
+/** Ticks once per scene step while [progress] runs. */
+@Composable
+fun SceneStepTicks(progress: Float?) {
+    val feedback = rememberFeedback()
+    val last = remember { floatArrayOf(Float.NaN) }
+    LaunchedEffect(progress) {
+        val before = last[0].takeUnless { it.isNaN() }
+        if (isSceneStep(before, progress)) feedback.tick()
+        last[0] = progress ?: Float.NaN
+    }
+}
+
+/**
+ * A pill in its own tonal colour. Active: filled, with a check. Changed by hand: outlined and
+ * marked "modifiée". Applying: fills left to right with the run's progress, a tick per step.
+ * Ended short: the fill drains and a cross says "failed". The press answers on down (scale, layer,
+ * click); callers add no haptic of their own.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -83,24 +111,47 @@ fun ScenePill(ui: SceneUi, onClick: () -> Unit, onLongClick: () -> Unit, modifie
     val content = if (ui.status == SceneStatus.ACTIVE) contentOn(seed) else MaterialTheme.colorScheme.onSurface
     val progress by animateFloatAsState(ui.progress ?: 0f, snappyOrFade(), label = "progress")
     val shape = RoundedCornerShape(percent = 50)
-    val running = ui.progress != null
+    val failed = ui.failure != null && ui.progress == null
+    val interaction = remember { MutableInteractionSource() }
+    val feedback = rememberFeedback()
+    val press = rememberPress(interaction, PressStyle.TILE, onDown = feedback::click)
+    SceneStepTicks(ui.progress)
     Row(
         modifier = modifier
             .height(40.dp)
+            .graphicsLayer {
+                scaleX = press.scale
+                scaleY = press.scale
+            }
             .clip(shape)
             .background(container)
             .then(if (ui.status == SceneStatus.MODIFIED) Modifier.border(1.5.dp, seed, shape) else Modifier)
+            // Drawn while the fill animates, so a run that ends drains rather than vanishing.
             .drawBehind {
-                if (running) drawRect(seed.copy(alpha = 0.6f), size = Size(size.width * progress, size.height))
+                if (progress > 0f) drawRect(seed.copy(alpha = 0.6f), size = Size(size.width * progress, size.height))
             }
-            .combinedClickable(onLongClick = onLongClick, onClick = onClick)
+            .combinedClickable(
+                interactionSource = interaction,
+                indication = rememberTuttiIndication(shape, layerColor = content),
+                onLongClick = onLongClick,
+                onClick = onClick,
+            )
             .padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(painterResource(glyphRes(ui.scene.glyph)), contentDescription = null, tint = content, modifier = Modifier.size(18.dp))
         Spacer(Modifier.width(6.dp))
         Text(ui.scene.name, style = MaterialTheme.typography.labelLarge, color = content, maxLines = 1)
-        if (ui.status == SceneStatus.MODIFIED) {
+        if (ui.status == SceneStatus.ACTIVE && !failed) {
+            Spacer(Modifier.width(6.dp))
+            Icon(painterResource(R.drawable.ic_check), contentDescription = stringResource(R.string.scenes_active), tint = content, modifier = Modifier.size(16.dp))
+        }
+        if (failed) {
+            Spacer(Modifier.width(6.dp))
+            Icon(painterResource(R.drawable.ic_close), contentDescription = null, tint = content, modifier = Modifier.size(14.dp))
+            Spacer(Modifier.width(2.dp))
+            Text(stringResource(R.string.scene_failed_short), style = MaterialTheme.typography.labelSmall, color = content)
+        } else if (ui.status == SceneStatus.MODIFIED) {
             Spacer(Modifier.width(6.dp))
             Text(stringResource(R.string.scene_modified), style = MaterialTheme.typography.labelSmall, color = seed)
         }

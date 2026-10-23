@@ -91,7 +91,7 @@ fun TuttiApp(controller: TuttiController, discovery: TvDiscovery, diagnostics: D
         controller.events.collect { event ->
             when (event) {
                 is TuttiEvent.SceneFinished -> {
-                    haptics.doublePulse()
+                    if (event.failedSteps == 0) haptics.doublePulse() else haptics.reject()
                     if (event.detail != null) problems.report(context.getString(R.string.scene_failed_steps), event.detail)
                 }
                 TuttiEvent.VolumeLimit -> haptics.bump()

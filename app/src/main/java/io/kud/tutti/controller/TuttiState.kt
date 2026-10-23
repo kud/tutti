@@ -86,7 +86,15 @@ data class SceneUi(
     /** 0..1 while applying (the pill fills left to right), null otherwise. */
     val progress: Float? = null,
     val modifiedKeys: Set<SceneKey> = emptySet(),
+    /** The last run's failed steps, kept until the scene is applied again; null when it all applied. */
+    val failure: SceneFailure? = null,
 )
+
+/** [failed] of [total] steps did not apply. */
+data class SceneFailure(val failed: Int, val total: Int)
+
+/** A scene's run as the controller tracks it: [fraction] while applying, [failure] once it ended short. */
+data class SceneRun(val fraction: Float?, val failure: SceneFailure? = null)
 
 sealed interface PairingUi {
     data object Idle : PairingUi

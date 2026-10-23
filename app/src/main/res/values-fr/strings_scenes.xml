@@ -47,4 +47,10 @@
     <string name="scene_starter_sport">Sport</string>
     <string name="scene_starter_jeu">Jeu</string>
     <string name="scene_starter_info">Info</string>
+    <plurals name="scene_steps_failed">
+        <item quantity="one">%1$d étape sur %2$d a échoué</item>
+        <item quantity="many">%1$d étapes sur %2$d ont échoué</item>
+        <item quantity="other">%1$d étapes sur %2$d ont échoué</item>
+    </plurals>
+    <string name="scene_failed_short">échec</string>
 </resources>

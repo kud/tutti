@@ -47,4 +47,11 @@
     <string name="scene_starter_sport">Sport</string>
     <string name="scene_starter_jeu">Game</string>
     <string name="scene_starter_info">News</string>
+    <!-- Under a scene whose last run ended short, with a cross. -->
+    <plurals name="scene_steps_failed">
+        <item quantity="one">%1$d of %2$d steps failed</item>
+        <item quantity="other">%1$d of %2$d steps failed</item>
+    </plurals>
+    <!-- The pill's short form of the same. -->
+    <string name="scene_failed_short">failed</string>
 </resources>

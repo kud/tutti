@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -48,7 +49,15 @@ import io.kud.tutti.controller.TuttiUiState
 import io.kud.tutti.controller.SceneStatus
 import io.kud.tutti.controller.SceneUi
 import io.kud.tutti.ui.common.glyphRes
-import io.kud.tutti.ui.common.rememberHaptics
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.res.pluralStringResource
+import io.kud.tutti.ui.common.PressStyle
+import io.kud.tutti.ui.common.rememberFeedback
+import io.kud.tutti.ui.common.rememberPress
+import io.kud.tutti.ui.common.rememberTuttiIndication
+import io.kud.tutti.ui.remote.SceneStepTicks
 import io.kud.tutti.ui.remote.contentOn
 import io.kud.tutti.ui.remote.tonalOf
 
@@ -60,7 +69,6 @@ fun ScenesScreen(
     onBack: () -> Unit,
     onEdit: (String?) -> Unit,
 ) {
-    val haptics = rememberHaptics()
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
@@ -93,10 +101,7 @@ fun ScenesScreen(
                 SceneCard(
                     ui = ui,
                     summary = sceneSummary(ui.scene, state),
-                    onApply = {
-                        haptics.click()
-                        controller.applyScene(ui.scene.id)
-                    },
+                    onApply = { controller.applyScene(ui.scene.id) },
                     onEdit = { onEdit(ui.scene.id) },
                 )
             }
@@ -111,32 +116,57 @@ private fun SceneCard(ui: SceneUi, summary: String, onApply: () -> Unit, onEdit:
     val container by animateColorAsState(if (active) seed else tonalOf(seed), snappyOrFade(), label = "card")
     val content = if (active) contentOn(seed) else MaterialTheme.colorScheme.onSurface
     val progress by animateFloatAsState(ui.progress ?: 0f, snappyOrFade(), label = "progress")
-    val running = ui.progress != null
+    val failure = ui.failure.takeIf { ui.progress == null }
     val shape = RoundedCornerShape(28.dp)
+    val interaction = remember { MutableInteractionSource() }
+    val feedback = rememberFeedback()
+    // The click lands on down, with the scale and the layer; ScenesScreen adds no haptic of its own.
+    val press = rememberPress(interaction, PressStyle.TILE, onDown = feedback::click)
+    SceneStepTicks(ui.progress)
     Column(
         Modifier
             .fillMaxWidth()
             .heightIn(min = 150.dp)
+            .graphicsLayer {
+                scaleX = press.scale
+                scaleY = press.scale
+            }
             .clip(shape)
             .background(container)
             .then(if (ui.status == SceneStatus.MODIFIED) Modifier.border(1.5.dp, seed, shape) else Modifier)
+            // Drawn while the fill animates, so a run that ends short drains rather than vanishing.
             .drawBehind {
-                if (running) drawRect(seed.copy(alpha = 0.6f), size = Size(size.width * progress, size.height))
+                if (progress > 0f) drawRect(seed.copy(alpha = 0.6f), size = Size(size.width * progress, size.height))
             }
-            .clickable(onClick = onApply)
+            .clickable(
+                interactionSource = interaction,
+                indication = rememberTuttiIndication(shape, layerColor = content),
+                onClick = onApply,
+            )
             .padding(16.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                Modifier.size(40.dp).clip(CircleShape).background(if (active) content.copy(alpha = 0.16f) else seed),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    painterResource(glyphRes(ui.scene.glyph)),
-                    contentDescription = null,
-                    tint = if (active) content else contentOn(seed),
-                    modifier = Modifier.size(22.dp),
-                )
+            Box(Modifier.size(40.dp)) {
+                Box(
+                    Modifier.size(40.dp).clip(CircleShape).background(if (active) content.copy(alpha = 0.16f) else seed),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        painterResource(glyphRes(ui.scene.glyph)),
+                        contentDescription = null,
+                        tint = if (active) content else contentOn(seed),
+                        modifier = Modifier.size(22.dp),
+                    )
+                }
+                // The check badge: active is a shape and a word, never the fill alone.
+                if (active && failure == null) {
+                    Box(
+                        Modifier.align(Alignment.BottomEnd).offset(x = 4.dp, y = 4.dp).size(18.dp).clip(CircleShape).background(content),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(painterResource(R.drawable.ic_check), contentDescription = null, tint = container, modifier = Modifier.size(12.dp))
+                    }
+                }
             }
             Spacer(Modifier.weight(1f))
             IconButton(onClick = onEdit) {
@@ -147,7 +177,17 @@ private fun SceneCard(ui: SceneUi, summary: String, onApply: () -> Unit, onEdit:
         Text(ui.scene.name, style = MaterialTheme.typography.titleMedium, color = content)
         Spacer(Modifier.height(4.dp))
         Text(summary, style = MaterialTheme.typography.bodySmall, color = content.copy(alpha = 0.8f), maxLines = 3)
-        when (ui.status) {
+        if (failure != null) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(painterResource(R.drawable.ic_close), contentDescription = null, tint = content, modifier = Modifier.size(14.dp))
+                Spacer(Modifier.size(4.dp))
+                Text(
+                    pluralStringResource(R.plurals.scene_steps_failed, failure.failed, failure.failed, failure.total),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = content,
+                )
+            }
+        } else when (ui.status) {
             SceneStatus.ACTIVE -> Text(stringResource(R.string.scenes_active), style = MaterialTheme.typography.labelMedium, color = content)
             SceneStatus.MODIFIED -> Text(stringResource(R.string.scene_modified), style = MaterialTheme.typography.labelMedium, color = seed)
             SceneStatus.IDLE -> Unit

@@ -174,10 +174,7 @@ fun RemoteScreen(
             if (layout.scenes) {
                 SceneStrip(
                     scenes = state.scenes,
-                    onApply = {
-                        haptics.click()
-                        controller.applyScene(it)
-                    },
+                    onApply = { controller.applyScene(it) },
                     onEdit = onEditScene,
                     modifier = Modifier.padding(vertical = 4.dp),
                 )
