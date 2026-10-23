@@ -40,7 +40,9 @@ Reverse-engineered by [tronikos/androidtvremote2](https://github.com/tronikos/an
 
 ### 2. Soundbar IP control, TCP 33336
 
-Newline-delimited JSON `{"id","type":"get|set","feature","value"}` → `result` (feature + value for `get`, `"ACK"` for `set`) and unsolicited `notify`. No authentication; one persistent socket; requires "External control" in BRAVIA Connect. DRC and Auto Volume do not notify and are polled. The reducer shows a `set` at once, confirms on ACK or a matching notify (whichever comes first), and rolls back on refusal, timeout (3 s) or disconnect.
+Newline-delimited JSON `{"id","type":"get|set","feature","value"}` → `result` (feature + value for `get`, `"ACK"` for `set`) and unsolicited `notify`. No authentication; one persistent socket; requires "External control" in BRAVIA Connect. DRC and Auto Volume do not notify and are polled. The reducer shows a `set` at once, confirms on ACK or a matching notify (whichever comes first), and rolls back on refusal, timeout (3 s) or disconnect. A `get` answered `ERR` or `NAK` is a refusal, never a value: the feature goes in `TheatreState.refused`, and the reducer test holds that.
+
+Réglages › Réglages système de la barre is probe-gated row by row: a setting shows only once the bar has reported a value for it (`TheatreState.supports`, a `get` answer or a notify), so what the Bar 9 lacks stays hidden instead of greyed. `refreshAll` asks every feature at connect; the diagnostic report lists the refused keys, never values. tutti never asks for `system.serialnumber`, `network.macaddress` or `network.ipaddress`, and never touches `system.externalcontrol` (turning it off would cut tutti's own socket): `TheatreFeature.NEVER_ASKED`, tested.
 
 ### 3. BRAVIA REST, JSON-RPC + PSK
 
@@ -63,7 +65,19 @@ Acoustic Center Sync, sound calibration, speaker placement and first setup: a sh
 | IME show request / batch edit counters | Message shapes from the proto; the live mirror flow is **unverified** anywhere; field focus loss is inferred (app change) |
 | Soundbar TCP 33336 vocabulary | Verified by bravia-quad-homeassistant on Theatre Quad; Bar 9 by one community report only |
 | Voice Zoom 3 (`audio.voicezoom3*`) | **Unverified** on Bar 9: shown only if a `get` probe answers |
-| `bluetooth.mode` values | Undocumented: displayed raw, never set |
+| `bluetooth.mode` values | Undocumented: displayed raw, never set as a setting. The only write is pairing (below) |
+| Soundbar system settings (source: [bravia-quad-homeassistant](https://github.com/steamEngineer/bravia-quad-homeassistant), `custom_components/bravia_quad/const.py`, `select.py`, `switch.py`, `button.py`, `docs/tcp-protocol.md`, `docs/grpc-tcp-mapping.md`, read 2026-10-23) | Every row below is **unverified on the Bar 9** and shown only if the bar answers it |
+| `hdmi.cec` on/off, `system.autostandby` on/off | Documented in its `tcp-protocol.md`, both seen as notifies on the Quad |
+| `hdmi.audioreturnchannel` `off`/`arc`/`earc` | Its TCP select; ARC vs eARC is negotiated with the TV (its mapping doc: TCP may say `arc` while the cloud says on) |
+| `hdmi.standbylink` `auto`/`on`/`off` | Its label is "HDMI standby through" (gRPC `system_setting.hdmi_standby_through`, flagged `verified=False` there); tutti labels it Transmission en veille / Standby through |
+| `hdmi.passthrough` `auto`/`on`/`off` | Its label is "HDMI signal pass through"; no gRPC equivalent confirmed (its parity gaps) |
+| `system.netbtstandby` on/off | Its switch "Network/Bluetooth standby" |
+| `system.autoupdate` on/off | Its switch, `verified=False` there |
+| `system.modeltype`, `system.version` | Its TCP client reads these for the device registry. `system.modelname` is the HTTP plane (`:54545/fcgi-bin/request.fcgi`), not this port: tutti read the wrong key until 2026-10-23 |
+| Bluetooth pairing | Its "Bluetooth pairing" button (`button.py`): `main.input` `bluetooth` if needed, `bluetooth.mode` `Off`, 500 ms, `RX`. Observed on the Quad only; offered only when the bar reports `bluetooth.mode`. `BluetoothPairing`, tested |
+| Firmware update status / install | **Not on this port**: that integration polls the HTTP management API (`:54545`, `async_check_firmware_update`). Not implemented; the auto-update switch is the only update control |
+| Connected Bluetooth device, codec, signal | **Not on this port**: gRPC only (`playback_control.bt_device_name`, `bt_codec`, `bt_signal_strength`). Not implemented |
+| `system.serialnumber`, `network.macaddress` | Exist on this port; tutti never asks (`NEVER_ASKED`) |
 | BRAVIA REST methods, services, versions, params, result shapes and auth levels | Verified against Sony's reference (pro-bravia.sony.net/remote-display-control/rest-api/reference, 2026-10-22), **still unverified on the XR80**, hence capability-driven UI. Auth none: `getInterfaceInformation`, `getPowerStatus`, `getPowerSavingMode`, `getRemoteControllerInfo`, `getVolumeInformation`, `getSpeakerSettings`, `getPictureQualitySettings`, `getCurrentExternalInputsStatus`; generic: every setter used; private: `getSystemInformation`, `getApplicationList`, `getPlayingContentInfo` |
 | `getMethodTypes`, `getSoundSettings` | Not in Sony's reference (only `setSoundSettings` 1.1 is): kept as fallback / capability-gated, **unverified** |
 | `getWolMode` / `setWolMode` (system 1.0, generic), `getSceneSetting` (videoScreen 1.0, none) / `setSceneSetting` (generic) | In Sony's reference (2026-10-23); scene select is documented as "BZ40P / BZ35P / BZ30P: not supported", i.e. consumer models; XR80 **unverified**. That WoL mode is the same switch as the menu's "Remote start" is **unverified** |
