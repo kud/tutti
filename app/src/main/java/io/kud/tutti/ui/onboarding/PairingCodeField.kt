@@ -5,9 +5,11 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
@@ -67,9 +69,10 @@ fun PairingCodeField(code: String, onCodeChange: (String) -> Unit, onDone: () ->
             },
         decorationBox = {
             // The inner text field is never drawn: the cells are the field.
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            // Six equal shares of whatever width the dialog gives: fixed cells overflowed a narrow one.
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 for (index in 0 until PairingCode.LENGTH) {
-                    Cell(char = code.getOrNull(index), current = index == code.length)
+                    Cell(char = code.getOrNull(index), current = index == code.length, modifier = Modifier.weight(1f))
                 }
             }
         },
@@ -77,12 +80,13 @@ fun PairingCodeField(code: String, onCodeChange: (String) -> Unit, onDone: () ->
 }
 
 @Composable
-private fun Cell(char: Char?, current: Boolean) {
+private fun Cell(char: Char?, current: Boolean, modifier: Modifier) {
     val colors = MaterialTheme.colorScheme
     val shape = RoundedCornerShape(12.dp)
     Box(
-        Modifier
-            .size(width = 44.dp, height = 56.dp)
+        modifier
+            .widthIn(max = 48.dp)
+            .height(56.dp)
             .background(colors.surfaceContainerHighest, shape)
             .border(if (current) 3.dp else 1.dp, if (current) colors.primary else colors.outline, shape),
         contentAlignment = Alignment.Center,
