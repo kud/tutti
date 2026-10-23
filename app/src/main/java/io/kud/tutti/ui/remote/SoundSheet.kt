@@ -131,6 +131,8 @@ fun SoundSheet(state: TuttiUiState, controller: TuttiController, modifier: Modif
                 modifier = Modifier.alignByBaseline().weight(1f, fill = false),
             )
         }
+        Spacer(Modifier.height(4.dp))
+        BarInputRow(state, controller)
         Spacer(Modifier.height(8.dp))
 
         val tiles = listOf(
