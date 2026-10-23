@@ -14,6 +14,12 @@
     <string name="action_settings">Settings</string>
     <string name="pad_label">Touchpad</string>
     <string name="pad_switch_dpad">Switch to D-pad</string>
+    <string name="pad_dpad_label">D-pad</string>
+    <string name="pad_ok">OK</string>
+    <string name="pad_up">Up</string>
+    <string name="pad_down">Down</string>
+    <string name="pad_left">Left</string>
+    <string name="pad_right">Right</string>
     <string name="pad_switch_touchpad">Switch to touchpad</string>
     <string name="volume_label">Bar volume</string>
     <string name="scene_modified">modified</string>

@@ -47,7 +47,7 @@ Quick Settings tile (opens a compact remote overlay), phone volume buttons drive
 ## Visual
 - Material 3 Expressive, restrained: dynamic colour, springy shape changes, big rounded targets. Expressive in motion, not decoration.
 - Dark first: near-black surface, optional true black for OLED, no white flashes. Light theme secondary.
-- Pad: one large quiet surface, no grid lines; D-pad mode shows its ring only. Volume second loudest. Everything else tonal, not outlined.
+- Pad: one large quiet surface, no grid lines. D-pad mode is a tonal disc with a chevron at each point and an OK centre set off by a thin moat; the drawn zones are the hit zones, and the one under the finger lights until release. Volume second loudest. Everything else tonal, not outlined.
 - Haptics are primary feedback: light tick per D-pad/swipe step, firmer click on Select, soft bump at volume limits/cap, double pulse when a scene finishes.
 - Motion: springs under ~250 ms; reduced motion → fades.
 - Performance target: visual and haptic response within one frame of a tap, before any network round trip.

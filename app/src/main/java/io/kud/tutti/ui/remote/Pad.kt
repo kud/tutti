@@ -1,5 +1,6 @@
 package io.kud.tutti.ui.remote
 
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
@@ -26,8 +27,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.geometry.isSpecified
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.PointerEvent
 import androidx.compose.ui.input.pointer.PointerInputScope
@@ -35,7 +43,10 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import io.kud.tutti.R
@@ -47,8 +58,8 @@ import kotlin.math.abs
 import kotlin.math.min
 
 /**
- * The pad: one large quiet surface, no grid lines. Touchpad (swipe steps) or D-pad (its ring
- * only), switchable in one move. Tap = OK; long press = held Select for the TV.
+ * The pad: one large quiet surface, no grid lines. Touchpad (swipe steps) or D-pad (a disc with
+ * a chevron at each point and an OK centre), switchable in one move. Tap = OK; long press = held Select for the TV.
  * Two gestures only, in touchpad mode: two-finger tap = play/pause, two-finger vertical drag = bar volume.
  */
 @Composable
@@ -70,8 +81,9 @@ fun Pad(
     val playPause by rememberUpdatedState(onPlayPause)
     val volumeStep by rememberUpdatedState(onVolumeStep)
     val glowColor = MaterialTheme.colorScheme.primary
-    val ringColor = MaterialTheme.colorScheme.outlineVariant
-    val centreColor = MaterialTheme.colorScheme.secondaryContainer
+    // D-pad press feedback: the zone under the finger lights from press to release, then fades.
+    var pressedZone by remember { mutableStateOf<Int?>(null) }
+    val pressAlpha = remember { Animatable(0f) }
 
     fun flash(at: Offset) {
         glow = at
@@ -112,10 +124,18 @@ fun Pad(
     } else {
         Modifier.pointerInput(haptics) {
             detectTapGestures(
+                onPress = { at ->
+                    val zone = dpadZone(at, size.width.toFloat(), size.height.toFloat())
+                    if (zone != null) {
+                        pressedZone = zone
+                        pressAlpha.snapTo(1f)
+                        tryAwaitRelease()
+                        scope.launch { pressAlpha.animateTo(0f, tween(durationMillis = 180)) }
+                    }
+                },
                 onTap = { at ->
-                    val code = dpadZone(at, size.width.toFloat(), size.height.toFloat())
+                    val code = dpadZone(at, size.width.toFloat(), size.height.toFloat()) ?: return@detectTapGestures
                     if (code == V2Key.DPAD_CENTER) haptics.select() else haptics.tick()
-                    flash(at)
                     key(code)
                 },
                 onLongPress = { at ->
@@ -128,17 +148,50 @@ fun Pad(
         }
     }
 
+    val dpadLabel = stringResource(R.string.pad_dpad_label)
+    val okLabel = stringResource(R.string.pad_ok)
+    val directionLabels = listOf(
+        V2Key.DPAD_UP to stringResource(R.string.pad_up),
+        V2Key.DPAD_DOWN to stringResource(R.string.pad_down),
+        V2Key.DPAD_LEFT to stringResource(R.string.pad_left),
+        V2Key.DPAD_RIGHT to stringResource(R.string.pad_right),
+    )
+    val semanticsModifier = if (mode == PadMode.TOUCHPAD) {
+        Modifier.semantics { contentDescription = padLabel }
+    } else {
+        Modifier.semantics {
+            contentDescription = dpadLabel
+            onClick(label = okLabel) {
+                key(V2Key.DPAD_CENTER)
+                true
+            }
+            customActions = directionLabels.map { (code, label) ->
+                CustomAccessibilityAction(label) {
+                    key(code)
+                    true
+                }
+            }
+        }
+    }
+    // In D-pad mode the disc is the surface: the rounded rectangle fades out behind it, so the
+    // only shape on screen is the one that answers a tap.
+    val surfaceColor by animateColorAsState(
+        targetValue = if (mode == PadMode.TOUCHPAD) MaterialTheme.colorScheme.surfaceContainerHigh else Color.Transparent,
+        animationSpec = tween(durationMillis = 200),
+        label = "padSurface",
+    )
+
     // The switch is the surface's sibling, not its child: touchpadGestures reads every touch,
     // consumed or not, so a tap on a child button also reached the TV as OK.
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(36.dp))
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+            .background(surfaceColor),
     ) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .semantics { contentDescription = padLabel }
+                .then(semanticsModifier)
                 .drawBehind {
                     if (glow.isSpecified && glowAlpha.value > 0f) {
                         drawCircle(
@@ -155,12 +208,7 @@ fun Pad(
                 .then(gestures),
         ) {
             if (mode == PadMode.DPAD) {
-                Canvas(Modifier.fillMaxSize()) {
-                    val radius = min(size.width, size.height) / 2f
-                    val stroke = radius * 0.30f
-                    drawCircle(ringColor, radius = radius * 0.80f - stroke / 2f, style = Stroke(width = stroke))
-                    drawCircle(centreColor, radius = radius * 0.30f)
-                }
+                DpadFace(pressedZone = pressedZone, pressed = pressAlpha.value, modifier = Modifier.fillMaxSize())
             }
         }
         IconButton(
@@ -181,16 +229,110 @@ fun Pad(
     }
 }
 
-private fun dpadZone(at: Offset, width: Float, height: Float): Int {
+/**
+ * The D-pad face. Geometry comes from the same fractions as [dpadZone], so what is drawn is
+ * what answers: the OK disc and its moat are the centre zone, each quarter of the ring between
+ * the diagonals is a direction. [pressed] (0..1) lights [pressedZone] with a state layer and
+ * brings its chevron to full contrast. Tonal only: no outlines, no dividers.
+ */
+@Composable
+internal fun DpadFace(pressedZone: Int?, pressed: Float, modifier: Modifier = Modifier) {
+    val scheme = MaterialTheme.colorScheme
+    val disc = scheme.surfaceContainerHigh
+    val chevron = scheme.onSurfaceVariant
+    val chevronPressed = scheme.onSurface
+    val ringLayer = scheme.onSurface
+    val centre = scheme.secondaryContainer
+    val centreLayer = scheme.onSecondaryContainer
+    Canvas(modifier) {
+        val radius = min(size.width, size.height) / 2f
+        val outer = radius * DISC_FRACTION
+        val inner = radius * CENTRE_FRACTION
+        val moat = 4.dp.toPx()
+        val ringWidth = outer - inner
+        val ringMid = (outer + inner) / 2f
+
+        drawCircle(disc, radius = ringMid, style = Stroke(width = ringWidth))
+
+        if (pressedZone != null && pressedZone != V2Key.DPAD_CENTER && pressed > 0f) {
+            drawArc(
+                color = ringLayer.copy(alpha = PRESSED_LAYER * pressed),
+                startAngle = sweepStart(pressedZone),
+                sweepAngle = 90f,
+                useCenter = false,
+                topLeft = center - Offset(ringMid, ringMid),
+                size = Size(ringMid * 2f, ringMid * 2f),
+                style = Stroke(width = ringWidth),
+            )
+        }
+
+        drawCircle(centre, radius = inner - moat)
+        if (pressedZone == V2Key.DPAD_CENTER && pressed > 0f) {
+            drawCircle(centreLayer.copy(alpha = PRESSED_LAYER * pressed), radius = inner - moat)
+        }
+
+        val arm = ringWidth * 0.18f
+        val stroke = Stroke(width = 3.5.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
+        for (code in DIRECTIONS) {
+            val lit = if (code == pressedZone) pressed else 0f
+            drawChevron(code, ringMid, arm, lerp(chevron, chevronPressed, lit), stroke)
+        }
+    }
+}
+
+private fun DrawScope.drawChevron(code: Int, distance: Float, arm: Float, color: Color, stroke: Stroke) {
+    // Pointing up, the tip sits a little outward of the ring's middle line; rotate for the others.
+    val (ux, uy) = when (code) {
+        V2Key.DPAD_UP -> 0f to -1f
+        V2Key.DPAD_DOWN -> 0f to 1f
+        V2Key.DPAD_LEFT -> -1f to 0f
+        else -> 1f to 0f
+    }
+    val tip = center + Offset(ux, uy) * (distance + arm * 0.25f)
+    val back = center + Offset(ux, uy) * (distance - arm * 0.75f)
+    val side = Offset(-uy, ux) * arm
+    val path = Path().apply {
+        moveTo(back.x + side.x, back.y + side.y)
+        lineTo(tip.x, tip.y)
+        lineTo(back.x - side.x, back.y - side.y)
+    }
+    drawPath(path, color, style = stroke)
+}
+
+private fun sweepStart(code: Int): Float = when (code) {
+    V2Key.DPAD_RIGHT -> -45f
+    V2Key.DPAD_DOWN -> 45f
+    V2Key.DPAD_LEFT -> 135f
+    else -> 225f
+}
+
+/** The key under [at], or null outside the disc (with a little slack for a thumb's edge). */
+private fun dpadZone(at: Offset, width: Float, height: Float): Int? {
     val dx = at.x - width / 2f
     val dy = at.y - height / 2f
     val radius = min(width, height) / 2f
+    val distance = Offset(dx, dy).getDistance()
     return when {
-        Offset(dx, dy).getDistance() < radius * 0.34f -> V2Key.DPAD_CENTER
+        distance < radius * CENTRE_FRACTION -> V2Key.DPAD_CENTER
+        distance > radius * (DISC_FRACTION + SLACK_FRACTION) -> null
         abs(dx) > abs(dy) -> if (dx > 0) V2Key.DPAD_RIGHT else V2Key.DPAD_LEFT
         else -> if (dy > 0) V2Key.DPAD_DOWN else V2Key.DPAD_UP
     }
 }
+
+private val DIRECTIONS = listOf(V2Key.DPAD_UP, V2Key.DPAD_DOWN, V2Key.DPAD_LEFT, V2Key.DPAD_RIGHT)
+
+/** Disc radius, as a fraction of half the pad's shorter side. */
+private const val DISC_FRACTION = 0.94f
+
+/** OK zone radius (disc plus its moat), same unit; drawn and hit-tested alike. */
+private const val CENTRE_FRACTION = 0.38f
+
+/** Taps this far past the disc's edge still count, so a thumb on the rim is not lost. */
+private const val SLACK_FRACTION = 0.06f
+
+/** Material 3's pressed state layer is 10%; a little more reads on a dark surface. */
+private const val PRESSED_LAYER = 0.14f
 
 /**
  * One gesture at a time: a swipe emits a D-pad step every [STEP_DP] along its dominant axis;
