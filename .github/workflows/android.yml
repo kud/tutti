@@ -6,13 +6,18 @@ on:
     tags: ["v*"]
   pull_request:
   workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to create on this commit and release (vMAJOR.MINOR.PATCH or vMAJOR.MINOR.PATCH-dev.N); empty for a plain build"
+        required: false
+        default: ""
 
 permissions:
   contents: read
 
 concurrency:
   group: android-${{ github.ref }}
-  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') && github.event_name != 'workflow_dispatch' }}
 
 jobs:
   build:
@@ -51,7 +56,9 @@ jobs:
 
   release:
     name: Release APK
-    if: startsWith(github.ref, 'refs/tags/v')
+    # A pushed v* tag, or a manual run on main naming the tag to create: a tag made
+    # with the workflow token would not start another run, so this one releases it.
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.tag != '' && github.ref == 'refs/heads/main')
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -62,6 +69,7 @@ jobs:
       ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
       ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
       ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+      TAG: ${{ inputs.tag || github.ref_name }}
     steps:
       - uses: actions/checkout@v4
 
@@ -82,9 +90,13 @@ jobs:
 
       - name: Derive version from the tag
         run: |
-          version="${GITHUB_REF_NAME#v}"
+          if ! [[ "$TAG" == v* ]]; then
+            echo "::error::Tag $TAG must start with v"
+            exit 1
+          fi
+          version="${TAG#v}"
           if ! [[ "$version" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)(-dev\.([0-9]+))?$ ]]; then
-            echo "::error::Tag $GITHUB_REF_NAME is not vMAJOR.MINOR.PATCH or vMAJOR.MINOR.PATCH-dev.N"
+            echo "::error::Tag $TAG is not vMAJOR.MINOR.PATCH or vMAJOR.MINOR.PATCH-dev.N"
             exit 1
           fi
           # A dev build sorts below its final release: 0.1.0-dev.3 < 0.1.0.
@@ -146,7 +158,17 @@ jobs:
         run: |
           flags=()
           if [ "$SIGNED" != "true" ] || [ "$PRERELEASE" = "true" ]; then flags+=(--prerelease); fi
-          gh release create "$GITHUB_REF_NAME" "$RELEASE_APK" --verify-tag --generate-notes --title "$GITHUB_REF_NAME" "${flags[@]}"
+          # A pushed tag must already exist; a manual run creates it on the commit it built.
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" >/dev/null 2>&1; then
+              echo "::error::Tag $TAG already exists"
+              exit 1
+            fi
+            flags+=(--target "$GITHUB_SHA")
+          else
+            flags+=(--verify-tag)
+          fi
+          gh release create "$TAG" "$RELEASE_APK" --generate-notes --title "$TAG" "${flags[@]}"
 
       - name: Remove the keystore
         if: always()
