@@ -5,6 +5,8 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -13,11 +15,20 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -26,21 +37,30 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import io.kud.tutti.R
 import io.kud.tutti.controller.TuttiUiState
 import io.kud.tutti.platform.data.DockAction
 import io.kud.tutti.platform.data.DockConfig
 import io.kud.tutti.platform.data.DockSlot
 import io.kud.tutti.ui.common.AppIcon
-import io.kud.tutti.ui.common.slotIcon
+import io.kud.tutti.ui.common.actionIcon
+import io.kud.tutti.ui.common.actionLabel
+import io.kud.tutti.ui.common.pinGlyphRes
 import io.kud.tutti.ui.common.slotLabel
 
 /**
- * The bottom row: two fixed doors, Apps and Keys (the rest of the remote), then his four pins.
- * The doors share a tone so they read as one family, apart from the pins. A pin runs on tap
- * and opens its editor (name, icon, action) on long press; an empty one asks on tap.
+ * The bottom row: two fixed doors, Apps and Keys (the rest of the remote), then his pins, four to
+ * a page. The doors share a tone so they read as one family, apart from the pins. With one page
+ * the row is exactly the old one; from two, the pins swipe sideways under the still doors and
+ * small dots show where he is. A pin runs on tap and opens its editor on long press; a pin with
+ * its own long press offers that first, the editor below it, like a launcher's shortcuts. An
+ * empty pin asks on tap.
  */
 @Composable
 fun Dock(
@@ -51,20 +71,63 @@ fun Dock(
     onAssign: (index: Int) -> Unit,
     onEdit: (index: Int) -> Unit,
     modifier: Modifier = Modifier,
+    onRunSecondary: (index: Int, action: DockAction) -> Unit = { _, _ -> },
+    initialPage: Int = 0,
 ) {
-    Row(modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        DoorTile(R.drawable.ic_apps, stringResource(R.string.dock_apps), onApps, Modifier.weight(1f))
-        DoorTile(R.drawable.ic_dialpad, stringResource(R.string.dock_keys), onKeys, Modifier.weight(1f))
-        Spacer(Modifier.width(6.dp))
-        for (index in 0 until DockConfig.SIZE) {
-            val slot = state.dock.slots.getOrNull(index) ?: DockSlot()
-            PinTile(
-                slot = slot,
-                state = state,
-                onClick = { if (slot.primary != null) onRun(index, slot) else onAssign(index) },
-                onLongClick = { onEdit(index) },
-                modifier = Modifier.weight(1f),
-            )
+    val pages = state.dock.pages
+    val pager = rememberPagerState(initialPage = initialPage) { pages.size }
+    BoxWithConstraints(modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+        // Six equal tiles: five 6dp gaps plus the 6dp step between the doors and the pins.
+        val tile = (maxWidth - GAP * 6) / 6
+        Column {
+            Row(horizontalArrangement = Arrangement.spacedBy(GAP)) {
+                DoorTile(R.drawable.ic_apps, stringResource(R.string.dock_apps), onApps, Modifier.width(tile))
+                DoorTile(R.drawable.ic_dialpad, stringResource(R.string.dock_keys), onKeys, Modifier.width(tile))
+                Spacer(Modifier.width(0.dp))
+                val pageDescription = stringResource(R.string.dock_page_desc, pager.currentPage + 1, pages.size)
+                HorizontalPager(
+                    state = pager,
+                    userScrollEnabled = pages.size > 1,
+                    pageSpacing = GAP,
+                    modifier = Modifier
+                        .width(tile * 4 + GAP * 3)
+                        .then(if (pages.size > 1) Modifier.semantics { stateDescription = pageDescription } else Modifier),
+                ) { page ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(GAP)) {
+                        pages[page].forEachIndexed { offset, slot ->
+                            val index = page * DockConfig.PAGE_SIZE + offset
+                            PinTile(
+                                slot = slot,
+                                state = state,
+                                onClick = { if (slot.primary != null) onRun(index, slot) else onAssign(index) },
+                                onEdit = { onEdit(index) },
+                                onSecondary = { action -> onRunSecondary(index, action) },
+                                modifier = Modifier.width(tile),
+                            )
+                        }
+                    }
+                }
+            }
+            if (pages.size > 1) {
+                Row(
+                    Modifier
+                        .padding(start = tile * 2 + GAP * 3, top = 8.dp)
+                        .width(tile * 4 + GAP * 3),
+                    horizontalArrangement = Arrangement.Center,
+                ) {
+                    repeat(pages.size) { page ->
+                        val current = page == pager.currentPage
+                        Box(
+                            Modifier
+                                .padding(horizontal = 4.dp)
+                                .size(if (current) 8.dp else 6.dp)
+                                .align(Alignment.CenterVertically)
+                                .clip(CircleShape)
+                                .background(if (current) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant),
+                        )
+                    }
+                }
+            }
         }
     }
 }
@@ -76,7 +139,8 @@ private fun DoorTile(@DrawableRes icon: Int, label: String, onClick: () -> Unit,
         background = MaterialTheme.colorScheme.secondaryContainer,
         content = MaterialTheme.colorScheme.onSecondaryContainer,
         label = label,
-        modifier = modifier.combinedClickable(onClick = onClick),
+        modifier = Modifier.combinedClickable(onClick = onClick),
+        outer = modifier,
     ) { tint ->
         Icon(painterResource(icon), contentDescription = null, tint = tint, modifier = Modifier.size(22.dp))
     }
@@ -88,28 +152,83 @@ private fun PinTile(
     slot: DockSlot,
     state: TuttiUiState,
     onClick: () -> Unit,
-    onLongClick: () -> Unit,
+    onEdit: () -> Unit,
+    onSecondary: (DockAction) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val action = slot.primary
     val label = slotLabel(slot, state) ?: stringResource(R.string.dock_add)
     val edit = stringResource(R.string.dock_reassign)
-    Tile(
-        background = MaterialTheme.colorScheme.surfaceContainerHigh,
-        content = MaterialTheme.colorScheme.onSurfaceVariant,
-        label = label,
-        modifier = modifier.combinedClickable(onLongClickLabel = edit, onLongClick = onLongClick, onClick = onClick),
-    ) { tint ->
-        if (action is DockAction.LaunchApp && slot.icon == null) {
-            AppIcon(action.label, state.appIcons[action.packageName], size = 24.dp, corner = 6.dp, packageName = action.packageName)
-        } else {
-            Icon(
-                painter = painterResource(slotIcon(slot, state) ?: R.drawable.ic_add),
-                contentDescription = null,
-                tint = tint,
-                modifier = Modifier.size(20.dp),
+    val secondary = slot.secondary
+    var menu by remember { mutableStateOf(false) }
+    Box(modifier) {
+        Tile(
+            background = MaterialTheme.colorScheme.surfaceContainerHigh,
+            content = MaterialTheme.colorScheme.onSurfaceVariant,
+            label = label,
+            modifier = Modifier.combinedClickable(
+                onLongClickLabel = if (secondary != null) actionLabel(secondary, state) else edit,
+                onLongClick = { if (secondary != null) menu = true else onEdit() },
+                onClick = onClick,
+            ),
+        ) { tint ->
+            PinFace(slot.primary, slot.icon, slot.letters, state, tint, iconSize = 20.dp)
+        }
+        if (secondary != null) {
+            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                DropdownMenuItem(
+                    text = { Text(actionLabel(secondary, state), fontWeight = FontWeight.Medium) },
+                    leadingIcon = { Icon(painterResource(actionIcon(secondary, state)), contentDescription = null) },
+                    onClick = {
+                        menu = false
+                        onSecondary(secondary)
+                    },
+                )
+                DropdownMenuItem(
+                    text = { Text(edit) },
+                    leadingIcon = { Icon(painterResource(R.drawable.ic_edit), contentDescription = null) },
+                    onClick = {
+                        menu = false
+                        onEdit()
+                    },
+                )
+            }
+        }
+    }
+}
+
+/**
+ * What a pin shows above its name: his letters, else his icon, else the app's own icon for an
+ * app, else the action's icon. Shared by the dock and the editor's preview so they never differ.
+ */
+@Composable
+internal fun PinFace(
+    action: DockAction?,
+    icon: String?,
+    letters: String?,
+    state: TuttiUiState,
+    tint: Color,
+    iconSize: Dp,
+) {
+    val shown = letters?.trim()?.takeIf { it.isNotEmpty() }
+    when {
+        // Same height as an icon, so a lettered pin's name sits level with its neighbours'.
+        shown != null -> Box(Modifier.height(iconSize), contentAlignment = Alignment.Center) {
+            Text(
+                shown,
+                style = MaterialTheme.typography.titleMedium.copy(lineHeight = iconSize.value.sp),
+                fontWeight = FontWeight.SemiBold,
+                color = tint,
+                maxLines = 1,
             )
         }
+        icon == null && action is DockAction.LaunchApp ->
+            AppIcon(action.label, state.appIcons[action.packageName], size = 24.dp, corner = 6.dp, packageName = action.packageName)
+        else -> Icon(
+            painter = painterResource(icon?.let(::pinGlyphRes) ?: action?.let { actionIcon(it, state) } ?: R.drawable.ic_add),
+            contentDescription = null,
+            tint = tint,
+            modifier = Modifier.size(iconSize),
+        )
     }
 }
 
@@ -119,10 +238,11 @@ private fun Tile(
     content: Color,
     label: String,
     modifier: Modifier,
+    outer: Modifier = Modifier.fillMaxWidth(),
     icon: @Composable (Color) -> Unit,
 ) {
     Column(
-        modifier = Modifier
+        modifier = outer
             .height(64.dp)
             .clip(RoundedCornerShape(20.dp))
             .background(background)
@@ -143,3 +263,5 @@ private fun Tile(
         )
     }
 }
+
+private val GAP = 6.dp

@@ -37,7 +37,6 @@ import io.kud.tutti.R
 import io.kud.tutti.controller.TuttiController
 import io.kud.tutti.controller.TuttiUiState
 import io.kud.tutti.platform.data.DockAction
-import io.kud.tutti.platform.data.DockSlot
 import io.kud.tutti.platform.data.SecondaryButton
 import io.kud.tutti.protocol.atv.V2Key
 import io.kud.tutti.ui.common.TonalRoundButton
@@ -259,6 +258,10 @@ fun RemoteScreen(
                         haptics.longPress()
                         picker = PickerTarget.Edit(index)
                     },
+                    onRunSecondary = { _, action ->
+                        haptics.click()
+                        controller.run(action)
+                    },
                 )
             }
             Spacer(Modifier.height(12.dp))
@@ -324,7 +327,7 @@ fun RemoteScreen(
         )
         is PickerTarget.Edit -> PinEditorSheet(
             index = target.index,
-            slot = state.dock.slots.getOrNull(target.index) ?: DockSlot(),
+            slot = state.dock.slot(target.index),
             state = state,
             onSave = { slot ->
                 controller.saveSlot(target.index, slot)
@@ -332,6 +335,15 @@ fun RemoteScreen(
             },
             onLoadTv = controller::loadTvSettings,
             onDismiss = { picker = null },
+            onTry = { action ->
+                haptics.click()
+                controller.run(action)
+            },
+            onAddPage = controller::addDockPage,
+            onRemovePage = { page ->
+                controller.removeDockPage(page)
+                picker = null
+            },
         )
         null -> Unit
     }

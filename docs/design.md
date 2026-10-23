@@ -24,7 +24,7 @@ Two levels deep at most.
 Sound field, Voice, Night, DRC, Auto volume, IMAX, 360 Spatial as large toggles; Bass and Rear level as sliders; Voice Zoom 3 as a level slider only if the bar answers the capability probe. A greyed setting always shows its reason ("Voix désactivée : virtualiseur actif"), never hidden. "Recalibrer dans BRAVIA Connect" deep link.
 
 ### Shortcuts
-- Dock, 4 slots; each slot: launch an app, switch input, toggle one setting, run a scene, or a short macro (ordered steps with optional waits).
+- Dock: four pins a page, up to three pages (swipe; dots only from page 2). Each pin has a name, an icon or two letters, a tap action (one action, or ordered steps with waits, tried from the editor with "Try") and its own long-press action, offered first in a menu above "Edit this pin".
 - Long-press on any dock slot or secondary button (Home, Back, Play) assigns a second action.
 - Pad gestures, two only: two-finger tap = play/pause; two-finger vertical drag = bar volume.
 

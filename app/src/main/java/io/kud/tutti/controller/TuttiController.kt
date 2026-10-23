@@ -816,25 +816,23 @@ class TuttiController @Inject constructor(
         }
     }
 
-    /** Replaces pin [index] whole: action, long press, name and icon. */
+    /** Replaces pin [index] whole (on any page): action, long press, name and icon. */
     fun saveSlot(index: Int, slot: DockSlot) {
-        scope.launch {
-            store.updateDock { dock ->
-                val slots = (dock.slots + List(DockConfig.SIZE) { DockSlot() }).take(DockConfig.SIZE).toMutableList()
-                slots[index] = slot
-                dock.copy(slots = slots)
-            }
-        }
+        scope.launch { store.updateDock { it.withSlot(index, slot) } }
     }
 
     fun assignDock(index: Int, primary: DockAction?, secondary: DockAction?) {
-        scope.launch {
-            store.updateDock { dock ->
-                val slots = (dock.slots + List(DockConfig.SIZE) { DockSlot() }).take(DockConfig.SIZE).toMutableList()
-                slots[index] = DockSlot(primary, secondary)
-                dock.copy(slots = slots)
-            }
-        }
+        scope.launch { store.updateDock { it.withSlot(index, DockSlot(primary, secondary)) } }
+    }
+
+    /** A new empty page of pins at the end (three at most). */
+    fun addDockPage() {
+        scope.launch { store.updateDock { it.withPageAdded() } }
+    }
+
+    /** Page [page] goes, with its pins; the first page left always stays. */
+    fun removeDockPage(page: Int) {
+        scope.launch { store.updateDock { it.withPageRemoved(page) } }
     }
 
     fun assignLongPress(button: SecondaryButton, action: DockAction?) {

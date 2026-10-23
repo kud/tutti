@@ -3,6 +3,7 @@ package io.kud.tutti.ui.common
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import io.kud.tutti.R
 import io.kud.tutti.controller.TuttiUiState
@@ -256,7 +257,9 @@ fun actionLabel(action: DockAction, state: TuttiUiState): String = when (action)
     is DockAction.Key -> keyLabel(action.keyCode).let { if (action.long) stringResource(R.string.action_held, it) else it }
     is DockAction.Ircc -> Ircc.displayName(action.name)
     is DockAction.PictureMode -> stringResource(R.string.action_picture, action.label)
-    is DockAction.Macro -> action.name
+    is DockAction.Macro -> action.name.ifBlank {
+        action.steps.count { it is io.kud.tutti.platform.data.MacroStep.Run }.let { pluralStringResource(R.plurals.macro_steps, it, it) }
+    }
 }
 
 @DrawableRes
