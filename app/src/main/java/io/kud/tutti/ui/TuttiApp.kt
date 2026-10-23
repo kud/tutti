@@ -2,9 +2,11 @@ package io.kud.tutti.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.ContentTransform
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -26,6 +28,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.kud.tutti.R
 import io.kud.tutti.controller.TuttiController
@@ -35,8 +39,10 @@ import io.kud.tutti.platform.diagnostic.Diagnostics
 import io.kud.tutti.platform.discovery.TvDiscovery
 import io.kud.tutti.ui.common.LocalDeveloperMode
 import io.kud.tutti.ui.common.LocalProblems
+import io.kud.tutti.ui.common.LocalReducedMotion
 import io.kud.tutti.ui.common.Problems
 import io.kud.tutti.ui.common.rememberHaptics
+import io.kud.tutti.ui.motion.Motion
 import io.kud.tutti.ui.onboarding.OnboardingScreen
 import io.kud.tutti.ui.remote.RemoteScreen
 import io.kud.tutti.ui.scenes.SceneEditorScreen
@@ -77,12 +83,19 @@ fun TuttiApp(controller: TuttiController, discovery: TvDiscovery, diagnostics: D
     val haptics = rememberHaptics()
     val context = LocalContext.current
 
+    // Which way the screens slide: deeper comes in from the end, back from the start.
+    var forward by remember { mutableStateOf(true) }
+
     fun push(screen: Screen) {
+        forward = true
         stack.add(screen)
     }
 
     fun pop() {
-        if (stack.size > 1) stack.removeAt(stack.lastIndex)
+        if (stack.size > 1) {
+            forward = false
+            stack.removeAt(stack.lastIndex)
+        }
     }
 
     val snackbar = remember { SnackbarHostState() }
@@ -120,10 +133,12 @@ fun TuttiApp(controller: TuttiController, discovery: TvDiscovery, diagnostics: D
     }
 
     CompositionLocalProvider(LocalProblems provides problems, LocalDeveloperMode provides state.prefs.developerMode) {
+        val reducedMotion = LocalReducedMotion.current
+        val slide = with(LocalDensity.current) { SCREEN_SLIDE.roundToPx() }
         Box(Modifier.fillMaxSize()) {
                 AnimatedContent(
                     targetState = stack.last(),
-                    transitionSpec = { fadeIn(tween(160)) togetherWith fadeOut(tween(120)) },
+                    transitionSpec = { screenTransition(forward, reducedMotion, slide) },
                     label = "screen",
                 ) { screen ->
                     when (screen) {
@@ -180,4 +195,21 @@ fun TuttiApp(controller: TuttiController, discovery: TvDiscovery, diagnostics: D
             SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(16.dp))
         }
     }
+}
+
+/** How far a screen travels as it comes or goes (Iris's motion spec: 24 dp with a crossfade). */
+private val SCREEN_SLIDE: Dp = 24.dp
+
+/**
+ * One calm transition for every screen change: the new screen slides [slide] px in from the end
+ * (from the start on the way back) and fades in along [Motion.Emphasized] over [Motion.MEDIUM],
+ * while the old one drifts the other way and fades out over [Motion.SHORT]. Reduced motion: the
+ * same fades, no travel.
+ */
+private fun screenTransition(forward: Boolean, reduced: Boolean, slide: Int): ContentTransform {
+    if (reduced) return fadeIn(Motion.fade()) togetherWith fadeOut(Motion.fade())
+    val towards = if (forward) 1 else -1
+    val enter = slideInHorizontally(Motion.enter()) { towards * slide } + fadeIn(Motion.enter())
+    val exit = slideOutHorizontally(Motion.exit()) { -towards * slide } + fadeOut(Motion.exit())
+    return enter togetherWith exit
 }
