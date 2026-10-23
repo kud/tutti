@@ -8,4 +8,6 @@
     <string name="state_on">On</string>
     <string name="state_off">Off</string>
     <string name="state_auto">Auto</string>
+    <!-- A tile the bar refused: it springs back and says so for 3 s. -->
+    <string name="sound_tile_failed">Didn’t take · try again</string>
 </resources>

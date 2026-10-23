@@ -1,6 +1,14 @@
 package io.kud.tutti.ui.remote
 
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.keyframes
+import androidx.compose.foundation.layout.requiredSize
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableIntStateOf
+import io.kud.tutti.ui.motion.rememberWaiting
+import kotlinx.coroutines.delay
 import androidx.compose.animation.core.snap
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
@@ -189,12 +197,46 @@ private fun SoundTile(state: TuttiUiState, feature: TheatreFeature, onTap: () ->
     val feedback = rememberFeedback()
     val reduced = LocalReducedMotion.current
     val corner by animateDpAsState(if (on && reason == null) 16.dp else 24.dp, if (reduced) snap() else Motion.snappy(), label = "corner")
+
+    // Pending, then the outcome: the tile has already flipped (optimistic). An arc shows only if the
+    // bar takes more than 150 ms; a refusal springs the tile back (the rollback), shakes it 4 dp,
+    // plays reject and says so for 3 s. Reduced motion keeps the words and the cross, not the shake.
+    val pending = state.bar.pending[feature.key]?.value
+    val waiting = rememberWaiting(pending != null)
+    val outcome = remember { TileOutcome() }
+    var refusals by remember { mutableIntStateOf(0) }
+    var failed by remember { mutableStateOf(false) }
+    val shake = remember { Animatable(0f) }
+    LaunchedEffect(pending, value, state.bar.connected) {
+        if (outcome.observe(pending, value, state.bar.connected) == TileSettle.REFUSED) refusals++
+    }
+    LaunchedEffect(refusals) {
+        if (refusals == 0) return@LaunchedEffect
+        failed = true
+        feedback.reject()
+        if (!reduced) {
+            shake.snapTo(0f)
+            shake.animateTo(
+                0f,
+                keyframes {
+                    durationMillis = Motion.MEDIUM
+                    4f at 40
+                    -4f at 100
+                    3f at 160
+                    -2f at 210
+                },
+            )
+        }
+        delay(FAILED_MS)
+        failed = false
+    }
     Column(
         modifier
             .heightIn(min = 76.dp)
             .graphicsLayer {
                 scaleX = press.scale
                 scaleY = press.scale
+                translationX = shake.value.dp.toPx()
             }
             .background(container, RoundedCornerShape(corner))
             // A disabled tile still answers: a bump, and its reason stays in view (design.md: never hidden).
@@ -210,23 +252,35 @@ private fun SoundTile(state: TuttiUiState, feature: TheatreFeature, onTap: () ->
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(stringResource(featureLabel(feature)), style = MaterialTheme.typography.titleSmall, color = content, modifier = Modifier.weight(1f))
-            TileMark(on = on, locked = reason != null, color = content, onColor = container)
+            TileMark(on = on, locked = reason != null, pending = waiting.spinner && !failed, color = content, onColor = container)
         }
-        Text(
-            text = reason ?: when (feature.kind) {
-                is FeatureKind.Choice -> choiceLabel(value)
-                else -> stringResource(if (on) R.string.state_on else R.string.state_off)
-            },
-            style = MaterialTheme.typography.bodySmall,
-            color = if (reason == null) content else scheme.onSurfaceVariant,
-            maxLines = 2,
-        )
+        if (failed && reason == null) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(painterResource(R.drawable.ic_close), contentDescription = null, tint = content, modifier = Modifier.size(14.dp))
+                Spacer(Modifier.width(4.dp))
+                Text(stringResource(R.string.sound_tile_failed), style = MaterialTheme.typography.bodySmall, color = content, maxLines = 2)
+            }
+        } else {
+            Text(
+                text = reason ?: when (feature.kind) {
+                    is FeatureKind.Choice -> choiceLabel(value)
+                    else -> stringResource(if (on) R.string.state_on else R.string.state_off)
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = if (reason == null) content else scheme.onSurfaceVariant,
+                maxLines = 2,
+            )
+        }
     }
 }
 
-/** Top right of a tile: an empty ring (off), a filled check (on), a lock in a dashed ring (unavailable). */
+/**
+ * Top right of a tile: an empty ring (off), a filled check (on), a lock in a dashed ring
+ * (unavailable). While the bar is slow to confirm, a thin arc turns round it (static under
+ * reduced motion: a status, not decoration).
+ */
 @Composable
-private fun TileMark(on: Boolean, locked: Boolean, color: Color, onColor: Color) {
+private fun TileMark(on: Boolean, locked: Boolean, pending: Boolean, color: Color, onColor: Color) {
     val dashed = MaterialTheme.colorScheme.outline
     Box(
         Modifier
@@ -246,10 +300,21 @@ private fun TileMark(on: Boolean, locked: Boolean, color: Color, onColor: Color)
             locked -> Icon(painterResource(R.drawable.ic_lock), contentDescription = null, tint = dashed, modifier = Modifier.size(12.dp))
             on -> Icon(painterResource(R.drawable.ic_check), contentDescription = null, tint = onColor, modifier = Modifier.size(14.dp))
         }
+        if (pending) {
+            val arc = Modifier.requiredSize(28.dp)
+            if (LocalReducedMotion.current) {
+                CircularProgressIndicator(progress = { 0.75f }, modifier = arc, color = color, strokeWidth = 1.5.dp, trackColor = Color.Transparent)
+            } else {
+                CircularProgressIndicator(modifier = arc, color = color, strokeWidth = 1.5.dp, trackColor = Color.Transparent)
+            }
+        }
     }
 }
 
 private val TILE_SHAPE = RoundedCornerShape(24.dp)
+
+/** How long a refused tile says so. */
+private const val FAILED_MS = 3_000L
 
 @Composable
 fun choiceLabel(value: String?): String = when (value) {
