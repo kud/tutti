@@ -695,6 +695,11 @@ class TuttiController @Inject constructor(
         scope.launch { theatre.set(feature, value) }
     }
 
+    /** Bluetooth pairing mode on the bar (observed sequence, unverified on the Bar 9). */
+    fun startBarPairing() {
+        scope.launch { theatre.startBluetoothPairing() }
+    }
+
     fun refreshBar() {
         scope.launch { theatre.refreshAll() }
     }

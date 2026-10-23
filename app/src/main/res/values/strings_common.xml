@@ -21,9 +21,11 @@
     <string name="bar_voice_zoom">Voice Zoom 3</string>
     <string name="bar_voice_zoom_level">Niveau Voice Zoom</string>
     <string name="bar_hdmi_cec">Contrôle HDMI</string>
-    <string name="bar_hdmi_passthrough">Transmission en veille</string>
-    <string name="bar_hdmi_standby">Veille liée HDMI</string>
+    <string name="bar_hdmi_passthrough">Transmission du signal HDMI</string>
+    <string name="bar_hdmi_standby">Transmission en veille</string>
+    <string name="bar_hdmi_arc">Retour audio de la TV (ARC)</string>
     <string name="bar_auto_standby">Veille automatique</string>
+    <string name="bar_net_bt_standby">Veille réseau / Bluetooth</string>
     <string name="bar_auto_update">Mise à jour automatique</string>
     <string name="bar_model">Modèle</string>
     <string name="bar_firmware">Version du logiciel</string>

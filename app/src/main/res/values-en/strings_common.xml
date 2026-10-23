@@ -21,9 +21,11 @@
     <string name="bar_voice_zoom">Voice Zoom 3</string>
     <string name="bar_voice_zoom_level">Voice Zoom level</string>
     <string name="bar_hdmi_cec">HDMI control</string>
-    <string name="bar_hdmi_passthrough">Standby pass-through</string>
-    <string name="bar_hdmi_standby">HDMI standby link</string>
+    <string name="bar_hdmi_passthrough">HDMI signal pass-through</string>
+    <string name="bar_hdmi_standby">Standby through</string>
+    <string name="bar_hdmi_arc">Audio return from the TV (ARC)</string>
     <string name="bar_auto_standby">Auto standby</string>
+    <string name="bar_net_bt_standby">Network / Bluetooth standby</string>
     <string name="bar_auto_update">Auto update</string>
     <string name="bar_model">Model</string>
     <string name="bar_firmware">Software version</string>

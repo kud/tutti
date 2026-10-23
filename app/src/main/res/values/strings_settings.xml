@@ -80,6 +80,11 @@
     <string name="bar_option_main_sub">Les deux</string>
     <string name="bar_option_priority_sound">Priorité au son</string>
     <string name="bar_option_priority_connection">Priorité à la connexion</string>
+    <string name="bar_option_arc">ARC</string>
+    <string name="bar_option_earc">eARC</string>
+    <string name="bar_bt_pair">Associer un appareil</string>
+    <string name="bar_bt_pair_detail">Passe la barre sur Bluetooth et la rend visible. Choisissez-la ensuite sur votre appareil.</string>
+    <string name="bar_none_reported">La barre n’a encore signalé aucun de ces réglages. Ceux qu’elle ne gère pas restent masqués.</string>
     <string name="tv_rest_offline_title">Le contrôle IP de la TV ne répond pas</string>
     <string name="tv_rest_offline_body">Ces réglages passent par le contrôle IP de la TV. Pour l’activer, sur la TV :\n\n1. Paramètres → Réseau et Internet → Configuration du réseau local → Contrôle IP.\n2. Authentification : « Normale et clé pré-partagée ».\n3. Clé pré-partagée : choisissez un code, puis saisissez le même ici avec « Clé PSK ».\n4. Activez aussi « Démarrage à distance », pour que la TV réponde en veille.\n\nLa TV et le téléphone doivent être sur le même réseau.</string>
     <string name="tv_rest_unauthorized_title">La TV refuse la clé PSK</string>

@@ -32,7 +32,7 @@ import io.kud.tutti.ui.remote.LevelSlider
 import io.kud.tutti.ui.remote.barReason
 import io.kud.tutti.ui.remote.choiceLabel
 
-/** Soundbar system settings over TCP 33336: HDMI, standby, Bluetooth, updates, device info. */
+/** Soundbar system settings over TCP 33336: HDMI, standby, Bluetooth, updates, device info. Never the serial. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BarSettingsScreen(state: TuttiUiState, controller: TuttiController, onBack: () -> Unit) {
@@ -52,31 +52,63 @@ fun BarSettingsScreen(state: TuttiUiState, controller: TuttiController, onBack: 
         },
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(bottom = 32.dp)) {
-            SectionTitle(stringResource(R.string.bar_section_hdmi))
-            Toggle(state, controller, TheatreFeature.HDMI_CEC)
-            Choice(state, controller, TheatreFeature.HDMI_PASSTHROUGH)
-            Choice(state, controller, TheatreFeature.HDMI_STANDBY_LINK)
-
-            SectionTitle(stringResource(R.string.bar_section_system))
-            Toggle(state, controller, TheatreFeature.AUTO_STANDBY)
-            Toggle(state, controller, TheatreFeature.AUTO_UPDATE)
-
-            SectionTitle(stringResource(R.string.bar_section_audio))
-            Choice(state, controller, TheatreFeature.DUAL_MONO)
-            Column(Modifier.padding(horizontal = 16.dp)) {
-                LevelSlider(state, TheatreFeature.AV_SYNC, onLevel = { controller.setBarLevel(TheatreFeature.AV_SYNC, it) })
+            val bar = state.bar
+            if (Sections.flatMap { it.second }.none(bar::supports)) {
+                Text(
+                    barReason(state, TheatreFeature.POWER) ?: stringResource(R.string.bar_none_reported),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                )
             }
-
-            SectionTitle(stringResource(R.string.bar_section_bluetooth))
-            Info(state, TheatreFeature.BLUETOOTH_MODE)
-            Choice(state, controller, TheatreFeature.BLUETOOTH_QUALITY)
-
-            SectionTitle(stringResource(R.string.bar_section_device))
-            Info(state, TheatreFeature.MODEL_NAME)
-            Info(state, TheatreFeature.FIRMWARE_VERSION)
+            for ((title, features) in Sections) {
+                val shown = features.filter(bar::supports)
+                if (shown.isEmpty()) continue
+                SectionTitle(stringResource(title))
+                for (feature in shown) {
+                    when {
+                        feature == TheatreFeature.BLUETOOTH_MODE -> {
+                            Info(state, feature)
+                            LinkRow(
+                                title = stringResource(R.string.bar_bt_pair),
+                                detail = barReason(state, feature) ?: stringResource(R.string.bar_bt_pair_detail),
+                                enabled = bar.connected,
+                                onClick = controller::startBarPairing,
+                            )
+                        }
+                        feature.kind is FeatureKind.Toggle -> Toggle(state, controller, feature)
+                        feature.kind is FeatureKind.Choice -> Choice(state, controller, feature)
+                        feature.kind is FeatureKind.Level -> Column(Modifier.padding(horizontal = 16.dp)) {
+                            LevelSlider(state, feature, onLevel = { controller.setBarLevel(feature, it) })
+                        }
+                        else -> Info(state, feature)
+                    }
+                }
+            }
         }
     }
 }
+
+/**
+ * Every row is probe-gated: it shows only once the bar has reported a value for it, so a
+ * setting the Bar 9 does not have stays hidden rather than greyed forever.
+ */
+private val Sections: List<Pair<Int, List<TheatreFeature>>> = listOf(
+    R.string.bar_section_hdmi to listOf(
+        TheatreFeature.HDMI_CEC,
+        TheatreFeature.HDMI_ARC,
+        TheatreFeature.HDMI_STANDBY_LINK,
+        TheatreFeature.HDMI_PASSTHROUGH,
+    ),
+    R.string.bar_section_system to listOf(
+        TheatreFeature.AUTO_STANDBY,
+        TheatreFeature.NET_BT_STANDBY,
+        TheatreFeature.AUTO_UPDATE,
+    ),
+    R.string.bar_section_audio to listOf(TheatreFeature.DUAL_MONO, TheatreFeature.AV_SYNC),
+    R.string.bar_section_bluetooth to listOf(TheatreFeature.BLUETOOTH_MODE, TheatreFeature.BLUETOOTH_QUALITY),
+    R.string.bar_section_device to listOf(TheatreFeature.MODEL, TheatreFeature.FIRMWARE_VERSION),
+)
 
 @Composable
 private fun Toggle(state: TuttiUiState, controller: TuttiController, feature: TheatreFeature) {
@@ -118,5 +150,7 @@ private fun optionLabel(value: String?): String = when (value) {
     "main_sub" -> stringResource(R.string.bar_option_main_sub)
     "prioritysound" -> stringResource(R.string.bar_option_priority_sound)
     "priorityconnection" -> stringResource(R.string.bar_option_priority_connection)
+    "arc" -> stringResource(R.string.bar_option_arc)
+    "earc" -> stringResource(R.string.bar_option_earc)
     else -> choiceLabel(value)
 }

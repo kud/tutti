@@ -47,9 +47,11 @@ fun featureLabel(feature: TheatreFeature): Int = when (feature) {
     TheatreFeature.HDMI_CEC -> R.string.bar_hdmi_cec
     TheatreFeature.HDMI_PASSTHROUGH -> R.string.bar_hdmi_passthrough
     TheatreFeature.HDMI_STANDBY_LINK -> R.string.bar_hdmi_standby
+    TheatreFeature.HDMI_ARC -> R.string.bar_hdmi_arc
     TheatreFeature.AUTO_STANDBY -> R.string.bar_auto_standby
+    TheatreFeature.NET_BT_STANDBY -> R.string.bar_net_bt_standby
     TheatreFeature.AUTO_UPDATE -> R.string.bar_auto_update
-    TheatreFeature.MODEL_NAME -> R.string.bar_model
+    TheatreFeature.MODEL -> R.string.bar_model
     TheatreFeature.FIRMWARE_VERSION -> R.string.bar_firmware
     TheatreFeature.BLUETOOTH_MODE -> R.string.bar_bt_mode
     TheatreFeature.BLUETOOTH_QUALITY -> R.string.bar_bt_quality

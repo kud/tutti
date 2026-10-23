@@ -141,6 +141,8 @@ class Diagnostics @Inject constructor(
             "configured" to "tv ${yes(targets.tvHost != null)}, bar ${yes(targets.barHost != null)}, psk ${yes(targets.psk != null)}, " +
                 "remote pairing ${yes(targets.remotePin != null)}, rest pin ${yes(targets.restPinRecorded)}",
             "live session" to "remote ${links.tv}, rest ${links.rest}, bar ${links.bar}, voice zoom shown ${yes(ui.voiceZoomAvailable)}",
+            // Feature names only, never values: the model and firmware stay out of the report.
+            "bar settings" to "answered ${ui.bar.confirmed.size}, refused ${ui.bar.refused.sorted().joinToString().ifEmpty { "none" }}",
         )
     }
 
