@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
@@ -39,7 +38,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -50,7 +48,9 @@ import io.kud.tutti.controller.PairingUi
 import io.kud.tutti.controller.TuttiController
 import io.kud.tutti.controller.TuttiUiState
 import io.kud.tutti.platform.discovery.TvDiscovery
+import io.kud.tutti.protocol.atv.PairingCode
 import io.kud.tutti.protocol.net.LanAddress
+import io.kud.tutti.ui.common.ProblemNote
 import io.kud.tutti.ui.settings.linkLabel
 
 /**
@@ -118,21 +118,12 @@ fun OnboardingScreen(
                     onClick = { controller.pairTv(tvHost) },
                     enabled = LanAddress.isPrivate(tvHost) && state.pairing !is PairingUi.Connecting && state.pairing !is PairingUi.AwaitingCode,
                 ) { Text(stringResource(R.string.onboarding_pair)) }
-                pairingStatus(state.pairing)?.let { (text, error) ->
-                    Text(
-                        text,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = if (error) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                (state.pairing as? PairingUi.Failed)?.detail?.let { detail ->
-                    // Selectable, so the cause can be copied into a report.
-                    SelectionContainer {
-                        Text(
-                            detail,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                val pairingNow = state.pairing
+                if (pairingNow is PairingUi.Failed) {
+                    ProblemNote(message = pairingStatus(pairingNow)?.first, detail = pairingNow.detail)
+                } else {
+                    pairingStatus(pairingNow)?.let { (text, _) ->
+                        Text(text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
@@ -164,6 +155,7 @@ fun OnboardingScreen(
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                    ProblemNote(message = null, detail = state.linkNotes.bar)
                 }
             }
 
@@ -236,7 +228,10 @@ private fun pairingStatus(pairing: PairingUi): Pair<String, Boolean>? = when (pa
     ) to true
 }
 
-/** The 6-character code the TV shows. A typo is caught locally and asked again. */
+/**
+ * The 6-hex-character code the TV shows, as [PairingCodeField]. A typo is caught locally and asked
+ * again: a new [attempt] clears the cells and shows why.
+ */
 @Composable
 fun PairingCodeDialog(attempt: Int, onSubmit: (String) -> Unit, onCancel: () -> Unit) {
     var code by remember(attempt) { mutableStateOf("") }
@@ -245,23 +240,12 @@ fun PairingCodeDialog(attempt: Int, onSubmit: (String) -> Unit, onCancel: () -> 
         title = { Text(stringResource(R.string.pairing_code_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (attempt > 1) {
-                    Text(stringResource(R.string.pairing_code_retry), color = MaterialTheme.colorScheme.error)
-                }
-                OutlinedTextField(
-                    value = code,
-                    onValueChange = { input -> code = input.uppercase().filter { it.isLetterOrDigit() }.take(CODE_LENGTH) },
-                    singleLine = true,
-                    textStyle = MaterialTheme.typography.headlineSmall,
-                    keyboardOptions = KeyboardOptions(
-                        capitalization = KeyboardCapitalization.Characters,
-                        keyboardType = KeyboardType.Ascii,
-                    ),
-                )
+                if (attempt > 1) ProblemNote(message = stringResource(R.string.pairing_code_retry), detail = null)
+                PairingCodeField(code = code, onCodeChange = { code = it }, onDone = { onSubmit(code) })
             }
         },
         confirmButton = {
-            TextButton(onClick = { onSubmit(code) }, enabled = code.length == CODE_LENGTH) {
+            TextButton(onClick = { onSubmit(code) }, enabled = PairingCode.isComplete(code)) {
                 Text(stringResource(R.string.pairing_confirm))
             }
         },
@@ -295,5 +279,3 @@ fun PskDialog(onSave: (String?) -> Unit, onDismiss: () -> Unit) {
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
     )
 }
-
-private const val CODE_LENGTH = 6

@@ -1,0 +1,100 @@
+package io.kud.tutti.ui.onboarding
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.unit.dp
+import io.kud.tutti.R
+import io.kud.tutti.protocol.atv.PairingCode
+
+/**
+ * The TV's code as a row of [PairingCode.LENGTH] cells that act as one field: one hidden
+ * [BasicTextField] takes the typing, so the IME, paste and TalkBack see a single input, and the
+ * cells are only drawn from its value. Hex only, uppercased ([PairingCode.normalise]); the caret
+ * always sits at the end, so backspace takes the last character. The current cell wears a thicker
+ * border and a caret, never colour alone. TalkBack reads "Pairing code, 3 of 6 entered".
+ */
+@Composable
+fun PairingCodeField(code: String, onCodeChange: (String) -> Unit, onDone: () -> Unit, modifier: Modifier = Modifier) {
+    val focus = remember { FocusRequester() }
+    LaunchedEffect(Unit) { focus.requestFocus() }
+    val label = stringResource(R.string.pairing_code_field)
+    val progress = stringResource(R.string.pairing_code_progress, code.length, PairingCode.LENGTH)
+    BasicTextField(
+        value = TextFieldValue(code, selection = TextRange(code.length)),
+        onValueChange = { onCodeChange(PairingCode.normalise(it.text)) },
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(
+            capitalization = KeyboardCapitalization.Characters,
+            autoCorrectEnabled = false,
+            keyboardType = KeyboardType.Ascii,
+            imeAction = ImeAction.Done,
+        ),
+        keyboardActions = KeyboardActions(onDone = { if (PairingCode.isComplete(code)) onDone() }),
+        modifier = modifier
+            .focusRequester(focus)
+            .semantics {
+                contentDescription = label
+                stateDescription = progress
+            },
+        decorationBox = {
+            // The inner text field is never drawn: the cells are the field.
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                for (index in 0 until PairingCode.LENGTH) {
+                    Cell(char = code.getOrNull(index), current = index == code.length)
+                }
+            }
+        },
+    )
+}
+
+@Composable
+private fun Cell(char: Char?, current: Boolean) {
+    val colors = MaterialTheme.colorScheme
+    val shape = RoundedCornerShape(12.dp)
+    Box(
+        Modifier
+            .size(width = 44.dp, height = 56.dp)
+            .background(colors.surfaceContainerHighest, shape)
+            .border(if (current) 3.dp else 1.dp, if (current) colors.primary else colors.outline, shape),
+        contentAlignment = Alignment.Center,
+    ) {
+        when {
+            char != null -> Text(
+                char.toString(),
+                style = MaterialTheme.typography.headlineSmall,
+                fontFamily = FontFamily.Monospace,
+                color = colors.onSurface,
+            )
+            current -> Box(Modifier.width(2.dp).height(24.dp).background(colors.primary))
+        }
+    }
+}
