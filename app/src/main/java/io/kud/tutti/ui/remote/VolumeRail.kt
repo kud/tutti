@@ -21,6 +21,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -85,7 +86,7 @@ fun VolumeRail(
     val scope = rememberCoroutineScope()
     val reduced by rememberUpdatedState(LocalReducedMotion.current)
     val stretch = remember { Animatable(1f) }
-    var stretchOrigin by remember { mutableStateOf(1f) }
+    var stretchOrigin by remember { mutableFloatStateOf(1f) }
     var onCap by remember { mutableStateOf(false) }
     val railWidth by animateDpAsState(
         if (dragLevel != null) DRAG_WIDTH else RAIL_WIDTH,
