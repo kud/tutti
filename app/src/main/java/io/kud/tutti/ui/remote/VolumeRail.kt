@@ -49,7 +49,7 @@ import kotlin.math.roundToInt
  *
  * Three states, told apart by shape as well as colour: connected (level on top, a faint speaker
  * at the foot), muted (the fill greys and the foot speaker takes its slash), and not connected
- * (no level and no fill, a hollow track, and the crossed speaker where the level would be).
+ * (no level and no fill, a hollow track, and the foot speaker crossed at full strength).
  */
 @Composable
 fun VolumeRail(
@@ -151,28 +151,27 @@ fun VolumeRail(
                 modifier = Modifier.align(Alignment.TopCenter).padding(top = 16.dp),
             )
         }
-        if (connected) {
-            // A hint, not a control: quiet enough never to compete with the level.
-            Icon(
-                painter = painterResource(if (muted) R.drawable.ic_volume_off else R.drawable.ic_volume_up),
-                contentDescription = null,
-                tint = (if (footOnFill) onFill else scheme.onSurfaceVariant).copy(alpha = if (muted) 0.7f else 0.4f),
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = FOOT_INSET)
-                    .size(FOOT_ICON),
-            )
-        } else {
-            Icon(
-                painter = painterResource(R.drawable.ic_no_sound),
-                contentDescription = null,
-                tint = scheme.onSurfaceVariant,
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .padding(top = 18.dp)
-                    .size(28.dp),
-            )
-        }
+        // One speaker, always at the foot, so it never moves: a quiet hint while connected, the
+        // muted slash when muted, and the crossed speaker at full strength when the bar is gone.
+        Icon(
+            painter = painterResource(
+                when {
+                    !connected -> R.drawable.ic_no_sound
+                    muted -> R.drawable.ic_volume_off
+                    else -> R.drawable.ic_volume_up
+                },
+            ),
+            contentDescription = null,
+            tint = when {
+                !connected -> scheme.onSurfaceVariant
+                footOnFill -> onFill.copy(alpha = if (muted) 0.7f else 0.4f)
+                else -> scheme.onSurfaceVariant.copy(alpha = if (muted) 0.7f else 0.4f)
+            },
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = FOOT_INSET)
+                .size(FOOT_ICON),
+        )
     }
 }
 
