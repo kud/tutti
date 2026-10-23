@@ -73,6 +73,7 @@ fun TuttiApp(controller: TuttiController, discovery: TvDiscovery, diagnostics: D
                 is TuttiEvent.SceneFinished -> haptics.doublePulse()
                 TuttiEvent.VolumeLimit -> haptics.bump()
                 TuttiEvent.ActionFailed -> Toast.makeText(context, R.string.error_action_failed, Toast.LENGTH_SHORT).show()
+                TuttiEvent.MicUnavailable -> Toast.makeText(context, R.string.voice_mic_unavailable, Toast.LENGTH_SHORT).show()
             }
         }
     }

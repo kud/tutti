@@ -10,7 +10,7 @@ Three places, opening on the remote.
    - Top: one system chip, "Salon · BRAVIA 8 + Bar 9", single status dot; it splits into two lines only when one device drops ("Bar 9 injoignable"). One Power button switches both.
    - Below: a horizontal strip of scene pills.
    - Centre: the pad, the largest element. Touchpad or D-pad, switchable in one move. Tap = OK. Long-press Select is reserved for the TV (sends a long press).
-   - Under the pad: Back, Home, Play/Pause, Keyboard, Mute.
+   - Under the pad: Back, Home, Play/Pause, Mic, Keyboard, Mute. The mic is hold to talk to the TV's assistant: it grows and fills with the primary colour while listening, a pill above it reads "À l'écoute… relâchez pour envoyer"; sliding a finger off turns it to the error container ("Relâchez pour annuler"), with a tick at the edge. A tap shorter than 300 ms sends nothing and explains the gesture. (Maya's placement, pending Iris's review.)
    - Right edge: vertical volume rail (soundbar volume, absolute).
    - Bottom: a dock of 4 shortcut slots.
    - Peek sheet "Son" at the bottom; pulled up it shows sound controls.

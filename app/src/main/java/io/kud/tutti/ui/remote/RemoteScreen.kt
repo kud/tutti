@@ -197,6 +197,7 @@ fun RemoteScreen(
                     },
                     onLongClick = { secondary(SecondaryButton.PLAY) },
                 )
+                VoiceButton(controller = controller, enabled = state.remote.ready)
                 TonalRoundButton(
                     icon = R.drawable.ic_keyboard,
                     contentDescription = stringResource(R.string.action_keyboard),

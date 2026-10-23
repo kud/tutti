@@ -87,6 +87,9 @@ sealed interface TuttiEvent {
     data object VolumeLimit : TuttiEvent
 
     data object ActionFailed : TuttiEvent
+
+    /** The phone's mic would not open for TV voice. */
+    data object MicUnavailable : TuttiEvent
 }
 
 data class TuttiUiState(

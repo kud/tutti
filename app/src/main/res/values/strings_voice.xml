@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="voice_button">Parler à la TV (maintenir)</string>
+    <string name="voice_listening">À l’écoute… relâchez pour envoyer</string>
+    <string name="voice_release_to_cancel">Relâchez pour annuler</string>
+    <string name="voice_hold_hint">Maintenez le micro pour parler à la TV</string>
+    <string name="voice_capped">15 secondes maximum : c’est envoyé</string>
+    <string name="voice_not_connected">TV injoignable : la voix attend la connexion</string>
+    <string name="voice_unsupported">Cette TV n’accepte pas la voix de tutti : sa recherche est ouverte à l’écran</string>
+    <string name="voice_no_reply">La TV n’a pas ouvert l’Assistant : réessayez, ou utilisez le micro de la télécommande</string>
+    <string name="voice_disconnected">Connexion à la TV perdue pendant que vous parliez</string>
+    <string name="voice_mic_unavailable">Le micro du téléphone est indisponible</string>
+    <string name="voice_permission_title">Utiliser le micro</string>
+    <string name="voice_permission_rationale">Pour parler à l’Assistant de la TV, tutti envoie votre voix à la TV, sur le réseau local, uniquement pendant que vous maintenez le bouton. Rien n’est enregistré.</string>
+    <string name="voice_permission_continue">Continuer</string>
+    <string name="voice_permission_not_now">Pas maintenant</string>
+    <string name="voice_permission_denied">Micro refusé : autorisez-le dans les réglages du téléphone pour parler à la TV</string>
+</resources>

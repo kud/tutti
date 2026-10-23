@@ -54,6 +54,9 @@ import io.kud.tutti.protocol.theatre.FeatureKind
 import io.kud.tutti.protocol.theatre.TheatreClient
 import io.kud.tutti.protocol.theatre.TheatreFeature
 import io.kud.tutti.protocol.theatre.TheatreState
+import io.kud.tutti.platform.voice.VoiceCapture
+import io.kud.tutti.protocol.atv.VoiceEvent
+import io.kud.tutti.protocol.atv.VoiceState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -185,6 +188,12 @@ class TuttiController @Inject constructor(
             volumeTarget.filterNotNull().conflate().collect { level ->
                 theatre.setLevel(TheatreFeature.VOLUME, level)
                 delay(VOLUME_SEND_INTERVAL_MS)
+            }
+        }
+        scope.launch {
+            // The mic closes the moment the session stops wanting audio: release, cap, failure, drop.
+            atv.voice.map { it.capturing }.distinctUntilChanged().collect { capturing ->
+                if (!capturing) micJob?.cancel()
             }
         }
         scope.launch {
@@ -493,6 +502,51 @@ class TuttiController @Inject constructor(
     }
 
     fun dismissKeyboard() = atv.dismissIme()
+
+    // region voice
+
+    private val mic = VoiceCapture(context)
+    private var micJob: Job? = null
+
+    /** Hold-to-talk to the TV's assistant. The mic is open only while [VoiceState.capturing]. */
+    val voice: StateFlow<VoiceState> get() = atv.voice
+    val voiceEvents: SharedFlow<VoiceEvent> get() = atv.voiceEvents
+
+    fun micGranted(): Boolean = mic.granted()
+
+    /** Press: the mic opens at once, before the TV answers, so the first words are kept. */
+    fun startVoice() {
+        scope.launch {
+            atv.startVoice()
+            if (!atv.voice.value.capturing) return@launch
+            micJob?.cancel()
+            micJob = scope.launch {
+                try {
+                    mic.stream().collect { atv.voiceAudio(it) }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    atv.cancelVoice()
+                    mutableEvents.tryEmit(TuttiEvent.MicUnavailable)
+                }
+            }
+        }
+    }
+
+    /** Release over the button: what was said goes to the TV. */
+    fun finishVoice() {
+        scope.launch { atv.finishVoice() }
+    }
+
+    /** Slide off, background, or leaving the screen. */
+    fun cancelVoice() {
+        micJob?.cancel()
+        scope.launch { atv.cancelVoice() }
+    }
+
+    fun clearVoiceFailure() = atv.clearVoiceFailure()
+
+    // endregion
 
     fun launchApp(packageName: String) {
         scope.launch { launchLink(packageName) }
