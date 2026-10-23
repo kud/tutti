@@ -23,6 +23,8 @@
     <string name="pad_right">Droite</string>
     <string name="pad_switch_touchpad">Passer en pavé tactile</string>
     <string name="volume_label">Volume de la barre</string>
+    <string name="volume_state_muted">%1$d, son coupé</string>
+    <string name="volume_state_disconnected">Barre de son non connectée</string>
     <string name="scene_modified">modifiée</string>
     <string name="dock_add">Ajouter</string>
     <string name="dock_assign_title">Raccourci %1$d</string>
