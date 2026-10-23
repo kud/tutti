@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -26,6 +27,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
@@ -86,15 +88,21 @@ fun SoundSheet(state: TuttiUiState, controller: TuttiController, modifier: Modif
             .navigationBarsPadding()
             .padding(bottom = 16.dp),
     ) {
-        Row(Modifier.fillMaxWidth().heightIn(min = 40.dp)) {
-            Text(stringResource(R.string.sound_title), style = MaterialTheme.typography.titleMedium)
-            Spacer(Modifier.padding(horizontal = 6.dp))
+        // Title and summary differ in size, so they share a baseline, centred as a pair in the row.
+        Row(Modifier.fillMaxWidth().heightIn(min = 40.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                stringResource(R.string.sound_title),
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.alignByBaseline(),
+            )
+            Spacer(Modifier.width(12.dp))
             Text(
                 soundSummary(state),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.alignByBaseline().weight(1f, fill = false),
             )
         }
         Spacer(Modifier.height(8.dp))
@@ -200,9 +208,22 @@ fun LevelSlider(state: TuttiUiState, feature: TheatreFeature, onLevel: (Int) -> 
     var dragging by remember { mutableStateOf<Float?>(null) }
     val shown = dragging ?: current.toFloat()
     Column(modifier.fillMaxWidth().padding(top = 12.dp).alpha(if (reason == null) 1f else 0.6f)) {
+        // Label and value differ in size: one baseline, and a long reason ellipsises instead of wrapping.
         Row(Modifier.fillMaxWidth()) {
-            Text(stringResource(featureLabel(feature)), style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
-            Text(reason ?: signed(shown.roundToInt()), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                stringResource(featureLabel(feature)),
+                style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.alignByBaseline().weight(1f),
+            )
+            Spacer(Modifier.width(12.dp))
+            Text(
+                reason ?: signed(shown.roundToInt()),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.alignByBaseline(),
+            )
         }
         Slider(
             value = shown,
