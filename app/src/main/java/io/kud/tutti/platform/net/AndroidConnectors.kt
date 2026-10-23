@@ -75,7 +75,7 @@ class AndroidTlsConnector @Inject constructor() : TlsConnector {
             val ssl = context.socketFactory.createSocket(raw, host, port, true) as SSLSocket
             ssl.useClientMode = true
             ssl.startHandshake()
-            TlsSocketConnection(ssl, identity.certificate)
+            TlsSocketConnection(ssl, raw, identity.certificate)
         } catch (e: Exception) {
             runCatching { raw.close() }
             throw e

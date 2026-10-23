@@ -44,6 +44,12 @@ internal open class SocketConnection(private val socket: Socket) : Connection {
         runCatching { socket.close() }
     }
 
+    /** Closes from under a read blocked on another thread, without waiting for it. */
+    protected fun closeUnder(raw: Socket) {
+        runCatching { raw.close() }
+        close()
+    }
+
     private companion object {
         const val READ_BUFFER = 16 * 1024
     }
@@ -51,7 +57,13 @@ internal open class SocketConnection(private val socket: Socket) : Connection {
 
 internal class TlsSocketConnection(
     socket: SSLSocket,
+    private val raw: Socket,
     override val localCertificate: X509Certificate,
 ) : SocketConnection(socket), TlsConnection {
     override val peerCertificate: X509Certificate = socket.session.peerCertificates[0] as X509Certificate
+
+    // SSLSocket.close() waits for a read blocked on another thread, up to its 20 s timeout: the
+    // TV keeps the pairing socket open after the secret ack, so pairing outlived its watchdog.
+    // Closing the plain socket underneath ends that read at once.
+    override fun close() = closeUnder(raw)
 }
