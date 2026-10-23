@@ -16,7 +16,15 @@ data class TheatreState(
     val pending: Map<String, Pending> = emptyMap(),
     val outstanding: Map<Int, Outstanding> = emptyMap(),
     val lastError: String? = null,
+    /** Features whose `get` the bar refused (`ERR`/`NAK`): unsupported on this model or firmware. */
+    val refused: Set<String> = emptySet(),
 ) {
+    /**
+     * True once the bar has reported a value for [feature], by a `get` answer or a notify.
+     * The probe gate for settings whose support varies by model: unanswered stays hidden.
+     */
+    fun supports(feature: TheatreFeature): Boolean = confirmed.containsKey(feature.key)
+
     fun value(key: String): String? = pending[key]?.value ?: confirmed[key]
 
     fun value(feature: TheatreFeature): String? = value(feature.key)

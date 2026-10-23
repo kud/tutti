@@ -48,6 +48,7 @@ object TheatreReducer {
             state.copy(
                 confirmed = state.confirmed + (message.feature to message.value),
                 pending = if (pending?.value == message.value) state.pending - message.feature else state.pending,
+                refused = state.refused - message.feature,
             )
         }
         is TheatreInbound.Result -> result(state, message)
@@ -60,16 +61,24 @@ object TheatreReducer {
             // Unknown id (late answer after a timeout, or another client): trust a self-describing result only.
             val feature = message.feature ?: return state
             val value = message.value ?: return state
-            if (message.isAck) return state
+            if (message.isAck || message.isRefusal) return state
             return state.copy(confirmed = state.confirmed + (feature to value))
         }
         val outstanding = state.outstanding - id
         if (!request.isSet) {
             val value = message.value
-            return if (value == null || message.isAck) {
-                state.copy(outstanding = outstanding)
-            } else {
-                state.copy(outstanding = outstanding, confirmed = state.confirmed + (request.feature to value))
+            return when {
+                message.isRefusal -> state.copy(
+                    outstanding = outstanding,
+                    confirmed = state.confirmed - request.feature,
+                    refused = state.refused + request.feature,
+                )
+                value == null || message.isAck -> state.copy(outstanding = outstanding)
+                else -> state.copy(
+                    outstanding = outstanding,
+                    confirmed = state.confirmed + (request.feature to value),
+                    refused = state.refused - request.feature,
+                )
             }
         }
         val pendingIsThis = state.pending[request.feature]?.requestId == id

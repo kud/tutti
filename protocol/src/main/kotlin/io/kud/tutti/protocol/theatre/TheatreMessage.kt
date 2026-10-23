@@ -19,6 +19,9 @@ sealed interface TheatreInbound {
     /** Answer to a request. A `get` result carries the feature; a `set` result usually only `"ACK"`. */
     data class Result(val id: Int?, val feature: String?, val value: String?) : TheatreInbound {
         val isAck: Boolean get() = value.equals(ACK, ignoreCase = true)
+
+        /** The bar's "no": `NAK` to a refused request, `ERR` to a feature it does not have. */
+        val isRefusal: Boolean get() = REFUSALS.any { value.equals(it, ignoreCase = true) }
     }
 
     /** Unsolicited state change, pushed on the open socket. */
@@ -28,5 +31,6 @@ sealed interface TheatreInbound {
 
     companion object {
         const val ACK = "ACK"
+        val REFUSALS = listOf("NAK", "ERR")
     }
 }

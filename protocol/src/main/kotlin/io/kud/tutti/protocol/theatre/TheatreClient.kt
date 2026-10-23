@@ -101,6 +101,17 @@ class TheatreClient(
         send(TheatreOutbound.GetRequest(nextId(), feature.key))
     }
 
+    /**
+     * Puts the bar in Bluetooth pairing mode: [BluetoothPairing.steps], each sent optimistically.
+     * Unverified on the Bar 9; the caller offers it only once the bar has reported `bluetooth.mode`.
+     */
+    suspend fun startBluetoothPairing() {
+        for (step in BluetoothPairing.steps(state.value.value(TheatreFeature.INPUT))) {
+            send(TheatreOutbound.SetRequest(nextId(), step.feature.key, step.value, numeric = false))
+            if (step.pauseAfterMillis > 0) delay(step.pauseAfterMillis)
+        }
+    }
+
     /** Asks for every known feature; answers fill [TheatreState.confirmed]. */
     suspend fun refreshAll() {
         TheatreFeature.entries.forEach { get(it) }
@@ -114,7 +125,7 @@ class TheatreClient(
         return try {
             send(request)
             val result = withTimeoutOrNull(timeoutMillis) { answer.await() }
-            result != null && result.value != null && !result.isAck
+            result != null && result.value != null && !result.isAck && !result.isRefusal
         } finally {
             probes.remove(request.id)
         }

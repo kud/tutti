@@ -44,12 +44,23 @@ enum class TheatreFeature(val key: String, val kind: FeatureKind, val notifies: 
     HDMI_CEC("hdmi.cec", FeatureKind.Toggle()),
     HDMI_PASSTHROUGH("hdmi.passthrough", FeatureKind.Choice(listOf("auto", "on", "off"))),
     HDMI_STANDBY_LINK("hdmi.standbylink", FeatureKind.Choice(listOf("auto", "on", "off"))),
+
+    /** Audio return from the TV. ARC or eARC is negotiated with the TV; the bar reports which. */
+    HDMI_ARC("hdmi.audioreturnchannel", FeatureKind.Choice(listOf("off", "arc", "earc"))),
     AUTO_STANDBY("system.autostandby", FeatureKind.Toggle()),
+
+    /** Network/Bluetooth standby: lets the bar wake from the network or a Bluetooth device. */
+    NET_BT_STANDBY("system.netbtstandby", FeatureKind.Toggle()),
     AUTO_UPDATE("system.autoupdate", FeatureKind.Toggle()),
-    MODEL_NAME("system.modelname", FeatureKind.ReadOnly, notifies = false),
+
+    /** The model as the bar names it (e.g. HT-A9000). `system.modelname` belongs to the HTTP plane, not this port. */
+    MODEL("system.modeltype", FeatureKind.ReadOnly, notifies = false),
     FIRMWARE_VERSION("system.version", FeatureKind.ReadOnly, notifies = false),
 
-    /** Vocabulary undocumented: displayed raw, never set. */
+    /**
+     * Vocabulary undocumented: displayed raw, never set through [TheatreClient.set]. The only
+     * write is the pairing sequence in [BluetoothPairing], observed on the Theatre Quad.
+     */
     BLUETOOTH_MODE("bluetooth.mode", FeatureKind.ReadOnly),
     BLUETOOTH_QUALITY("bluetooth.connectionquality", FeatureKind.Choice(listOf("prioritysound", "priorityconnection"))),
     ;
@@ -61,6 +72,17 @@ enum class TheatreFeature(val key: String, val kind: FeatureKind, val notifies: 
         private val byKey = entries.associateBy { it.key }
 
         fun fromKey(key: String): TheatreFeature? = byKey[key]
+
+        /**
+         * Features the bar answers but tutti never asks for: identifiers, and the switch that
+         * would cut tutti's own socket. Kept here so a test can hold the line.
+         */
+        val NEVER_ASKED: Set<String> = setOf(
+            "system.serialnumber",
+            "network.macaddress",
+            "network.ipaddress",
+            "system.externalcontrol",
+        )
 
         const val PORT = 33336
     }

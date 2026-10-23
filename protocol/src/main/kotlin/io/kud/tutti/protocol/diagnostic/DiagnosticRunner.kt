@@ -346,7 +346,8 @@ class DiagnosticRunner(
                 val level = answers[TheatreFeature.VOICE_ZOOM_LEVEL.key]
                 fact(TheatreFeature.VOICE_ZOOM.key, zoom ?: "no answer")
                 fact(TheatreFeature.VOICE_ZOOM_LEVEL.key, level ?: "no answer")
-                if (zoom == null) fail("no_answer", "the bar does not answer audio.voicezoom3: the app hides Voice Zoom")
+                val refused = TheatreInbound.REFUSALS.any { zoom.equals(it, ignoreCase = true) }
+                if (zoom == null || refused) fail("no_answer", "the bar does not answer audio.voicezoom3: the app hides Voice Zoom")
             }
         } finally {
             connection?.close()

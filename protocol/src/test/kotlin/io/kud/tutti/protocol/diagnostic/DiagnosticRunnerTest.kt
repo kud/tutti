@@ -98,7 +98,7 @@ private fun barAnswer(line: String): List<String> {
     val feature = json["feature"]!!.jsonPrimitive.content
     val value = when (feature) {
         "main.volumestep" -> "12"
-        "system.modelname" -> "HT-A9000"
+        "system.modeltype" -> "HT-A9000"
         "system.version" -> "1.2.3"
         "audio.voicezoom3" -> return emptyList()
         "audio.voicezoom3step" -> return emptyList()
