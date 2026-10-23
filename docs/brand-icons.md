@@ -41,7 +41,7 @@ Release **16.35.0** (`https://raw.githubusercontent.com/simple-icons/simple-icon
 
 ## Not in Simple Icons (letter tile)
 
-Prime Video, Disney+, Canal+, france.tv, TF1+, M6+, Arte, Molotov, Put.io. Simple Icons 16.35.0 carries none of them. Once fetched, the TV's own icon covers them.
+Prime Video, Disney+, Canal+, france.tv, TF1+, M6+, Arte, Molotov, Put.io. Simple Icons 16.35.0 carries none of them, and neither did its `develop` branch on 2026-10-23 (no `primevideo`, `amazonprime`, `disneyplus`, `canalplus`, `francetv`, `tf1`, `m6`, `arte`, `molotov` or `putio` icon, and no matching title in `data/simple-icons.json`). Once fetched over IP control, the TV's own icon covers them; until then they keep the letter tile, Prime Video's in the All keys sheet included. Check again when picking a new release.
 
 ## Guidelines and single-colour rendering
 
