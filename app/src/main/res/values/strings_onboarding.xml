@@ -1,9 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="onboarding_title">Set up</string>
-    <string name="onboarding_intro">Everything stays on your local network: no account needed.</string>
     <string name="onboarding_tv_title">TV</string>
-    <string name="onboarding_tv_body">Enter the TV’s IP address (or tap it if it shows up). A code will appear on screen.</string>
     <string name="onboarding_ip">IP address</string>
     <string name="onboarding_pair">Pair</string>
     <string name="onboarding_lan_only">Local address only (192.168…, 10…, 172.16–31…)</string>
@@ -14,8 +11,6 @@
     <string name="onboarding_psk_body">For picture, sound output and input settings. On the TV: Settings › Network &amp; Internet › Local network (or Home network) › IP control: set Authentication to “Normal and Pre-Shared Key”, then choose a key. Also turn on Network &amp; Internet › Remote device settings › Control remotely.</string>
     <string name="onboarding_psk_field">Pre-shared key</string>
     <string name="onboarding_save">Save</string>
-    <string name="onboarding_psk_saved">Saved</string>
-    <string name="onboarding_done">Done</string>
     <string name="pairing_connecting">Connecting to the TV…</string>
     <string name="pairing_look_at_tv">Look at the TV: it shows a code.</string>
     <string name="pairing_done">TV paired</string>
@@ -26,8 +21,41 @@
     <string name="pairing_code_retry">That code does not match, check it.</string>
     <string name="progress_connecting">Connecting…</string>
     <string name="progress_checking">Checking…</string>
-    <string name="pairing_step_code">Code on the TV…</string>
     <string name="pairing_step_sending">Sending…</string>
     <string name="bar_added">Bar connected</string>
     <string name="bar_add_unreachable">Bar unreachable: check its address and that External control is on.</string>
+    <!-- Intro (motion spec, Iris) -->
+    <string name="intro_welcome_title">Your living room,\none remote.</string>
+    <string name="intro_welcome_body">BRAVIA 8 and Bar 9 together. Everything stays on your Wi‑Fi: no account.</string>
+    <string name="intro_start">Get started</string>
+    <string name="intro_step_of">Step %1$d of %2$d</string>
+    <string name="intro_seg_tv">TV</string>
+    <string name="intro_seg_code">Code</string>
+    <string name="intro_seg_bar">Bar</string>
+    <string name="intro_seg_ready">Ready</string>
+    <string name="intro_search_title">Looking for your TV…</string>
+    <string name="intro_search_body">Turn it on and stay on the same Wi‑Fi.</string>
+    <string name="intro_searching">Searching…</string>
+    <plurals name="intro_search_found">
+        <item quantity="one">Searching… %d found</item>
+        <item quantity="other">Searching… %d found</item>
+    </plurals>
+    <string name="intro_enter_ip">Enter IP address</string>
+    <string name="intro_code_title">Look at the TV</string>
+    <string name="intro_code_body">It shows a 6-character code. Type it here.</string>
+    <string name="intro_code_on_tv">Pairing code</string>
+    <string name="intro_code_count">%1$d of %2$d</string>
+    <string name="intro_code_sent">Code sent to the TV</string>
+    <string name="intro_confirm">Confirm</string>
+    <string name="intro_bar_title">Add the Bar 9</string>
+    <string name="intro_bar_check_reach">Bar reachable, External control on</string>
+    <string name="intro_bar_check_read">Reading sound and settings</string>
+    <string name="intro_bar_check_ready">Ready</string>
+    <string name="intro_skip">Later</string>
+    <string name="intro_ready_title">All set.</string>
+    <string name="intro_ready_paired">Paired</string>
+    <string name="intro_ready_connected">Connected</string>
+    <string name="intro_ready_not_added">Not added</string>
+    <string name="intro_ready_psk">Picture and sound output: add the TV’s PSK later in Settings.</string>
+    <string name="intro_open_remote">Open the remote</string>
 </resources>
