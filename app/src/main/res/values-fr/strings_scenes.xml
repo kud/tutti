@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="scenes_title">Scènes</string>
+    <string name="scenes_new">Nouvelle scène</string>
+    <string name="scenes_edit">Modifier la scène</string>
+    <string name="scenes_active">Active</string>
+    <string name="scene_key_input">Source TV</string>
+    <string name="scene_key_app">App TV</string>
+    <string name="scene_key_picture">Mode d’image</string>
+    <string name="scene_key_cap">Volume max</string>
+    <string name="summary_picture">Image %1$s</string>
+    <string name="summary_sound_field_on">Spatial</string>
+    <string name="summary_sound_field_off">Stéréo</string>
+    <string name="summary_voice_on">Voix +</string>
+    <string name="summary_voice_off">Voix normale</string>
+    <string name="summary_night_on">Nuit</string>
+    <string name="summary_night_off">Sans mode nuit</string>
+    <string name="summary_bass">Basses %1$s</string>
+    <string name="summary_volume">Volume %1$d</string>
+    <string name="summary_cap">Max %1$d</string>
+    <string name="summary_then_app">puis %1$s</string>
+    <string name="summary_empty">Aucun réglage</string>
+    <string name="editor_new">Nouvelle scène</string>
+    <string name="editor_edit">Modifier la scène</string>
+    <string name="editor_save">Enregistrer</string>
+    <string name="editor_delete">Supprimer</string>
+    <string name="editor_delete_title">Supprimer « %1$s » ?</string>
+    <string name="editor_name">Nom</string>
+    <string name="editor_look">Couleur et symbole</string>
+    <string name="editor_settings">Réglages</string>
+    <string name="editor_capture">Capturer l’état actuel</string>
+    <string name="editor_capture_empty">Rien à capturer : aucun appareil ne répond</string>
+    <string name="editor_remove_setting">Retirer ce réglage</string>
+    <string name="editor_add_setting">Ajouter un réglage</string>
+    <string name="editor_then">À la fin</string>
+    <string name="editor_launch_app">Lancer une app</string>
+    <string name="editor_profile">Appliquer automatiquement</string>
+    <string name="editor_profile_value">Quand %1$s est au premier plan</string>
+    <string name="editor_none">Aucune</string>
+    <string name="editor_dock">Placer dans le dock</string>
+    <string name="editor_done">OK</string>
+    <string name="editor_free_value">Valeur telle que la TV l’écrit</string>
+</resources>

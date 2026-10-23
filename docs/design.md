@@ -52,4 +52,4 @@ Quick Settings tile (opens a compact remote overlay), phone volume buttons drive
 - Motion: springs under ~250 ms; reduced motion → fades.
 - Launch: the system splash shows the launcher mark still; on a cold start an in-app intro (`ui/intro/LaunchIntro.kt`) takes over at the same place and size, the OK button takes one breath (it warms and cools, Sacha's B), and the splash dissolves into the remote, which is already drawn underneath. About 0.9 s; a tap skips it; none with animations off. Ivory on ink in dark, ink on ivory in light.
 - Performance target: visual and haptic response within one frame of a tap, before any network round trip.
-- UI in French first, English second.
+- UI in English by default (`values/`), French as a translation (`values-fr/`); every string in both.

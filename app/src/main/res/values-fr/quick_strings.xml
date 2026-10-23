@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Quick access surfaces: tile, overlay, widget, notification. French (default locale). -->
+<resources>
+    <string name="quick_tile_label">Télécommande</string>
+    <string name="quick_widget_label">Télécommande rapide</string>
+    <string name="quick_widget_description">Scènes, volume et sourdine</string>
+
+    <string name="quick_status_connected">Connecté</string>
+    <string name="quick_status_disconnected">Déconnecté</string>
+    <string name="quick_status_off">Éteint</string>
+    <string name="quick_status_muted">Muet</string>
+    <string name="quick_volume_value">Volume %1$d</string>
+    <string name="quick_scene_modified">%1$s · modifiée</string>
+
+    <string name="quick_action_volume_down">Baisser le volume</string>
+    <string name="quick_action_volume_up">Monter le volume</string>
+    <string name="quick_action_mute">Couper le son</string>
+    <string name="quick_action_unmute">Rétablir le son</string>
+    <string name="quick_action_power">Allumer ou éteindre</string>
+    <string name="quick_action_open_app">Ouvrir la télécommande</string>
+    <string name="quick_volume_slider">Volume de la barre</string>
+
+    <string name="quick_notification_channel">Télécommande rapide</string>
+    <string name="quick_notification_channel_description">Volume, sourdine et scène active tant que la télé est allumée.</string>
+    <string name="quick_notification_volume_down">Vol. −</string>
+    <string name="quick_notification_volume_up">Vol. +</string>
+    <string name="quick_notification_mute">Muet</string>
+    <string name="quick_notification_unmute">Son</string>
+
+    <string name="quick_pref_notification_title">Notification de contrôle</string>
+    <string name="quick_pref_notification_summary">Volume, sourdine et scène active, aussi sur l\'écran verrouillé, tant que la télé est allumée.</string>
+    <string name="quick_pref_notification_denied">Notifications bloquées dans les réglages Android</string>
+</resources>

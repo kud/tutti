@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- French is the default locale (values/); English lives in values-en/. app_name comes from gradle.properties. -->
+<resources>
+</resources>

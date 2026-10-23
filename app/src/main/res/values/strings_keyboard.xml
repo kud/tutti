@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="keyboard_label_default">Saisie sur la TV</string>
-    <string name="keyboard_paste">Coller</string>
-    <string name="keyboard_dictate">Dicter</string>
-    <string name="keyboard_close">Fermer le clavier</string>
-    <string name="keyboard_dictation_unavailable">Dictée indisponible sur ce téléphone</string>
+    <string name="keyboard_label_default">Typing on the TV</string>
+    <string name="keyboard_paste">Paste</string>
+    <string name="keyboard_dictate">Dictate</string>
+    <string name="keyboard_close">Close keyboard</string>
+    <string name="keyboard_dictation_unavailable">Dictation is not available on this phone</string>
 </resources>
