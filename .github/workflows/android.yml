@@ -15,8 +15,11 @@ on:
 permissions:
   contents: read
 
+# A manual release run gets its own group: it no longer queues behind the push
+# build of the same merge (that wait doubled the time to an APK), and GitHub
+# never swaps it for a newer pending run of the other kind.
 concurrency:
-  group: android-${{ github.ref }}
+  group: android-${{ github.event_name == 'workflow_dispatch' && 'release' || 'ci' }}-${{ github.ref }}
   cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') && github.event_name != 'workflow_dispatch' }}
 
 jobs:
