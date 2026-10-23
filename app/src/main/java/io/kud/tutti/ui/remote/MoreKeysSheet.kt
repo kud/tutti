@@ -21,9 +21,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -42,6 +40,7 @@ import io.kud.tutti.controller.TuttiUiState
 import io.kud.tutti.protocol.atv.AppCatalog
 import io.kud.tutti.protocol.atv.V2Key
 import io.kud.tutti.ui.common.AppIcon
+import io.kud.tutti.ui.common.TuttiSheet
 
 /**
  * The rest of a BRAVIA remote, out of the way of the pad: numbers and channels, the colour
@@ -55,11 +54,7 @@ fun MoreKeysSheet(
     onLaunch: (packageName: String) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-    ) {
+    TuttiSheet(onDismissRequest = onDismiss) {
         MoreKeysContent(state, onKey, onLaunch, Modifier.verticalScroll(rememberScrollState()))
     }
 }

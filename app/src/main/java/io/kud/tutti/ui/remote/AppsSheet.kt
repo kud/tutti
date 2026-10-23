@@ -3,8 +3,6 @@ package io.kud.tutti.ui.remote
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -22,15 +20,15 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -51,6 +49,7 @@ import io.kud.tutti.controller.TuttiUiState
 import io.kud.tutti.platform.data.DockConfig
 import io.kud.tutti.protocol.apps.KnownApp
 import io.kud.tutti.ui.common.AppIcon
+import io.kud.tutti.ui.common.TuttiSheet
 import io.kud.tutti.ui.common.actionLabel
 
 /** Every app tutti knows, full height over the remote. Back or a tap outside closes it. */
@@ -63,11 +62,7 @@ fun AppsSheet(
     onPin: (KnownApp, slot: Int) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-    ) {
+    TuttiSheet(onDismissRequest = onDismiss) {
         AppsSheetContent(state, onLaunch, onAllApps, onPin, Modifier.fillMaxHeight())
     }
 }

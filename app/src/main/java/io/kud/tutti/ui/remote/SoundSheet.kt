@@ -7,11 +7,13 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -28,6 +30,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
@@ -37,6 +40,7 @@ import io.kud.tutti.controller.TuttiController
 import io.kud.tutti.controller.TuttiUiState
 import io.kud.tutti.protocol.theatre.FeatureKind
 import io.kud.tutti.protocol.theatre.TheatreFeature
+import io.kud.tutti.ui.common.belowStatusBar
 import io.kud.tutti.ui.common.featureLabel
 import io.kud.tutti.ui.common.motion
 import io.kud.tutti.ui.common.openBraviaConnect
@@ -71,9 +75,12 @@ fun soundSummary(state: TuttiUiState): String {
 fun SoundSheet(state: TuttiUiState, controller: TuttiController, modifier: Modifier = Modifier) {
     val haptics = rememberHaptics()
     val context = LocalContext.current
+    // The sheet may rise to the window's top; its handle stops below the status bar and the rest scrolls.
+    val statusTop = WindowInsets.statusBars.getTop(LocalDensity.current)
     Column(
         modifier
             .fillMaxWidth()
+            .belowStatusBar(statusTop)
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 16.dp)
             .navigationBarsPadding()

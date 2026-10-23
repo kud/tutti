@@ -24,6 +24,9 @@ Two levels deep at most.
 ### "Son" sheet
 Sound field, Voice, Night, DRC, Auto volume, IMAX, 360 Spatial as large toggles; Bass and Rear level as sliders; Voice Zoom 3 as a level slider only if the bar answers the capability probe. A greyed setting always shows its reason ("Voix désactivée : virtualiseur actif"), never hidden. "Recalibrer dans BRAVIA Connect" deep link.
 
+### Sheets
+Every sheet (Son, All keys, Apps, a pin's editor, the action picker) can rise to just below the status bar and no further: its handle and title always show, and what doesn't fit scrolls inside the sheet. Dragging down from the top of that scroll moves the sheet. Modal sheets go through `TuttiSheet` (`ui/common/Sheets.kt`).
+
 ### Shortcuts
 - Dock: four pins a page, up to three pages (swipe; dots only from page 2). Each pin has a name, an icon or two letters, a tap action (one action, or ordered steps with waits, tried from the editor with "Try") and its own long-press action, offered first in a menu above "Edit this pin".
 - Long-press on any dock slot or secondary button (Home, Back, Play) assigns a second action.

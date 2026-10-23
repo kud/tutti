@@ -25,25 +25,23 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -58,9 +56,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.kud.tutti.R
-import io.kud.tutti.ui.common.reorderActions
-import io.kud.tutti.ui.common.reorderable
-import io.kud.tutti.ui.common.rememberReorderState
 import io.kud.tutti.controller.TuttiUiState
 import io.kud.tutti.platform.data.DockAction
 import io.kud.tutti.platform.data.DockConfig
@@ -71,10 +66,14 @@ import io.kud.tutti.platform.data.asSteps
 import io.kud.tutti.platform.data.flattened
 import io.kud.tutti.ui.common.AppIcon
 import io.kud.tutti.ui.common.PinGlyphs
+import io.kud.tutti.ui.common.TuttiSheet
 import io.kud.tutti.ui.common.actionIcon
 import io.kud.tutti.ui.common.actionLabel
 import io.kud.tutti.ui.common.pinGlyphLabel
 import io.kud.tutti.ui.common.pinGlyphRes
+import io.kud.tutti.ui.common.rememberReorderState
+import io.kud.tutti.ui.common.reorderActions
+import io.kud.tutti.ui.common.reorderable
 
 /**
  * A pin's editor, opened by a long press on it: a name, an icon (or two letters), what a tap
@@ -97,11 +96,7 @@ fun PinEditorSheet(
     onRemovePage: (page: Int) -> Unit = {},
     onEditLayout: (() -> Unit)? = null,
 ) {
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-    ) {
+    TuttiSheet(onDismissRequest = onDismiss) {
         PinEditorContent(
             index,
             slot,
