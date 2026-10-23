@@ -373,7 +373,7 @@ private fun RowFrame(layout: RemoteLayout, onLayout: ((RemoteLayout) -> RemoteLa
                     val label = rowButtonLabel(button)
                     Box(
                         Modifier
-                            .reorderable(reorder, index, vertical = false, onMove = move)
+                            .reorderable(reorder, index, vertical = false, onMove = move, shape = CircleShape)
                             .reorderActions(index, row.size, left, right, move),
                     ) {
                         // Shown, not live: a tap here never reaches the TV.
@@ -453,7 +453,7 @@ private fun PinsFrame(
                 Column(
                     Modifier
                         .weight(1f)
-                        .reorderable(reorder, offset, vertical = false, onMove = move)
+                        .reorderable(reorder, offset, vertical = false, onMove = move, shape = RoundedCornerShape(20.dp))
                         .reorderActions(offset, DockConfig.PAGE_SIZE, left, right, move),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
