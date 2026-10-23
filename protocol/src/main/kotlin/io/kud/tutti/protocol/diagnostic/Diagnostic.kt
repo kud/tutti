@@ -53,7 +53,7 @@ object DiagnosticSteps {
         RestRead("rest.speaker", "audio", "getSpeakerSettings", target = true),
         RestRead("rest.picture", "video", "getPictureQualitySettings", target = true),
         RestRead("rest.inputs", "avContent", "getCurrentExternalInputsStatus"),
-        RestRead("rest.playing", "avContent", "getPlayingContentInfo"),
+        RestRead("rest.playing", "avContent", "getPlayingContentInfo", raw = true),
         RestRead("rest.apps", "appControl", "getApplicationList"),
     )
 
@@ -76,8 +76,18 @@ object DiagnosticSteps {
     fun initial(): List<StepResult> = ALL.map { (id, plane) -> StepResult(id, plane) }
 }
 
-/** [target]: the method takes `[{"target":""}]` (every setting). */
-data class RestRead(val id: String, val service: String, val method: String, val target: Boolean = false)
+/**
+ * [target]: the method takes `[{"target":""}]` (every setting). [raw]: in developer mode the
+ * report also keeps the reply itself, scrubbed, not only its shape (the playing content, whose
+ * answer while an app plays is undocumented).
+ */
+data class RestRead(
+    val id: String,
+    val service: String,
+    val method: String,
+    val target: Boolean = false,
+    val raw: Boolean = false,
+)
 
 /** Short, stable error classes, so two reports can be compared at a glance. */
 object ErrorClass {

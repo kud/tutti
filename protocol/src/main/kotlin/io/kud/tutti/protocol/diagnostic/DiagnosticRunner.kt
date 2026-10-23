@@ -17,6 +17,7 @@ import io.kud.tutti.protocol.net.CertificatePin
 import io.kud.tutti.protocol.net.ClientIdentity
 import io.kud.tutti.protocol.net.Connection
 import io.kud.tutti.protocol.net.LineSplitter
+import io.kud.tutti.protocol.net.Redact
 import io.kud.tutti.protocol.net.TcpConnector
 import io.kud.tutti.protocol.net.TlsConnection
 import io.kud.tutti.protocol.net.TlsConnector
@@ -82,6 +83,8 @@ class DiagnosticRunner(
     private val deviceInfo: ClientDeviceInfo = ClientDeviceInfo(),
     private val timeouts: DiagnosticTimeouts = DiagnosticTimeouts(),
     private val clock: () -> Long = { System.nanoTime() / 1_000_000 },
+    /** Developer mode: keep the scrubbed reply of reads marked [RestRead.raw]. */
+    private val developer: Boolean = false,
 ) {
     private val mutableSteps = MutableStateFlow(DiagnosticSteps.initial())
     val steps: StateFlow<List<StepResult>> = mutableSteps.asStateFlow()
@@ -183,6 +186,7 @@ class DiagnosticRunner(
                 val params = if (read.target) listOf(buildJsonObject { put("target", "") }) else emptyList()
                 val result = expect(client.call(service, read.method, params))
                 fact("shape", JsonShape.of(result, scrub))
+                if (developer && read.raw) fact("raw", Redact.text(result.toString(), scrub).take(RAW_MAX))
             }
         }
     }
@@ -452,6 +456,7 @@ class DiagnosticRunner(
     private companion object {
         const val PAIRING_PORT = 6467
         const val MAX_SAMPLES = 4
+        const val RAW_MAX = 2_000
         val UNREACHABLE = setOf("connection_refused", "timeout", "no_route", "unknown_host", "not_lan")
     }
 

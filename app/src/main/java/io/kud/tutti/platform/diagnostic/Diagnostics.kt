@@ -88,6 +88,8 @@ class Diagnostics @Inject constructor(
                 discover = { discover(tv?.host) },
                 cloudNote = cloudNote(ui.cloud),
                 deviceInfo = ClientDeviceInfo(model = "Tutti", packageName = context.packageName),
+                // Keeps the scrubbed getPlayingContentInfo reply, to copy while an app plays.
+                developer = ui.prefs.developerMode,
             )
             val environment = environment(targets)
             val publisher = launch {

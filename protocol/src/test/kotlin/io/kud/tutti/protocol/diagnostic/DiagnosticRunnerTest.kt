@@ -59,8 +59,11 @@ private fun livingRoomTv(method: String): HttpReply = when (method) {
     "getSystemInformation" -> ok(
         """[{"product":"TV","model":"K-65XR80","serial":"$SERIAL","macAddr":"$MAC","name":"Salon de Camille","generation":"6.1.0","cid":"$CID"}]""",
     )
-    "getMethodTypes" -> ok("""[["getPowerStatus","[]","[{\"status\":\"string\"}]","1.0"],["getVolumeInformation","[]","[]","1.0"]]""")
+    "getMethodTypes" -> ok("""[["getPowerStatus","[]","[{\"status\":\"string\"}]","1.0"],["getVolumeInformation","[]","[]","1.0"],["getPlayingContentInfo","[]","[]","1.0"]]""")
     "getPowerStatus" -> ok("""[{"status":"active"}]""")
+    "getPlayingContentInfo" -> ok(
+        """[{"uri":"tv:dvbt?srv=$TV","source":"tv:dvbt","title":"Channel Nine","programTitle":"The Garden Hour","dispNum":"009"}]""",
+    )
     "getVolumeInformation" -> HttpReply(200, """{"error":[40005,"display off for $PSK at $TV"],"id":1}""")
     else -> HttpReply(200, """{"error":[12,"No Such Method"],"id":1}""")
 }
@@ -237,6 +240,23 @@ class DiagnosticRunnerTest {
         for (kept in listOf("K-65XR80", "getPowerStatus@1.0", "rpc_40005_standby", "HT-A9000", "BRAVIA 8", "summary:")) {
             assertTrue(kept in report, "report lost $kept:\n$report")
         }
+    }
+
+    @Test
+    fun `developer mode keeps the playing content reply, scrubbed`() = runTest {
+        suspend fun playing(developer: Boolean): StepResult {
+            val runner = DiagnosticRunner(
+                targets(), FakeRest(::livingRoomTv), FakeRemote(server), FakeTcp(FakeLineConnection(::barAnswer)), { client },
+                null, "interface only", developer = developer,
+            )
+            runner.run()
+            return runner.steps.value.of("rest.playing")
+        }
+        val raw = playing(developer = true).facts.firstOrNull { it.first == "raw" }?.second
+        assertTrue(raw != null && "The Garden Hour" in raw && "009" in raw, playing(developer = true).toString())
+        assertFalse(TV in raw, raw)
+        assertFalse(PSK in raw, raw)
+        assertTrue(playing(developer = false).facts.none { it.first == "raw" })
     }
 
     @Test
