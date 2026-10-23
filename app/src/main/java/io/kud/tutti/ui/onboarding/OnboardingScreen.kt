@@ -241,15 +241,20 @@ fun PairingCodeDialog(attempt: Int, onSubmit: (String) -> Unit, onCancel: () -> 
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (attempt > 1) ProblemNote(message = stringResource(R.string.pairing_code_retry), detail = null)
-                PairingCodeField(code = code, onCodeChange = { code = it }, onDone = { onSubmit(code) })
+                PairingCodeField(
+                    code = code,
+                    onCodeChange = {
+                        // The sixth character sends it: nothing is left to confirm.
+                        val completed = PairingCode.isComplete(it) && !PairingCode.isComplete(code)
+                        code = it
+                        if (completed) onSubmit(it)
+                    },
+                    onDone = { if (PairingCode.isComplete(code)) onSubmit(code) },
+                )
             }
         },
-        confirmButton = {
-            TextButton(onClick = { onSubmit(code) }, enabled = PairingCode.isComplete(code)) {
-                Text(stringResource(R.string.pairing_confirm))
-            }
-        },
-        dismissButton = { TextButton(onClick = onCancel) { Text(stringResource(R.string.cancel)) } },
+        // No Confirm: the code sends itself on its sixth character, so Cancel is the only button.
+        confirmButton = { TextButton(onClick = onCancel) { Text(stringResource(R.string.cancel)) } },
     )
 }
 
