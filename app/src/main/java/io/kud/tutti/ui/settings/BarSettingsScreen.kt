@@ -1,7 +1,9 @@
 package io.kud.tutti.ui.settings
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -25,7 +27,8 @@ import io.kud.tutti.controller.TuttiUiState
 import io.kud.tutti.protocol.theatre.FeatureKind
 import io.kud.tutti.protocol.theatre.TheatreFeature
 import io.kud.tutti.ui.common.ChoiceRow
-import io.kud.tutti.ui.common.SectionTitle
+import io.kud.tutti.ui.common.LocalRowSurface
+import io.kud.tutti.ui.common.SettingsGroup
 import io.kud.tutti.ui.common.SwitchRow
 import io.kud.tutti.ui.common.featureLabel
 import io.kud.tutti.ui.remote.LevelSlider
@@ -64,24 +67,27 @@ fun BarSettingsScreen(state: TuttiUiState, controller: TuttiController, onBack: 
             for ((title, features) in Sections) {
                 val shown = features.filter(bar::supports)
                 if (shown.isEmpty()) continue
-                SectionTitle(stringResource(title))
-                for (feature in shown) {
-                    when {
-                        feature == TheatreFeature.BLUETOOTH_MODE -> {
-                            Info(state, feature)
-                            LinkRow(
-                                title = stringResource(R.string.bar_bt_pair),
-                                detail = barReason(state, feature) ?: stringResource(R.string.bar_bt_pair_detail),
-                                enabled = bar.connected,
-                                onClick = controller::startBarPairing,
-                            )
+                SettingsGroup(stringResource(title)) {
+                    for (feature in shown) {
+                        when {
+                            feature == TheatreFeature.BLUETOOTH_MODE -> {
+                                Info(state, feature)
+                                LinkRow(
+                                    title = stringResource(R.string.bar_bt_pair),
+                                    detail = barReason(state, feature) ?: stringResource(R.string.bar_bt_pair_detail),
+                                    enabled = bar.connected,
+                                    onClick = controller::startBarPairing,
+                                )
+                            }
+                            feature.kind is FeatureKind.Toggle -> Toggle(state, controller, feature)
+                            feature.kind is FeatureKind.Choice -> Choice(state, controller, feature)
+                            feature.kind is FeatureKind.Level -> Column(
+                                Modifier.fillMaxWidth().background(LocalRowSurface.current).padding(horizontal = 16.dp, vertical = 12.dp),
+                            ) {
+                                LevelSlider(state, feature, onLevel = { controller.setBarLevel(feature, it) })
+                            }
+                            else -> Info(state, feature)
                         }
-                        feature.kind is FeatureKind.Toggle -> Toggle(state, controller, feature)
-                        feature.kind is FeatureKind.Choice -> Choice(state, controller, feature)
-                        feature.kind is FeatureKind.Level -> Column(Modifier.padding(horizontal = 16.dp)) {
-                            LevelSlider(state, feature, onLevel = { controller.setBarLevel(feature, it) })
-                        }
-                        else -> Info(state, feature)
                     }
                 }
             }

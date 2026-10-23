@@ -1,5 +1,6 @@
 package io.kud.tutti.ui.settings
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -37,7 +38,8 @@ import io.kud.tutti.controller.TuttiUiState
 import io.kud.tutti.protocol.bravia.TvSetting
 import io.kud.tutti.ui.common.ChoiceRow
 import io.kud.tutti.ui.common.ProblemNote
-import io.kud.tutti.ui.common.SectionTitle
+import io.kud.tutti.ui.common.LocalRowSurface
+import io.kud.tutti.ui.common.SettingsGroup
 import io.kud.tutti.ui.common.SwitchRow
 import io.kud.tutti.ui.onboarding.PskDialog
 import io.kud.tutti.ui.scenes.inputName
@@ -76,29 +78,25 @@ fun TvSettingsScreen(state: TuttiUiState, controller: TuttiController, onBack: (
             }
             if (settings.loading) LinearProgressIndicator(Modifier.fillMaxWidth())
 
-            if (settings.picture.isNotEmpty()) {
-                SectionTitle(stringResource(R.string.tv_picture))
+            if (settings.picture.isNotEmpty() || settings.scene != null) SettingsGroup(stringResource(R.string.tv_picture)) {
                 settings.picture.forEach { TvSettingRow(it, TvSettingGroup.PICTURE, controller) }
+                settings.scene?.let { scene ->
+                    val names = mapOf(
+                        "auto" to stringResource(R.string.tv_scene_auto),
+                        "auto24pSync" to stringResource(R.string.tv_scene_auto_24p),
+                        "general" to stringResource(R.string.tv_scene_general),
+                    )
+                    ChoiceRow(
+                        label = stringResource(R.string.tv_target_scene),
+                        valueLabel = scene.currentValue?.let { names[it] ?: it } ?: "—",
+                        options = scene.candidates.map { it.value to (names[it.value] ?: it.value) },
+                        onSelect = controller::setScene,
+                    )
+                }
             }
-            settings.scene?.let { scene ->
-                if (settings.picture.isEmpty()) SectionTitle(stringResource(R.string.tv_picture))
-                val names = mapOf(
-                    "auto" to stringResource(R.string.tv_scene_auto),
-                    "auto24pSync" to stringResource(R.string.tv_scene_auto_24p),
-                    "general" to stringResource(R.string.tv_scene_general),
-                )
-                ChoiceRow(
-                    label = stringResource(R.string.tv_target_scene),
-                    valueLabel = scene.currentValue?.let { names[it] ?: it } ?: "—",
-                    options = scene.candidates.map { it.value to (names[it.value] ?: it.value) },
-                    onSelect = controller::setScene,
-                )
-            }
-            if (settings.sound.isNotEmpty()) {
-                SectionTitle(stringResource(R.string.tv_sound_output))
+            if (settings.sound.isNotEmpty()) SettingsGroup(stringResource(R.string.tv_sound_output)) {
                 settings.sound.forEach { TvSettingRow(it, TvSettingGroup.SOUND, controller) }
-            } else if (settings.outputWriteOnly) {
-                SectionTitle(stringResource(R.string.tv_sound_output))
+            } else if (settings.outputWriteOnly) SettingsGroup(stringResource(R.string.tv_sound_output)) {
                 val outputs = outputNames()
                 ChoiceRow(
                     label = stringResource(R.string.tv_target_output_terminal),
@@ -107,12 +105,10 @@ fun TvSettingsScreen(state: TuttiUiState, controller: TuttiController, onBack: (
                     onSelect = controller::setOutputTerminal,
                 )
             }
-            if (settings.speaker.isNotEmpty()) {
-                SectionTitle(stringResource(R.string.tv_speaker))
+            if (settings.speaker.isNotEmpty()) SettingsGroup(stringResource(R.string.tv_speaker)) {
                 settings.speaker.forEach { TvSettingRow(it, TvSettingGroup.SPEAKER, controller) }
             }
-            if (state.tv.inputs.isNotEmpty()) {
-                SectionTitle(stringResource(R.string.tv_inputs))
+            if (state.tv.inputs.isNotEmpty()) SettingsGroup(stringResource(R.string.tv_inputs)) {
                 for (input in state.tv.inputs) {
                     val current = input.uri == state.tv.input
                     LinkRow(
@@ -129,46 +125,44 @@ fun TvSettingsScreen(state: TuttiUiState, controller: TuttiController, onBack: (
                     )
                 }
             }
-            if (settings.powerSavingSupported || settings.wol != null || settings.sleepCode != null) {
-                SectionTitle(stringResource(R.string.tv_power))
-            }
-            if (settings.powerSavingSupported) {
-                val modes = listOf(
-                    "off" to stringResource(R.string.tv_power_saving_off),
-                    "low" to stringResource(R.string.tv_power_saving_low),
-                    "high" to stringResource(R.string.tv_power_saving_high),
-                    "pictureOff" to stringResource(R.string.tv_power_saving_picture_off),
-                )
-                ChoiceRow(
-                    label = stringResource(R.string.tv_power_saving),
-                    valueLabel = modes.firstOrNull { it.first == settings.powerSaving }?.second ?: settings.powerSaving ?: "—",
-                    options = modes,
-                    onSelect = controller::setPowerSaving,
-                )
-            }
-            settings.wol?.let { wol ->
-                SwitchRow(
-                    label = stringResource(R.string.tv_wol),
-                    supporting = stringResource(R.string.tv_wol_detail),
-                    checked = wol,
-                    onCheckedChange = controller::setWol,
-                )
-            }
-            if (settings.sleepCode != null) {
-                LinkRow(
-                    title = stringResource(R.string.tv_sleep_timer),
-                    detail = stringResource(R.string.tv_sleep_timer_detail),
-                    enabled = true,
-                    onClick = controller::pressSleepTimer,
-                )
+            if (settings.powerSavingSupported || settings.wol != null || settings.sleepCode != null) SettingsGroup(stringResource(R.string.tv_power)) {
+                if (settings.powerSavingSupported) {
+                    val modes = listOf(
+                        "off" to stringResource(R.string.tv_power_saving_off),
+                        "low" to stringResource(R.string.tv_power_saving_low),
+                        "high" to stringResource(R.string.tv_power_saving_high),
+                        "pictureOff" to stringResource(R.string.tv_power_saving_picture_off),
+                    )
+                    ChoiceRow(
+                        label = stringResource(R.string.tv_power_saving),
+                        valueLabel = modes.firstOrNull { it.first == settings.powerSaving }?.second ?: settings.powerSaving ?: "—",
+                        options = modes,
+                        onSelect = controller::setPowerSaving,
+                    )
+                }
+                settings.wol?.let { wol ->
+                    SwitchRow(
+                        label = stringResource(R.string.tv_wol),
+                        supporting = stringResource(R.string.tv_wol_detail),
+                        checked = wol,
+                        onCheckedChange = controller::setWol,
+                    )
+                }
+                if (settings.sleepCode != null) {
+                    LinkRow(
+                        title = stringResource(R.string.tv_sleep_timer),
+                        detail = stringResource(R.string.tv_sleep_timer_detail),
+                        enabled = true,
+                        onClick = controller::pressSleepTimer,
+                    )
+                }
             }
             settings.system?.let { system ->
                 val rows = listOfNotNull(
                     system.model?.let { stringResource(R.string.tv_device_model) to it },
                     system.generation?.let { stringResource(R.string.tv_device_generation) to it },
                 )
-                if (rows.isNotEmpty()) {
-                    SectionTitle(stringResource(R.string.tv_device))
+                if (rows.isNotEmpty()) SettingsGroup(stringResource(R.string.tv_device)) {
                     rows.forEach { (title, value) -> LinkRow(title = title, detail = value, enabled = false, onClick = {}) }
                 }
             }
@@ -238,7 +232,13 @@ private fun TvSettingRow(setting: TvSetting, group: TvSettingGroup, controller: 
         var dragging by remember(setting.target) { mutableStateOf<Float?>(null) }
         val shown = dragging ?: current.toFloat()
         val ticks = ((max - min) / step).roundToInt() - 1
-        Column(Modifier.fillMaxWidth().alpha(if (reason == null) 1f else 0.6f).padding(horizontal = 16.dp, vertical = 8.dp)) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .background(LocalRowSurface.current)
+                .padding(horizontal = 16.dp, vertical = 12.dp)
+                .alpha(if (reason == null) 1f else 0.6f),
+        ) {
             Row(Modifier.fillMaxWidth()) {
                 Text(label, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
                 Text(reason ?: format(shown.toDouble(), step), style = MaterialTheme.typography.bodyMedium)
