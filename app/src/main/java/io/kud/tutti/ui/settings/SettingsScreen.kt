@@ -1,18 +1,14 @@
 package io.kud.tutti.ui.settings
 
 import android.content.Intent
-import androidx.lifecycle.compose.LifecycleResumeEffect
-import io.kud.tutti.platform.data.AppPrefs
-import io.kud.tutti.platform.data.VibrationLevel
-import io.kud.tutti.ui.common.SystemFeedback
-import androidx.annotation.DrawableRes
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -41,24 +37,34 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import io.kud.tutti.R
 import io.kud.tutti.controller.Link
 import io.kud.tutti.controller.TuttiController
 import io.kud.tutti.controller.TuttiUiState
+import io.kud.tutti.platform.data.AppPrefs
 import io.kud.tutti.platform.data.SecondaryButton
 import io.kud.tutti.platform.data.ThemeMode
+import io.kud.tutti.platform.data.VibrationLevel
 import io.kud.tutti.protocol.grpc.CloudPlaneState
 import io.kud.tutti.quick.settings.QuickNotificationSetting
 import io.kud.tutti.ui.common.AppIcon
+import io.kud.tutti.ui.common.ChoiceRow
+import io.kud.tutti.ui.common.OpensChevron
 import io.kud.tutti.ui.common.ProblemNote
-import io.kud.tutti.ui.common.SectionTitle
+import io.kud.tutti.ui.common.RevealRow
+import io.kud.tutti.ui.common.SettingsGroup
+import io.kud.tutti.ui.common.SettingsRow
 import io.kud.tutti.ui.common.SwitchRow
+import io.kud.tutti.ui.common.SystemFeedback
 import io.kud.tutti.ui.common.actionLabel
 import io.kud.tutti.ui.common.openBraviaConnect
 import io.kud.tutti.ui.onboarding.PskDialog
@@ -79,6 +85,11 @@ fun linkLabel(link: Link): String = stringResource(
     },
 )
 
+/**
+ * Settings as grouped cards (Iris's Lawnchair-style mock, 2026-10-23). Every group is a
+ * [SettingsGroup] and every line in it a [SettingsRow] or one of its wrappers, so the rhythm is
+ * the same here, on the TV and soundbar screens.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
@@ -113,156 +124,191 @@ fun SettingsScreen(
         },
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(bottom = 32.dp)) {
-            SectionTitle(stringResource(R.string.settings_devices))
             val tv = state.devices.tv
-            if (tv != null) {
-                DeviceRow(
-                    icon = R.drawable.ic_tv,
-                    name = tv.name,
-                    detail = stringResource(
-                        R.string.settings_tv_status,
-                        tv.host,
-                        linkLabel(state.links.tv),
-                        linkLabel(state.links.rest),
-                    ),
-                )
-                Row(Modifier.padding(horizontal = 8.dp)) {
-                    TextButton(onClick = onPair) { Text(stringResource(R.string.settings_pair_again)) }
-                    TextButton(onClick = { pskDialog = true }) { Text(stringResource(R.string.settings_psk)) }
-                    TextButton(onClick = { forget = Forget.TV }) { Text(stringResource(R.string.settings_forget)) }
-                }
-                ProblemNote(
-                    message = null,
-                    detail = listOfNotNull(state.linkNotes.tv, state.linkNotes.rest).joinToString("\n\n").ifEmpty { null },
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                )
-            }
             val bar = state.devices.bar
-            if (bar != null) {
-                DeviceRow(
+            SettingsGroup(stringResource(R.string.settings_devices)) {
+                if (tv != null) {
+                    SettingsRow(
+                        title = tv.name,
+                        icon = R.drawable.ic_tv,
+                        detail = stringResource(
+                            R.string.settings_tv_status,
+                            tv.host,
+                            linkLabel(state.links.tv),
+                            linkLabel(state.links.rest),
+                        ),
+                        footer = {
+                            DeviceActions {
+                                TextButton(onClick = onPair) { Text(stringResource(R.string.settings_pair_again)) }
+                                TextButton(onClick = { pskDialog = true }) { Text(stringResource(R.string.settings_psk)) }
+                                TextButton(onClick = { forget = Forget.TV }) { Text(stringResource(R.string.settings_forget)) }
+                            }
+                            ProblemNote(
+                                message = null,
+                                detail = listOfNotNull(state.linkNotes.tv, state.linkNotes.rest).joinToString("\n\n").ifEmpty { null },
+                            )
+                        },
+                    )
+                }
+                if (bar != null) {
+                    SettingsRow(
+                        title = bar.name,
+                        icon = R.drawable.ic_speaker,
+                        detail = stringResource(R.string.settings_bar_status, bar.host, linkLabel(state.links.bar)),
+                        footer = {
+                            DeviceActions {
+                                TextButton(onClick = { forget = Forget.BAR }) { Text(stringResource(R.string.settings_forget)) }
+                            }
+                            ProblemNote(message = null, detail = state.linkNotes.bar)
+                        },
+                    )
+                }
+                if (tv == null || bar == null) {
+                    SettingsRow(
+                        title = stringResource(R.string.settings_add_device),
+                        icon = R.drawable.ic_add,
+                        onClick = onPair,
+                        trailing = { OpensChevron() },
+                    )
+                }
+            }
+
+            SettingsGroup(stringResource(R.string.settings_tv)) {
+                LinkRow(
+                    title = stringResource(R.string.settings_tv_settings),
+                    detail = if (state.links.rest == Link.ONLINE) {
+                        stringResource(R.string.settings_tv_settings_detail)
+                    } else {
+                        stringResource(R.string.settings_tv_settings_needs, linkLabel(state.links.rest))
+                    },
+                    // Open whenever a TV is paired: offline, the screen explains how to turn IP control on.
+                    enabled = tv != null,
+                    onClick = onOpenTv,
+                    icon = R.drawable.ic_tv,
+                    opens = true,
+                )
+            }
+
+            SettingsGroup(stringResource(R.string.settings_bar)) {
+                LinkRow(
+                    title = stringResource(R.string.settings_bar_settings),
+                    detail = stringResource(R.string.settings_bar_settings_detail),
+                    enabled = bar != null,
+                    onClick = onOpenBar,
                     icon = R.drawable.ic_speaker,
-                    name = bar.name,
-                    detail = stringResource(R.string.settings_bar_status, bar.host, linkLabel(state.links.bar)),
+                    opens = true,
                 )
-                Row(Modifier.padding(horizontal = 8.dp)) {
-                    TextButton(onClick = { forget = Forget.BAR }) { Text(stringResource(R.string.settings_forget)) }
-                }
-                ProblemNote(message = null, detail = state.linkNotes.bar, modifier = Modifier.padding(horizontal = 16.dp))
-            }
-            if (tv == null || bar == null) {
-                TextButton(onClick = onPair, modifier = Modifier.padding(horizontal = 8.dp)) {
-                    Text(stringResource(R.string.settings_add_device))
-                }
             }
 
-            SectionTitle(stringResource(R.string.settings_tv))
-            LinkRow(
-                title = stringResource(R.string.settings_tv_settings),
-                detail = if (state.links.rest == Link.ONLINE) {
-                    stringResource(R.string.settings_tv_settings_detail)
-                } else {
-                    stringResource(R.string.settings_tv_settings_needs, linkLabel(state.links.rest))
-                },
-                // Open whenever a TV is paired: offline, the screen explains how to turn IP control on.
-                enabled = tv != null,
-                onClick = onOpenTv,
-            )
-
-            SectionTitle(stringResource(R.string.settings_bar))
-            LinkRow(
-                title = stringResource(R.string.settings_bar_settings),
-                detail = stringResource(R.string.settings_bar_settings_detail),
-                enabled = bar != null,
-                onClick = onOpenBar,
-            )
-
-            SectionTitle(stringResource(R.string.settings_shortcuts))
-            LinkRow(
-                title = stringResource(R.string.layout_entry),
-                detail = stringResource(R.string.layout_entry_detail),
-                enabled = true,
-                onClick = onEditLayout,
-            )
-            for (button in SecondaryButton.entries) {
-                val action = state.dock.longPress[button]
+            SettingsGroup(stringResource(R.string.settings_shortcuts)) {
                 LinkRow(
-                    title = stringResource(R.string.settings_long_press, secondaryLabel(button)),
-                    detail = action?.let { actionLabel(it, state) } ?: stringResource(R.string.editor_none),
+                    title = stringResource(R.string.layout_entry),
+                    detail = stringResource(R.string.layout_entry_detail),
                     enabled = true,
-                    onClick = { picker = button },
+                    onClick = onEditLayout,
+                    icon = R.drawable.ic_edit,
+                    opens = true,
                 )
-            }
-
-            LinkRow(
-                title = stringResource(R.string.settings_apps_shown),
-                detail = stringResource(R.string.settings_apps_shown_detail, state.visibleApps.size, state.apps.size),
-                enabled = state.apps.isNotEmpty(),
-                onClick = { appsDialog = true },
-            )
-
-            SectionTitle(stringResource(R.string.settings_app))
-            ThemeRow(state.prefs.theme, controller::setTheme)
-            SwitchRow(
-                label = stringResource(R.string.settings_true_black),
-                supporting = stringResource(R.string.settings_true_black_detail),
-                checked = state.prefs.trueBlack,
-                onCheckedChange = controller::setTrueBlack,
-            )
-            QuickNotificationSetting()
-
-            SectionTitle(stringResource(R.string.settings_feedback))
-            FeedbackRows(state.prefs, onVibration = controller::setVibration, onKeySounds = controller::setKeySounds)
-
-            SectionTitle(stringResource(R.string.settings_sony))
-            LinkRow(
-                title = stringResource(R.string.settings_sony_connection),
-                detail = when (state.cloud) {
-                    is CloudPlaneState.Unavailable -> stringResource(R.string.settings_sony_unavailable)
-                    CloudPlaneState.Disabled -> stringResource(R.string.settings_sony_disabled)
-                    CloudPlaneState.SignedOut -> stringResource(R.string.settings_sony_signed_out)
-                    CloudPlaneState.Connecting -> stringResource(R.string.link_connecting)
-                    is CloudPlaneState.Connected -> stringResource(R.string.link_online)
-                },
-                enabled = false,
-                onClick = {},
-            )
-            Text(
-                stringResource(R.string.settings_sony_explain),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 16.dp),
-            )
-
-            SectionTitle(stringResource(R.string.settings_developer))
-            SwitchRow(
-                label = stringResource(R.string.settings_developer_mode),
-                supporting = stringResource(R.string.settings_developer_mode_detail),
-                checked = state.prefs.developerMode,
-                onCheckedChange = controller::setDeveloperMode,
-            )
-            if (state.prefs.developerMode) {
+                for (button in SecondaryButton.entries) {
+                    val action = state.dock.longPress[button]
+                    LinkRow(
+                        title = stringResource(R.string.settings_long_press, secondaryLabel(button)),
+                        detail = action?.let { actionLabel(it, state) } ?: stringResource(R.string.editor_none),
+                        enabled = true,
+                        onClick = { picker = button },
+                        icon = when (button) {
+                            SecondaryButton.HOME -> R.drawable.ic_home
+                            SecondaryButton.BACK -> R.drawable.ic_back
+                            SecondaryButton.PLAY -> R.drawable.ic_play_pause
+                        },
+                    )
+                }
                 LinkRow(
-                    title = stringResource(R.string.settings_diagnostic),
-                    detail = stringResource(R.string.settings_diagnostic_detail),
-                    enabled = true,
-                    onClick = onOpenDiagnostic,
+                    title = stringResource(R.string.settings_apps_shown),
+                    detail = stringResource(R.string.settings_apps_shown_detail, state.visibleApps.size, state.apps.size),
+                    enabled = state.apps.isNotEmpty(),
+                    onClick = { appsDialog = true },
+                    icon = R.drawable.ic_apps,
                 )
             }
 
-            SectionTitle(stringResource(R.string.settings_bravia_connect))
-            LinkRow(
-                title = stringResource(R.string.sound_recalibrate),
-                detail = stringResource(R.string.settings_recalibrate_detail),
-                enabled = true,
-                onClick = { openBraviaConnect(context) },
-            )
+            SettingsGroup(stringResource(R.string.settings_app)) {
+                ThemeRow(state.prefs.theme, controller::setTheme)
+                SwitchRow(
+                    label = stringResource(R.string.settings_true_black),
+                    supporting = stringResource(R.string.settings_true_black_detail),
+                    checked = state.prefs.trueBlack,
+                    onCheckedChange = controller::setTrueBlack,
+                    icon = R.drawable.ic_bedtime,
+                )
+                QuickNotificationSetting(icon = R.drawable.ic_bolt)
+            }
 
-            LinkRow(
-                title = stringResource(R.string.about_entry),
-                detail = stringResource(R.string.about_entry_detail),
-                enabled = true,
-                onClick = onOpenAbout,
-            )
+            SettingsGroup(stringResource(R.string.settings_feedback)) {
+                FeedbackRows(state.prefs, onVibration = controller::setVibration, onKeySounds = controller::setKeySounds)
+            }
+
+            SettingsGroup(stringResource(R.string.settings_sony)) {
+                // Not a control yet: a quiet statement of where it stands, not a greyed row.
+                SettingsRow(
+                    title = stringResource(R.string.settings_sony_connection),
+                    icon = R.drawable.ic_info,
+                    detail = when (state.cloud) {
+                        is CloudPlaneState.Unavailable -> stringResource(R.string.settings_sony_unavailable)
+                        CloudPlaneState.Disabled -> stringResource(R.string.settings_sony_disabled)
+                        CloudPlaneState.SignedOut -> stringResource(R.string.settings_sony_signed_out)
+                        CloudPlaneState.Connecting -> stringResource(R.string.link_connecting)
+                        is CloudPlaneState.Connected -> stringResource(R.string.link_online)
+                    },
+                    footer = {
+                        Text(
+                            stringResource(R.string.settings_sony_explain),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 4.dp),
+                        )
+                    },
+                )
+            }
+
+            SettingsGroup(stringResource(R.string.settings_developer)) {
+                SwitchRow(
+                    label = stringResource(R.string.settings_developer_mode),
+                    supporting = stringResource(R.string.settings_developer_mode_detail),
+                    checked = state.prefs.developerMode,
+                    onCheckedChange = controller::setDeveloperMode,
+                    icon = R.drawable.ic_settings,
+                )
+                if (state.prefs.developerMode) {
+                    LinkRow(
+                        title = stringResource(R.string.settings_diagnostic),
+                        detail = stringResource(R.string.settings_diagnostic_detail),
+                        enabled = true,
+                        onClick = onOpenDiagnostic,
+                        icon = R.drawable.ic_article,
+                        opens = true,
+                    )
+                }
+            }
+
+            SettingsGroup(stringResource(R.string.settings_bravia_connect)) {
+                LinkRow(
+                    title = stringResource(R.string.sound_recalibrate),
+                    detail = stringResource(R.string.settings_recalibrate_detail),
+                    enabled = true,
+                    onClick = { openBraviaConnect(context) },
+                    icon = R.drawable.ic_open,
+                )
+            }
+            SettingsGroup(stringResource(R.string.about_entry)) {
+                LinkRow(
+                    title = stringResource(R.string.about_entry),
+                    detail = stringResource(R.string.about_entry_detail),
+                    enabled = true,
+                    onClick = onOpenAbout,
+                    icon = R.drawable.ic_info,
+                )
+            }
         }
     }
 
@@ -306,57 +352,66 @@ fun SettingsScreen(
     }
 }
 
+/** A device's actions under its status, wrapping rather than overflowing in French. */
 @Composable
-private fun DeviceRow(@DrawableRes icon: Int, name: String, detail: String) {
-    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-        Icon(painterResource(icon), contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-        Spacer(Modifier.width(16.dp))
-        Column {
-            Text(name, style = MaterialTheme.typography.bodyLarge)
-            Text(detail, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-    }
+private fun DeviceActions(content: @Composable () -> Unit) {
+    // Pulled left by the buttons' own padding, so their labels line up with the detail text.
+    FlowRow(Modifier.offset(x = (-12).dp)) { content() }
 }
 
+/** A row that opens something: another screen ([opens] adds the chevron), a sheet or a dialog. */
 @Composable
-fun LinkRow(title: String, detail: String, enabled: Boolean, onClick: () -> Unit) {
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .clickable(enabled = enabled, onClick = onClick)
-            .alpha(if (enabled) 1f else 0.6f)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-    ) {
-        Text(title, style = MaterialTheme.typography.bodyLarge)
-        Text(detail, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-    }
+fun LinkRow(
+    title: String,
+    detail: String,
+    enabled: Boolean,
+    onClick: () -> Unit,
+    @androidx.annotation.DrawableRes icon: Int? = null,
+    opens: Boolean = false,
+) {
+    SettingsRow(
+        title = title,
+        detail = detail,
+        icon = icon,
+        enabled = enabled,
+        onClick = onClick,
+        trailing = if (opens) {
+            { OpensChevron() }
+        } else {
+            null
+        },
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ThemeRow(mode: ThemeMode, onChange: (ThemeMode) -> Unit) {
-    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
-        Text(stringResource(R.string.settings_theme), style = MaterialTheme.typography.bodyLarge)
-        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(top = 8.dp)) {
-            ThemeMode.entries.forEachIndexed { index, entry ->
-                SegmentedButton(
-                    selected = entry == mode,
-                    onClick = { onChange(entry) },
-                    shape = SegmentedButtonDefaults.itemShape(index, ThemeMode.entries.size),
-                ) {
-                    Text(
-                        stringResource(
-                            when (entry) {
-                                ThemeMode.SYSTEM -> R.string.settings_theme_system
-                                ThemeMode.LIGHT -> R.string.settings_theme_light
-                                ThemeMode.DARK -> R.string.settings_theme_dark
-                            },
-                        ),
-                    )
+    SettingsRow(
+        title = stringResource(R.string.settings_theme),
+        icon = R.drawable.ic_visibility,
+        footer = {
+            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(top = 8.dp)) {
+                ThemeMode.entries.forEachIndexed { index, entry ->
+                    SegmentedButton(
+                        selected = entry == mode,
+                        onClick = { onChange(entry) },
+                        shape = SegmentedButtonDefaults.itemShape(index, ThemeMode.entries.size),
+                    ) {
+                        Text(
+                            stringResource(
+                                when (entry) {
+                                    ThemeMode.SYSTEM -> R.string.settings_theme_system
+                                    ThemeMode.LIGHT -> R.string.settings_theme_light
+                                    ThemeMode.DARK -> R.string.settings_theme_dark
+                                },
+                            ),
+                            maxLines = 1,
+                        )
+                    }
                 }
             }
-        }
-    }
+        },
+    )
 }
 
 /** Every app tutti knows, each with a switch: hidden ones leave the Apps sheet and pickers. */
@@ -398,10 +453,11 @@ private fun AppsShownDialog(state: TuttiUiState, onShown: (String, Boolean) -> U
 
 /**
  * Vibration and key sounds (Iris's spec, Erwann's decisions of 2026-10-23). tutti follows Android
- * and never overrides it: when the system's touch vibration or touch sounds are off, the row says
- * so and links to Android's settings, read again each time the screen resumes.
+ * and never overrides it: when the system's touch vibration or touch sounds are off, the row keeps
+ * tutti's own switch but says it is inactive (warning glyph and words, never colour alone) and
+ * carries the way to Android's settings, read again each time the screen resumes. The level is a
+ * menu row rather than a segmented button, whose second label wrapped (Iris, 2026-10-23).
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun FeedbackRows(prefs: AppPrefs, onVibration: (VibrationLevel) -> Unit, onKeySounds: (Boolean) -> Unit) {
     val context = LocalContext.current
@@ -416,44 +472,53 @@ private fun FeedbackRows(prefs: AppPrefs, onVibration: (VibrationLevel) -> Unit,
         }
         Unit
     }
+    val openLabel = stringResource(R.string.settings_open_system)
+    val openAction = Modifier.semantics {
+        customActions = listOf(CustomAccessibilityAction(openLabel) { openSystem(); true })
+    }
     val level = prefs.vibrationLevel
-    SwitchRow(
-        label = stringResource(R.string.settings_vibration),
-        supporting = stringResource(if (system.vibration) R.string.settings_vibration_detail else R.string.settings_vibration_system_off),
-        checked = level != VibrationLevel.OFF,
-        onCheckedChange = { onVibration(if (it) VibrationLevel.ALL else VibrationLevel.OFF) },
-    )
-    if (!system.vibration) {
-        OpenSystemLink(openSystem)
-    } else if (level != VibrationLevel.OFF) {
-        val options = listOf(
-            VibrationLevel.ALL to R.string.settings_vibration_all,
-            VibrationLevel.ESSENTIALS to R.string.settings_vibration_essentials,
+    Column {
+        SwitchRow(
+            label = stringResource(R.string.settings_vibration),
+            supporting = stringResource(R.string.settings_vibration_detail),
+            notice = stringResource(R.string.settings_vibration_system_off).takeIf { !system.vibration },
+            checked = level != VibrationLevel.OFF,
+            onCheckedChange = { onVibration(if (it) VibrationLevel.ALL else VibrationLevel.OFF) },
+            icon = R.drawable.ic_vibration,
+            modifier = if (system.vibration) Modifier else openAction,
+            footer = if (system.vibration) null else ({ OpenSystemLink(openLabel, openSystem) }),
         )
-        SingleChoiceSegmentedButtonRow(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp)) {
-            options.forEachIndexed { index, (option, label) ->
-                SegmentedButton(
-                    selected = level == option,
-                    onClick = { onVibration(option) },
-                    shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size),
-                ) {
-                    Text(stringResource(label))
-                }
-            }
+        RevealRow(visible = system.vibration && level != VibrationLevel.OFF) {
+            val options = listOf(
+                VibrationLevel.ALL to stringResource(R.string.settings_vibration_all),
+                VibrationLevel.ESSENTIALS to stringResource(R.string.settings_vibration_essentials),
+            )
+            ChoiceRow(
+                label = stringResource(R.string.settings_vibration_level),
+                valueLabel = options.firstOrNull { it.first == level }?.second ?: options.first().second,
+                options = options,
+                onSelect = onVibration,
+                icon = R.drawable.ic_tune,
+                modifier = Modifier.padding(top = 2.dp),
+            )
         }
     }
     SwitchRow(
         label = stringResource(R.string.settings_key_sounds),
-        supporting = stringResource(if (system.sounds) R.string.settings_key_sounds_detail else R.string.settings_key_sounds_system_off),
+        supporting = stringResource(R.string.settings_key_sounds_detail),
+        notice = stringResource(R.string.settings_key_sounds_system_off).takeIf { !system.sounds },
         checked = prefs.keySounds,
         onCheckedChange = onKeySounds,
+        icon = R.drawable.ic_volume_up,
+        modifier = if (system.sounds) Modifier else openAction,
+        footer = if (system.sounds) null else ({ OpenSystemLink(openLabel, openSystem) }),
     )
-    if (!system.sounds) OpenSystemLink(openSystem)
 }
 
+/** The way to Android's settings, inside the row it explains: its own 48 dp target, not the row's tap. */
 @Composable
-private fun OpenSystemLink(onClick: () -> Unit) {
-    TextButton(onClick = onClick, modifier = Modifier.padding(start = 4.dp)) {
-        Text(stringResource(R.string.settings_open_system))
+private fun OpenSystemLink(label: String, onClick: () -> Unit) {
+    TextButton(onClick = onClick, modifier = Modifier.offset(x = (-12).dp)) {
+        Text(label)
     }
 }
