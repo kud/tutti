@@ -152,7 +152,7 @@ fun MoreKeysContent(
         KeyRow {
             AppKeys.forEach { pkg ->
                 val name = state.apps.firstOrNull { it.packageName == pkg }?.name ?: AppCatalog.byPackage(pkg)?.name ?: pkg
-                AppKey(name, state.appIcons[pkg]) { onLaunch(pkg) }
+                AppKey(name, pkg, state.appIcons[pkg]) { onLaunch(pkg) }
             }
         }
     }
@@ -244,7 +244,7 @@ private fun RowScope.ColourKey(@StringRes name: Int, colour: Color, keyCode: Int
 }
 
 @Composable
-private fun RowScope.AppKey(name: String, iconPath: String?, onClick: () -> Unit) {
+private fun RowScope.AppKey(name: String, packageName: String, iconPath: String?, onClick: () -> Unit) {
     Row(
         Modifier
             .weight(1f)
@@ -255,7 +255,7 @@ private fun RowScope.AppKey(name: String, iconPath: String?, onClick: () -> Unit
             .padding(horizontal = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        AppIcon(name, iconPath, size = 28.dp)
+        AppIcon(name, iconPath, size = 28.dp, packageName = packageName)
         Spacer(Modifier.width(8.dp))
         Text(name, style = MaterialTheme.typography.labelMedium, maxLines = 2)
     }

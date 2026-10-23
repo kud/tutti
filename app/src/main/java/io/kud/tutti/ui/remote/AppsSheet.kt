@@ -156,6 +156,7 @@ fun AppsSheetContent(
                 AppIcon(
                     name = app.name,
                     iconPath = state.appIcons[app.packageName],
+                    packageName = app.packageName,
                     size = 88.dp,
                     corner = 20.dp,
                     modifier = Modifier.aspectRatio(1f),

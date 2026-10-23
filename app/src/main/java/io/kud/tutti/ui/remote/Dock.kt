@@ -100,7 +100,7 @@ private fun PinTile(
         modifier = modifier.combinedClickable(onLongClickLabel = assign, onLongClick = onLongClick, onClick = onClick),
     ) { tint ->
         if (action is DockAction.LaunchApp) {
-            AppIcon(action.label, state.appIcons[action.packageName], size = 24.dp, corner = 6.dp)
+            AppIcon(action.label, state.appIcons[action.packageName], size = 24.dp, corner = 6.dp, packageName = action.packageName)
         } else {
             Icon(
                 painter = painterResource(if (action != null) actionIcon(action, state) else R.drawable.ic_add),

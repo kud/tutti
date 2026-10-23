@@ -102,7 +102,7 @@ fun ActionPickerDialog(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             if (choice.app != null) {
-                                AppIcon(choice.label, state.appIcons[choice.app], size = 24.dp, corner = 6.dp)
+                                AppIcon(choice.label, state.appIcons[choice.app], size = 24.dp, corner = 6.dp, packageName = choice.app)
                             } else {
                                 Icon(painterResource(choice.icon), contentDescription = null, modifier = Modifier.size(24.dp))
                             }
