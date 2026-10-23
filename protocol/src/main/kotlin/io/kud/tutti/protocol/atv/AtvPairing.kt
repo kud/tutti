@@ -5,6 +5,10 @@ import io.kud.tutti.protocol.net.CertificatePin
 import io.kud.tutti.protocol.net.ClientIdentity
 import io.kud.tutti.protocol.net.TlsConnection
 import io.kud.tutti.protocol.net.TlsConnector
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.io.IOException
 import java.security.interfaces.RSAPublicKey
 
@@ -44,52 +48,79 @@ class AtvPairing(
         askCode: suspend (attempt: Int) -> String?,
     ): PairingResult {
         val connection = connector.connect(host, PORT, identity, expectedPin = null)
+        // The reader runs ahead of us and keeps reading while the person types the code, which
+        // the TV waits for in silence: the remote's 20 s read timeout failed a slow typist. The
+        // socket now waits as long as a person may; TV silence is timed below, only while we
+        // wait on the TV, by closing the socket (which is what ends a blocked read).
+        connection.setReadTimeout(PERSON_READ_TIMEOUT_MS)
         var state: PairingState = PairingState.Idle
+        var silentTv = false
         try {
-            suspend fun apply(transition: PairingTransition) {
-                state = transition.state
-                transition.send.forEach {
-                    note("tx ${kindOf(it)}")
-                    connection.send(Framing.frame(it.encode()))
-                }
-            }
-            apply(machine.reduce(state, PairingInput.Start))
-            val decoder = FrameDecoder()
-            connection.incoming.collect { chunk ->
-                for (frame in decoder.feed(chunk)) {
-                    if (state.isTerminal) break
-                    val message = try {
-                        PairingMessage.ADAPTER.decode(frame)
-                    } catch (e: IOException) {
-                        state = PairingState.Failed(PairingFailure.Unexpected("undecodable pairing message"))
-                        break
+            coroutineScope {
+                var tvTimer: Job? = null
+                fun waitForTv() {
+                    tvTimer?.cancel()
+                    tvTimer = launch {
+                        delay(TV_ANSWER_TIMEOUT_MS)
+                        silentTv = true
+                        note("tv silent ${TV_ANSWER_TIMEOUT_MS} ms")
+                        connection.close()
                     }
-                    note("rx ${kindOf(message)} ${message.status}")
-                    apply(machine.reduce(state, PairingInput.Received(message)))
-                    if (state == PairingState.AwaitingCode) {
-                        when (val answer = askSecret(connection, maxAttempts, askCode)) {
-                            is PairingInput.Secret -> apply(machine.reduce(state, answer))
-                            is PairingFailure -> state = PairingState.Failed(answer)
+                }
+                try {
+                    suspend fun apply(transition: PairingTransition) {
+                        state = transition.state
+                        transition.send.forEach {
+                            note("tx ${kindOf(it)}")
+                            connection.send(Framing.frame(it.encode()))
                         }
                     }
-                }
-                // Stop reading as soon as the outcome is known. The TV keeps the socket open after
-                // its secret ack, and leaving collect waits for the reader, which is blocked in a read
-                // nothing will answer: close first, so that read ends and collect can return.
-                if (state.isTerminal) {
-                    note("done: ${outcomeOf(state)}")
-                    connection.close()
-                    throw Finished()
+                    apply(machine.reduce(state, PairingInput.Start))
+                    waitForTv()
+                    val decoder = FrameDecoder()
+                    connection.incoming.collect { chunk ->
+                        for (frame in decoder.feed(chunk)) {
+                            if (state.isTerminal) break
+                            val message = try {
+                                PairingMessage.ADAPTER.decode(frame)
+                            } catch (e: IOException) {
+                                state = PairingState.Failed(PairingFailure.Unexpected("undecodable pairing message"))
+                                break
+                            }
+                            note("rx ${kindOf(message)} ${message.status}")
+                            apply(machine.reduce(state, PairingInput.Received(message)))
+                            if (state == PairingState.AwaitingCode) {
+                                tvTimer?.cancel()
+                                when (val answer = askSecret(connection, maxAttempts, askCode)) {
+                                    is PairingInput.Secret -> apply(machine.reduce(state, answer))
+                                    is PairingFailure -> state = PairingState.Failed(answer)
+                                }
+                            }
+                            if (!state.isTerminal) waitForTv()
+                        }
+                        // Stop reading as soon as the outcome is known. The TV keeps the socket open after
+                        // its secret ack, and leaving collect waits for the reader, which is blocked in a read
+                        // nothing will answer: close first, so that read ends and collect can return.
+                        if (state.isTerminal) {
+                            note("done: ${outcomeOf(state)}")
+                            connection.close()
+                            throw Finished()
+                        }
+                    }
+                    note("stream ended in $state")
+                } finally {
+                    tvTimer?.cancel()
                 }
             }
-            note("stream ended in $state")
         } catch (e: Finished) {
             // Normal end.
         } catch (e: FramingException) {
             state = PairingState.Failed(PairingFailure.Unexpected(e.message ?: "framing"))
         } catch (e: IOException) {
             note("io ${e::class.java.simpleName} in $state")
-            if (!state.isTerminal) state = PairingState.Failed(PairingFailure.Closed)
+            if (!state.isTerminal) {
+                state = PairingState.Failed(if (silentTv) PairingFailure.Unexpected("no answer from the TV") else PairingFailure.Closed)
+            }
         } finally {
             connection.close()
         }
@@ -135,5 +166,11 @@ class AtvPairing(
 
     companion object {
         const val PORT = 6467
+
+        /** How long the TV may stay silent while we wait on it (not on the person typing). */
+        const val TV_ANSWER_TIMEOUT_MS = 10_000L
+
+        /** Read timeout on the pairing socket: time enough to read six characters off the TV. */
+        const val PERSON_READ_TIMEOUT_MS = 300_000
     }
 }
