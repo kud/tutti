@@ -79,7 +79,7 @@ class BraviaClientTest {
         assertEquals("1.1", caps.version(BraviaService.AV_CONTENT, "getCurrentExternalInputsStatus"))
         assertEquals(setOf(BraviaService.AV_CONTENT), caps.methods.keys)
         val (_, body, _) = transport.calls.single()
-        assertTrue(body.contains("\"services\":[\"system\",\"audio\",\"avContent\",\"appControl\",\"video\"]"))
+        assertTrue(body.contains("\"services\":[\"system\",\"audio\",\"avContent\",\"appControl\",\"video\",\"videoScreen\"]"))
     }
 
     @Test

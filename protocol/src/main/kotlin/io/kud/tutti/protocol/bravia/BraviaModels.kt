@@ -6,6 +6,9 @@ enum class BraviaService(val id: String) {
     AV_CONTENT("avContent"),
     APP_CONTROL("appControl"),
     VIDEO("video"),
+
+    /** Scene select (getSceneSetting / setSceneSetting). */
+    VIDEO_SCREEN("videoScreen"),
     ;
 
     val path: String get() = "/sony/$id"
@@ -69,7 +72,25 @@ data class TvSetting(
     val candidates: List<SettingCandidate>,
     val title: String? = null,
 ) {
-    val isRange: Boolean get() = candidates.size == 1 && candidates[0].min != null && candidates[0].max != null
+    /**
+     * Sony sets min, max and step to -1 when a target is not numeric, so a lone enum candidate
+     * carries -1/-1 too: a range needs max above min, not just both present.
+     */
+    val isRange: Boolean
+        get() {
+            val only = candidates.singleOrNull() ?: return false
+            val min = only.min ?: return false
+            val max = only.max ?: return false
+            return max > min
+        }
+
+    companion object {
+        /** setSoundSettings' documented `outputTerminal` values (Sony's reference); there is no documented getter. */
+        val OUTPUT_TERMINALS = listOf("speaker", "speaker_hdmi", "hdmi", "audioSystem")
+
+        const val SCENE_TARGET = "sceneSetting"
+        const val OUTPUT_TERMINAL = "outputTerminal"
+    }
 }
 
 data class ExternalInput(

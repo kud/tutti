@@ -100,6 +100,22 @@ object BraviaParsers {
 
     fun powerSavingMode(result: JsonArray): String? = result.firstObject()?.string("mode")
 
+    /** `system.getWolMode`: `[{"enabled": true}]`. */
+    fun wolMode(result: JsonArray): Boolean? = result.firstObject()?.bool("enabled")
+
+    /**
+     * `videoScreen.getSceneSetting`: `[{currentValue, candidate: [{value}]}]`, as a [TvSetting]
+     * under [TvSetting.SCENE_TARGET]. Null when the current input offers no scene (empty candidates).
+     */
+    fun sceneSetting(result: JsonArray): TvSetting? {
+        val obj = result.firstObject() ?: return null
+        val candidates = (obj["candidate"] as? JsonArray).orEmpty().filterIsInstance<JsonObject>().mapNotNull { c ->
+            c.string("value")?.takeIf { it.isNotEmpty() }?.let { SettingCandidate(it) }
+        }
+        if (candidates.isEmpty()) return null
+        return TvSetting(TvSetting.SCENE_TARGET, obj.string("currentValue"), isAvailable = true, candidates = candidates)
+    }
+
     fun systemInformation(result: JsonArray): SystemInfo? = result.firstObject()?.let {
         SystemInfo(model = it.string("model"), product = it.string("product"), generation = it.string("generation"), name = it.string("name"))
     }

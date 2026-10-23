@@ -87,6 +87,19 @@ class BraviaClient(
     suspend fun setPowerSavingMode(mode: String) =
         call(BraviaService.SYSTEM, "setPowerSavingMode", listOf(buildJsonObject { put("mode", mode) })).map { }
 
+    /** Wake-on-LAN: whether the TV powers on from a network packet (BRAVIA Connect's "Remote start", unverified equivalence). */
+    suspend fun wolMode() = call(BraviaService.SYSTEM, "getWolMode").map(BraviaParsers::wolMode)
+
+    suspend fun setWolMode(enabled: Boolean) =
+        call(BraviaService.SYSTEM, "setWolMode", listOf(buildJsonObject { put("enabled", enabled) })).map { }
+
+    /** Scene select for the current input; null when it has none. */
+    suspend fun sceneSetting() = call(BraviaService.VIDEO_SCREEN, "getSceneSetting").map(BraviaParsers::sceneSetting)
+
+    /** Sony values: `auto`, `auto24pSync`, `general`. */
+    suspend fun setSceneSetting(value: String) =
+        call(BraviaService.VIDEO_SCREEN, "setSceneSetting", listOf(buildJsonObject { put("value", value) })).map { }
+
     suspend fun remoteControllerInfo() =
         call(BraviaService.SYSTEM, "getRemoteControllerInfo").map(BraviaParsers::remoteControllerInfo)
 
@@ -97,7 +110,10 @@ class BraviaClient(
     suspend fun setPictureSetting(target: String, value: String) =
         call(BraviaService.VIDEO, "setPictureQualitySettings", listOf(settings(target, value))).map { }
 
-    /** e.g. target `outputTerminal` (speaker / audioSystem). */
+    /**
+     * Not in Sony's reference (only setSoundSettings v1.1 is): call it only when discovery lists
+     * it. e.g. target `outputTerminal` (speaker / audioSystem).
+     */
     suspend fun soundSettings(target: String = "") =
         call(BraviaService.AUDIO, "getSoundSettings", listOf(target(target))).map(BraviaParsers::settings)
 
@@ -214,6 +230,14 @@ class BraviaClient(
 }
 
 object Ircc {
+    /**
+     * The TV's sleep-timer key, if its getRemoteControllerInfo lists one. Sony documents no sleep
+     * timer in REST; the IRCC name varies by model and is unverified on the XR80, so this matches
+     * names, never a hard-coded code.
+     */
+    fun sleepTimerCode(codes: List<IrccCode>): String? =
+        codes.firstOrNull { it.name.equals("SleepTimer", ignoreCase = true) || it.name.equals("Sleep", ignoreCase = true) }?.value
+
     fun envelope(code: String): String {
         val safe = code.filter { it.isLetterOrDigit() || it == '+' || it == '/' || it == '=' }
         return """<?xml version="1.0"?>""" +
