@@ -131,6 +131,12 @@ private fun SceneCard(ui: SceneUi, summary: String, onApply: () -> Unit, onEdit:
                 scaleX = press.scale
                 scaleY = press.scale
             }
+            // Before the clip, so the focus ring sits outside the card.
+            .clickable(
+                interactionSource = interaction,
+                indication = rememberTuttiIndication(shape, layerColor = content),
+                onClick = onApply,
+            )
             .clip(shape)
             .background(container)
             .then(if (ui.status == SceneStatus.MODIFIED) Modifier.border(1.5.dp, seed, shape) else Modifier)
@@ -138,11 +144,6 @@ private fun SceneCard(ui: SceneUi, summary: String, onApply: () -> Unit, onEdit:
             .drawBehind {
                 if (progress > 0f) drawRect(seed.copy(alpha = 0.6f), size = Size(size.width * progress, size.height))
             }
-            .clickable(
-                interactionSource = interaction,
-                indication = rememberTuttiIndication(shape, layerColor = content),
-                onClick = onApply,
-            )
             .padding(16.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {

@@ -123,6 +123,13 @@ fun ScenePill(ui: SceneUi, onClick: () -> Unit, onLongClick: () -> Unit, modifie
                 scaleX = press.scale
                 scaleY = press.scale
             }
+            // Before the clip, so the focus ring sits outside the pill.
+            .combinedClickable(
+                interactionSource = interaction,
+                indication = rememberTuttiIndication(shape, layerColor = content),
+                onLongClick = onLongClick,
+                onClick = onClick,
+            )
             .clip(shape)
             .background(container)
             .then(if (ui.status == SceneStatus.MODIFIED) Modifier.border(1.5.dp, seed, shape) else Modifier)
@@ -130,12 +137,6 @@ fun ScenePill(ui: SceneUi, onClick: () -> Unit, onLongClick: () -> Unit, modifie
             .drawBehind {
                 if (progress > 0f) drawRect(seed.copy(alpha = 0.6f), size = Size(size.width * progress, size.height))
             }
-            .combinedClickable(
-                interactionSource = interaction,
-                indication = rememberTuttiIndication(shape, layerColor = content),
-                onLongClick = onLongClick,
-                onClick = onClick,
-            )
             .padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

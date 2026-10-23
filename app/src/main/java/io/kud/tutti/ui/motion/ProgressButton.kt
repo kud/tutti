@@ -14,7 +14,6 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -31,7 +30,9 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.ripple
+import io.kud.tutti.ui.common.PressStyle
+import io.kud.tutti.ui.common.rememberPress
+import io.kud.tutti.ui.common.rememberTuttiIndication
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -137,8 +138,9 @@ fun ProgressButton(
     }
 
     val interaction = remember { MutableInteractionSource() }
-    val pressed by interaction.collectIsPressedAsState()
-    val scale by animateFloatAsState(if (pressed && !reduced) PRESSED_SCALE else 1f, Motion.snappy(), label = "press")
+    // The click lands on down with the press-in, like every key; reduced motion keeps it still.
+    val press = rememberPress(interaction, PressStyle.SURFACE, onDown = haptics::click)
+    val indication = rememberTuttiIndication(CircleShape, layerColor = MaterialTheme.colorScheme.onSecondaryContainer)
 
     val colors = MaterialTheme.colorScheme
     val idleDisabled = !enabled && shown == ActionPhase.IDLE
@@ -170,30 +172,29 @@ fun ProgressButton(
                 Modifier
                     .offset { IntOffset(shake.value.dp.roundToPx(), 0) }
                     .graphicsLayer {
+                        val scale = 1f - (1f - PRESSED_SCALE) * press.fraction
                         scaleX = scale
                         scaleY = scale
                     }
                     .animateContentSize(snappyOrFade())
                     .height(HEIGHT)
                     .defaultMinSize(minWidth = HEIGHT)
-                    .clip(CircleShape)
-                    .background(container)
-                    .drawBehind {
-                        if (filling) drawRect(content.copy(alpha = 0.18f), size = Size(size.width * fill, size.height))
-                    }
+                    // Before the clip, so the shared focus ring can sit 3 dp outside the circle.
                     .clickable(
                         interactionSource = interaction,
-                        indication = ripple(),
+                        indication = indication,
                         enabled = enabled && shown != ActionPhase.PENDING,
                         role = Role.Button,
-                        onClick = {
-                            haptics.click()
-                            onClick()
-                        },
+                        onClick = onClick,
                     )
                     .semantics {
                         liveRegion = LiveRegionMode.Polite
                         if (shown == ActionPhase.SUCCESS) contentDescription = success
+                    }
+                    .clip(CircleShape)
+                    .background(container)
+                    .drawBehind {
+                        if (filling) drawRect(content.copy(alpha = 0.18f), size = Size(size.width * fill, size.height))
                     }
                     .then(if (shown == ActionPhase.SUCCESS) Modifier.width(HEIGHT) else Modifier.padding(horizontal = 24.dp)),
                 contentAlignment = Alignment.Center,
