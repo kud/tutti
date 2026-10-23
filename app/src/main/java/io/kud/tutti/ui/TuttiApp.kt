@@ -41,6 +41,7 @@ import io.kud.tutti.ui.onboarding.OnboardingScreen
 import io.kud.tutti.ui.remote.RemoteScreen
 import io.kud.tutti.ui.scenes.SceneEditorScreen
 import io.kud.tutti.ui.scenes.ScenesScreen
+import io.kud.tutti.ui.about.AboutScreen
 import io.kud.tutti.ui.settings.BarSettingsScreen
 import io.kud.tutti.ui.settings.DiagnosticScreen
 import io.kud.tutti.ui.settings.SettingsScreen
@@ -64,6 +65,8 @@ sealed interface Screen {
     data object Diagnostic : Screen
 
     data object Onboarding : Screen
+
+    data object About : Screen
 }
 
 @Composable
@@ -152,6 +155,7 @@ fun TuttiApp(controller: TuttiController, discovery: TvDiscovery, diagnostics: D
                             onOpenTv = { push(Screen.TvSettings) },
                             onOpenBar = { push(Screen.BarSettings) },
                             onOpenDiagnostic = { push(Screen.Diagnostic) },
+                            onOpenAbout = { push(Screen.About) },
                             onEditLayout = {
                                 editingLayout = true
                                 pop()
@@ -170,6 +174,7 @@ fun TuttiApp(controller: TuttiController, discovery: TvDiscovery, diagnostics: D
                             discovery = discovery,
                             onDone = ::pop,
                         )
+                        Screen.About -> AboutScreen(onBack = ::pop)
                     }
                 }
             SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(16.dp))

@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="about_entry">About tutti</string>
+    <string name="about_entry_detail">The approach, credits and version</string>
+    <string name="about_title">About tutti</string>
+    <string name="about_tagline">One remote for one living room.</string>
+    <string name="about_what">tutti is a remote for a Sony BRAVIA TV and a BRAVIA Theatre Bar, built to replace BRAVIA Connect day to day. Setup and calibration stay in BRAVIA Connect, and tutti opens it when you need it.</string>
+    <string name="about_approach">The approach</string>
+    <string name="about_local_title">Local network only</string>
+    <string name="about_local">tutti talks to the TV and the bar over your home network. No account needed: without Sony sign-in, which is optional, nothing leaves the living room.</string>
+    <string name="about_pinned_title">Devices pinned on first use</string>
+    <string name="about_pinned">The TV and the bar are trusted the first time tutti meets them. A changed certificate is refused, never quietly accepted.</string>
+    <string name="about_secrets_title">Secrets stay on the phone</string>
+    <string name="about_secrets">Pairing keys and any Sony tokens are encrypted with an Android Keystore key and left out of backups.</string>
+    <string name="about_verified_title">Checked, never guessed</string>
+    <string name="about_verified">Every protocol detail is verified before tutti relies on it.</string>
+    <string name="about_colour_title">Not by colour alone</string>
+    <string name="about_colour">No state rests on colour alone: a shape, an icon or a word always says it too.</string>
+    <string name="about_motion_title">Calm when asked</string>
+    <string name="about_motion">When Android’s animations are turned off, tutti keeps still.</string>
+    <string name="about_made">Made by Erwann Mest</string>
+    <string name="about_made_detail">Open source under the MIT licence.</string>
+    <string name="about_source">Source code</string>
+    <string name="about_source_detail">github.com/kud/tutti</string>
+    <string name="about_credits">Credits</string>
+    <string name="about_credit_atv">androidtv-remote</string>
+    <string name="about_credit_atv_detail">By louis49, MIT. The Android TV Remote v2 protocol.</string>
+    <string name="about_credit_bar">bravia-quad-homeassistant</string>
+    <string name="about_credit_bar_detail">MIT. What tutti knows of the soundbar’s protocol.</string>
+    <string name="about_trademarks">Sony, BRAVIA and Google TV are trademarks of their respective owners. tutti is not affiliated with Sony.</string>
+    <string name="about_version">Version</string>
+    <string name="about_version_detail">%1$s (%2$d)</string>
+</resources>

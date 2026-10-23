@@ -90,6 +90,7 @@ fun SettingsScreen(
     onOpenDiagnostic: () -> Unit,
     onEditLayout: () -> Unit = {},
     onPair: () -> Unit,
+    onOpenAbout: () -> Unit = {},
 ) {
     val context = LocalContext.current
     var picker by remember { mutableStateOf<SecondaryButton?>(null) }
@@ -254,6 +255,13 @@ fun SettingsScreen(
                 detail = stringResource(R.string.settings_recalibrate_detail),
                 enabled = true,
                 onClick = { openBraviaConnect(context) },
+            )
+
+            LinkRow(
+                title = stringResource(R.string.about_entry),
+                detail = stringResource(R.string.about_entry_detail),
+                enabled = true,
+                onClick = onOpenAbout,
             )
         }
     }
