@@ -238,6 +238,22 @@ object Ircc {
     fun sleepTimerCode(codes: List<IrccCode>): String? =
         codes.firstOrNull { it.name.equals("SleepTimer", ignoreCase = true) || it.name.equals("Sleep", ignoreCase = true) }?.value
 
+    /**
+     * The TV's IRCC keys as a shortcut list: one per name (first code wins), blank or
+     * code-less entries dropped, sorted by [displayName].
+     */
+    fun shortcuts(codes: List<IrccCode>): List<IrccCode> = codes
+        .filter { it.name.isNotBlank() && it.value.isNotBlank() }
+        .distinctBy { it.name }
+        .sortedBy { displayName(it.name).lowercase() }
+
+    /** Sony names its keys in CamelCase or snake case ("ActionMenu", "Tv_Radio"): spaced out for reading. */
+    fun displayName(name: String): String = name
+        .replace('_', ' ')
+        .replace(Regex("(?<=[a-z])(?=[A-Z])|(?<=[A-Za-z])(?=[0-9])"), " ")
+        .replace(Regex("\\s+"), " ")
+        .trim()
+
     fun envelope(code: String): String {
         val safe = code.filter { it.isLetterOrDigit() || it == '+' || it == '/' || it == '=' }
         return """<?xml version="1.0"?>""" +
