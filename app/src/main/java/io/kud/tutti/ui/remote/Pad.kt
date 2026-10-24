@@ -284,7 +284,7 @@ fun Pad(
         label = "padSurface",
     )
 
-    // The mode switch lives under the pad (PadModeSwitch), never on it: touchpadGestures reads
+    // The mode switch is the pad's corner tab above it (PadModeSwitch), never on it: touchpadGestures reads
     // every touch, consumed or not, so anything drawn over the surface also reached the TV as OK.
     Box(
         modifier = modifier
