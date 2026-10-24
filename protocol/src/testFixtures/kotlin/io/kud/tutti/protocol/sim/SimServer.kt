@@ -173,10 +173,22 @@ abstract class SimServer(private val name: String) : AutoCloseable {
         server = null
         dropConnections()
         // A freed port is anyone's: the other test JVM's simulators once bound it, so a real client
-        // (OkHttp, which never calls refuseIfAsleep) reached them instead of being refused. Without
-        // SO_REUSEPORT, no simulator can bind beside this socket, and the kernel hands it to no one.
-        if (port != 0) {
-            held = runCatching { Socket().apply { reuseAddress = true; bind(InetSocketAddress(InetAddress.getLoopbackAddress(), port)) } }.getOrNull()
+        // (OkHttp, which never calls refuseIfAsleep) reached them instead of being refused. Held
+        // without SO_REUSEADDR, the port conflicts with every later bind, a port-0 one included;
+        // with it, Linux still hands the port to a new listener, since this socket never listens.
+        // SO_REUSEADDR is only the fallback for a port with links lingering in TIME_WAIT.
+        if (port != 0 && held == null) held = hold(reuse = false) ?: hold(reuse = true)
+    }
+
+    private fun hold(reuse: Boolean): Socket? {
+        val socket = Socket()
+        return try {
+            socket.reuseAddress = reuse
+            socket.bind(InetSocketAddress(InetAddress.getLoopbackAddress(), port))
+            socket
+        } catch (e: IOException) {
+            runCatching { socket.close() }
+            null
         }
     }
 
