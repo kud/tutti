@@ -145,7 +145,7 @@ class TuttiController @Inject constructor(
     val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     private val theatre = TheatreClient(tcp, scope)
-    private val atv = AtvRemote(tls, scope, ClientDeviceInfo(model = "Tutti", packageName = context.packageName))
+    private val atv = AtvRemote(tls, scope, ClientDeviceInfo(model = "tutti", packageName = context.packageName))
 
     @Volatile private var psk: String? = null
 
@@ -1369,7 +1369,7 @@ class TuttiController @Inject constructor(
             val attemptJob = coroutineContext.job
             attemptJob.invokeOnCompletion { watchdog?.cancel() }
             suspend fun pairWith(identity: ClientIdentity): PairingResult {
-                val attempt = AtvPairing(tls, serviceName = "tutti", clientName = "Tutti").also { session = it }
+                val attempt = AtvPairing(tls, serviceName = "tutti", clientName = "tutti").also { session = it }
                 return attempt.pair(address, identity) { tries ->
                     val answer = CompletableDeferred<String?>()
                     codeAnswer = answer

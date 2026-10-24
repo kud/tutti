@@ -1,4 +1,4 @@
-# Tutti · Remote-first brand proposal
+# tutti · Remote-first brand proposal
 
 > **Tout le salon, au bout des doigts.**
 >

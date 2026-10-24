@@ -88,7 +88,7 @@ class Diagnostics @Inject constructor(
                 identity = { identities.existing() },
                 discover = { discover(tv?.host) },
                 cloudNote = cloudNote(ui.cloud),
-                deviceInfo = ClientDeviceInfo(model = "Tutti", packageName = context.packageName),
+                deviceInfo = ClientDeviceInfo(model = "tutti", packageName = context.packageName),
                 // Keeps the scrubbed getPlayingContentInfo reply, to copy while an app plays.
                 developer = ui.prefs.developerMode,
                 barHttp = bar?.let { io.kud.tutti.platform.net.OkHttpBarHttpTransport(it.host) },

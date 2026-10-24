@@ -13,7 +13,7 @@ All three sit on the same `surfaceContainerHighest` tile. The mark is drawn mono
 ## Rules
 
 - Paths are copied unchanged from the pinned release by a one-off conversion (SVG `path` to VectorDrawable `pathData`, same 24x24 viewport). We scale and tint them; we never redraw, crop, recolour in parts or combine them.
-- The marks remain the trademarks of their owners. Tutti uses each only to identify the app a button opens, which is the use Simple Icons' disclaimer and the brands' guidelines allow. The Simple Icons data is CC0; that licence does not cover the trademarks.
+- The marks remain the trademarks of their owners. tutti uses each only to identify the app a button opens, which is the use Simple Icons' disclaimer and the brands' guidelines allow. The Simple Icons data is CC0; that licence does not cover the trademarks.
 - A brand Simple Icons does not carry keeps its letter tile. Never draw, trace or scrape a logo to fill the gap.
 - To update: pick a new release tag (`git ls-remote --tags https://github.com/simple-icons/simple-icons`), fetch `icons/<slug>.svg` at that tag, copy its single `d` into `res/drawable/brand_<slug>.xml`, and update the table.
 
