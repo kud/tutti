@@ -2,6 +2,8 @@
 
 Maya, 2026-10-24. Phase 1 of the "tout faire sans BRAVIA Connect" effort (Erwann, 2026-10-24). Research only: nothing here is implemented, and nothing was run against Erwann's devices. Every row is **unverified on the Bar 9 (HT-A9000) and the XR80** unless it says otherwise; it is what the sources below observed on neighbouring models.
 
+§7 covers handing off to BRAVIA Connect (deep links); §8 is the coverage table for "les simples commandes comme les compliquées" (Erwann, 2026-10-24).
+
 This reverses the earlier MVP line ("BRAVIA Connect kept for fine-tuning", architecture.md §5). That is Erwann's call; this doc says what it costs.
 
 ## Sources, and what was not reachable
@@ -12,7 +14,7 @@ This reverses the earlier MVP line ("BRAVIA Connect kept for fine-tuning", archi
 | [braviafanboy/bravia-tv-grpc-homeassistant](https://github.com/braviafanboy/bravia-tv-grpc-homeassistant): `README.md`, `schema/grpc_field_paths.json`, `schema/grpc_capabilities.json`, `custom_components/bravia_tv_grpc/sensor.py`, `bravia_tv_client.py` | The TV's gRPC field schema with types and enums, signal readout shapes. Tested on a **BRAVIA 8 II (K-65XR8M2)** only; ours is the first-generation BRAVIA 8 | 2026-10-24 |
 | sony-cisip2 0.1.0a1 (PyPI), `commandset.py` | Sony's AV-receiver CIS-IP2 vocabulary (185 keys: `main.*`, `zone2/3.*`, GUI, triggers). **No key for incoming audio format, channel count or sample rate.** `main.input` gets and notifies | 2026-10-24 (previous agent) |
 | Sony's BRAVIA professional reference (pro-bravia.sony.net): REST API reference and structure, IRCC-IP, Simple IP Control | Every documented REST service, method and target | 2026-10-22, local copy |
-| **BRAVIA Connect APK** (`jp.co.sony.hes.home`) | **Not obtained.** APKMirror answers with a Cloudflare challenge; APKPure, APKCombo, APKMonk and apk.support do not answer through the proxy; Google Play serves only the store page. No mirror, no static analysis | — |
+| **BRAVIA Connect APK** (`jp.co.sony.hes.home`) | **Not obtained.** APKMirror answers with a Cloudflare challenge; APKPure, APKCombo, APKMonk and apk.support do not answer through the proxy; Google Play serves only the store page. No mirror, no static analysis. Retried for the manifest on 2026-10-24 (§7): APKPure's download host, APKCombo, Exodus Privacy and Sony's `/.well-known/assetlinks.json` hosts are refused by the session's proxy policy (403 on CONNECT); the Play page answers and lists 3.10.0 as the current version (the captures above are 3.6.3) | 2026-10-24 |
 
 What the missing APK costs: BRAVIA Connect is a **Flutter** app (the Quad author had to hook Dart's `hmacApplyMac` through blutter because nothing went through native `libcrypto`). jadx would have shown the Android shell and little else; the field paths, endpoints and UI strings live in `libapp.so` (Dart AOT snapshot), which needs blutter, not jadx. So the "keys in the APK never shown in its UI" question cannot be answered from the APK in this environment. The substitute is better evidence anyway: **`GetCapabilities` on each device** (no authentication, below) returns the paths the firmware itself advertises, which is the real superset. Every "hidden" item below is "advertised by firmware or vocabulary, absent from BRAVIA Connect's visible UI (per its captures and screenshots)", not "found as a dead string in the APK".
 
@@ -290,3 +292,184 @@ Steps 1 and 2 can ship this week; 3 is independent of the sign-in question; 4 is
 - Whether the TV's gRPC listener needs the TV to be signed in through BRAVIA Connect first (the TV integration says it does; first-generation BRAVIA 8 untested).
 - What BRAVIA Connect's UI hides: unanswerable without the APK (not reachable here; it would need blutter on `libapp.so` in any case).
 - Whether `fw.check_update` on HTTP 54545 is side-effect free.
+
+## 7. Handing off to BRAVIA Connect: deep links
+
+Erwann's idea (2026-10-24): for a setting tutti can't do yet, a button "Ouvrir dans BRAVIA Connect", ideally on the right screen. Android's sandbox rules out reading Connect's data or session, so a launch is the only bridge.
+
+**What is known about Connect's entry points.** The manifest itself was not read: the APK is still out of reach (Sources). What the sources establish without it:
+
+| Entry | Intent data | Evidence | Lands on |
+| --- | --- | --- | --- |
+| Launcher | `ACTION_MAIN` + `CATEGORY_LAUNCHER`, package `jp.co.sony.hes.home` (resolved with `PackageManager.getLaunchIntentForPackage`) | Play listing; every installed launcher app | Connect's home screen |
+| OAuth redirect | `ACTION_VIEW`, `BROWSABLE`, data `ssh-app://signin?code=…` (scheme `ssh-app`, host `signin`) | Seeds' authorize URL uses it as `redirect_uri`; on a phone the browser hands it to Connect, on a computer it fails or asks to launch an app (both integrations' READMEs) | Connect's sign-in completion: it expects a `code` matching a PKCE verifier Connect itself started. **Not a settings screen** |
+| https App Links | none known | no `assetlinks.json` found (hosts unreachable here) | — |
+
+So **no deep link to a settings screen is known**, and none is likely: Connect is a Flutter app, which usually exposes one Android activity and routes screens inside Dart; a path-level route (say `ssh-app://settings/sound`) would have to exist in `libapp.so`'s router, which a manifest would not show anyway. Firing `ssh-app://signin` without a pending sign-in is not a shortcut either: at best Connect ignores it, at worst it shows a sign-in error or disturbs its own session. tutti never sends it.
+
+**The fallback is already shipped.** `openBraviaConnect()` (`app/src/main/java/io/kud/tutti/ui/common/External.kt`, from `bfcbfd8`) launches the launcher intent, falls back to `market://details?id=jp.co.sony.hes.home`, then to the Play web page. The manifest already declares the Android 11+ package visibility it needs:
+
+```xml
+<queries>
+    <package android:name="jp.co.sony.hes.home" />
+</queries>
+```
+
+`getLaunchIntentForPackage` returns null without it; `startActivity` on a `market://` or `https://` VIEW intent needs no `<queries>`. If a scheme deep link ever turns up, `resolveActivity` on it would also need `<queries><intent><action android:name="android.intent.action.VIEW" /><data android:scheme="…" /></intent></queries>`; a plain `startActivity` in a `try` does not.
+
+**What a handoff can still do well, with no deep link:** say *what* to change. Each handoff row in §8 names the setting, and the button can name it too ("DSEE Ultimate : ouvrir BRAVIA Connect"). The menu path inside Connect is not documented in any source and must come from Erwann's phone, not from a guess.
+
+**How to settle it for good, in two minutes, from Erwann's phone** (USB debugging, read-only, nothing installed):
+
+- `adb shell dumpsys package jp.co.sony.hes.home`: the "Activity Resolver Table" lists every exported activity with its actions, categories, schemes, hosts and paths.
+- `adb shell pm get-app-links jp.co.sony.hes.home` (Android 12+): any verified https domains.
+
+If either shows a path-level filter, it goes in this table and `openBraviaConnect()` gains a target; if not, the launcher stays.
+
+## 8. Coverage: the simple commands and the complicated ones
+
+Erwann, 2026-10-24: "on veut absolument que tutti fasse autant les simples commandes que les compliquées." One row per BRAVIA Connect function and per hidden item (marked *hidden*: on a device plane or in the firmware's vocabulary, absent from Connect's UI). Rows describe neighbouring models unless §1–§2 say otherwise; `GetCapabilities` and the diagnostic settle the Bar 9 and XR80.
+
+Channels: **ATV** Android TV Remote v2 · **REST** TV JSON-RPC (PSK where Sony's level is generic or private) · **TCP** bar 33336 · **HTTP** bar 54545 (no auth) · **gRPC** ControlDeviceService with Seeds keys · **cloud** Seeds `/states`.
+
+Next step: **done** tutti does it · **now** buildable with what tutti already holds, no new setup · **PSK** a REST call behind the PSK Erwann sets once (tutti's IP-control step), no Sony account · **sign-in** needs the Seeds sign-in (decision 3.1) · **handoff** "Ouvrir dans BRAVIA Connect" until sign-in exists, for a reversible setting Erwann asked about by name or one that is Sony-account-side · **list-only** dangerous or cuts tutti's own link: listed, guarded per §4, never a button.
+
+### TV, everyday
+
+| Item | Channel | tutti today | Next | Note |
+| --- | --- | --- | --- | --- |
+| Power on / off | ATV, REST, WoL | yes | done | |
+| Volume, mute | ATV | yes | done | |
+| D-pad, back, home, media keys | ATV | yes | done | |
+| Typing on the TV | ATV | yes | done | REST `setTextForm` not needed |
+| Voice search | ATV | yes | done | |
+| App list and launch | ATV, REST | yes | done | |
+| Input switch | REST | yes | done | |
+| What's playing (input, title) | REST | yes | done | |
+| Sony shortcut menus (quick settings, sound menu) | gRPC `remote_key.shortcut` | no | sign-in | |
+| Multi View / picture-in-picture inputs | gRPC `multiview` | no | sign-in | |
+| Inputs with their labels and icons (*hidden*) | REST `getContentList`, `getSourceList` | no | PSK | |
+| Tuner channels | REST `getContentList` (tv scheme) | no | PSK | low value without an aerial |
+
+### TV, picture and sound
+
+| Item | Channel | tutti today | Next | Note |
+| --- | --- | --- | --- | --- |
+| Picture mode | REST | yes | done | |
+| Brightness, contrast, colour, sharpness, colour temperature | REST | yes | done | capability-gated |
+| Light sensor, auto picture mode, HDR mode, colour space, local dimming, XDR | REST | yes | done | where listed |
+| Scene select | REST `getSceneSetting` | yes | done | |
+| Power saving, picture off | REST | yes | done | |
+| Content mode (video, game, PC, movie), Theatre mode | gRPC `display_and_sound_setting.*` | no | sign-in | not in REST at all |
+| Calibrated picture mode | gRPC | no | sign-in | |
+| EU energy-label consent before a picture write | gRPC `confirm_prerequisite` | no | sign-in | only inside a tapped write |
+| Sound output (TV speakers / audio system) | REST `outputTerminal` | yes | done | |
+| TV speaker settings: position, subwoofer level, frequency, phase, power | REST `setSpeakerSettings` | yes | done | |
+| Several outputs at once, per-device activation | gRPC `audio_output.*` | partial | sign-in | REST covers the single choice |
+| Per-output volume (speaker, headphones) (*hidden*) | REST `setAudioVolume` with `target` | no | PSK | |
+| TV Voice Zoom, Bluetooth 3D surround | gRPC | no | sign-in | |
+| Acoustic Center Sync (TV as the centre speaker) | gRPC (bar `center_speaker_mode`, TV speaker) | no | handoff | Erwann named it |
+
+### TV, system and hidden
+
+| Item | Channel | tutti today | Next | Note |
+| --- | --- | --- | --- | --- |
+| Model, generation, system info | REST | yes | done | |
+| Remote start (WoL) on | REST `setWolMode` | yes | done | restrict to "on" (§4) |
+| Network settings readout | REST | yes | done | |
+| Supported functions, clock (*hidden*) | REST `getSystemSupportedFunction`, `getCurrentTime` | no | now | Sony level `none`; diagnostic |
+| Settings schema tree (*hidden*) | REST `getSettingsSchema` / `getSettings` | no | PSK | biggest TV unknown; only if the XR80 lists it |
+| Illumination LED (*hidden*) | REST `setLEDIndicatorStatus` | no | PSK | |
+| Every path the TV advertises (*hidden*) | gRPC `GetCapabilities` | no | now | zero-auth, needs the h2c transport |
+| Video signal: resolution, frame rate, HDR | gRPC `signal_info.video` | no | sign-in | |
+| TV audio signal: codec, channels | gRPC `signal_info.audio` | no | sign-in | |
+| Linked Sony device over HDMI | gRPC `hdmi_connected_device.sshinfo` | no | sign-in | |
+| Firmware status | gRPC `fw_update.*` | no | sign-in | |
+| Simple IP Control (*hidden*) | TCP 20060 | no | now | nothing A–G lacks; not worth a client |
+| Restart the TV | REST `requestReboot` | no | list-only | |
+| Close running apps | REST `terminateApps` | no | list-only | |
+| Screenshot | REST `getScreenshot` | no | list-only | privacy |
+| Remote start off, "Control remotely" off, PSK change, WoL off | REST / gRPC | no | list-only | cuts tutti's own link |
+| Firmware install | gRPC `fw_update.start_update` | no | list-only | |
+
+### Bar, everyday (TCP 33336)
+
+| Item | Channel | tutti today | Next | Note |
+| --- | --- | --- | --- | --- |
+| Power, volume, mute | TCP | yes | done | |
+| Input (TV, HDMI, Spotify, Bluetooth, AirPlay) | TCP | yes | done | |
+| Bass / subwoofer step, rear level | TCP | yes | done | |
+| Voice, sound field on/off, Night, 360 Spatial Sound Mapping | TCP | yes | done | |
+| DRC, Auto Volume | TCP (polled) | yes | done | |
+| IMAX Enhanced, dual mono, AV sync | TCP | yes | done | |
+| Voice Zoom 3 and its level | TCP | yes | done | |
+| HDMI: CEC, pass-through, standby link, ARC / eARC | TCP | yes | done | |
+| Auto standby, network/Bluetooth standby, auto update | TCP | yes | done | standby off says tutti can't wake the bar |
+| Model, firmware version | TCP | yes | done | |
+| Bluetooth mode, connection quality, pairing | TCP | yes | done | |
+| Internal temperature (*hidden*) | TCP `system.temperature` | no | now | |
+| Locale, region, device name (*hidden*) | TCP `system.*` | no | now | name reported answered/refused only |
+| AV sync on the TV path (*hidden*) | TCP `tv.avsync` | no | now | diagnostic first |
+| Wired/wireless, DHCP readout (*hidden*) | TCP `network.mode`, `network.dhcp` | no | now | read only; writes list-only |
+| Wi-Fi strength, network type, internet reachable, AirPlay name (*hidden*) | HTTP | no | now | one small client |
+| Firmware update available? (*hidden*) | HTTP `fw.check_update` | no | now | on a tap, never polled |
+
+### Bar, what BRAVIA Connect adds
+
+| Item | Channel | tutti today | Next | Note |
+| --- | --- | --- | --- | --- |
+| Sound field mode (Dolby Speaker Virtualizer, Neural:X, 360SSM) | gRPC write, cloud read | no | sign-in | |
+| DSEE Ultimate | gRPC write, cloud read | no | handoff | Erwann named it |
+| Height of Sound Field | gRPC `360ssm_height`, cloud read | no | handoff | Erwann named it |
+| DTS Dialog Control | gRPC `dts_dialog_control` | no | handoff | Erwann named it |
+| Sound Field Optimization: measure the room | gRPC `sound_optimization.*` | no | handoff | loud, overwrites calibration; stays in Connect until writes are proven |
+| Sound Field Optimization: results | gRPC | no | sign-in | |
+| Subwoofer −10…10, rear level, subwoofer phase, centre mode and distance | gRPC | partial | sign-in | TCP covers the coarser steps |
+| Front display dimmer | gRPC write, cloud read | no | sign-in | |
+| Mix stage, stereo up-mix vs multi-stereo | gRPC | no | sign-in | model-specific |
+| AV sync per input (HDMI auto, HDMI, ARC) | gRPC | partial | sign-in | TCP has one AV sync |
+| Now playing and transport (Spotify, Bluetooth, AirPlay) | gRPC | no | sign-in | |
+| Why an input is unavailable | gRPC `unavailable_reason` | no | sign-in | |
+| Rename the bar, time zone | gRPC | no | sign-in | |
+| Incoming audio: format, channels, sample rate | gRPC `playback_control.*` | no | sign-in | "TV · 2.0ch" |
+| Upmixer, virtualizer, 360 Reality Audio in use | gRPC | no | sign-in | |
+| No audio, HDMI error, dropouts | gRPC | no | sign-in | |
+| Bluetooth device, codec, signal | gRPC | no | sign-in | |
+| Rear and sub link, versions, faults; rear battery | gRPC | no | sign-in | battery only if advertised |
+| Firmware status and progress | gRPC | partial | sign-in | TCP has the version |
+| Another controller holds the bar (*hidden*) | gRPC `client_control.mutex.any` | no | sign-in | read before writes |
+| Bar position beside the TV, PiP video output (*hidden*) | gRPC | no | sign-in | only if `GetCapabilities` lists them |
+| Every path the bar advertises (*hidden*) | gRPC `GetCapabilities` | no | now | zero-auth, needs the h2c transport |
+| Notify-only values (DRC, DSEE, dimmer, eARC, HDMI format) | cloud | no | sign-in | opt-in, on a tap |
+| First setup, Sony account registration, device sharing | cloud | no | handoff | Sony-account-side, out of scope for tutti |
+| HDMI signal format (4K120 / 8K bandwidth) | gRPC | no | list-only | can blank the picture |
+| Test tone | gRPC | no | list-only | loud, continuous |
+| Demo song, built-in demo mode | gRPC | no | list-only | |
+| Re-link rears and sub, wireless band, easy location | gRPC | no | list-only | can drop the rears |
+| Firmware install, upload, cancel | HTTP, gRPC | no | list-only | |
+| Wi-Fi, WPS, IP configuration changes | HTTP | no | list-only | cuts tutti's own link |
+| External control off | TCP, gRPC | no | list-only | cuts tutti's own link |
+| Sony privacy agreements (`ecia.*`) | gRPC | no | list-only | a consent on Erwann's behalf |
+| Factory reset, service mode | none found | no | list-only | |
+
+### Counts
+
+| Next | Rows | of which *hidden* |
+| --- | --- | --- |
+| done | 29 | 0 |
+| now | 10 | 10 |
+| PSK | 5 | 4 |
+| sign-in | 29 (4 of them partly done today) | 2 |
+| handoff | 6 | 0 |
+| list-only | 14 | 0 |
+| **total** | **93** | **16** |
+
+**Reading it.** The simple commands are done: every everyday TV and bar control BRAVIA Connect offers, tutti already does. What's left splits cleanly. The cheap, sign-in-free part is mostly *hidden* items (readouts, probes, a few REST setters). The complicated part BRAVIA Connect is known for (sound field mode, DSEE, DTS dialogue, height, fine levels, the signal readouts) sits almost entirely on gRPC, and gRPC writes need Seeds keys: there is no sign-in-free route for those, only the handoff.
+
+### Next builds without Sony sign-in
+
+1. **Zero-auth readouts into Technical details** (S). TCP `system.temperature`, `tv.avsync`, the locale keys and `network.mode`/`dhcp`; a read-only HTTP 54545 client for Wi-Fi strength, network type, internet and AirPlay name, plus `fw.check_update` on a tap; REST `getSystemSupportedFunction`. Closes every "now" row except `GetCapabilities`, and the diagnostic proves which keys the Bar 9 answers.
+2. **h2c transport and `GetCapabilities` on both devices** (M). No keys, no writes. It turns every gRPC row from "neighbouring model" into fact for Erwann's bar and TV, and it is step d of the Sony-connection plan, so nothing is wasted whichever way 3.1 goes.
+3. **The PSK rows** (S to M): per-output volume, labelled inputs, the LED, and a read-only probe of `getSettingsSchema`. If the XR80 lists the schema, that tree is the largest TV gain available without sign-in and gets its own plan.
+
+Alongside, at XS: give each handoff row its own named button through the existing `openBraviaConnect()`, so DSEE Ultimate, Height of Sound Field, DTS Dialog Control, Acoustic Center Sync and room measurement each say what to change there. Dangerous rows stay list-only; none of these three builds writes to any of them.
