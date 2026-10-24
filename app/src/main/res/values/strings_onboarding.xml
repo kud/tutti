@@ -46,7 +46,6 @@
     <string name="intro_code_on_tv">Pairing code</string>
     <string name="intro_code_count">%1$d of %2$d</string>
     <string name="intro_code_sent">Code sent to the TV</string>
-    <string name="intro_confirm">Confirm</string>
     <string name="intro_bar_title">Add the Bar 9</string>
     <string name="intro_bar_check_reach">Bar reachable, External control on</string>
     <string name="intro_bar_check_read">Reading sound and settings</string>

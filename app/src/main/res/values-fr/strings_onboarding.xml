@@ -47,7 +47,6 @@
     <string name="intro_code_on_tv">Code d’association</string>
     <string name="intro_code_count">%1$d sur %2$d</string>
     <string name="intro_code_sent">Code envoyé à la TV</string>
-    <string name="intro_confirm">Valider</string>
     <string name="intro_bar_title">Ajoutez la Bar 9</string>
     <string name="intro_bar_check_reach">Barre joignable, Contrôle externe activé</string>
     <string name="intro_bar_check_read">Lecture du son et des réglages</string>

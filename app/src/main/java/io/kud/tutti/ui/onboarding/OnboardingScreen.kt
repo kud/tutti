@@ -462,24 +462,22 @@ private fun CodeStep(pairing: PairingUi, codeSent: Boolean, onSubmit: (String) -
                 color = colors.onSurfaceVariant,
             )
         }
-        Spacer(Modifier.weight(1f))
-        ProgressButton(
+        // No Confirm: the sixth character sends the code. The button only appears to show it
+        // going, and to retry a failure, right under the field so the keyboard never hides it.
+        if (sent || failed || pairing == PairingUi.Done) ProgressButton(
             phase = when {
                 failed -> ActionPhase.FAILURE
                 pairing == PairingUi.Done -> ActionPhase.SUCCESS
-                sent -> ActionPhase.PENDING
-                else -> ActionPhase.IDLE
+                else -> ActionPhase.PENDING
             },
-            label = stringResource(R.string.intro_confirm),
+            label = stringResource(R.string.action_retry),
             onClick = {
                 if (failed) {
                     code = ""
                     onRetry()
-                } else {
-                    submit()
                 }
             },
-            enabled = failed || PairingCode.isComplete(code),
+            enabled = failed,
             pendingLabel = stringResource(R.string.progress_checking),
             successLabel = stringResource(R.string.pairing_done),
             failureMessage = (pairing as? PairingUi.Failed)?.let { pairingStatus(it)?.first },
