@@ -74,7 +74,7 @@ import kotlin.math.roundToInt
  * Three states, told apart by shape as well as colour: connected (the level's number under + and
  * the fill, always shown; Erwann, 2026-10-24: "je veux que le niveau de volume reste affiché"),
  * muted (the fill greys, is hatched, the speaker takes its slash and its disc inverts), and not
- * connected (a dash for the number, no fill, a hollow track, the keys off and the speaker crossed).
+ * connected (no number and no fill, a hollow track, the keys off and the speaker crossed).
  *
  * Three keys, one family (Erwann, 2026-10-24: "un bouton + et -, possiblement en haut et en bas";
  * "pas ouf la transparence de l'icône"): + at the top, the readout under it, − just above the
@@ -136,9 +136,7 @@ fun VolumeRail(
         muted -> stringResource(R.string.volume_state_muted, shown)
         else -> shown.toString()
     }
-    // The number turns to the fill's ink once the fill has climbed past its middle.
     val density = LocalDensity.current
-    val readoutOnFill = railHeight > 0 && fraction * railHeight >= railHeight - with(density) { (READOUT_TOP + READOUT_HALF).toPx() }
 
     // A step key: the controller steps (and bumps at a wall); here, the tick inside the range or the
     // stretch against the wall, as a drag gets.
@@ -265,18 +263,40 @@ fun VolumeRail(
                     },
             )
             // Always a number while connected (the controller keeps the last level until the bar
-            // echoes a new one); a dash while the bar is unreachable, never a stale level.
-            Text(
-                text = shown?.toString() ?: NO_LEVEL,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.SemiBold,
-                color = when {
-                    shown == null -> scheme.onSurfaceVariant
-                    readoutOnFill -> onFill
-                    else -> scheme.onSurface
-                },
-                modifier = Modifier.align(Alignment.TopCenter).padding(top = READOUT_TOP).clearAndSetSemantics { },
-            )
+            // echoes a new one); an ellipsis while its level is not reported yet; nothing while the
+            // bar is unreachable (the crossed speaker and the hollow track say so), never a stale level,
+            // and never a dash that would read as the − key under it. Drawn twice and cut at the
+            // fill's edge, onSurface above and the fill's ink below, so a number the edge crosses
+            // stays whole and legible.
+            if (connected) {
+                val text = shown?.toString() ?: NO_LEVEL
+                val topPx = with(density) { READOUT_TOP.toPx() }
+                val edge = railHeight * (1f - fraction) - topPx
+                for (onFillPart in listOf(false, true)) {
+                    Text(
+                        text = text,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        color = when {
+                            shown == null -> scheme.onSurfaceVariant
+                            onFillPart -> onFill
+                            else -> scheme.onSurface
+                        },
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .padding(top = READOUT_TOP)
+                            .clearAndSetSemantics { }
+                            .drawWithContent {
+                                val cut = edge.coerceIn(0f, size.height)
+                                if (onFillPart) {
+                                    clipRect(top = cut) { this@drawWithContent.drawContent() }
+                                } else {
+                                    clipRect(bottom = cut) { this@drawWithContent.drawContent() }
+                                }
+                            },
+                    )
+                }
+            }
             RailKey(
                 icon = R.drawable.ic_add,
                 label = stringResource(R.string.volume_up),
@@ -414,10 +434,9 @@ private val MINUS_BOTTOM = FOOT_INSET + FOOT_ICON / 2 + FOOT_TARGET / 2
 
 /** The readout, under +. */
 private val READOUT_TOP = KEY_INSET + KEY_TARGET + 4.dp
-private val READOUT_HALF = 14.dp
 
-/** The number while the bar is unreachable: a dash, never a stale level. */
-private const val NO_LEVEL = "–"
+/** The number while connected and the level is not reported yet: waiting, not zero. */
+private const val NO_LEVEL = "…"
 
 /** A step key while the bar is unreachable: dimmed, on top of losing its disc. */
 private const val OFF_ALPHA = 0.38f
