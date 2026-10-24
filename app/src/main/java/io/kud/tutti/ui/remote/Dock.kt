@@ -83,7 +83,7 @@ import io.kud.tutti.ui.common.slotLabel
  * small dots show where he is. A pin runs on tap and opens its editor on long press; a pin with
  * its own long press offers that first, the editor below it, like a launcher's shortcuts. An
  * empty pin asks on tap. A pin whose tap toggles a bar setting wears that setting's state
- * ([PinToggle]): a check badge and a filled, squarer tile when on, an empty ring when off, a
+ * ([PinToggle]): a check badge and the accent-filled, squarer tile when on (Power's and Mute's on), an empty ring when off, a
  * dashed ring when tutti does not know, and TalkBack hears it as a switch.
  */
 @Composable
@@ -198,8 +198,10 @@ private fun PinTile(
     val toggle = pinToggle(slot.primary, state.bar, state.devices.bar != null)
     val on = (toggle as? PinToggle.Known)?.on == true
     val scheme = MaterialTheme.colorScheme
-    val background by animateColorAsState(if (on) scheme.primaryContainer else scheme.surfaceContainerHigh, snappyOrFade(), label = "pin")
-    val content = if (on) scheme.onPrimaryContainer else scheme.onSurfaceVariant
+    // On is the remote's one "on" dress, as on Power and Mute: the accent fill, squarer corners and a
+    // check. Never the doors' tonal fill, which only says "a door", so fill alone never means on.
+    val background by animateColorAsState(if (on) scheme.primary else scheme.surfaceContainerHigh, snappyOrFade(), label = "pin")
+    val content = if (on) scheme.onPrimary else scheme.onSurfaceVariant
     val reduced = LocalReducedMotion.current
     // On also squares the tile a little, as the Sound sheet's tiles do: shape, not only colour.
     val corner by animateDpAsState(if (on) 14.dp else 20.dp, if (reduced) snap() else Motion.snappy(), label = "pinCorner")

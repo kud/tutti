@@ -306,8 +306,8 @@ private fun SoundTile(state: TuttiUiState, feature: TheatreFeature, onTap: () ->
     val value = state.bar.value(feature)
     val on = state.bar.isOn(feature) == true
     val scheme = MaterialTheme.colorScheme
-    val container by animateColorAsState(if (on && reason == null) scheme.primaryContainer else scheme.surfaceContainerHigh, snappyOrFade(), label = "tile")
-    val content = if (on && reason == null) scheme.onPrimaryContainer else scheme.onSurface
+    val container by animateColorAsState(if (on && reason == null) scheme.primary else scheme.surfaceContainerHigh, snappyOrFade(), label = "tile")
+    val content = if (on && reason == null) scheme.onPrimary else scheme.onSurface
     val interaction = remember { MutableInteractionSource() }
     val press = rememberPress(interaction, PressStyle.TILE)
     val feedback = rememberFeedback()
