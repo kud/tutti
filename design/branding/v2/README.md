@@ -28,7 +28,7 @@ Typography: **Inter Display** for brand headlines and **Inter** for UI; wordmark
 
 - [Review board](review-board.svg) — primary mark, dark/light/flat variants, palette, typography
 - [Primary icon SVG](app-icon.svg) and [PNG 512](app-icon.png) — proposed launcher icon
-- The selected image-generated reference is the art-direction source shown in the design discussion. The editable vector drawings deliberately simplify its highlights and are not exact raster copies.
+- **Art-direction reference:** the first ivory remote illustration selected in the design conversation. The PNG and SVG included here are production-oriented interpretations; they do not reproduce the original 3D artwork pixel-for-pixel.
 - [Light icon](app-icon-light.svg), [flat icon](app-icon-flat.svg), [monochrome symbol](symbol-monochrome.svg)
 - [Transparent symbol](symbol.svg), [dark lockup](lockup-dark.svg), [light lockup](lockup-light.svg)
 - [GitHub cover](github-cover.svg)
@@ -40,11 +40,9 @@ Typography: **Inter Display** for brand headlines and **Inter** for UI; wordmark
 2. Check the icon in an Android home-screen grid at 48 px in both modes, respecting adaptive-icon masks.
 3. Check the navigation disc remains legible at small sizes; the flat alternative exists for this purpose.
 4. Check brand copy is **English by default**; translations belong to locale-specific app resources.
-5. Inspect [review-board.svg](review-board.svg) and [github-cover.svg](github-cover.svg) on desktop and mobile for **text/image overlap or clipping**. Layout regions are separated in the source, but pixel-level rendering still needs visual verification.
+5. Inspect text layout in [review-board.svg](review-board.svg) and [github-cover.svg](github-cover.svg) for **no overlaps or clipped text** at mobile widths. Each caption has its own bounded region, separate from imagery.
 6. After selecting the icon, align the splash-screen final frame to it exactly. Preserve the existing remote UI/D-pad; it is not in scope.
 
+**To use after review:** apply the approved adaptive icon to the existing launcher resource, confirm the real icon at small sizes under Android masks, and match the splash end frame to that icon. The running D-pad and UI are intentionally unchanged in this PR.
+
 **Scope:** design files only. No Kotlin, Android resources in `app/`, package names, styles, release configuration or runtime behaviour change.
-
-## Handoff
-
-This PR includes production-usable source assets and a 512 × 512 PNG, but does **not** install them. Once the art direction is approved, Claude can copy the chosen source icon into the real Android adaptive-icon pipeline, export launcher densities from a single master and align the splash-screen rest state. Validate on-device before merging that follow-up. The current in-app D-pad is intentionally unchanged.
