@@ -58,7 +58,10 @@ class FakeBraviaTv(
         https.wake()
     }
 
-    override fun close() = sleep()
+    override fun close() {
+        http.close()
+        https.close()
+    }
 
     inner class Port(name: String, tls: ClientIdentity?) : SimServer(name) {
         private val tlsServer = tls?.let { identity ->
