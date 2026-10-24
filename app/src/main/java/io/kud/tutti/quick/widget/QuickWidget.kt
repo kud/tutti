@@ -160,6 +160,7 @@ private fun SceneRow(state: QuickState, maxPills: Int) {
             ScenePill(
                 scene = scene,
                 active = scene.id == state.activeSceneId,
+                modified = scene.id == state.activeSceneId && state.activeSceneModified,
                 modifier = GlanceModifier.defaultWeight(),
             )
         }
@@ -168,16 +169,23 @@ private fun SceneRow(state: QuickState, maxPills: Int) {
 
 /** No border modifier in Glance: "modifiée" shows in the status line, the pill stays filled. */
 @Composable
-private fun ScenePill(scene: QuickScene, active: Boolean, modifier: GlanceModifier) {
+private fun ScenePill(scene: QuickScene, active: Boolean, modifier: GlanceModifier, modified: Boolean = false) {
     val seed = Color(scene.color)
-    val fill = if (active) seed else seed.copy(alpha = 0.28f)
+    // Changed by hand since it ran: no longer "active", so it loses the fill and the tick and says so,
+    // as the remote's pill does (outline and "modified").
+    val full = active && !modified
+    val fill = if (full) seed else seed.copy(alpha = 0.28f)
     val context = LocalContext.current
     val text = when {
-        active && seed.luminance() > 0.5f -> ColorProvider(Color.Black)
-        active -> ColorProvider(Color.White)
+        full && seed.luminance() > 0.5f -> ColorProvider(Color.Black)
+        full -> ColorProvider(Color.White)
         else -> GlanceTheme.colors.onSurface
     }
-    val described = if (active) context.getString(R.string.quick_scene_active, scene.name) else scene.name
+    val described = when {
+        modified -> context.getString(R.string.quick_scene_modified, scene.name)
+        active -> context.getString(R.string.quick_scene_active, scene.name)
+        else -> scene.name
+    }
     Box(
         modifier = modifier
             .height(36.dp)
@@ -197,8 +205,12 @@ private fun ScenePill(scene: QuickScene, active: Boolean, modifier: GlanceModifi
     ) {
         Text(
             // Active wears a tick as well as the full fill: never told by colour alone.
-            text = if (active) "\u2713 ${scene.name}" else scene.name,
-            style = TextStyle(color = text, fontSize = 13.sp, fontWeight = if (active) FontWeight.Bold else FontWeight.Medium),
+            text = when {
+                modified -> described
+                full -> "\u2713 ${scene.name}"
+                else -> scene.name
+            },
+            style = TextStyle(color = text, fontSize = 13.sp, fontWeight = if (full) FontWeight.Bold else FontWeight.Medium),
             maxLines = 1,
         )
     }
