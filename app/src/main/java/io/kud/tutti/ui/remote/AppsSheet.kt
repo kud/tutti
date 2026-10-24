@@ -2,7 +2,13 @@ package io.kud.tutti.ui.remote
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -48,35 +54,65 @@ import io.kud.tutti.R
 import io.kud.tutti.controller.TuttiUiState
 import io.kud.tutti.platform.data.DockConfig
 import io.kud.tutti.protocol.apps.KnownApp
+import io.kud.tutti.protocol.apps.LaunchResult
+import io.kud.tutti.protocol.net.Redact
 import io.kud.tutti.ui.common.AppIcon
+import io.kud.tutti.ui.common.LocalDeveloperMode
+import io.kud.tutti.ui.common.LocalReducedMotion
+import io.kud.tutti.ui.common.PressStyle
+import io.kud.tutti.ui.common.ProblemNote
 import io.kud.tutti.ui.common.TuttiSheet
 import io.kud.tutti.ui.common.actionLabel
+import io.kud.tutti.ui.common.pressScale
+import io.kud.tutti.ui.common.rememberFeedback
+import io.kud.tutti.ui.common.rememberPressSource
+import io.kud.tutti.ui.common.rememberTuttiIndication
+import io.kud.tutti.ui.motion.SpinnerTiming
+import io.kud.tutti.ui.motion.rememberWaiting
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /** Every app tutti knows, full height over the remote. Back or a tap outside closes it. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AppsSheet(
     state: TuttiUiState,
-    onLaunch: (KnownApp) -> Unit,
+    onLaunch: (KnownApp) -> Deferred<LaunchResult>,
+    onLaunched: () -> Unit,
     onAllApps: () -> Unit,
     onPin: (KnownApp, slot: Int) -> Unit,
     onDismiss: () -> Unit,
 ) {
     TuttiSheet(onDismissRequest = onDismiss) {
-        AppsSheetContent(state, onLaunch, onAllApps, onPin, Modifier.fillMaxHeight())
+        AppsSheetContent(state, onLaunch, onLaunched, onAllApps, onPin, Modifier.fillMaxHeight())
     }
 }
 
+/** A launch that didn't bring the app up: which tile says so, and the redacted trace. */
+private data class TileFailure(val packageName: String, val detail: String)
+
+/**
+ * Tapping a tile launches and waits for the TV to confirm ([LaunchResult]): the ring after the
+ * grace delay, then the sheet closes on success, or the tile says it didn't open.
+ */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun AppsSheetContent(
     state: TuttiUiState,
-    onLaunch: (KnownApp) -> Unit,
+    onLaunch: (KnownApp) -> Deferred<LaunchResult>,
+    onLaunched: () -> Unit,
     onAllApps: () -> Unit,
     onPin: (KnownApp, slot: Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var pinning by remember { mutableStateOf<KnownApp?>(null) }
+    var pending by remember { mutableStateOf<String?>(null) }
+    var failure by remember { mutableStateOf<TileFailure?>(null) }
+    val scope = rememberCoroutineScope()
+    val feedback = rememberFeedback()
+    val developer = LocalDeveloperMode.current
+    val clock: () -> Long = System::currentTimeMillis
     val pinLabel = stringResource(R.string.apps_pin_action)
     LazyVerticalGrid(
         columns = GridCells.Adaptive(minSize = 96.dp),
@@ -137,36 +173,43 @@ fun AppsSheetContent(
                 }
             }
         }
-        items(state.visibleApps, key = { it.packageName }) { app ->
-            Column(
-                Modifier
-                    .clip(RoundedCornerShape(16.dp))
-                    .combinedClickable(
-                        onClickLabel = app.name,
-                        onLongClickLabel = pinLabel,
-                        onLongClick = { pinning = app },
-                        onClick = { onLaunch(app) },
-                    )
-                    .padding(4.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                AppIcon(
-                    name = app.name,
-                    iconPath = state.appIcons[app.packageName],
-                    packageName = app.packageName,
-                    size = 88.dp,
-                    corner = 20.dp,
-                    modifier = Modifier.aspectRatio(1f),
-                )
-                Spacer(Modifier.size(6.dp))
-                Text(
-                    app.name,
-                    style = MaterialTheme.typography.labelMedium,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    textAlign = TextAlign.Center,
-                )
+        val failedApp = failure?.let { f -> state.visibleApps.firstOrNull { it.packageName == f.packageName } }
+        if (failedApp != null && developer) {
+            item(span = { GridItemSpan(maxLineSpan) }, key = "launch-failure") {
+                ProblemNote(stringResource(R.string.apps_launch_failed_note, failedApp.name), failure?.detail)
             }
+        }
+        items(state.visibleApps, key = { it.packageName }) { app ->
+            AppTile(
+                app = app,
+                iconPath = state.appIcons[app.packageName],
+                pending = pending == app.packageName,
+                failed = failure?.packageName == app.packageName,
+                pinLabel = pinLabel,
+                onLongClick = { pinning = app },
+                onClick = {
+                    if (pending != null) return@AppTile
+                    failure = null
+                    pending = app.packageName
+                    val started = clock()
+                    scope.launch {
+                        val result = try {
+                            onLaunch(app).await()
+                        } finally {
+                            pending = null
+                        }
+                        // A spinner that showed stays its minimum time before the outcome lands.
+                        delay(SpinnerTiming.holdAfter(clock() - started))
+                        if (result.ok) {
+                            feedback.confirm()
+                            onLaunched()
+                        } else {
+                            feedback.reject()
+                            failure = TileFailure(app.packageName, Redact.text(result.trace()))
+                        }
+                    }
+                },
+            )
         }
     }
 
@@ -182,6 +225,100 @@ fun AppsSheetContent(
         )
     }
 }
+
+/**
+ * One app: answers on down (scale and click), shows a ring round the icon while the TV is asked
+ * (after the grace delay), and a cross badge plus "Didn't open" when it failed. Never colour alone.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun AppTile(
+    app: KnownApp,
+    iconPath: String?,
+    pending: Boolean,
+    failed: Boolean,
+    pinLabel: String,
+    onLongClick: () -> Unit,
+    onClick: () -> Unit,
+) {
+    val feedback = rememberFeedback()
+    val press = rememberPressSource(PressStyle.TILE, onDown = feedback::click)
+    val waiting = rememberWaiting(pending)
+    val scheme = MaterialTheme.colorScheme
+    val pendingLabel = stringResource(R.string.apps_launch_pending)
+    val failedLabel = stringResource(R.string.apps_launch_failed)
+    Column(
+        Modifier
+            .pressScale(press.state)
+            .clip(TILE_SHAPE)
+            .combinedClickable(
+                interactionSource = press.interaction,
+                indication = rememberTuttiIndication(TILE_SHAPE),
+                onClickLabel = app.name,
+                onLongClickLabel = pinLabel,
+                onLongClick = onLongClick,
+                onClick = onClick,
+            )
+            .semantics {
+                when {
+                    waiting.held -> stateDescription = pendingLabel
+                    failed -> stateDescription = failedLabel
+                }
+            }
+            .padding(4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            AppIcon(
+                name = app.name,
+                iconPath = iconPath,
+                packageName = app.packageName,
+                size = 88.dp,
+                corner = 20.dp,
+                modifier = Modifier.aspectRatio(1f),
+            )
+            if (waiting.spinner) {
+                // Reduced motion: a still three-quarter ring says "working" without turning.
+                if (LocalReducedMotion.current) {
+                    CircularProgressIndicator(progress = { 0.75f }, modifier = Modifier.size(40.dp), color = scheme.onSurface, strokeWidth = 3.dp, trackColor = scheme.surface)
+                } else {
+                    CircularProgressIndicator(modifier = Modifier.size(40.dp), color = scheme.onSurface, strokeWidth = 3.dp, trackColor = scheme.surface)
+                }
+            }
+            if (failed && !waiting.held) {
+                Box(
+                    Modifier
+                        .align(Alignment.TopEnd)
+                        .size(28.dp)
+                        .background(scheme.errorContainer, CircleShape)
+                        .border(2.dp, scheme.surface, CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(painterResource(R.drawable.ic_close), contentDescription = null, tint = scheme.onErrorContainer, modifier = Modifier.size(16.dp))
+                }
+            }
+        }
+        Spacer(Modifier.size(6.dp))
+        Text(
+            app.name,
+            style = MaterialTheme.typography.labelMedium,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center,
+        )
+        if (failed && !waiting.held) {
+            Text(
+                failedLabel,
+                style = MaterialTheme.typography.labelSmall,
+                color = scheme.error,
+                maxLines = 2,
+                textAlign = TextAlign.Center,
+            )
+        }
+    }
+}
+
+private val TILE_SHAPE = RoundedCornerShape(16.dp)
 
 /** Which dock slot takes the app; each row says what it replaces. */
 @Composable

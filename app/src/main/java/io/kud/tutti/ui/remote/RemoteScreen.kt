@@ -340,11 +340,9 @@ fun RemoteScreen(
     when (sheet2) {
         RemoteSheet.APPS -> AppsSheet(
             state = state,
-            onLaunch = { app ->
-                haptics.click()
-                controller.launchApp(app.packageName)
-                sheet2 = null
-            },
+            // The tile plays its own click on down and confirm or reject on the outcome.
+            onLaunch = { app -> controller.launchApp(app.packageName) },
+            onLaunched = { sheet2 = null },
             onAllApps = {
                 haptics.click()
                 controller.openAllApps()

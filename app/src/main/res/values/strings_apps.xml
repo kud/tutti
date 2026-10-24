@@ -6,6 +6,9 @@
     <string name="apps_title">Apps</string>
     <string name="apps_pin_hint">Long-press an app to pin it to the dock.</string>
     <string name="apps_no_ip_hint">IP control is off on the TV, so tutti shows the apps it already knows. Turn it on for the full list and the official icons.</string>
+    <string name="apps_launch_pending">Opening on the TV</string>
+    <string name="apps_launch_failed">Didn’t open</string>
+    <string name="apps_launch_failed_note">The TV didn’t open %1$s. Try again, or open it from the TV’s own apps screen.</string>
     <string name="apps_open_tv_screen">Open the TV’s own apps screen</string>
     <string name="apps_pin_action">Pin to the dock</string>
     <string name="apps_pin_title">Pin %1$s</string>

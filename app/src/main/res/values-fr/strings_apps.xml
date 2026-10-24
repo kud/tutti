@@ -6,6 +6,9 @@
     <string name="apps_title">Applis</string>
     <string name="apps_pin_hint">Appui long sur une appli pour l’épingler au dock.</string>
     <string name="apps_no_ip_hint">Le contrôle IP est désactivé sur le téléviseur : tutti montre les applis qu’il connaît déjà. Activez-le pour la liste complète et les icônes officielles.</string>
+    <string name="apps_launch_pending">Ouverture sur le téléviseur</string>
+    <string name="apps_launch_failed">Pas ouverte</string>
+    <string name="apps_launch_failed_note">Le téléviseur n’a pas ouvert %1$s. Réessayez, ou ouvrez-la depuis l’écran des applis du téléviseur.</string>
     <string name="apps_open_tv_screen">Ouvrir l’écran Applis du téléviseur</string>
     <string name="apps_pin_action">Épingler au dock</string>
     <string name="apps_pin_title">Épingler %1$s</string>
