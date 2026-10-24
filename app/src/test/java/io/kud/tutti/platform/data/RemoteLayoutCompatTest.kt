@@ -92,4 +92,21 @@ class RemoteLayoutCompatTest {
         assertTrue(dock.withPageAdded().pageIsEmpty(1))
         assertTrue(!dock.pageIsEmpty(0))
     }
+
+    @Test
+    fun `the right hand draws the row mirrored, back under the thumb`() {
+        val right = RemoteLayout(hand = Hand.RIGHT)
+        assertEquals(RemoteLayout.DEFAULT_ROW.reversed(), right.rowOnScreen)
+        assertEquals(RowButton.BACK, right.rowOnScreen.last())
+        assertEquals(RemoteLayout.DEFAULT_ROW, RemoteLayout(hand = Hand.LEFT).rowOnScreen)
+    }
+
+    @Test
+    fun `a move on screen lands where it was dropped, for either hand`() {
+        val right = RemoteLayout(hand = Hand.RIGHT).withMovedOnScreen(from = 4, to = 0)
+        assertEquals(RowButton.BACK, right.rowOnScreen.first())
+        assertEquals(RowButton.BACK, right.shownRow.last())
+        val left = RemoteLayout(hand = Hand.LEFT).withMovedOnScreen(from = 0, to = 4)
+        assertEquals(RowButton.BACK, left.rowOnScreen.last())
+    }
 }

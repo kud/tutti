@@ -105,6 +105,19 @@ data class RemoteLayout(
     /** The button at [from] moved to [to], both clamped to the row. */
     fun withMoved(from: Int, to: Int): RemoteLayout = copy(row = shownRow.moved(from, to))
 
+    /**
+     * The row left to right on screen. [row] is kept from the most used outward (Back first), and
+     * the right hand reads it mirrored so Back and Home sit under the thumb (Erwann, 2026-10-24).
+     */
+    val rowOnScreen: List<RowButton> get() = if (hand == Hand.RIGHT) shownRow.asReversed() else shownRow
+
+    /** [withMoved] with positions as drawn ([rowOnScreen]). */
+    fun withMovedOnScreen(from: Int, to: Int): RemoteLayout {
+        if (hand != Hand.RIGHT) return withMoved(from, to)
+        val last = shownRow.size - 1
+        return withMoved(last - from, last - to)
+    }
+
     companion object {
         const val MAX_ROW = 6
         val DEFAULT_ROW = listOf(RowButton.BACK, RowButton.HOME, RowButton.PLAY, RowButton.VOICE, RowButton.KEYBOARD)

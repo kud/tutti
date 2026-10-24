@@ -415,11 +415,11 @@ private fun HandFrame(hand: Hand, onHand: (Hand) -> Unit) {
 
 @Composable
 private fun RowFrame(layout: RemoteLayout, onLayout: ((RemoteLayout) -> RemoteLayout) -> Unit) {
-    val row = layout.shownRow
+    val row = layout.rowOnScreen
     val reorder = rememberReorderState()
     val left = stringResource(R.string.layout_move_left)
     val right = stringResource(R.string.layout_move_right)
-    val move: (Int, Int) -> Unit = { from, to -> onLayout { it.withMoved(from, to) } }
+    val move: (Int, Int) -> Unit = { from, to -> onLayout { it.withMovedOnScreen(from, to) } }
     Box(Modifier.fillMaxWidth().dashedFrame().padding(horizontal = 8.dp, vertical = 14.dp)) {
         if (row.isEmpty()) {
             Text(

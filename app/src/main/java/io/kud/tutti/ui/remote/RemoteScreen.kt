@@ -345,7 +345,7 @@ fun RemoteScreen(
                     }
                 }
 
-                val row = layout.shownRow
+                val row = layout.rowOnScreen
                 if (row.isNotEmpty()) {
                     Row(
                         Modifier.fillMaxWidth().padding(horizontal = 16.dp),
