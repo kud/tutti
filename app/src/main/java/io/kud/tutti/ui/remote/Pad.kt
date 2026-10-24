@@ -69,6 +69,7 @@ import io.kud.tutti.ui.motion.Motion
 import kotlin.math.abs
 import kotlin.math.min
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -488,8 +489,9 @@ private const val TAG_MS = 900L
 private const val HALO_ALPHA = 0.16f
 
 /**
- * One gesture at a time: a swipe emits a D-pad step every [STEP_DP] along its dominant axis;
- * a still finger held past the long-press timeout is a long Select; two fingers become
+ * One gesture at a time: a swipe emits a D-pad step every [STEP_DP] along its dominant axis,
+ * and a finger that rests after a step (within touch slop) repeats it on the [KeyRepeat] schedule
+ * until it moves or lifts; a still finger held past the long-press timeout is a long Select; two fingers become
  * play/pause (tap) or bar volume (vertical drag, one step per [VOLUME_STEP_DP]).
  */
 private suspend fun PointerInputScope.touchpadGestures(
@@ -506,70 +508,90 @@ private suspend fun PointerInputScope.touchpadGestures(
     val volumeStepPx = VOLUME_STEP_DP.dp.toPx()
     val slop = viewConfiguration.touchSlop
     val longPressMillis = viewConfiguration.longPressTimeoutMillis
-    awaitEachGesture {
-        val down = awaitFirstDown(requireUnconsumed = false)
-        onDown(down.position)
-        var pointers = 1
-        var moved = false
-        var longFired = false
-        var travel = Offset.Zero
-        var accumulated = Offset.Zero
-        var volumeAccumulated = 0f
-        var volumeTravel = 0f
-        var lastUptime = down.uptimeMillis
-        while (true) {
-            val event: PointerEvent? = if (!moved && !longFired && pointers == 1) {
-                val remaining = (longPressMillis - (lastUptime - down.uptimeMillis)).coerceAtLeast(1L)
-                withTimeoutOrNull(remaining) { awaitPointerEvent() }
-            } else {
-                awaitPointerEvent()
+    coroutineScope {
+        awaitEachGesture {
+            val down = awaitFirstDown(requireUnconsumed = false)
+            onDown(down.position)
+            var pointers = 1
+            var moved = false
+            var longFired = false
+            var travel = Offset.Zero
+            var accumulated = Offset.Zero
+            var volumeAccumulated = 0f
+            var volumeTravel = 0f
+            var lastUptime = down.uptimeMillis
+            // The repeat after a step: where the finger rested when it went, and the running job.
+            var restAt = Offset.Unspecified
+            var repeater: Job? = null
+            fun stopRepeat() {
+                repeater?.cancel()
+                repeater = null
+                restAt = Offset.Unspecified
             }
-            if (event == null) {
-                longFired = true
-                onLong()
-                continue
+            fun step(code: Int, at: Offset) {
+                onStep(code)
+                stopRepeat()
+                restAt = at
+                repeater = launch { KeyRepeat.run { onStep(code) } }
             }
-            val pressed = event.changes.filter { it.pressed }
-            if (pressed.isEmpty()) break
-            lastUptime = event.changes.first().uptimeMillis
-            if (pressed.size > pointers) pointers = pressed.size
-            if (pointers >= 2) {
-                val dy = pressed.map { it.positionChange().y }.average().toFloat()
-                volumeAccumulated += dy
-                volumeTravel += abs(dy)
-                if (volumeTravel > slop) moved = true
-                while (volumeAccumulated <= -volumeStepPx) {
-                    onTwoFingerStep(1)
-                    volumeAccumulated += volumeStepPx
+            while (true) {
+                val event: PointerEvent? = if (!moved && !longFired && pointers == 1) {
+                    val remaining = (longPressMillis - (lastUptime - down.uptimeMillis)).coerceAtLeast(1L)
+                    withTimeoutOrNull(remaining) { awaitPointerEvent() }
+                } else {
+                    awaitPointerEvent()
                 }
-                while (volumeAccumulated >= volumeStepPx) {
-                    onTwoFingerStep(-1)
-                    volumeAccumulated -= volumeStepPx
+                if (event == null) {
+                    longFired = true
+                    onLong()
+                    continue
                 }
-            } else if (!longFired) {
-                val change = pressed.first()
-                val delta = change.positionChange()
-                onMove(change.position)
-                travel += delta
-                accumulated += delta
-                if (!moved && travel.getDistance() > slop) moved = true
-                if (moved) {
-                    if (abs(accumulated.x) >= stepPx && abs(accumulated.x) >= abs(accumulated.y)) {
-                        val right = accumulated.x > 0
-                        onStep(if (right) V2Key.DPAD_RIGHT else V2Key.DPAD_LEFT)
-                        accumulated = Offset(accumulated.x - if (right) stepPx else -stepPx, 0f)
-                    } else if (abs(accumulated.y) >= stepPx && abs(accumulated.y) > abs(accumulated.x)) {
-                        val downwards = accumulated.y > 0
-                        onStep(if (downwards) V2Key.DPAD_DOWN else V2Key.DPAD_UP)
-                        accumulated = Offset(0f, accumulated.y - if (downwards) stepPx else -stepPx)
+                val pressed = event.changes.filter { it.pressed }
+                if (pressed.isEmpty()) break
+                if (pressed.size > 1) stopRepeat()
+                lastUptime = event.changes.first().uptimeMillis
+                if (pressed.size > pointers) pointers = pressed.size
+                if (pointers >= 2) {
+                    val dy = pressed.map { it.positionChange().y }.average().toFloat()
+                    volumeAccumulated += dy
+                    volumeTravel += abs(dy)
+                    if (volumeTravel > slop) moved = true
+                    while (volumeAccumulated <= -volumeStepPx) {
+                        onTwoFingerStep(1)
+                        volumeAccumulated += volumeStepPx
+                    }
+                    while (volumeAccumulated >= volumeStepPx) {
+                        onTwoFingerStep(-1)
+                        volumeAccumulated -= volumeStepPx
+                    }
+                } else if (!longFired) {
+                    val change = pressed.first()
+                    val delta = change.positionChange()
+                    onMove(change.position)
+                    travel += delta
+                    accumulated += delta
+                    if (!moved && travel.getDistance() > slop) moved = true
+                    // Moving again ends the repeat; the travel goes on counting steps as before.
+                    if (restAt.isSpecified && (change.position - restAt).getDistance() > slop) stopRepeat()
+                    if (moved) {
+                        if (abs(accumulated.x) >= stepPx && abs(accumulated.x) >= abs(accumulated.y)) {
+                            val right = accumulated.x > 0
+                            step(if (right) V2Key.DPAD_RIGHT else V2Key.DPAD_LEFT, change.position)
+                            accumulated = Offset(accumulated.x - if (right) stepPx else -stepPx, 0f)
+                        } else if (abs(accumulated.y) >= stepPx && abs(accumulated.y) > abs(accumulated.x)) {
+                            val downwards = accumulated.y > 0
+                            step(if (downwards) V2Key.DPAD_DOWN else V2Key.DPAD_UP, change.position)
+                            accumulated = Offset(0f, accumulated.y - if (downwards) stepPx else -stepPx)
+                        }
                     }
                 }
+                event.changes.forEach { it.consume() }
             }
-            event.changes.forEach { it.consume() }
-        }
-        onUp()
-        if (!moved && !longFired) {
-            if (pointers >= 2) onTwoFingerTap() else onTap(down.position)
+            stopRepeat()
+            onUp()
+            if (!moved && !longFired) {
+                if (pointers >= 2) onTwoFingerTap() else onTap(down.position)
+            }
         }
     }
 }
