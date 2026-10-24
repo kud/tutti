@@ -1,7 +1,6 @@
 package io.kud.tutti.ui.remote
 
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -20,7 +19,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -85,8 +83,8 @@ import kotlinx.coroutines.launch
  * A held direction repeats on the [KeyRepeat] schedule, on the D-pad and under a finger resting after a swipe step.
  * Two gestures only, in touchpad mode: two-finger tap = play/pause, two-finger vertical drag = bar volume.
  *
- * Each swipe step leaves a dot behind the halo that fades over 250 ms; a two-finger step shows a
- * "Vol 24" tag at the top, from [volume] and [volumeCap], ticking inside the range (the walls are
+ * The halo follows the finger and steps leave no mark (Erwann, 2026-10-24: the halo stays, the
+ * step dot goes); a two-finger step shows a "Vol 24" tag at the top, from [volume] and [volumeCap], ticking inside the range (the walls are
  * the controller's bump).
  */
 @Composable
@@ -114,7 +112,6 @@ fun Pad(
     val volumeStep by rememberUpdatedState(onVolumeStep)
     val currentVolume by rememberUpdatedState(volume)
     val currentCap by rememberUpdatedState(volumeCap)
-    val dots = remember { mutableStateListOf<StepDot>() }
     var tagVisible by remember { mutableStateOf(false) }
     var tagLevel by remember { mutableIntStateOf(0) }
     var tagJob by remember { mutableStateOf<Job?>(null) }
@@ -144,18 +141,6 @@ fun Pad(
         }
     }
 
-    // A step leaves a dot where the finger was, fading behind the halo.
-    fun dot() {
-        val at = glow
-        if (!at.isSpecified) return
-        val dot = StepDot(at)
-        dots += dot
-        scope.launch {
-            dot.alpha.animateTo(0f, tween(durationMillis = DOT_FADE_MS))
-            dots.remove(dot)
-        }
-    }
-
     // The two-finger level, counted from the tag while it shows so quick steps never read a stale state.
     fun volumeTag(delta: Int) {
         val base = (if (tagVisible) tagLevel else null) ?: currentVolume ?: return
@@ -181,7 +166,6 @@ fun Pad(
                 onSwitch = { switchTo(PadMode.DPAD) },
                 onStep = { code ->
                     haptics.tick()
-                    dot()
                     key(code)
                 },
                 onTap = { at ->
@@ -336,9 +320,6 @@ fun Pad(
             .background(surfaceColor)
             .then(semanticsModifier)
             .drawBehind {
-                dots.forEach { dot ->
-                    drawCircle(glowColor.copy(alpha = DOT_ALPHA * dot.alpha.value), radius = DOT_RADIUS.toPx(), center = dot.at)
-                }
                 if (glow.isSpecified && glowAlpha.value > 0f) {
                     drawCircle(
                         brush = Brush.radialGradient(
@@ -564,15 +545,6 @@ private val OK_RING_WIDTH = 3.dp
 
 /** How far a pressed chevron steps outward; none when motion is reduced. */
 private val CHEVRON_TRAVEL = 3.dp
-
-/** A swipe step's dot: where the finger was, fading over [DOT_FADE_MS]. */
-private class StepDot(val at: Offset) {
-    val alpha: Animatable<Float, AnimationVector1D> = Animatable(1f)
-}
-
-private const val DOT_FADE_MS = 250
-private const val DOT_ALPHA = 0.5f
-private val DOT_RADIUS = 5.dp
 
 /** How long the "Vol 24" tag stays after the last two-finger step. */
 private const val TAG_MS = 900L
