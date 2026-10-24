@@ -240,9 +240,9 @@ fun RemoteScreen(
                     )
                 }
 
-                // The thumb reaches about half the screen (Erwann, 2026-10-24): the rarely used mode
-                // switch stands at the top, the pad and the rail stand low, one height side by side,
-                // and the free room goes between them (placePad). Large takes the margins back.
+                // The thumb reaches about half the screen (Erwann, 2026-10-24): the pad and the rail
+                // stand low, one height side by side, the mode switch a glyph on the pad's corner,
+                // and the free room goes above them to the card (placePad). Large takes the margins back.
                 val large = layout.padSize == PadSize.LARGE
                 val railGap = if (large) 8.dp else 12.dp
                 val showing = cardShowing(state)
@@ -256,7 +256,7 @@ fun RemoteScreen(
                         val place = placePad(maxHeight.value, (maxWidth - railGap - RAIL_WIDTH).value, layout.padSize)
                         val shown = showing?.takeIf { place.card.size != CardSize.HIDDEN }
                         SideEffect { cardShown = shown != null }
-                        // The card centres in the room above the tab (Erwann, 2026-10-24: the band
+                        // The card centres in the room above the pad (Erwann, 2026-10-24: the band
                         // must read as meant, not as a void), full width less 16 dp margins.
                         if (shown != null) {
                             Box(
@@ -275,15 +275,6 @@ fun RemoteScreen(
                                 )
                             }
                         }
-                        // The pad's corner tab: on its start edge, its track 12 dp above the pad's
-                        // top, its 48 dp target 6 dp clear of it, moving with it (Iris's option A).
-                        PadModeSwitch(
-                            mode = state.prefs.padMode,
-                            onModeChange = controller::setPadMode,
-                            modifier = Modifier
-                                .align(Alignment.BottomStart)
-                                .padding(bottom = (place.below + place.height + SWITCH_CLEAR).dp),
-                        )
                         Row(
                             Modifier
                                 .align(Alignment.BottomStart)
@@ -297,6 +288,7 @@ fun RemoteScreen(
                                 onLongSelect = { controller.longPress(V2Key.DPAD_CENTER) },
                                 onPlayPause = { controller.key(V2Key.MEDIA_PLAY_PAUSE) },
                                 onVolumeStep = controller::volumeStep,
+                                onModeChange = controller::setPadMode,
                                 volume = state.volume.takeIf { state.bar.connected },
                                 volumeCap = state.volumeCap,
                                 modifier = Modifier.weight(1f).fillMaxHeight(),

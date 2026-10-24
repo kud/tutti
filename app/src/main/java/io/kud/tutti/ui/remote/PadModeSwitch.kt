@@ -1,36 +1,25 @@
 package io.kud.tutti.ui.remote
 
-import androidx.annotation.DrawableRes
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.spring
-import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.focusable
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
@@ -41,52 +30,31 @@ import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.stateDescription
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import io.kud.tutti.R
 import io.kud.tutti.platform.data.PadMode
-import io.kud.tutti.ui.common.LocalReducedMotion
-import io.kud.tutti.ui.common.rememberHaptics
-import kotlin.math.roundToInt
 
 /**
- * The pad's mode switch (K1, Iris with Erwann): the pad's corner tab, on its start edge with the
- * track 12 dp above the pad's top, moving with the pad and never on it (Iris's option A, chosen by
- * Erwann, 2026-10-24; [placePad] keeps its room). A cell per mode and a thumb under the current one. A tap on
- * the other cell switches; a tap on the current one does nothing. The track is drawn
- * [TRACK_HEIGHT] tall and answers over [PAD_SWITCH_HEIGHT]: nothing tappable sits round it.
+ * The pad's mode switch (K1, Erwann, 2026-10-24): one quiet glyph on the pad's surface, in its
+ * top-right corner, that doesn't break the pad's shape. It shows the mode a tap switches TO, in
+ * its outline form (the touchpad's in D-pad mode, the D-pad's in touchpad mode): the pad already
+ * says the current mode loudly. A bare 24 dp glyph in the on-surface-variant tone, 16 dp in from
+ * the top and right edges, with no chip, border or label (Erwann's reference build); [pressed]
+ * tints and tightens it.
  *
- * The current mode is told by shape, never colour: the thumb sits under it and its icon is the
- * solid one, the other the outline. To TalkBack, Switch Access and a keyboard the strip is one
- * switch whose click toggles, with an action for each mode.
+ * It draws and speaks; it never reads a touch. The pad's own gesture code hit-tests the corner
+ * ([inPadSwitchCorner]) and calls [onSwitch] for a tap there ([padTouchEnd]), so a swipe that
+ * starts in the corner stays a swipe and nothing reaches the TV twice. To TalkBack, Switch
+ * Access and a keyboard it is one button: the state is the current mode, the click switches,
+ * with an action for each mode.
  */
 @Composable
 fun PadModeSwitch(
     mode: PadMode,
-    onModeChange: (PadMode) -> Unit,
+    pressed: Boolean,
+    onSwitch: (PadMode) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val haptics = rememberHaptics()
-    val reduced = LocalReducedMotion.current
-    val density = LocalDensity.current
-    val travelPx = with(density) { (CELL_WIDTH + CELL_GAP).toPx() }
-
-    // 0 = D-pad (left), 1 = touchpad (right). The icons read it too, so the solid icon is always
-    // the one under the thumb, even mid-slide.
-    val thumb = remember { Animatable(mode.position) }
-    val current by rememberUpdatedState(mode)
-    val change by rememberUpdatedState(onModeChange)
-
-    LaunchedEffect(mode) {
-        if (reduced) thumb.snapTo(mode.position) else thumb.animateTo(mode.position, spring(dampingRatio = 0.62f, stiffness = Spring.StiffnessMedium))
-    }
-
-    fun pick(target: PadMode) {
-        if (target == current) return
-        haptics.select()
-        change(target)
-    }
-
     val label = stringResource(R.string.pad_mode_label)
     val dpadName = stringResource(R.string.pad_mode_dpad)
     val touchpadName = stringResource(R.string.pad_mode_touchpad)
@@ -95,93 +63,83 @@ fun PadModeSwitch(
     val interaction = remember { MutableInteractionSource() }
     val focused by interaction.collectIsFocusedAsState()
     val scheme = MaterialTheme.colorScheme
-    val trackShape = RoundedCornerShape(TRACK_HEIGHT / 2)
 
-    Box(
-        modifier
-            .size(TRACK_WIDTH, PAD_SWITCH_HEIGHT)
-            .clearAndSetSemantics {
-                role = Role.Switch
-                contentDescription = label
-                stateDescription = if (mode == PadMode.DPAD) dpadName else touchpadName
-                onClick(label = if (mode == PadMode.DPAD) toTouchpad else toDpad) {
-                    pick(mode.other)
-                    true
-                }
-                customActions = listOf(
-                    CustomAccessibilityAction(toDpad) {
-                        pick(PadMode.DPAD)
-                        true
-                    },
-                    CustomAccessibilityAction(toTouchpad) {
-                        pick(PadMode.TOUCHPAD)
-                        true
-                    },
-                )
-            }
-            .onKeyEvent { event ->
-                if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
-                when (event.key) {
-                    Key.Enter, Key.NumPadEnter, Key.Spacebar -> pick(current.other)
-                    Key.DirectionLeft -> pick(PadMode.DPAD)
-                    Key.DirectionRight -> pick(PadMode.TOUCHPAD)
-                    else -> return@onKeyEvent false
-                }
-                true
-            }
-            .focusable(interactionSource = interaction)
-            // The whole 48 dp target answers; the track is drawn inside it.
-            .pointerInput(Unit) {
-                detectTapGestures { at -> pick(if (at.x < size.width / 2f) PadMode.DPAD else PadMode.TOUCHPAD) }
-            }
-            .padding(vertical = (PAD_SWITCH_HEIGHT - TRACK_HEIGHT) / 2)
-            .background(scheme.surfaceContainerLow, trackShape)
-            .border(if (focused) 2.dp else 1.3.dp, if (focused) scheme.primary else scheme.outlineVariant, trackShape),
-    ) {
-        val at = thumb.value
+    fun pick(target: PadMode) {
+        if (target != mode) onSwitch(target)
+    }
+
+    // The corner square; the 48 dp target sits in its bottom-start, so the glyph lands 16 dp in.
+    Box(modifier.size(PAD_SWITCH_ZONE.dp)) {
         Box(
             Modifier
-                .align(Alignment.CenterStart)
-                .offset { IntOffset((TRACK_INSET.toPx() + at * travelPx).roundToInt(), 0) }
-                .size(CELL_WIDTH, CELL_HEIGHT)
-                .background(scheme.primaryContainer, RoundedCornerShape(CELL_HEIGHT / 2)),
-        )
-        val onTouchpad = at >= 0.5f
-        Cell(
-            icon = if (onTouchpad) R.drawable.ic_pad_dpad_outline else R.drawable.ic_pad_dpad_filled,
-            selected = !onTouchpad,
-            modifier = Modifier.align(Alignment.CenterStart).padding(start = TRACK_INSET),
-        )
-        Cell(
-            icon = if (onTouchpad) R.drawable.ic_pad_touchpad_filled else R.drawable.ic_pad_touchpad_outline,
-            selected = onTouchpad,
-            modifier = Modifier.align(Alignment.CenterEnd).padding(end = TRACK_INSET),
-        )
+                .align(Alignment.BottomStart)
+                .size(TARGET)
+                .clearAndSetSemantics {
+                    role = Role.Button
+                    contentDescription = label
+                    stateDescription = if (mode == PadMode.DPAD) dpadName else touchpadName
+                    onClick(label = if (mode == PadMode.DPAD) toTouchpad else toDpad) {
+                        pick(mode.other)
+                        true
+                    }
+                    customActions = listOf(
+                        CustomAccessibilityAction(toDpad) {
+                            pick(PadMode.DPAD)
+                            true
+                        },
+                        CustomAccessibilityAction(toTouchpad) {
+                            pick(PadMode.TOUCHPAD)
+                            true
+                        },
+                    )
+                }
+                .onKeyEvent { event ->
+                    if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
+                    when (event.key) {
+                        Key.Enter, Key.NumPadEnter, Key.Spacebar -> pick(mode.other)
+                        else -> return@onKeyEvent false
+                    }
+                    true
+                }
+                .focusable(interactionSource = interaction)
+                // A keyboard's focus is the only time anything but the glyph is drawn.
+                .border(2.dp, scheme.primary.copy(alpha = if (focused) 1f else 0f), CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                painter = painterResource(if (mode == PadMode.DPAD) R.drawable.ic_pad_touchpad_outline else R.drawable.ic_pad_dpad_outline),
+                contentDescription = null,
+                tint = if (pressed) scheme.onSurface else scheme.onSurfaceVariant,
+                // Pressed: a brief tint and the glyph tightening under the finger, nothing else.
+                modifier = Modifier.size(GLYPH).graphicsLayer {
+                    val scale = if (pressed) PRESSED_SCALE else 1f
+                    scaleX = scale
+                    scaleY = scale
+                },
+            )
+        }
     }
 }
 
-@Composable
-private fun Cell(@DrawableRes icon: Int, selected: Boolean, modifier: Modifier) {
-    Box(modifier.size(CELL_WIDTH, CELL_HEIGHT), contentAlignment = Alignment.Center) {
-        Icon(
-            painter = painterResource(icon),
-            contentDescription = null,
-            tint = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(22.dp),
-        )
-    }
+/** What a finished one-finger or two-finger touch on the touchpad means. */
+internal enum class PadTouchEnd { NOTHING, TAP, TWO_FINGER_TAP, SWITCH }
+
+/**
+ * The touchpad's verdict when the last finger lifts. A touch that moved past slop or became a long
+ * press was already acted on; a still two-finger touch is play/pause; a still one-finger touch is
+ * OK, unless it went down inside the switch's corner, where it switches mode instead and never
+ * reaches the TV (a long hold there does nothing). Only the down position counts, so a swipe that
+ * starts in the corner, or crosses it, tracks as normal.
+ */
+internal fun padTouchEnd(moved: Boolean, longFired: Boolean, pointers: Int, startedInCorner: Boolean): PadTouchEnd = when {
+    moved || longFired -> PadTouchEnd.NOTHING
+    pointers >= 2 -> PadTouchEnd.TWO_FINGER_TAP
+    startedInCorner -> PadTouchEnd.SWITCH
+    else -> PadTouchEnd.TAP
 }
 
-private val PadMode.position: Float get() = if (this == PadMode.TOUCHPAD) 1f else 0f
+internal val PadMode.other: PadMode get() = if (this == PadMode.TOUCHPAD) PadMode.DPAD else PadMode.TOUCHPAD
 
-private val PadMode.other: PadMode get() = if (this == PadMode.TOUCHPAD) PadMode.DPAD else PadMode.TOUCHPAD
-
-private val CELL_WIDTH = 52.dp
-private val CELL_HEIGHT = 28.dp
-private val CELL_GAP = 4.dp
-private val TRACK_INSET = 4.dp
-private val TRACK_WIDTH = TRACK_INSET * 2 + CELL_WIDTH * 2 + CELL_GAP
-
-/** The switch's touch target, taller than the track it draws. */
-internal val PAD_SWITCH_HEIGHT = 48.dp
-private val TRACK_HEIGHT = 36.dp
+private val GLYPH = 24.dp
+private val TARGET = 48.dp
+private const val PRESSED_SCALE = 0.9f

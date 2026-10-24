@@ -6,7 +6,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PadLayoutTest {
-    // What a portrait phone leaves the pad block (card room, tab, pad), from the remote's fixed
+    // What a portrait phone leaves the pad block (card room, pad), from the remote's fixed
     // parts in dp: status bar 24, header 68, scene pills 48, round keys 52, 12, dock 84, 12, Son
     // peek 72, gesture bar 24. The pad's width is the screen less 2 × 16 margin, the 12 gap and
     // the 64 rail.
@@ -19,7 +19,7 @@ class PadLayoutTest {
     }
 
     private fun assertFits(place: PadPlacement, available: Float) {
-        assertEquals(available, place.cardRoom + place.tab + place.height + place.below, 0.01f)
+        assertEquals(available, place.cardRoom + place.height + place.below, 0.01f)
         assertTrue(place.cardRoom >= 0f)
         assertTrue(place.height >= 0f)
         // The card, when shown, keeps its margins inside its room.
@@ -27,21 +27,27 @@ class PadLayoutTest {
     }
 
     @Test
-    fun `a short phone gives the pad all it can and hides the card, never the tab`() {
+    fun `a short phone gives the pad all it can and hides the card`() {
         val (place, available, padWidth) = phone(360f, 640f)
         assertFits(place, available)
         assertEquals(PAD_BELOW, place.below, 0.01f)
         assertEquals(PAD_MIN_ABOVE, place.cardRoom, 0.01f)
-        assertEquals(SWITCH_GROUP, place.tab, 0.01f)
         assertTrue(place.height < padWidth * padRatio(PadSize.NORMAL))
         assertEquals(CardSize.HIDDEN, place.card.size)
     }
 
     @Test
-    fun `a mid phone stops the pad growing and shows the card as one line`() {
+    fun `a mid phone stops the pad growing and, with the tab gone, shows the full card`() {
         val (place, available, padWidth) = phone(390f, 844f)
         assertFits(place, available)
         assertEquals(padWidth * padRatio(PadSize.NORMAL), place.height, 0.01f)
+        assertEquals(CardSize.FULL, place.card.size)
+    }
+
+    @Test
+    fun `a phone between short and mid shows the card as one line`() {
+        val (place, available, _) = phone(360f, 760f)
+        assertFits(place, available)
         assertEquals(CardFit(CardSize.LINE, CARD_LINE), place.card)
     }
 
@@ -56,10 +62,11 @@ class PadLayoutTest {
 
     @Test
     fun `the card grows to its ceiling in Erwann's band and centres in it`() {
-        // His 412x915 (dev.46): pills end at 165, the pad's top at 387, so 168 dp above the tab.
-        val fit = cardFor(387f - 165f - SWITCH_GROUP)
+        // His 412x915 (dev.46): pills end at 165, the pad's top at 387, and the tab's 54 dp is the card's now.
+        val room = 387f - 165f
+        val fit = cardFor(room)
         assertEquals(CardFit(CardSize.FULL, CARD_MAX), fit)
-        val margin = (168f - fit.height) / 2f
+        val margin = (room - fit.height) / 2f
         assertTrue("margin $margin either side", margin >= CARD_MARGIN)
     }
 
@@ -75,8 +82,8 @@ class PadLayoutTest {
     @Test
     fun `the pad's middle sits in the lower half on a tall phone`() {
         val (place, _, _) = phone(412f, 915f)
-        // From the screen's top: the status bar, header and pills, then the card room and the tab.
-        val middle = 24f + 68f + 48f + place.cardRoom + place.tab + place.height / 2f
+        // From the screen's top: the status bar, header and pills, then the card room.
+        val middle = 24f + 68f + 48f + place.cardRoom + place.height / 2f
         assertTrue("pad middle at $middle dp", middle > 915f / 2f)
     }
 
@@ -96,5 +103,45 @@ class PadLayoutTest {
             assertTrue(place.cardRoom >= 0f && place.height >= 0f && place.below >= 0f)
             assertEquals(CardSize.HIDDEN, place.card.size)
         }
+    }
+
+    @Test
+    fun `the d-pad never reaches the switch's corner, on any phone or pad size`() {
+        for (width in listOf(320f, 360f, 390f, 412f, 480f)) {
+            for (height in listOf(600f, 640f, 740f, 844f, 915f, 1000f)) {
+                for (size in PadSize.entries) {
+                    val (place, _, padWidth) = phone(width, height, size)
+                    if (place.height <= 0f) continue
+                    val r = dpadFaceRadius(padWidth, place.height, PAD_SWITCH_ZONE)
+                    val reach = r * DPAD_REACH
+                    // The corner square's nearest point to the disc's centre.
+                    val cx = padWidth / 2f
+                    val cy = place.height / 2f
+                    val nx = cx.coerceIn(padWidth - PAD_SWITCH_ZONE, padWidth)
+                    val ny = cy.coerceIn(0f, PAD_SWITCH_ZONE)
+                    val gap = kotlin.math.hypot(cx - nx, cy - ny)
+                    assertTrue("${width}x$height $size: reach $reach, corner at $gap", reach <= gap + 0.01f)
+                    // The face never outgrows the pad.
+                    assertTrue(2f * r <= minOf(padWidth, place.height) + 0.01f)
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `a tall pad keeps the full disc, a square one gives up only a little`() {
+        assertEquals(304f / 2f, dpadFaceRadius(304f, 365f, PAD_SWITCH_ZONE), 0.01f)
+        val square = dpadFaceRadius(304f, 304f, PAD_SWITCH_ZONE)
+        assertTrue("square face $square", square < 152f && square > 152f * 0.9f)
+    }
+
+    @Test
+    fun `the switch's corner is the pad's top-right 52 dp, nowhere else`() {
+        val w = 304f
+        assertTrue(inPadSwitchCorner(w - 1f, 1f, w, PAD_SWITCH_ZONE))
+        assertTrue(inPadSwitchCorner(w - 52f, 52f, w, PAD_SWITCH_ZONE))
+        assertTrue(!inPadSwitchCorner(w - 53f, 10f, w, PAD_SWITCH_ZONE))
+        assertTrue(!inPadSwitchCorner(w - 10f, 53f, w, PAD_SWITCH_ZONE))
+        assertTrue(!inPadSwitchCorner(10f, 10f, w, PAD_SWITCH_ZONE))
     }
 }

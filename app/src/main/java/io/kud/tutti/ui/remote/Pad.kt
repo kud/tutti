@@ -12,7 +12,8 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
@@ -26,6 +27,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.AbsoluteAlignment
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -48,6 +50,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.contentDescription
@@ -66,6 +69,7 @@ import io.kud.tutti.ui.common.ValueTag
 import io.kud.tutti.ui.common.rememberHaptics
 import io.kud.tutti.ui.intro.LocalIntroAnchors
 import io.kud.tutti.ui.motion.Motion
+import io.kud.tutti.ui.motion.snappyOrFade
 import kotlin.math.abs
 import kotlin.math.min
 import kotlinx.coroutines.Job
@@ -75,7 +79,8 @@ import kotlinx.coroutines.launch
 
 /**
  * The pad: one large quiet surface, no grid lines. Touchpad (swipe steps) or D-pad (a disc with
- * a chevron at each point and an OK centre); [PadModeSwitch] under it switches in one move. Tap = OK; long press = held Select for the TV.
+ * a chevron at each point and an OK centre); [PadModeSwitch], a quiet glyph in its top-right corner, switches in one tap.
+ * Tap = OK; long press = held Select for the TV.
  * A held direction repeats on the [KeyRepeat] schedule, on the D-pad and under a finger resting after a swipe step.
  * Two gestures only, in touchpad mode: two-finger tap = play/pause, two-finger vertical drag = bar volume.
  *
@@ -90,6 +95,8 @@ fun Pad(
     onLongSelect: () -> Unit,
     onPlayPause: () -> Unit,
     onVolumeStep: (Int) -> Unit,
+    /** Null where the pad's mode is fixed (the input view's D-pad): no switch is drawn or hit. */
+    onModeChange: ((PadMode) -> Unit)?,
     modifier: Modifier = Modifier,
     volume: Int? = null,
     volumeCap: Int? = null,
@@ -116,6 +123,15 @@ fun Pad(
     // tells the time honestly. Reduced motion: no sweep, it appears whole at the timeout.
     val okRing = remember { Animatable(0f) }
     val reducedNow by rememberUpdatedState(LocalReducedMotion.current)
+    val modeChange by rememberUpdatedState(onModeChange)
+    // The corner switch: pressed while a finger that went down in its square is still there.
+    var switchPressed by remember { mutableStateOf(false) }
+    val switchable = onModeChange != null
+    fun switchTo(target: PadMode) {
+        val change = modeChange ?: return
+        haptics.select()
+        change(target)
+    }
 
     fun flash(at: Offset) {
         glow = at
@@ -154,8 +170,12 @@ fun Pad(
 
     val padLabel = stringResource(R.string.pad_label)
     val gestures = if (mode == PadMode.TOUCHPAD) {
-        Modifier.pointerInput(haptics) {
+        Modifier.pointerInput(haptics, switchable) {
+            val corner = if (switchable) PAD_SWITCH_ZONE.dp.toPx() else 0f
             touchpadGestures(
+                inCorner = { at -> inPadSwitchCorner(at.x, at.y, size.width.toFloat(), corner) },
+                onCornerPress = { switchPressed = it },
+                onSwitch = { switchTo(PadMode.DPAD) },
                 onStep = { code ->
                     haptics.tick()
                     dot()
@@ -188,10 +208,18 @@ fun Pad(
             )
         }
     } else {
-        Modifier.pointerInput(haptics) {
+        Modifier.pointerInput(haptics, switchable) {
+            val corner = if (switchable) PAD_SWITCH_ZONE.dp.toPx() else 0f
+            fun zoneAt(at: Offset): Int? = dpadZone(at, size.width.toFloat(), size.height.toFloat(), corner)
+            fun cornerAt(at: Offset): Boolean = inPadSwitchCorner(at.x, at.y, size.width.toFloat(), corner)
             detectTapGestures(
                 onPress = { at ->
-                    val zone = dpadZone(at, size.width.toFloat(), size.height.toFloat())
+                    val zone = zoneAt(at)
+                    if (zone == null && cornerAt(at)) {
+                        switchPressed = true
+                        tryAwaitRelease()
+                        switchPressed = false
+                    }
                     if (zone != null) {
                         pressedZone = zone
                         // On down, in the frame: OK is a key (click), a direction a step (tick).
@@ -238,11 +266,13 @@ fun Pad(
                 },
                 // Directions are sent from onPress, so a hold can repeat; only OK waits for the tap.
                 onTap = { at ->
-                    val zone = dpadZone(at, size.width.toFloat(), size.height.toFloat())
+                    val zone = zoneAt(at)
                     if (zone == V2Key.DPAD_CENTER && pressedZone == V2Key.DPAD_CENTER) key(V2Key.DPAD_CENTER)
+                    // The disc never reaches the corner (dpadFaceRadius), so a tap there is only the switch.
+                    if (zone == null && cornerAt(at)) switchTo(PadMode.TOUCHPAD)
                 },
                 onLongPress = { at ->
-                    if (dpadZone(at, size.width.toFloat(), size.height.toFloat()) == V2Key.DPAD_CENTER) {
+                    if (zoneAt(at) == V2Key.DPAD_CENTER) {
                         haptics.longPress()
                         longSelect()
                     }
@@ -284,9 +314,16 @@ fun Pad(
         label = "padSurface",
     )
 
-    // The mode switch is the pad's corner tab above it (PadModeSwitch), never on it: touchpadGestures reads
-    // every touch, consumed or not, so anything drawn over the surface also reached the TV as OK.
-    Box(
+    // The mode switch sits on the surface (PadModeSwitch) but never reads a touch: touchpadGestures reads
+    // every touch, consumed or not, so the pad hit-tests the corner itself and a tap there is only the switch.
+    // The D-pad face fades in and out; it also scales unless motion is reduced.
+    val reducedMotion = LocalReducedMotion.current
+    val faceShown by animateFloatAsState(
+        targetValue = if (mode == PadMode.DPAD) 1f else 0f,
+        animationSpec = snappyOrFade(),
+        label = "dpadFace",
+    )
+    BoxWithConstraints(
         modifier = modifier
             .clip(RoundedCornerShape(36.dp))
             .background(surfaceColor)
@@ -319,16 +356,37 @@ fun Pad(
                     .graphicsLayer { alpha = tagAlpha },
             )
         }
-        if (mode == PadMode.DPAD) {
+        if (mode == PadMode.DPAD || faceShown > 0f) {
             // The launch intro's OK lands here: it reads where the live D-pad is drawn.
             val anchors = LocalIntroAnchors.current
             DisposableEffect(anchors) { onDispose { anchors.pad = null } }
+            // The face is a square of the disc's own size, shrunk if needed so it clears the switch's corner.
+            val faceSide = with(LocalDensity.current) {
+                (2f * dpadFaceRadius(constraints.maxWidth.toFloat(), constraints.maxHeight.toFloat(), (if (switchable) PAD_SWITCH_ZONE.dp.toPx() else 0f))).toDp()
+            }
             DpadFace(
                 pressedZone = pressedZone,
                 pressed = pressAlpha.value,
-                reduced = LocalReducedMotion.current,
+                reduced = reducedMotion,
                 okRing = okRing.value,
-                modifier = Modifier.fillMaxSize().onGloballyPositioned { anchors.pad = it.boundsInWindow() },
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .size(faceSide)
+                    .graphicsLayer {
+                        alpha = faceShown.coerceIn(0f, 1f)
+                        val scale = if (reducedMotion) 1f else 0.92f + 0.08f * faceShown
+                        scaleX = scale
+                        scaleY = scale
+                    }
+                    .onGloballyPositioned { if (mode == PadMode.DPAD) anchors.pad = it.boundsInWindow() },
+            )
+        }
+        if (switchable) {
+            PadModeSwitch(
+                mode = mode,
+                pressed = switchPressed,
+                onSwitch = ::switchTo,
+                modifier = Modifier.align(AbsoluteAlignment.TopRight),
             )
         }
     }
@@ -431,11 +489,11 @@ private fun sweepStart(code: Int): Float = when (code) {
     else -> 225f
 }
 
-/** The key under [at], or null outside the disc (with a little slack for a thumb's edge). */
-private fun dpadZone(at: Offset, width: Float, height: Float): Int? {
+/** The key under [at], or null outside the disc (with a little slack for a thumb's edge); [corner] is the switch's square, in px. */
+private fun dpadZone(at: Offset, width: Float, height: Float, corner: Float): Int? {
     val dx = at.x - width / 2f
     val dy = at.y - height / 2f
-    val radius = min(width, height) / 2f
+    val radius = dpadFaceRadius(width, height, corner)
     val distance = Offset(dx, dy).getDistance()
     return when {
         distance < radius * CENTRE_FRACTION -> V2Key.DPAD_CENTER
@@ -465,7 +523,7 @@ internal val DPAD_CHEVRON_STROKE = 3.5.dp
 /** The directions clockwise from the top, for anything that plays the chevrons in turn. */
 internal val DPAD_CLOCKWISE = listOf(V2Key.DPAD_UP, V2Key.DPAD_RIGHT, V2Key.DPAD_DOWN, V2Key.DPAD_LEFT)
 
-/** Disc radius, as a fraction of half the pad's shorter side. */
+/** Disc radius, as a fraction of half the face's side ([dpadFaceRadius]). */
 private const val DISC_FRACTION = 0.94f
 
 /** OK zone radius (disc plus its moat), same unit; drawn and hit-tested alike. */
@@ -473,6 +531,9 @@ private const val CENTRE_FRACTION = 0.38f
 
 /** Taps this far past the disc's edge still count, so a thumb on the rim is not lost. */
 private const val SLACK_FRACTION = 0.06f
+
+/** How far the D-pad answers, as a fraction of the face's half side: the disc plus its slack. */
+internal const val DPAD_REACH = DISC_FRACTION + SLACK_FRACTION
 
 /** Material 3's pressed state layer is 10%; a little more reads on a dark surface. */
 private const val PRESSED_LAYER = 0.14f
@@ -508,6 +569,9 @@ private const val HALO_ALPHA = 0.16f
  * play/pause (tap) or bar volume (vertical drag, one step per [VOLUME_STEP_DP]).
  */
 private suspend fun PointerInputScope.touchpadGestures(
+    inCorner: (Offset) -> Boolean,
+    onCornerPress: (Boolean) -> Unit,
+    onSwitch: () -> Unit,
     onStep: (Int) -> Unit,
     onTap: (Offset) -> Unit,
     onLong: () -> Unit,
@@ -524,7 +588,9 @@ private suspend fun PointerInputScope.touchpadGestures(
     coroutineScope {
         awaitEachGesture {
             val down = awaitFirstDown(requireUnconsumed = false)
-            onDown(down.position)
+            // The corner is the switch's own key: no halo, no long Select, and a still tap there only switches.
+            val startedInCorner = inCorner(down.position)
+            if (startedInCorner) onCornerPress(true) else onDown(down.position)
             var pointers = 1
             var moved = false
             var longFired = false
@@ -556,7 +622,7 @@ private suspend fun PointerInputScope.touchpadGestures(
                 }
                 if (event == null) {
                     longFired = true
-                    onLong()
+                    if (!startedInCorner) onLong()
                     continue
                 }
                 val pressed = event.changes.filter { it.pressed }
@@ -580,6 +646,8 @@ private suspend fun PointerInputScope.touchpadGestures(
                 } else if (!longFired) {
                     val change = pressed.first()
                     val delta = change.positionChange()
+                    // Leaving the corner's slop turns its press into a swipe: the icon lets go.
+                    if (startedInCorner && !moved && (travel + delta).getDistance() > slop) onCornerPress(false)
                     onMove(change.position)
                     travel += delta
                     accumulated += delta
@@ -602,8 +670,12 @@ private suspend fun PointerInputScope.touchpadGestures(
             }
             stopRepeat()
             onUp()
-            if (!moved && !longFired) {
-                if (pointers >= 2) onTwoFingerTap() else onTap(down.position)
+            if (startedInCorner) onCornerPress(false)
+            when (padTouchEnd(moved, longFired, pointers, startedInCorner)) {
+                PadTouchEnd.TWO_FINGER_TAP -> onTwoFingerTap()
+                PadTouchEnd.SWITCH -> onSwitch()
+                PadTouchEnd.TAP -> onTap(down.position)
+                PadTouchEnd.NOTHING -> Unit
             }
         }
     }

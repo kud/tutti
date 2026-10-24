@@ -33,7 +33,7 @@ import io.kud.tutti.ui.common.AppIcon
 import io.kud.tutti.ui.motion.Motion
 
 /**
- * What the TV is showing, in the room between the scene pills and the pad's tab (Iris's option A,
+ * What the TV is showing, in the room between the scene pills and the pad (Iris's option A,
  * chosen by Erwann, 2026-10-24): an icon, the name large and a small detail line. [fit] comes from
  * [placePad]: full (104 to 140 dp, the icon and name growing with it), one 56 dp line, or hidden.
  * Every state is told by its icon and its words, never colour alone, and it is never empty: an
