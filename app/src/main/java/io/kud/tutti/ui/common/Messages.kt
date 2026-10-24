@@ -57,6 +57,9 @@ import kotlinx.coroutines.delay
  *
  * The host lives at the app root, and every modal sheet carries its own: a sheet is a window of its
  * own, so a message drawn at the root would sit under it. Only the topmost host draws.
+ *
+ * The words are one short sentence, 14 words at most in any locale; longer help goes behind the
+ * action (docs/design.md). A new message string joins MessageCopyTest's list, which enforces it.
  */
 
 enum class MessageKind { INFO, PROBLEM }
