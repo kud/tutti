@@ -3,7 +3,7 @@
     <string name="layout_title">Modifier la télécommande</string>
     <string name="layout_done">OK</string>
     <string name="layout_entry">Disposition de la télécommande</string>
-    <string name="layout_entry_detail">Boutons de la rangée, scènes, taille du pavé</string>
+    <string name="layout_entry_detail">Boutons de la rangée, scènes, taille du pavé, main</string>
     <string name="layout_edit_from_pin">Modifier la disposition</string>
     <string name="layout_fixed">Fixe</string>
     <string name="layout_scenes">Scènes</string>
@@ -15,6 +15,9 @@
     <string name="layout_pad_compact">Compact</string>
     <string name="layout_pad_normal">Normal</string>
     <string name="layout_pad_large">Grand</string>
+    <string name="layout_hand">Main</string>
+    <string name="layout_hand_left">Gauche</string>
+    <string name="layout_hand_right">Droite</string>
     <string name="layout_row">Rangée</string>
     <string name="layout_row_add">Ajouter à la rangée (%1$d au plus)</string>
     <string name="layout_row_full">La rangée est pleine : retirez un bouton pour en ajouter un</string>

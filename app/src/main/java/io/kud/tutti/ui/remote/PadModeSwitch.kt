@@ -12,6 +12,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.AbsoluteAlignment
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
@@ -36,10 +37,11 @@ import io.kud.tutti.platform.data.PadMode
 
 /**
  * The pad's mode switch (K1, Erwann, 2026-10-24): one quiet glyph on the pad's surface, in its
- * top-right corner, that doesn't break the pad's shape. It shows the mode a tap switches TO, in
+ * top corner facing the rail (top-left when [atLeft], for the right hand; else top-right), that
+ * doesn't break the pad's shape. It shows the mode a tap switches TO, in
  * its outline form (the touchpad's in D-pad mode, the D-pad's in touchpad mode): the pad already
  * says the current mode loudly. A bare 24 dp glyph in the on-surface-variant tone, 16 dp in from
- * the top and right edges, with no chip, border or label (Erwann's reference build); [pressed]
+ * the top and side edges, with no chip, border or label (Erwann's reference build); [pressed]
  * tints and tightens it.
  *
  * It draws and speaks; it never reads a touch. The pad's own gesture code hit-tests the corner
@@ -54,6 +56,7 @@ fun PadModeSwitch(
     pressed: Boolean,
     onSwitch: (PadMode) -> Unit,
     modifier: Modifier = Modifier,
+    atLeft: Boolean = false,
 ) {
     val label = stringResource(R.string.pad_mode_label)
     val dpadName = stringResource(R.string.pad_mode_dpad)
@@ -68,11 +71,11 @@ fun PadModeSwitch(
         if (target != mode) onSwitch(target)
     }
 
-    // The corner square; the 48 dp target sits in its bottom-start, so the glyph lands 16 dp in.
+    // The corner square; the 48 dp target sits in its inner bottom corner, so the glyph lands 16 dp in.
     Box(modifier.size(PAD_SWITCH_ZONE.dp)) {
         Box(
             Modifier
-                .align(Alignment.BottomStart)
+                .align(if (atLeft) AbsoluteAlignment.BottomRight else AbsoluteAlignment.BottomLeft)
                 .size(TARGET)
                 .clearAndSetSemantics {
                     role = Role.Button

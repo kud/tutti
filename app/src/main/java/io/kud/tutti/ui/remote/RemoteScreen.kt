@@ -44,6 +44,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.systemGestureExclusion
+import androidx.compose.ui.semantics.isTraversalGroup
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.traversalIndex
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -275,13 +279,12 @@ fun RemoteScreen(
                                 )
                             }
                         }
-                        Row(
-                            Modifier
-                                .align(Alignment.BottomStart)
-                                .padding(bottom = place.below.dp)
-                                .fillMaxWidth()
-                                .height(place.height.dp),
-                        ) {
+                        // The hand picks the pad's side once (Erwann, 2026-10-24: right by default): the pad
+                        // under that thumb, the rail on the other side, the switch in the pad's corner facing
+                        // the rail. TalkBack always reads the pad, then the rail, whichever side each stands on.
+                        val padOnRight = layout.hand.padOnRight
+                        val density = LocalDensity.current
+                        val pad = @Composable { m: Modifier ->
                             Pad(
                                 mode = state.prefs.padMode,
                                 onKey = controller::key,
@@ -291,10 +294,26 @@ fun RemoteScreen(
                                 onModeChange = controller::setPadMode,
                                 volume = state.volume.takeIf { state.bar.connected },
                                 volumeCap = state.volumeCap,
-                                modifier = Modifier.weight(1f).fillMaxHeight(),
+                                switchOnLeft = layout.hand.switchOnLeft,
+                                modifier = m
+                                    .semantics { traversalIndex = 0f }
+                                    // A swipe from the pad's outer edge steps rather than going back.
+                                    .systemGestureExclusion { coords ->
+                                        val px = coords.size
+                                        with(density) {
+                                            padEdgeExclusion(
+                                                width = px.width.toFloat(),
+                                                height = px.height.toFloat(),
+                                                edgeOnRight = padOnRight,
+                                                strip = PAD_EXCLUSION_STRIP.dp.toPx(),
+                                                tall = PAD_EXCLUSION_TALL.dp.toPx(),
+                                            )
+                                        }
+                                    },
                             )
-                            Spacer(Modifier.width(railGap))
-                            // The rail fills the row, so it takes the pad's height, top and foot.
+                        }
+                        // The rail fills the row, so it takes the pad's height, top and foot.
+                        val rail = @Composable {
                             VolumeRail(
                                 volume = state.volume,
                                 cap = state.volumeCap,
@@ -302,7 +321,26 @@ fun RemoteScreen(
                                 enabled = state.bar.connected,
                                 onVolume = controller::setVolume,
                                 onMute = controller::toggleMute,
+                                modifier = Modifier.semantics { traversalIndex = 1f },
                             )
+                        }
+                        Row(
+                            Modifier
+                                .align(Alignment.BottomStart)
+                                .padding(bottom = place.below.dp)
+                                .fillMaxWidth()
+                                .height(place.height.dp)
+                                .semantics { isTraversalGroup = true },
+                        ) {
+                            if (padOnRight) {
+                                rail()
+                                Spacer(Modifier.width(railGap))
+                                pad(Modifier.weight(1f).fillMaxHeight())
+                            } else {
+                                pad(Modifier.weight(1f).fillMaxHeight())
+                                Spacer(Modifier.width(railGap))
+                                rail()
+                            }
                         }
                     }
                 }

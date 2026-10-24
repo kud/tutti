@@ -3,7 +3,7 @@
     <string name="layout_title">Edit the remote</string>
     <string name="layout_done">Done</string>
     <string name="layout_entry">Remote layout</string>
-    <string name="layout_entry_detail">Row buttons, scenes, pad size</string>
+    <string name="layout_entry_detail">Row buttons, scenes, pad size, hand</string>
     <string name="layout_edit_from_pin">Edit the remote layout</string>
     <string name="layout_fixed">Fixed</string>
     <string name="layout_scenes">Scenes</string>
@@ -15,6 +15,9 @@
     <string name="layout_pad_compact">Compact</string>
     <string name="layout_pad_normal">Normal</string>
     <string name="layout_pad_large">Large</string>
+    <string name="layout_hand">Hand</string>
+    <string name="layout_hand_left">Left</string>
+    <string name="layout_hand_right">Right</string>
     <string name="layout_row">Row</string>
     <string name="layout_row_add">Add to the row (%1$d at most)</string>
     <string name="layout_row_full">The row is full: remove a button to add another</string>

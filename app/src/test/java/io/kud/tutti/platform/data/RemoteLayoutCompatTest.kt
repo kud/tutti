@@ -19,9 +19,23 @@ class RemoteLayoutCompatTest {
         assertEquals(shipped, prefs.layout.shownRow)
         assertTrue(prefs.layout.scenes)
         assertEquals(PadSize.NORMAL, prefs.layout.padSize)
+        assertEquals(Hand.RIGHT, prefs.layout.hand)
         // The rest of the old prefs is untouched.
         assertEquals(PadMode.DPAD, prefs.padMode)
         assertEquals(setOf("com.x"), prefs.hiddenApps)
+    }
+
+    @Test
+    fun `a layout stored before the hand existed loads, right-handed, with the rest untouched`() {
+        val old = """{"layout":{"row":["INFO","BACK"],"scenes":false,"padSize":"LARGE"}}"""
+        val layout = StoreJson.decodeFromString(AppPrefs.serializer(), old).layout
+        assertEquals(RemoteLayout(listOf(RowButton.INFO, RowButton.BACK), scenes = false, padSize = PadSize.LARGE, hand = Hand.RIGHT), layout)
+    }
+
+    @Test
+    fun `a left hand survives a round trip`() {
+        val left = RemoteLayout(hand = Hand.LEFT)
+        assertEquals(left, StoreJson.decodeFromString(RemoteLayout.serializer(), StoreJson.encodeToString(RemoteLayout.serializer(), left)))
     }
 
     @Test

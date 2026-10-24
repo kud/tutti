@@ -80,7 +80,8 @@ import kotlinx.coroutines.launch
 
 /**
  * The pad: one large quiet surface, no grid lines. Touchpad (swipe steps) or D-pad (a disc with
- * a chevron at each point and an OK centre); [PadModeSwitch], a quiet glyph in its top-right corner, switches in one tap.
+ * a chevron at each point and an OK centre); [PadModeSwitch], a quiet glyph in its top corner facing the rail
+ * ([switchOnLeft]: top-left when the pad stands on the right), switches in one tap.
  * Tap = OK; long press = held Select for the TV.
  * A held direction repeats on the [KeyRepeat] schedule, on the D-pad and under a finger resting after a swipe step.
  * Two gestures only, in touchpad mode: two-finger tap = play/pause, two-finger vertical drag = bar volume.
@@ -101,6 +102,8 @@ fun Pad(
     modifier: Modifier = Modifier,
     volume: Int? = null,
     volumeCap: Int? = null,
+    /** The switch's corner: top-left for a right-hand layout (the rail on the left), else top-right. */
+    switchOnLeft: Boolean = false,
 ) {
     val haptics = rememberHaptics()
     val scope = rememberCoroutineScope()
@@ -171,10 +174,10 @@ fun Pad(
 
     val padLabel = stringResource(R.string.pad_label)
     val gestures = if (mode == PadMode.TOUCHPAD) {
-        Modifier.pointerInput(haptics, switchable) {
+        Modifier.pointerInput(haptics, switchable, switchOnLeft) {
             val corner = if (switchable) PAD_SWITCH_ZONE.dp.toPx() else 0f
             touchpadGestures(
-                inCorner = { at -> inPadSwitchCorner(at.x, at.y, size.width.toFloat(), corner) },
+                inCorner = { at -> inPadSwitchCorner(at.x, at.y, size.width.toFloat(), corner, switchOnLeft) },
                 onCornerPress = { switchPressed = it },
                 onSwitch = { switchTo(PadMode.DPAD) },
                 onStep = { code ->
@@ -209,10 +212,10 @@ fun Pad(
             )
         }
     } else {
-        Modifier.pointerInput(haptics, switchable) {
+        Modifier.pointerInput(haptics, switchable, switchOnLeft) {
             val corner = if (switchable) PAD_SWITCH_ZONE.dp.toPx() else 0f
-            fun zoneAt(at: Offset): Int? = dpadZone(at, size.width.toFloat(), size.height.toFloat(), corner)
-            fun cornerAt(at: Offset): Boolean = inPadSwitchCorner(at.x, at.y, size.width.toFloat(), corner)
+            fun zoneAt(at: Offset): Int? = dpadZone(at, size.width.toFloat(), size.height.toFloat(), corner, switchOnLeft)
+            fun cornerAt(at: Offset): Boolean = inPadSwitchCorner(at.x, at.y, size.width.toFloat(), corner, switchOnLeft)
             detectTapGestures(
                 onPress = { at ->
                     val zone = zoneAt(at)
@@ -375,7 +378,7 @@ fun Pad(
             DisposableEffect(anchors) { onDispose { anchors.pad = null } }
             // The face is a square of the disc's own size, shrunk if needed so it clears the switch's corner.
             val faceSide = with(LocalDensity.current) {
-                (2f * dpadFaceRadius(constraints.maxWidth.toFloat(), constraints.maxHeight.toFloat(), (if (switchable) PAD_SWITCH_ZONE.dp.toPx() else 0f))).toDp()
+                (2f * dpadFaceRadius(constraints.maxWidth.toFloat(), constraints.maxHeight.toFloat(), (if (switchable) PAD_SWITCH_ZONE.dp.toPx() else 0f), switchOnLeft)).toDp()
             }
             DpadFace(
                 pressedZone = pressedZone,
@@ -399,7 +402,8 @@ fun Pad(
                 mode = mode,
                 pressed = switchPressed,
                 onSwitch = ::switchTo,
-                modifier = Modifier.align(AbsoluteAlignment.TopRight),
+                atLeft = switchOnLeft,
+                modifier = Modifier.align(if (switchOnLeft) AbsoluteAlignment.TopLeft else AbsoluteAlignment.TopRight),
             )
         }
     }
@@ -503,10 +507,10 @@ private fun sweepStart(code: Int): Float = when (code) {
 }
 
 /** The key under [at], or null outside the disc (with a little slack for a thumb's edge); [corner] is the switch's square, in px. */
-private fun dpadZone(at: Offset, width: Float, height: Float, corner: Float): Int? {
+private fun dpadZone(at: Offset, width: Float, height: Float, corner: Float, cornerOnLeft: Boolean): Int? {
     val dx = at.x - width / 2f
     val dy = at.y - height / 2f
-    val radius = dpadFaceRadius(width, height, corner)
+    val radius = dpadFaceRadius(width, height, corner, cornerOnLeft)
     val distance = Offset(dx, dy).getDistance()
     return when {
         distance < radius * CENTRE_FRACTION -> V2Key.DPAD_CENTER

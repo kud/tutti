@@ -1,5 +1,6 @@
 package io.kud.tutti.ui.remote
 
+import io.kud.tutti.platform.data.Hand
 import io.kud.tutti.platform.data.PadSize
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -106,21 +107,21 @@ class PadLayoutTest {
     }
 
     @Test
-    fun `the d-pad never reaches the switch's corner, on any phone or pad size`() {
+    fun `the d-pad never reaches the switch's corner, on any phone, pad size or hand`() {
         for (width in listOf(320f, 360f, 390f, 412f, 480f)) {
             for (height in listOf(600f, 640f, 740f, 844f, 915f, 1000f)) {
-                for (size in PadSize.entries) {
+                for (size in PadSize.entries) for (onLeft in listOf(false, true)) {
                     val (place, _, padWidth) = phone(width, height, size)
                     if (place.height <= 0f) continue
-                    val r = dpadFaceRadius(padWidth, place.height, PAD_SWITCH_ZONE)
+                    val r = dpadFaceRadius(padWidth, place.height, PAD_SWITCH_ZONE, onLeft)
                     val reach = r * DPAD_REACH
                     // The corner square's nearest point to the disc's centre.
                     val cx = padWidth / 2f
                     val cy = place.height / 2f
-                    val nx = cx.coerceIn(padWidth - PAD_SWITCH_ZONE, padWidth)
+                    val nx = if (onLeft) cx.coerceIn(0f, PAD_SWITCH_ZONE) else cx.coerceIn(padWidth - PAD_SWITCH_ZONE, padWidth)
                     val ny = cy.coerceIn(0f, PAD_SWITCH_ZONE)
                     val gap = kotlin.math.hypot(cx - nx, cy - ny)
-                    assertTrue("${width}x$height $size: reach $reach, corner at $gap", reach <= gap + 0.01f)
+                    assertTrue("${width}x$height $size left=$onLeft: reach $reach, corner at $gap", reach <= gap + 0.01f)
                     // The face never outgrows the pad.
                     assertTrue(2f * r <= minOf(padWidth, place.height) + 0.01f)
                 }
@@ -130,18 +131,53 @@ class PadLayoutTest {
 
     @Test
     fun `a tall pad keeps the full disc, a square one gives up only a little`() {
-        assertEquals(304f / 2f, dpadFaceRadius(304f, 365f, PAD_SWITCH_ZONE), 0.01f)
-        val square = dpadFaceRadius(304f, 304f, PAD_SWITCH_ZONE)
+        assertEquals(304f / 2f, dpadFaceRadius(304f, 365f, PAD_SWITCH_ZONE, onLeft = false), 0.01f)
+        val square = dpadFaceRadius(304f, 304f, PAD_SWITCH_ZONE, onLeft = false)
         assertTrue("square face $square", square < 152f && square > 152f * 0.9f)
+        // The disc is centred, so the mirrored corner costs it exactly the same.
+        assertEquals(square, dpadFaceRadius(304f, 304f, PAD_SWITCH_ZONE, onLeft = true), 0.001f)
     }
 
     @Test
     fun `the switch's corner is the pad's top-right 52 dp, nowhere else`() {
         val w = 304f
-        assertTrue(inPadSwitchCorner(w - 1f, 1f, w, PAD_SWITCH_ZONE))
-        assertTrue(inPadSwitchCorner(w - 52f, 52f, w, PAD_SWITCH_ZONE))
-        assertTrue(!inPadSwitchCorner(w - 53f, 10f, w, PAD_SWITCH_ZONE))
-        assertTrue(!inPadSwitchCorner(w - 10f, 53f, w, PAD_SWITCH_ZONE))
-        assertTrue(!inPadSwitchCorner(10f, 10f, w, PAD_SWITCH_ZONE))
+        assertTrue(inPadSwitchCorner(w - 1f, 1f, w, PAD_SWITCH_ZONE, onLeft = false))
+        assertTrue(inPadSwitchCorner(w - 52f, 52f, w, PAD_SWITCH_ZONE, onLeft = false))
+        assertTrue(!inPadSwitchCorner(w - 53f, 10f, w, PAD_SWITCH_ZONE, onLeft = false))
+        assertTrue(!inPadSwitchCorner(w - 10f, 53f, w, PAD_SWITCH_ZONE, onLeft = false))
+        assertTrue(!inPadSwitchCorner(10f, 10f, w, PAD_SWITCH_ZONE, onLeft = false))
+    }
+
+    @Test
+    fun `mirrored, the switch's corner is the pad's top-left 52 dp, nowhere else`() {
+        val w = 304f
+        assertTrue(inPadSwitchCorner(1f, 1f, w, PAD_SWITCH_ZONE, onLeft = true))
+        assertTrue(inPadSwitchCorner(52f, 52f, w, PAD_SWITCH_ZONE, onLeft = true))
+        assertTrue(!inPadSwitchCorner(53f, 10f, w, PAD_SWITCH_ZONE, onLeft = true))
+        assertTrue(!inPadSwitchCorner(10f, 53f, w, PAD_SWITCH_ZONE, onLeft = true))
+        assertTrue(!inPadSwitchCorner(w - 10f, 10f, w, PAD_SWITCH_ZONE, onLeft = true))
+        assertTrue(!inPadSwitchCorner(10f, 10f, w, 0f, onLeft = true))
+    }
+
+    @Test
+    fun `the right hand puts the pad on the right and the switch top-left, facing the rail`() {
+        assertTrue(Hand.RIGHT.padOnRight && Hand.RIGHT.switchOnLeft)
+        assertTrue(!Hand.LEFT.padOnRight && !Hand.LEFT.switchOnLeft)
+    }
+
+    @Test
+    fun `the back-gesture band hugs the pad's outer side and stays under Android's 200 dp`() {
+        val right = padEdgeExclusion(304f, 365f, edgeOnRight = true, strip = PAD_EXCLUSION_STRIP, tall = PAD_EXCLUSION_TALL)
+        assertEquals(304f, right.right, 0.01f)
+        assertEquals(304f - PAD_EXCLUSION_STRIP, right.left, 0.01f)
+        assertEquals(365f / 2f, right.center.y, 0.01f)
+        assertTrue(right.height <= 200f)
+        val left = padEdgeExclusion(304f, 365f, edgeOnRight = false, strip = PAD_EXCLUSION_STRIP, tall = PAD_EXCLUSION_TALL)
+        assertEquals(0f, left.left, 0.01f)
+        assertEquals(PAD_EXCLUSION_STRIP, left.right, 0.01f)
+        // A short pad keeps the band inside itself.
+        val short = padEdgeExclusion(304f, 120f, edgeOnRight = true, strip = PAD_EXCLUSION_STRIP, tall = PAD_EXCLUSION_TALL)
+        assertEquals(0f, short.top, 0.01f)
+        assertEquals(120f, short.bottom, 0.01f)
     }
 }

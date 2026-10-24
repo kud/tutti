@@ -52,6 +52,8 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.isTraversalGroup
+import androidx.compose.ui.semantics.traversalIndex
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
@@ -62,6 +64,7 @@ import androidx.compose.ui.unit.dp
 import io.kud.tutti.R
 import io.kud.tutti.controller.TuttiUiState
 import io.kud.tutti.platform.data.DockConfig
+import io.kud.tutti.platform.data.Hand
 import io.kud.tutti.platform.data.PadSize
 import io.kud.tutti.platform.data.RemoteLayout
 import io.kud.tutti.platform.data.RowButton
@@ -124,21 +127,45 @@ fun LayoutEditor(
             ScenesFrame(state, layout.scenes, onToggle = { onLayout { it.copy(scenes = !it.scenes) } })
 
             Spacer(Modifier.height(8.dp))
-            Row(Modifier.fillMaxWidth().height(220.dp)) {
-                PadFrame(layout.padSize, onSize = { size -> onLayout { it.copy(padSize = size) } }, Modifier.weight(1f).fillMaxHeight())
-                Spacer(Modifier.width(12.dp))
-                Box(
-                    Modifier
-                        .width(52.dp)
-                        .fillMaxHeight()
-                        .clip(RoundedCornerShape(26.dp))
-                        .background(colors.surfaceContainerHigh)
-                        .semantics { contentDescription = volumeFixed },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(painterResource(R.drawable.ic_lock), contentDescription = null, tint = colors.onSurfaceVariant)
+            // The pad and the rail as they stand for the chosen hand: the pad under the thumb.
+            val padOnRight = layout.hand.padOnRight
+            Row(Modifier.fillMaxWidth().height(220.dp).semantics { isTraversalGroup = true }) {
+                val pad = @Composable {
+                    PadFrame(
+                        layout.padSize,
+                        onSize = { size -> onLayout { it.copy(padSize = size) } },
+                        Modifier.weight(1f).fillMaxHeight().semantics { traversalIndex = 0f },
+                    )
+                }
+                val rail = @Composable {
+                    Box(
+                        Modifier
+                            .width(52.dp)
+                            .fillMaxHeight()
+                            .clip(RoundedCornerShape(26.dp))
+                            .background(colors.surfaceContainerHigh)
+                            .semantics {
+                                contentDescription = volumeFixed
+                                traversalIndex = 1f
+                            },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(painterResource(R.drawable.ic_lock), contentDescription = null, tint = colors.onSurfaceVariant)
+                    }
+                }
+                if (padOnRight) {
+                    rail()
+                    Spacer(Modifier.width(12.dp))
+                    pad()
+                } else {
+                    pad()
+                    Spacer(Modifier.width(12.dp))
+                    rail()
                 }
             }
+
+            Spacer(Modifier.height(8.dp))
+            HandFrame(layout.hand, onHand = { hand -> onLayout { it.copy(hand = hand) } })
 
             Spacer(Modifier.height(8.dp))
             RowFrame(layout, onLayout)
@@ -348,6 +375,41 @@ private fun PadFrame(size: PadSize, onSize: (PadSize) -> Unit, modifier: Modifie
             }
             Spacer(Modifier.height(8.dp))
             Text(stringResource(R.string.layout_pad_size), style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
+        }
+    }
+}
+
+/**
+ * Which hand holds the phone: one switch, Left or Right (Erwann, 2026-10-24: right by default).
+ * The pad's side is chosen here once, never dragged; the rail takes the other side.
+ */
+@Composable
+private fun HandFrame(hand: Hand, onHand: (Hand) -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    Row(
+        Modifier.fillMaxWidth().dashedFrame().padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            stringResource(R.string.layout_hand),
+            style = MaterialTheme.typography.titleMedium,
+            color = colors.onSurfaceVariant,
+            modifier = Modifier.weight(1f),
+        )
+        SingleChoiceSegmentedButtonRow {
+            Hand.entries.forEachIndexed { index, entry ->
+                SegmentedButton(
+                    selected = entry == hand,
+                    onClick = { onHand(entry) },
+                    shape = SegmentedButtonDefaults.itemShape(index, Hand.entries.size),
+                    icon = {},
+                ) {
+                    Text(
+                        stringResource(if (entry == Hand.LEFT) R.string.layout_hand_left else R.string.layout_hand_right),
+                        maxLines = 1,
+                    )
+                }
+            }
         }
     }
 }

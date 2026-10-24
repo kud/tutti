@@ -70,16 +70,26 @@ enum class RowButton { BACK, HOME, PLAY, VOICE, KEYBOARD, MUTE, INFO, CAPTIONS, 
 enum class PadSize { COMPACT, NORMAL, LARGE }
 
 /**
- * The parts of the remote screen he may arrange. Power, the volume rail, the pad's place and the
- * Son sheet are anchors and have no field here, so no stored layout can move or hide them.
- * Every field has a default, and the defaults draw today's screen exactly, so prefs stored
- * before layouts existed read as the screen they always showed.
+ * The hand that holds the phone: it puts the pad under that thumb and the volume rail on the other
+ * side (Erwann, 2026-10-24). [RIGHT] is the default, also for layouts stored before it existed;
+ * [LEFT] is the layout as it first shipped, pad on the left.
+ */
+@Serializable
+enum class Hand { LEFT, RIGHT }
+
+/**
+ * The parts of the remote screen he may arrange. Power, the volume rail and the Son sheet are
+ * anchors and have no field here, so no stored layout can move or hide them; [hand] only picks
+ * which side the pad and the rail stand on, never a dragged place. Every field has a default, so
+ * prefs stored before a field existed still read: the row, scenes and pad size as they always
+ * were, the hand as [Hand.RIGHT].
  */
 @Serializable
 data class RemoteLayout(
     val row: List<RowButton> = DEFAULT_ROW,
     val scenes: Boolean = true,
     val padSize: PadSize = PadSize.NORMAL,
+    val hand: Hand = Hand.RIGHT,
 ) {
     /** The row as drawn: no button twice, never mute (the rail's foot has it), never more than [MAX_ROW]. */
     val shownRow: List<RowButton> get() = row.distinct().filter { it != RowButton.MUTE }.take(MAX_ROW)

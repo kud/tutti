@@ -27,6 +27,16 @@ class PadTouchEndTest {
     }
 
     @Test
+    fun `mirrored for the right hand, a still tap in the top-left corner switches and the top-right is OK`() {
+        val w = 304f
+        val corner = PAD_SWITCH_ZONE
+        fun end(x: Float, y: Float) = padTouchEnd(moved = false, longFired = false, pointers = 1, startedInCorner = inPadSwitchCorner(x, y, w, corner, onLeft = true))
+        assertEquals(PadTouchEnd.SWITCH, end(10f, 10f))
+        assertEquals(PadTouchEnd.TAP, end(w - 10f, 10f))
+        assertEquals(PadTouchEnd.TAP, end(w / 2f, w / 2f))
+    }
+
+    @Test
     fun `two still fingers are play-pause, wherever the first went down`() {
         assertEquals(PadTouchEnd.TWO_FINGER_TAP, padTouchEnd(moved = false, longFired = false, pointers = 2, startedInCorner = true))
         assertEquals(PadTouchEnd.TWO_FINGER_TAP, padTouchEnd(moved = false, longFired = false, pointers = 2, startedInCorner = false))
