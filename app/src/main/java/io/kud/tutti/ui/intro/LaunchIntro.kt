@@ -98,7 +98,7 @@ import kotlinx.coroutines.withTimeoutOrNull
  *
  * "The OK becomes the pad" (Iris, 2026-10-23), richer (variant A of her second pass, plus B's
  * shimmering ring; Erwann, 2026-10-24): a sheen, the OK warms and slides onto the live D-pad's OK
- * while a ring runs out and becomes the disc; a click and a bloom on landing, the chevrons pop, a
+ * while a ring runs out and becomes the pad's surface, the disc on it; a click and a bloom on landing, the chevrons pop, a
  * last sheen signs the OK, then the backdrop opens from the pad outwards. The light is the theme's,
  * soft and low (Erwann, 2026-10-24: no bling: no white core, no fixed amber). 800 ms on a cold
  * start, 300 ms on a warm one, nothing on a hot resume. The first launch ever
@@ -158,7 +158,7 @@ class IntroAnchors {
     /** The D-pad face's box (Pad, D-pad mode only). */
     var pad by mutableStateOf<Rect?>(null)
 
-    /** The touchpad surface (Pad, touchpad mode only): its box and corner radius. */
+    /** The pad's surface, in either mode (the D-pad sits on it): its box and corner radius. */
     var touchpad by mutableStateOf<TouchpadAnchor?>(null)
 
     /** The welcome screen's mark: the box of its 108-unit viewport, drawn by [LaunchMark]. */
@@ -196,8 +196,10 @@ class IntroScene(
     val padChevron: Color = padDisc,
     /** The app theme's light for the halo, the rings, the sheen on the OK and the bloom. */
     val theme: IntroTheme = IntroTheme(padOk, padOk, padOk, dark = false),
-    /** The live touchpad, in the overlay's coordinates, when the pad is in touchpad mode. */
+    /** The pad's surface, in the overlay's coordinates: the touchpad, or what the D-pad sits on. */
     val touchpad: TouchpadAnchor? = null,
+    /** The surface's colour, a tone under the D-pad's disc. */
+    val padSurface: Color = padDisc,
     /** The opening's wordmark and halo at this frame, set by the overlay before each draw. */
     val opening: OpeningFrame = OpeningFrame(),
 )
@@ -272,6 +274,51 @@ internal abstract class OkLanding(warm: Boolean) : IntroChoreography {
     /** The backdrop's alpha as it opens: whole until halfway, then gone by the end. */
     protected fun backdropAlpha(open: Float): Float = if (open < 0.5f) 1f else 1f - (open - 0.5f) * 2f
 
+    /** The backdrop at [open], with a hole that opens from the pad's surface outline until it clears the screen. */
+    protected fun DrawScope.drawSurfaceBackdrop(open: Float, surface: TouchpadAnchor, scene: IntroScene, paint: IntroPaints) {
+        val backdrop = backdropAlpha(open)
+        if (backdrop <= 0f) return
+        val colours = scene.colours
+        val alpha = colours.background.alpha * backdrop
+        if (open <= 0f) {
+            drawRect(colours.background, alpha = alpha)
+            return
+        }
+        val box = surface.bounds
+        val grow = hypot(size.width, size.height) * open
+        val corner = surface.cornerRadius + grow
+        paint.backdrop.asAndroidPath().apply {
+            reset()
+            fillType = android.graphics.Path.FillType.EVEN_ODD
+            addRect(0f, 0f, size.width, size.height, android.graphics.Path.Direction.CW)
+            addRoundRect(box.left - grow, box.top - grow, box.right + grow, box.bottom + grow, corner, corner, android.graphics.Path.Direction.CW)
+        }
+        drawPath(paint.backdrop, colours.background, alpha = alpha)
+    }
+
+    /** The shape at [reach] of the way from a circle of [radius] round [centre] to the surface's rounded rectangle. */
+    protected fun DrawScope.drawMorph(colour: Color, centre: Offset, radius: Float, surface: TouchpadAnchor, reach: Float, style: DrawStyle, alpha: Float) {
+        val hw = radius + (surface.bounds.width / 2f - radius) * reach
+        val hh = radius + (surface.bounds.height / 2f - radius) * reach
+        val corner = (radius + (surface.cornerRadius - radius) * reach).coerceAtMost(min(hw, hh))
+        drawRoundRect(colour, Offset(centre.x - hw, centre.y - hh), Size(2f * hw, 2f * hh), CornerRadius(corner), style = style, alpha = alpha)
+    }
+
+    protected fun DrawScope.drawMorph(brush: Brush, centre: Offset, radius: Float, surface: TouchpadAnchor, reach: Float, style: DrawStyle, alpha: Float) {
+        val hw = radius + (surface.bounds.width / 2f - radius) * reach
+        val hh = radius + (surface.bounds.height / 2f - radius) * reach
+        val corner = (radius + (surface.cornerRadius - radius) * reach).coerceAtMost(min(hw, hh))
+        drawRoundRect(brush, Offset(centre.x - hw, centre.y - hh), Size(2f * hw, 2f * hh), CornerRadius(corner), style = style, alpha = alpha)
+    }
+
+    /** The shimmering ring, morphing onto the surface; its shader turns by its local matrix, as a rounded rectangle cannot be turned with the canvas. */
+    protected fun DrawScope.drawShimmerMorph(ms: Float, centre: Offset, radius: Float, surface: TouchpadAnchor, reach: Float, alpha: Float, paint: IntroPaints) {
+        paint.shimmerMatrix.setRotate(ms * SHIMMER_DEGREES_PER_MS)
+        paint.shimmerMatrix.postTranslate(centre.x, centre.y)
+        paint.shimmerShader.setLocalMatrix(paint.shimmerMatrix)
+        drawMorph(paint.turningShimmer, centre, radius, surface, reach, paint.ring, alpha)
+    }
+
     /** The mark's body and line step back, with the first sheen across them; the OK is drawn apart. */
     protected fun DrawScope.drawBodyStepBack(ms: Float, scene: IntroScene, paint: IntroPaints) {
         val bodyAlpha = body.at(ms)
@@ -341,11 +388,14 @@ internal abstract class OkLanding(warm: Boolean) : IntroChoreography {
  * toned down to the theme's colours. Cold start, 800 ms:
  * - 0-240 a soft sheen crosses the mark; the OK warms and swells (x1.18) with a halo and rim in the theme's accent.
  * - 160-300 the body and the line step back; 160-470 the OK slides onto the pad's OK ([Motion.snappy]).
- * - 220-470 ring 1 (accent, shimmering at low contrast) runs out to the disc's edge and the disc
- *   fills behind it; 290-530 a thin accent ring echoes it.
+ * - 220-470 ring 1 (accent, shimmering at low contrast) runs out and morphs into the pad's surface,
+ *   the touchpad's own rounded rectangle (the D-pad and the touchpad are one size: Erwann,
+ *   2026-10-24), which fills behind it while the disc fills on it a tone up; 290-530 a thin accent
+ *   ring echoes the morph.
  * - 470 the landing: the click and a low bloom in the accent (never white), gone by 740.
  * - 470-655 the chevrons pop clockwise from the top, 35 ms apart; 560-760 the sheen signs the pad's OK.
- * - 500-800 the backdrop opens from the disc's edge.
+ * - 500-800 the backdrop opens from the surface's outline. With no surface reported, the ring and
+ *   the backdrop's hole stay circles at the disc's edge.
  * Warm start ([warm]), 300 ms: the slide with ring 1 and half a bloom; no sheen, no echo, the
  * chevrons together, no click.
  *
@@ -369,10 +419,14 @@ internal class OkBecomesPad(warm: Boolean) : OkLanding(warm) {
         val theme = scene.theme
         val paint = paintsFor(pad.okRadius, pad.edgeRadius * if (theme.dark) 1.15f else 1f, scene)
         val open = reveal.at(ms)
+        // The surface the disc sits on, the touchpad's own box (Erwann, 2026-10-24): the ring lands on it.
+        val surface = scene.touchpad
 
-        // The backdrop, with a hole that opens from the disc's edge to the farthest corner.
+        // The backdrop, with a hole that opens from the surface's outline (or the disc's edge) outwards.
         val backdrop = backdropAlpha(open)
-        if (backdrop > 0f) {
+        if (surface != null) {
+            drawSurfaceBackdrop(open, surface, scene, paint)
+        } else if (backdrop > 0f) {
             val alpha = colours.background.alpha * backdrop
             if (open <= 0f) {
                 drawRect(colours.background, alpha = alpha)
@@ -402,9 +456,11 @@ internal class OkBecomesPad(warm: Boolean) : OkLanding(warm) {
         val radius = okRadius(ms, scene, pad.okRadius)
         drawHalo(ms, centre, radius, paint)
 
-        // Ring 1 runs out and the disc fills behind it, from the moat (growing in as the OK lands) out.
+        // Ring 1 runs out and becomes the surface, which fills behind it; the disc fills on it a
+        // tone up, from the moat (growing in as the OK lands) out.
         val reach = ring.at(ms)
         val ringRadius = radius + (pad.edgeRadius - radius) * reach
+        if (reach > 0f && surface != null) drawMorph(scene.padSurface, centre, radius, surface, reach, style = Fill, alpha = 1f)
         if (reach > 0f) {
             val inner = radius + (pad.innerRadius - pad.okRadius) * t.coerceIn(0f, 1f)
             if (ringRadius > inner) {
@@ -427,10 +483,16 @@ internal class OkBecomesPad(warm: Boolean) : OkLanding(warm) {
         // Ring 2, thin, a beat behind; then ring 1 on top, shimmering (a turning sweep).
         val e = echo?.at(ms) ?: 0f
         if (e > 0f && e < 1f) {
-            drawCircle(theme.accent, radius + (pad.edgeRadius - radius) * e, centre, style = paint.echo, alpha = ECHO_ALPHA * (1f - e))
+            if (surface != null) {
+                drawMorph(theme.accent, centre, radius, surface, e, style = paint.echo, alpha = ECHO_ALPHA * (1f - e))
+            } else {
+                drawCircle(theme.accent, radius + (pad.edgeRadius - radius) * e, centre, style = paint.echo, alpha = ECHO_ALPHA * (1f - e))
+            }
         }
         val ringAlpha = ringFade.at(ms)
-        if (reach > 0f && ringAlpha > 0f) {
+        if (reach > 0f && ringAlpha > 0f && surface != null) {
+            drawShimmerMorph(ms, centre, radius, surface, reach, RING_ALPHA * ringAlpha, paint)
+        } else if (reach > 0f && ringAlpha > 0f) {
             translate(centre.x, centre.y) {
                 rotate(ms * SHIMMER_DEGREES_PER_MS, pivot = Offset.Zero) {
                     drawCircle(paint.shimmer, ringRadius, Offset.Zero, style = paint.ring, alpha = RING_ALPHA * ringAlpha)
@@ -482,7 +544,6 @@ internal class OkBecomesTouchpad(warm: Boolean) : OkLanding(warm) {
 
     override fun DrawScope.draw(ms: Float, scene: IntroScene) {
         val pad = scene.touchpad ?: return drawLaunchMark(RestingPose, scene.colours, scene.icon)
-        val colours = scene.colours
         val theme = scene.theme
         val box = pad.bounds
         val half = min(box.width, box.height) / 2f
@@ -491,24 +552,8 @@ internal class OkBecomesTouchpad(warm: Boolean) : OkLanding(warm) {
         val open = reveal.at(ms)
 
         // The backdrop, with a hole that opens from the pad's outline until it clears the screen.
-        val backdrop = backdropAlpha(open)
-        if (backdrop > 0f) {
-            val alpha = colours.background.alpha * backdrop
-            if (open <= 0f) {
-                drawRect(colours.background, alpha = alpha)
-            } else {
-                val grow = hypot(size.width, size.height) * open
-                val corner = pad.cornerRadius + grow
-                paint.backdrop.asAndroidPath().apply {
-                    reset()
-                    fillType = android.graphics.Path.FillType.EVEN_ODD
-                    addRect(0f, 0f, size.width, size.height, android.graphics.Path.Direction.CW)
-                    addRoundRect(box.left - grow, box.top - grow, box.right + grow, box.bottom + grow, corner, corner, android.graphics.Path.Direction.CW)
-                }
-                drawPath(paint.backdrop, colours.background, alpha = alpha)
-            }
-        }
-        drawOpeningHalo(scene, openingExit.at(ms) * backdrop)
+        drawSurfaceBackdrop(open, pad, scene, paint)
+        drawOpeningHalo(scene, openingExit.at(ms) * backdropAlpha(open))
 
         drawBodyStepBack(ms, scene, paint)
 
@@ -519,40 +564,20 @@ internal class OkBecomesTouchpad(warm: Boolean) : OkLanding(warm) {
         // The ring runs out and becomes the pad: the surface fills behind it, then the ring shimmers on top.
         val reach = ring.at(ms)
         if (reach > 0f) {
-            drawMorph(scene.padDisc, centre, radius, pad, reach, style = Fill, alpha = 1f)
+            drawMorph(scene.padSurface, centre, radius, pad, reach, style = Fill, alpha = 1f)
         }
         val e = echo?.at(ms) ?: 0f
         if (e > 0f && e < 1f) {
             drawMorph(theme.accent, centre, radius, pad, e, style = paint.echo, alpha = ECHO_ALPHA * (1f - e))
         }
         val ringAlpha = ringFade.at(ms)
-        if (reach > 0f && ringAlpha > 0f) {
-            paint.shimmerMatrix.setRotate(ms * SHIMMER_DEGREES_PER_MS)
-            paint.shimmerMatrix.postTranslate(centre.x, centre.y)
-            paint.shimmerShader.setLocalMatrix(paint.shimmerMatrix)
-            drawMorph(paint.turningShimmer, centre, radius, pad, reach, paint.ring, RING_ALPHA * ringAlpha)
-        }
+        if (reach > 0f && ringAlpha > 0f) drawShimmerMorph(ms, centre, radius, pad, reach, RING_ALPHA * ringAlpha, paint)
 
         val sink = okFade.at(ms)
         if (sink > 0f) drawCircle(okInk(ms, scene, scene.padOk), radius, centre, alpha = sink)
         drawRim(ms, centre, radius, scene, paint)
 
         drawBloom(ms, box.center, scene, paint)
-    }
-
-    /** The shape at [reach] of the way from a circle of [radius] round [centre] to the pad's rounded rectangle. */
-    private fun DrawScope.drawMorph(colour: Color, centre: Offset, radius: Float, pad: TouchpadAnchor, reach: Float, style: DrawStyle, alpha: Float) {
-        val hw = radius + (pad.bounds.width / 2f - radius) * reach
-        val hh = radius + (pad.bounds.height / 2f - radius) * reach
-        val corner = (radius + (pad.cornerRadius - radius) * reach).coerceAtMost(min(hw, hh))
-        drawRoundRect(colour, Offset(centre.x - hw, centre.y - hh), Size(2f * hw, 2f * hh), CornerRadius(corner), style = style, alpha = alpha)
-    }
-
-    private fun DrawScope.drawMorph(brush: Brush, centre: Offset, radius: Float, pad: TouchpadAnchor, reach: Float, style: DrawStyle, alpha: Float) {
-        val hw = radius + (pad.bounds.width / 2f - radius) * reach
-        val hh = radius + (pad.bounds.height / 2f - radius) * reach
-        val corner = (radius + (pad.cornerRadius - radius) * reach).coerceAtMost(min(hw, hh))
-        drawRoundRect(brush, Offset(centre.x - hw, centre.y - hh), Size(2f * hw, 2f * hh), CornerRadius(corner), style = style, alpha = alpha)
     }
 }
 
@@ -1021,7 +1046,9 @@ fun LaunchIntroOverlay(intro: LaunchIntro, firstLaunch: Boolean?) {
     // Latest prefs at landing: the stores may load after the intro starts, and the key sound follows them.
     val haptics by rememberUpdatedState(rememberHaptics())
     val padOk = MaterialTheme.colorScheme.secondaryContainer
-    val padDisc = MaterialTheme.colorScheme.surfaceContainerHigh
+    // As Pad draws them: the surface, and the D-pad's disc a tone up on it.
+    val padSurface = MaterialTheme.colorScheme.surfaceContainerHigh
+    val padDisc = MaterialTheme.colorScheme.surfaceContainerHighest
     val padChevron = MaterialTheme.colorScheme.onSurfaceVariant
     val theme = introTheme()
     val first by rememberUpdatedState(firstLaunch)
@@ -1084,7 +1111,7 @@ fun LaunchIntroOverlay(intro: LaunchIntro, firstLaunch: Boolean?) {
     ) {
         val scene = scenes.get(
             this, colours, icon, origin, anchors.pad, anchors.touchpad, anchors.welcome,
-            padOk, padDisc, padChevron, theme, frame,
+            padOk, padDisc, padChevron, padSurface, theme, frame,
         )
         opening?.pose(openMs, frame)
         val now = script
@@ -1117,6 +1144,7 @@ private class SceneCache {
     private var padOk = Color.Unspecified
     private var padDisc = Color.Unspecified
     private var padChevron = Color.Unspecified
+    private var padSurface = Color.Unspecified
     private var theme: IntroTheme? = null
     private var density = 0f
 
@@ -1131,12 +1159,13 @@ private class SceneCache {
         padOk: Color,
         padDisc: Color,
         padChevron: Color,
+        padSurface: Color,
         theme: IntroTheme,
         opening: OpeningFrame,
     ): IntroScene {
         val same = colours == this.colours && icon == this.icon && origin == this.origin && pad == this.pad &&
             touchpad == this.touchpad && welcome == this.welcome && padOk == this.padOk && padDisc == this.padDisc &&
-            padChevron == this.padChevron && theme == this.theme && scope.density == density
+            padChevron == this.padChevron && padSurface == this.padSurface && theme == this.theme && scope.density == density
         scene?.let { if (same) return it }
         this.colours = colours
         this.icon = icon
@@ -1147,6 +1176,7 @@ private class SceneCache {
         this.padOk = padOk
         this.padDisc = padDisc
         this.padChevron = padChevron
+        this.padSurface = padSurface
         this.theme = theme
         density = scope.density
         val moat = with(scope) { 4.dp.toPx() }
@@ -1169,6 +1199,7 @@ private class SceneCache {
             padChevron = padChevron,
             theme = theme,
             touchpad = touchpad?.let { TouchpadAnchor(it.bounds.translate(-origin), it.cornerRadius) },
+            padSurface = padSurface,
             opening = opening,
         ).also { scene = it }
     }

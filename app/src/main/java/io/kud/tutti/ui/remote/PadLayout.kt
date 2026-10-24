@@ -99,9 +99,11 @@ internal fun inPadSwitchCorner(x: Float, y: Float, width: Float, corner: Float, 
 /**
  * Half the D-pad face's side in a pad of [width] x [height] whose top [corner] square (top-left
  * when [onLeft], else top-right) holds the mode switch: half the shorter side, shrunk until the
- * disc's reach (drawn edge plus the thumb's slack) stays out of that square. On a tall pad nothing
- * shrinks; on a square one the disc gives up a few percent, centred as before, so the corner never
- * answers as a direction. The disc is centred, so either corner gives the same radius.
+ * disc's reach (drawn edge plus a small margin) stays out of that square. On a tall pad nothing
+ * shrinks; on a square one the disc gives up a few percent, centred as before, so the switch's
+ * glyph never sits on the ring. The disc is centred, so either corner gives the same radius. The
+ * disc is the face's drawing only: the surface it sits on is the pad's whole box in both modes,
+ * and the D-pad answers on all of it bar the corner ([dpadZone]).
  */
 internal fun dpadFaceRadius(width: Float, height: Float, corner: Float, onLeft: Boolean): Float {
     val half = min(width, height) / 2f

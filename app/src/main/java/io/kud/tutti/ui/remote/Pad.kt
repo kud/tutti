@@ -1,6 +1,5 @@
 package io.kud.tutti.ui.remote
 
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.animation.core.LinearEasing
@@ -272,7 +271,7 @@ fun Pad(
                 onTap = { at ->
                     val zone = zoneAt(at)
                     if (zone == V2Key.DPAD_CENTER && pressedZone == V2Key.DPAD_CENTER) key(V2Key.DPAD_CENTER)
-                    // The disc never reaches the corner (dpadFaceRadius), so a tap there is only the switch.
+                    // dpadZone leaves the switch's corner out, so a tap there is only the switch.
                     if (zone == null && cornerAt(at)) switchTo(PadMode.TOUCHPAD)
                 },
                 onLongPress = { at ->
@@ -310,24 +309,16 @@ fun Pad(
             }
         }
     }
-    // In D-pad mode the disc is the surface: the rounded rectangle fades out behind it, so the
-    // only shape on screen is the one that answers a tap.
-    val surfaceColor by animateColorAsState(
-        targetValue = if (mode == PadMode.TOUCHPAD) MaterialTheme.colorScheme.surfaceContainerHigh else Color.Transparent,
-        animationSpec = tween(durationMillis = 200),
-        label = "padSurface",
-    )
+    // One surface in both modes, the same box, corner and tone (Erwann, 2026-10-24: "D-pad et
+    // touchpad" the same size): switching modes changes what is on it, never its size. In D-pad
+    // mode the disc sits on it a tone up, and the whole surface answers (dpadZone).
+    val surfaceColor = MaterialTheme.colorScheme.surfaceContainerHigh
 
-    // The launch intro's ring becomes this surface in touchpad mode: it reads its box and corner.
+    // The launch intro's ring becomes this surface, in either mode: it reads its box and corner.
     val introAnchors = LocalIntroAnchors.current
-    val touchpadShown = mode == PadMode.TOUCHPAD
     val cornerPx = with(LocalDensity.current) { PAD_CORNER.toPx() }
-    DisposableEffect(introAnchors, touchpadShown) { onDispose { introAnchors.touchpad = null } }
-    val touchpadAnchor = if (touchpadShown) {
-        Modifier.onGloballyPositioned { introAnchors.touchpad = TouchpadAnchor(it.boundsInWindow(), cornerPx) }
-    } else {
-        Modifier
-    }
+    DisposableEffect(introAnchors) { onDispose { introAnchors.touchpad = null } }
+    val touchpadAnchor = Modifier.onGloballyPositioned { introAnchors.touchpad = TouchpadAnchor(it.boundsInWindow(), cornerPx) }
 
     // The mode switch sits on the surface (PadModeSwitch) but never reads a touch: touchpadGestures reads
     // every touch, consumed or not, so the pad hit-tests the corner itself and a tap there is only the switch.
@@ -410,16 +401,17 @@ fun Pad(
 }
 
 /**
- * The D-pad face. Geometry comes from the same fractions as [dpadZone], so what is drawn is
- * what answers: the OK disc and its moat are the centre zone, each quarter of the ring between
- * the diagonals is a direction. [pressed] (0..1) lights [pressedZone] with a state layer and
- * brings its chevron to full contrast. Tonal only: no outlines, no dividers. [okRing] (0..1) is
- * the long-press sweep, drawn in the moat round OK.
+ * The D-pad face, drawn on the pad's surface a tone up. Geometry comes from the same fractions
+ * as [dpadZone], so what is drawn is what answers: the OK disc and its moat are the centre zone,
+ * each quarter of the ring between the diagonals is a direction (and so is the surface round it,
+ * along the same diagonals). [pressed] (0..1) lights [pressedZone] with a state layer and brings
+ * its chevron to full contrast. Tonal only: no outlines, no dividers. [okRing] (0..1) is the
+ * long-press sweep, drawn in the moat round OK.
  */
 @Composable
 internal fun DpadFace(pressedZone: Int?, pressed: Float, modifier: Modifier = Modifier, reduced: Boolean = false, okRing: Float = 0f) {
     val scheme = MaterialTheme.colorScheme
-    val disc = scheme.surfaceContainerHigh
+    val disc = scheme.surfaceContainerHighest
     val chevron = scheme.onSurfaceVariant
     val chevronPressed = scheme.onSurface
     val ringLayer = scheme.onSurface
@@ -506,32 +498,24 @@ private fun sweepStart(code: Int): Float = when (code) {
     else -> 225f
 }
 
-/** The key under [at], or null outside the disc (with a little slack for a thumb's edge); [corner] is the switch's square, in px. */
-private fun dpadZone(at: Offset, width: Float, height: Float, corner: Float, cornerOnLeft: Boolean): Int? {
+/**
+ * The key under [at] in a pad of [width] x [height]: OK inside the centre zone, else the direction
+ * of the quarter between the diagonals, anywhere on the surface (the D-pad is the whole surface,
+ * as the touchpad is), except the switch's top [corner] square, which is null. Same units throughout.
+ */
+internal fun dpadZone(at: Offset, width: Float, height: Float, corner: Float, cornerOnLeft: Boolean): Int? {
+    if (inPadSwitchCorner(at.x, at.y, width, corner, cornerOnLeft)) return null
     val dx = at.x - width / 2f
     val dy = at.y - height / 2f
     val radius = dpadFaceRadius(width, height, corner, cornerOnLeft)
-    val distance = Offset(dx, dy).getDistance()
     return when {
-        distance < radius * CENTRE_FRACTION -> V2Key.DPAD_CENTER
-        distance > radius * (DISC_FRACTION + SLACK_FRACTION) -> null
+        Offset(dx, dy).getDistance() < radius * CENTRE_FRACTION -> V2Key.DPAD_CENTER
         abs(dx) > abs(dy) -> if (dx > 0) V2Key.DPAD_RIGHT else V2Key.DPAD_LEFT
         else -> if (dy > 0) V2Key.DPAD_DOWN else V2Key.DPAD_UP
     }
 }
 
 private val DIRECTIONS = listOf(V2Key.DPAD_UP, V2Key.DPAD_DOWN, V2Key.DPAD_LEFT, V2Key.DPAD_RIGHT)
-
-/**
- * The D-pad disc's drawn edge in a pad of [width] x [height] whose switch holds the top [corner]
- * square: the visible disc, which the volume rail lines up with in D-pad mode.
- */
-internal fun dpadDiscRadius(width: Float, height: Float, corner: Float, onLeft: Boolean): Float =
-    dpadFaceRadius(width, height, corner, onLeft) * DISC_FRACTION
-
-/** How far the visible disc stands in from the top and foot of a [height]-tall pad of [width], in its unit. */
-internal fun dpadDiscInset(width: Float, height: Float, corner: Float, onLeft: Boolean): Float =
-    if (height <= 0f) 0f else (height / 2f - dpadDiscRadius(width, height, corner, onLeft)).coerceAtLeast(0f)
 
 /** The D-pad's OK radius in a face of [width] x [height] px, moat of [moat] px off, as [DpadFace] draws it. */
 internal fun dpadOkRadius(width: Float, height: Float, moat: Float): Float = min(width, height) / 2f * CENTRE_FRACTION - moat
@@ -560,10 +544,13 @@ private const val DISC_FRACTION = 0.94f
 /** OK zone radius (disc plus its moat), same unit; drawn and hit-tested alike. */
 private const val CENTRE_FRACTION = 0.38f
 
-/** Taps this far past the disc's edge still count, so a thumb on the rim is not lost. */
+/** The clear margin kept between the disc's edge and the switch's corner, same unit. */
 private const val SLACK_FRACTION = 0.06f
 
-/** How far the D-pad answers, as a fraction of the face's half side: the disc plus its slack. */
+/**
+ * How far the drawn disc and its margin reach, as a fraction of the face's half side: what
+ * [dpadFaceRadius] keeps out of the switch's corner, so the glyph never sits on the ring.
+ */
 internal const val DPAD_REACH = DISC_FRACTION + SLACK_FRACTION
 
 /** Material 3's pressed state layer is 10%; a little more reads on a dark surface. */

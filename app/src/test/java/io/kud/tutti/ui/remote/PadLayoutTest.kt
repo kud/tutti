@@ -1,7 +1,9 @@
 package io.kud.tutti.ui.remote
 
+import androidx.compose.ui.geometry.Offset
 import io.kud.tutti.platform.data.Hand
 import io.kud.tutti.platform.data.PadSize
+import io.kud.tutti.protocol.atv.V2Key
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -182,19 +184,41 @@ class PadLayoutTest {
     }
 
     @Test
-    fun `in D-pad mode the rail's top and foot are the disc's`() {
+    fun `the D-pad answers on the whole surface, as the touchpad does, bar the switch's corner`() {
         val corner = PAD_SWITCH_ZONE
-        for ((w, h) in listOf(300f to 300f, 300f to 255f, 300f to 360f, 280f to 238f)) {
+        // Compact, Normal and Large shapes on a 390 dp phone, and a tall one.
+        for ((w, h) in listOf(282f to 240f, 282f to 282f, 282f to 338f, 300f to 360f)) {
             for (onLeft in listOf(true, false)) {
-                val inset = dpadDiscInset(w, h, corner, onLeft)
-                val r = dpadDiscRadius(w, h, corner, onLeft)
-                // The rail spans exactly the disc's height, centred like the disc.
-                assertEquals(2f * r, h - 2f * inset, 0.01f)
-                assertTrue(inset >= 0f)
-                // Still room for +, the readout, - and the speaker (48 + 48 + 48 dp and the number).
-                assertTrue("rail ${h - 2f * inset} in a $w x $h pad", h - 2f * inset >= 200f)
+                fun zone(x: Float, y: Float) = dpadZone(Offset(x, y), w, h, corner, onLeft)
+                assertEquals(V2Key.DPAD_CENTER, zone(w / 2f, h / 2f))
+                // The surface's very edges, top and foot level with the rail's, answer.
+                assertEquals(V2Key.DPAD_UP, zone(w / 2f, 1f))
+                assertEquals(V2Key.DPAD_DOWN, zone(w / 2f, h - 1f))
+                assertEquals(V2Key.DPAD_LEFT, zone(1f, h / 2f))
+                assertEquals(V2Key.DPAD_RIGHT, zone(w - 1f, h / 2f))
+                // The bottom corners, well outside the drawn disc, still answer.
+                assertTrue(zone(2f, h - 2f) in setOf(V2Key.DPAD_LEFT, V2Key.DPAD_DOWN))
+                assertTrue(zone(w - 2f, h - 2f) in setOf(V2Key.DPAD_RIGHT, V2Key.DPAD_DOWN))
+                // The switch's corner never answers as a direction; the other top corner does.
+                val switchX = if (onLeft) 20f else w - 20f
+                val otherX = if (onLeft) w - 2f else 2f
+                for (y in listOf(1f, 20f, 51f)) assertEquals(null, zone(switchX, y))
+                assertTrue(zone(otherX, 2f) != null)
             }
         }
-        assertEquals(0f, dpadDiscInset(300f, 0f, corner, true), 0f)
+    }
+
+    @Test
+    fun `the drawn disc never reaches the switch's glyph`() {
+        // The glyph is 24 dp, 16 dp in from the top and side: its inner corner is at 40, 40.
+        for ((w, h) in listOf(282f to 240f, 282f to 282f, 282f to 338f, 304f to 304f)) {
+            for (onLeft in listOf(true, false)) {
+                val side = 2f * dpadFaceRadius(w, h, PAD_SWITCH_ZONE, onLeft)
+                val edge = dpadEdgeRadius(side, side)
+                val gx = if (onLeft) 40f else w - 40f
+                val gap = kotlin.math.hypot(gx - w / 2f, 40f - h / 2f)
+                assertTrue("$w x $h left=$onLeft: disc $edge, glyph at $gap", edge < gap)
+            }
+        }
     }
 }
