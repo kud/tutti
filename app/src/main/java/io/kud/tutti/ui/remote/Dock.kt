@@ -1,6 +1,10 @@
 package io.kud.tutti.ui.remote
 
 import androidx.annotation.DrawableRes
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -12,6 +16,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -19,6 +25,7 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -31,9 +38,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -49,6 +62,10 @@ import io.kud.tutti.platform.data.DockAction
 import io.kud.tutti.platform.data.DockConfig
 import io.kud.tutti.platform.data.DockSlot
 import io.kud.tutti.ui.common.AppIcon
+import io.kud.tutti.ui.common.LocalReducedMotion
+import io.kud.tutti.ui.motion.Motion
+import io.kud.tutti.ui.motion.rememberWaiting
+import io.kud.tutti.ui.motion.snappyOrFade
 import io.kud.tutti.ui.common.PressSource
 import io.kud.tutti.ui.common.pressScale
 import io.kud.tutti.ui.common.rememberFeedback
@@ -65,7 +82,9 @@ import io.kud.tutti.ui.common.slotLabel
  * the row is exactly the old one; from two, the pins swipe sideways under the still doors and
  * small dots show where he is. A pin runs on tap and opens its editor on long press; a pin with
  * its own long press offers that first, the editor below it, like a launcher's shortcuts. An
- * empty pin asks on tap.
+ * empty pin asks on tap. A pin whose tap toggles a bar setting wears that setting's state
+ * ([PinToggle]): a check badge and a filled, squarer tile when on, an empty ring when off, a
+ * dashed ring when tutti does not know, and TalkBack hears it as a switch.
  */
 @Composable
 fun Dock(
@@ -176,16 +195,28 @@ private fun PinTile(
     // The click plays on down; the command waits for release, since a long press means another.
     val feedback = rememberFeedback()
     val press = rememberPressSource { feedback.click() }
-    val content = MaterialTheme.colorScheme.onSurfaceVariant
+    val toggle = pinToggle(slot.primary, state.bar, state.devices.bar != null)
+    val on = (toggle as? PinToggle.Known)?.on == true
+    val scheme = MaterialTheme.colorScheme
+    val background by animateColorAsState(if (on) scheme.primaryContainer else scheme.surfaceContainerHigh, snappyOrFade(), label = "pin")
+    val content = if (on) scheme.onPrimaryContainer else scheme.onSurfaceVariant
+    val reduced = LocalReducedMotion.current
+    // On also squares the tile a little, as the Sound sheet's tiles do: shape, not only colour.
+    val corner by animateDpAsState(if (on) 14.dp else 20.dp, if (reduced) snap() else Motion.snappy(), label = "pinCorner")
+    val shape = RoundedCornerShape(corner)
+    val secondaryToggle = pinToggle(secondary, state.bar, state.devices.bar != null) as? PinToggle.Known
     Box(modifier) {
         Tile(
-            background = MaterialTheme.colorScheme.surfaceContainerHigh,
+            background = background,
             content = content,
             label = label,
             press = press,
+            shape = shape,
+            stateText = toggleStateText(toggle, state),
             modifier = Modifier.combinedClickable(
                 interactionSource = press.interaction,
-                indication = rememberTuttiIndication(TileShape, layerColor = content),
+                indication = rememberTuttiIndication(shape, layerColor = content),
+                role = if (toggle != null) Role.Switch else null,
                 onLongClickLabel = if (secondary != null) actionLabel(secondary, state) else edit,
                 onLongClick = {
                     feedback.longPress()
@@ -194,13 +225,22 @@ private fun PinTile(
                 onClick = onClick,
             ),
         ) { tint ->
-            PinFace(slot.primary, slot.icon, slot.letters, state, tint, iconSize = 20.dp)
+            Box(contentAlignment = Alignment.Center) {
+                PinFace(slot.primary, slot.icon, slot.letters, state, tint, iconSize = 20.dp)
+                if (toggle != null) {
+                    PinStateBadge(toggle, tint, background, Modifier.align(Alignment.TopEnd).offset(x = 8.dp, y = (-6).dp))
+                }
+            }
         }
         if (secondary != null) {
             TuttiMenu(expanded = menu, onDismissRequest = { menu = false }) {
                 DropdownMenuItem(
                     text = { Text(actionLabel(secondary, state), fontWeight = FontWeight.Medium) },
                     leadingIcon = { Icon(painterResource(actionIcon(secondary, state)), contentDescription = null) },
+                    // A long-press toggle says where it stands now; unknown says nothing rather than "Off".
+                    trailingIcon = secondaryToggle?.let { known ->
+                        { Text(stringResource(if (known.on) R.string.state_on else R.string.state_off), style = MaterialTheme.typography.labelMedium) }
+                    },
                     onClick = {
                         menu = false
                         onSecondary(secondary)
@@ -263,16 +303,21 @@ private fun Tile(
     press: PressSource,
     modifier: Modifier,
     outer: Modifier = Modifier.fillMaxWidth(),
+    shape: Shape = TileShape,
+    stateText: String? = null,
     icon: @Composable (Color) -> Unit,
 ) {
     Column(
         modifier = outer
             .height(64.dp)
             .pressScale(press.state)
-            .clip(TileShape)
-            .background(background)
+            .clip(shape)
+            .background(background, shape)
             .then(modifier)
-            .semantics { contentDescription = label }
+            .semantics {
+                contentDescription = label
+                if (stateText != null) stateDescription = stateText
+            }
             .padding(horizontal = 4.dp, vertical = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
@@ -286,6 +331,65 @@ private fun Tile(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
+    }
+}
+
+/** What TalkBack says a toggle pin is: on, off, or why tutti does not know. */
+@Composable
+private fun toggleStateText(toggle: PinToggle?, state: TuttiUiState): String? = when (toggle) {
+    null -> null
+    is PinToggle.Known -> stringResource(if (toggle.on) R.string.state_on else R.string.state_off)
+    PinToggle.Unknown -> stringResource(R.string.sound_reason_unreported)
+    PinToggle.Unreachable -> stringResource(R.string.system_unreachable, state.devices.bar?.name.orEmpty())
+    PinToggle.NoBar -> stringResource(R.string.sound_reason_no_bar)
+}
+
+/**
+ * The toggle's mark on a pin's icon, the Sound tile's [TileMark] at badge size: a filled disc with
+ * a check (on), an empty ring (off), a dashed ring in the outline tone (unknown, bar unreachable or
+ * absent). A ring of the tile's own colour cuts it out of the icon. Fill changes by opacity only,
+ * so reduced motion needs no other form; a slow confirmation turns a thin arc round it (static
+ * under reduced motion).
+ */
+@Composable
+private fun PinStateBadge(toggle: PinToggle, color: Color, cutout: Color, modifier: Modifier = Modifier) {
+    val known = toggle as? PinToggle.Known
+    val fill by animateFloatAsState(if (known?.on == true) 1f else 0f, snappyOrFade(), label = "pinFill")
+    val dashed = MaterialTheme.colorScheme.outline
+    val waiting = rememberWaiting(known?.pending == true)
+    Box(
+        modifier
+            .size(16.dp)
+            .clearAndSetSemantics {}
+            .drawBehind {
+                val width = 1.5.dp.toPx()
+                val mark = 6.dp.toPx()
+                drawCircle(cutout, mark + 2.dp.toPx())
+                if (known == null) {
+                    drawCircle(dashed, mark - width / 2f, style = Stroke(width, pathEffect = PathEffect.dashPathEffect(floatArrayOf(2.dp.toPx(), 2.dp.toPx()))))
+                } else {
+                    drawCircle(color, mark - width / 2f, style = Stroke(width))
+                    drawCircle(color, mark, alpha = fill.coerceIn(0f, 1f))
+                }
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        if (known != null) {
+            Icon(
+                painterResource(R.drawable.ic_check),
+                contentDescription = null,
+                tint = cutout.copy(alpha = fill.coerceIn(0f, 1f)),
+                modifier = Modifier.size(9.dp),
+            )
+        }
+        if (waiting.spinner) {
+            val arc = Modifier.requiredSize(18.dp)
+            if (LocalReducedMotion.current) {
+                CircularProgressIndicator(progress = { 0.75f }, modifier = arc, color = color, strokeWidth = 1.5.dp, trackColor = Color.Transparent)
+            } else {
+                CircularProgressIndicator(modifier = arc, color = color, strokeWidth = 1.5.dp, trackColor = Color.Transparent)
+            }
+        }
     }
 }
 
