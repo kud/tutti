@@ -1,7 +1,6 @@
 package io.kud.tutti.ui.remote
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -134,7 +133,8 @@ fun LayoutEditor(
                     PadFrame(
                         layout.padSize,
                         onSize = { size -> onLayout { it.copy(padSize = size) } },
-                        Modifier.weight(1f).fillMaxHeight().semantics { traversalIndex = 0f },
+                        switchOnLeft = padOnRight,
+                        modifier = Modifier.weight(1f).fillMaxHeight().semantics { traversalIndex = 0f },
                     )
                 }
                 val rail = @Composable {
@@ -314,7 +314,7 @@ private fun ScenesFrame(state: TuttiUiState, shown: Boolean, onToggle: () -> Uni
 }
 
 @Composable
-private fun PadFrame(size: PadSize, onSize: (PadSize) -> Unit, modifier: Modifier) {
+private fun PadFrame(size: PadSize, onSize: (PadSize) -> Unit, switchOnLeft: Boolean, modifier: Modifier) {
     val colors = MaterialTheme.colorScheme
     // The pad drawn at its chosen share of the frame, so the three steps read as sizes.
     val share = when (size) {
@@ -323,7 +323,7 @@ private fun PadFrame(size: PadSize, onSize: (PadSize) -> Unit, modifier: Modifie
         PadSize.LARGE -> 1f
     }
     Box(modifier.dashedFrame().padding(8.dp), contentAlignment = Alignment.BottomCenter) {
-        // The pad and, under it, its mode switch: both move and grow together, as on the remote.
+        // The pad with its mode switch on the corner facing the rail, as on the remote (PadModeSwitch).
         Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
             if (share < 1f) Spacer(Modifier.weight(1f - share))
             Box(
@@ -332,17 +332,16 @@ private fun PadFrame(size: PadSize, onSize: (PadSize) -> Unit, modifier: Modifie
                     .weight(share)
                     .clip(RoundedCornerShape(28.dp))
                     .background(colors.surfaceContainer),
-            )
-            Spacer(Modifier.height(6.dp))
-            Box(
-                Modifier
-                    .size(width = 62.dp, height = 22.dp)
-                    .clip(RoundedCornerShape(11.dp))
-                    .background(colors.surfaceContainerLow)
-                    .border(1.dp, colors.outlineVariant, RoundedCornerShape(11.dp))
-                    .padding(3.dp),
             ) {
-                Box(Modifier.fillMaxHeight().width(27.dp).clip(RoundedCornerShape(8.dp)).background(colors.primaryContainer))
+                Icon(
+                    painterResource(R.drawable.ic_pad_touchpad_outline),
+                    contentDescription = null,
+                    tint = colors.onSurfaceVariant,
+                    modifier = Modifier
+                        .align(if (switchOnLeft) Alignment.TopStart else Alignment.TopEnd)
+                        .padding(12.dp)
+                        .size(18.dp),
+                )
             }
         }
         Column(
