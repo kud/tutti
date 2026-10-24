@@ -9,6 +9,7 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -176,35 +177,42 @@ private fun MessageCard(message: Message, onDismiss: () -> Unit) {
                 }
             },
     ) {
-        Row(
-            Modifier.heightIn(min = 56.dp).padding(start = 16.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Icon(
-                painterResource(if (problem) R.drawable.ic_warning else R.drawable.ic_info),
-                contentDescription = if (problem) stringResource(R.string.message_problem) else null,
-                tint = if (problem) scheme.error else scheme.primary,
-                modifier = Modifier.size(20.dp),
-            )
-            Text(
-                message.text,
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.weight(1f).padding(vertical = 10.dp),
-            )
-            if (message.actionLabel != null && message.onAction != null) {
-                TextButton(onClick = {
-                    message.onAction.invoke()
-                    onDismiss()
-                }) { Text(message.actionLabel) }
-            }
-            IconButton(onClick = onDismiss) {
+        // The action sits under the words, end-aligned, rather than beside them: beside them it
+        // squeezed a long message into a narrow column ("Show me how" next to six lines of text).
+        Column(Modifier.padding(start = 16.dp, end = 4.dp, top = 4.dp, bottom = 4.dp)) {
+            Row(
+                Modifier.heightIn(min = 48.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
                 Icon(
-                    painterResource(R.drawable.ic_close),
-                    contentDescription = dismissLabel,
-                    tint = scheme.onSurfaceVariant,
+                    painterResource(if (problem) R.drawable.ic_warning else R.drawable.ic_info),
+                    contentDescription = if (problem) stringResource(R.string.message_problem) else null,
+                    tint = if (problem) scheme.error else scheme.primary,
                     modifier = Modifier.size(20.dp),
                 )
+                Text(
+                    message.text,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.weight(1f).padding(vertical = 10.dp),
+                )
+                IconButton(onClick = onDismiss) {
+                    Icon(
+                        painterResource(R.drawable.ic_close),
+                        contentDescription = dismissLabel,
+                        tint = scheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+            }
+            if (message.actionLabel != null && message.onAction != null) {
+                TextButton(
+                    onClick = {
+                        message.onAction.invoke()
+                        onDismiss()
+                    },
+                    modifier = Modifier.align(Alignment.End).padding(end = 8.dp),
+                ) { Text(message.actionLabel) }
             }
         }
     }

@@ -1,7 +1,10 @@
 package io.kud.tutti.ui.remote
 
 import androidx.annotation.DrawableRes
-import androidx.compose.animation.Crossfade
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -38,7 +41,7 @@ import io.kud.tutti.ui.motion.Motion
  * [placePad]: full (104 to 140 dp, the icon and name growing with it), one 56 dp line, or hidden.
  * Every state is told by its icon and its words, never colour alone, and it is never empty: an
  * app, a channel or an input, standby, the home screen, or the TV out of reach. A tap does nothing
- * for now. State changes cross-fade by opacity only, which is also the reduced-motion form.
+ * for now. State changes fade through by opacity only, which is also the reduced-motion form.
  */
 @Composable
 internal fun NowShowingCard(
@@ -56,9 +59,13 @@ internal fun NowShowingCard(
             .background(MaterialTheme.colorScheme.surfaceContainerLow, RoundedCornerShape(CARD_CORNER))
             .semantics(mergeDescendants = true) {},
     ) {
-        Crossfade(
+        // Fade through, not a cross-fade: the old words are gone before the new ones arrive, so two
+        // titles never sit on top of each other mid-change ("Reconnecting…" under "TV out of reach").
+        AnimatedContent(
             targetState = showing,
-            animationSpec = tween(Motion.MEDIUM),
+            transitionSpec = {
+                fadeIn(tween(Motion.MEDIUM, delayMillis = Motion.FADE_OUT)) togetherWith fadeOut(tween(Motion.FADE_OUT))
+            },
             label = "now-showing",
             modifier = Modifier.fillMaxSize(),
         ) { now ->
