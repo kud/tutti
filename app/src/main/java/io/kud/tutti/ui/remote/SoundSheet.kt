@@ -62,9 +62,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.clearAndSetSemantics
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.kud.tutti.R
@@ -87,7 +84,7 @@ fun barReason(state: TuttiUiState, feature: TheatreFeature): String? = when {
     else -> null
 }
 
-/** One line at the top of the open sheet: what is on right now. */
+/** One line for the peek: what is on right now. */
 @Composable
 fun soundSummary(state: TuttiUiState): String {
     if (!state.bar.connected) return barReason(state, TheatreFeature.SOUND_FIELD).orEmpty()
@@ -96,41 +93,6 @@ fun soundSummary(state: TuttiUiState): String {
         .map { stringResource(featureLabel(it)) }
     return if (on.isEmpty()) stringResource(R.string.sound_summary_plain) else on.joinToString(" · ")
 }
-
-/**
- * The Son sheet's handle, which is all of its peek (Erwann, 2026-10-24: the title said nothing a
- * handle doesn't, and the room is the remote's). The bar is drawn as Material's, the whole 48 dp
- * row takes a tap that opens or closes the sheet, and TalkBack hears "Son" with that action; the
- * scaffold adds its own expand and collapse actions around it.
- */
-@Composable
-fun SoundHandle(expanded: Boolean, onToggle: () -> Unit) {
-    val title = stringResource(R.string.sound_title)
-    val action = stringResource(if (expanded) R.string.sound_close else R.string.sound_open)
-    Box(
-        Modifier
-            .fillMaxWidth()
-            .height(SOUND_HANDLE_HEIGHT)
-            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onToggle)
-            .clearAndSetSemantics {
-                contentDescription = title
-                onClick(label = action) {
-                    onToggle()
-                    true
-                }
-            },
-        contentAlignment = Alignment.Center,
-    ) {
-        Box(
-            Modifier
-                .size(width = 32.dp, height = 4.dp)
-                .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f), RoundedCornerShape(2.dp)),
-        )
-    }
-}
-
-/** The handle's row: the peek's whole height, above the navigation bar. */
-val SOUND_HANDLE_HEIGHT = 48.dp
 
 /**
  * The "Son" sheet: large toggles (sound field, voice, night, DRC, auto volume, IMAX,

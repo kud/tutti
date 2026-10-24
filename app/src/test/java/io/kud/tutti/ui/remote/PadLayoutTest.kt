@@ -7,9 +7,9 @@ import org.junit.Test
 
 class PadLayoutTest {
     // What a portrait phone leaves the pad block, from the remote's fixed parts in dp: status bar
-    // 24, header 68, scene pills 48, switch 6 + 48, round keys 52, 12, dock 84, 12, Son handle 48,
+    // 24, header 68, scene pills 48, switch 6 + 48, round keys 52, 12, dock 84, 12, Son peek 72,
     // gesture bar 24. The pad's width is the screen less 2 × 16 margin, the 12 gap and the 64 rail.
-    private val chrome = 24f + 68f + 48f + 54f + 52f + 12f + 84f + 12f + 48f + 24f
+    private val chrome = 24f + 68f + 48f + 54f + 52f + 12f + 84f + 12f + 72f + 24f
 
     private fun phone(width: Float, height: Float, size: PadSize = PadSize.NORMAL): Triple<PadPlacement, Float, Float> {
         val available = height - chrome

@@ -34,9 +34,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SheetValue
-import androidx.compose.runtime.rememberCoroutineScope
-import kotlinx.coroutines.launch
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -124,18 +121,11 @@ fun RemoteScreen(
     }
 
     val sheet = rememberBottomSheetScaffoldState()
-    val sheetScope = rememberCoroutineScope()
     val navigationInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     BottomSheetScaffold(
         scaffoldState = sheet,
-        sheetPeekHeight = if (inputOpen || editing) 0.dp else SOUND_HANDLE_HEIGHT + navigationInset,
+        sheetPeekHeight = if (inputOpen || editing) 0.dp else SHEET_PEEK + navigationInset,
         sheetSwipeEnabled = !editing && !inputOpen,
-        sheetDragHandle = {
-            val expanded = sheet.bottomSheetState.currentValue == SheetValue.Expanded
-            SoundHandle(expanded = expanded) {
-                sheetScope.launch { if (expanded) sheet.bottomSheetState.partialExpand() else sheet.bottomSheetState.expand() }
-            }
-        },
         sheetContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
         containerColor = MaterialTheme.colorScheme.background,
         sheetContent = { SoundSheet(state, controller) },
@@ -453,3 +443,6 @@ private val INPUT_RISE = 24.dp
 
 /** Back to the remote: a plain cross-fade. */
 private const val INPUT_BACK_MS = 200
+
+/** The “Son” handle and its one-line summary. */
+private val SHEET_PEEK = 72.dp
