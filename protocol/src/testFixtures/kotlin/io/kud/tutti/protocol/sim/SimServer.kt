@@ -112,6 +112,9 @@ abstract class SimServer(private val name: String) : AutoCloseable {
     /** Bound but never listening: holds a sleeping port so a dial is refused, not answered by another simulator. */
     private var held: Socket? = null
 
+    /** The thread accepting on [server]; [sleep] waits for it to leave accept(). */
+    private var acceptor: Thread? = null
+
     /** TLS devices wrap the accepted socket; the raw one stays reachable to drop it abruptly. */
     protected open fun wrap(raw: Socket): Socket = raw
 
@@ -140,11 +143,18 @@ abstract class SimServer(private val name: String) : AutoCloseable {
         port = socket.localPort
         server = socket
         awake = true
-        thread(isDaemon = true, name = "$name-accept") {
+        acceptor = thread(isDaemon = true, name = "$name-accept") {
             while (!socket.isClosed) {
                 val raw = try {
                     socket.accept()
                 } catch (e: IOException) {
+                    break
+                }
+                // An accept already blocked when sleep() closed the socket can still return a
+                // connection: Linux checks the queue before the pending signal. Standby refuses it.
+                if (socket.isClosed) {
+                    runCatching { raw.setSoLinger(true, 0) }
+                    runCatching { raw.close() }
                     break
                 }
                 accepted.incrementAndGet()
@@ -171,6 +181,13 @@ abstract class SimServer(private val name: String) : AutoCloseable {
         awake = false
         runCatching { server?.close() }
         server = null
+        // ServerSocket.close() returns while the accept thread is still inside accept(), and the
+        // kernel keeps the listener alive until that call returns: until then the "sleeping" port
+        // completes handshakes, and the accept can even hand one to serve(). Under load that
+        // window outlived the test's next dial (BraviaSimTest reached HTTPS on a sleeping port).
+        // Wait for the thread to leave, so the port truly refuses and hold() below can bind it.
+        acceptor?.let { if (it !== Thread.currentThread()) it.join(ACCEPTOR_EXIT_MILLIS) }
+        acceptor = null
         dropConnections()
         // A freed port is anyone's: the other test JVM's simulators once bound it, so a real client
         // (OkHttp, which never calls refuseIfAsleep) reached them instead of being refused. Held
@@ -259,6 +276,10 @@ abstract class SimServer(private val name: String) : AutoCloseable {
 
         val peerCertificate: X509Certificate?
             get() = (socket as? SSLSocket)?.session?.peerCertificates?.firstOrNull() as? X509Certificate
+    }
+
+    private companion object {
+        const val ACCEPTOR_EXIT_MILLIS = 5_000L
     }
 }
 
