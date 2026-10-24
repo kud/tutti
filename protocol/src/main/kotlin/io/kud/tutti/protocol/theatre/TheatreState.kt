@@ -20,7 +20,15 @@ data class TheatreState(
     val refused: Set<String> = emptySet(),
     /** Features whose last `get` this session met silence (no answer before the timeout). */
     val silent: Set<String> = emptySet(),
+    /**
+     * Values the bar refused (`ERR`/`NAK`) or never answered when tutti tried to set them, per
+     * feature, kept for the session (Erwann, 2026-10-24: "afficher une erreur quand l'option ne
+     * marche pas"). A value the bar later acknowledges or reports is cleared.
+     */
+    val refusedValues: Map<String, Set<String>> = emptyMap(),
 ) {
+    fun refusedValues(feature: TheatreFeature): Set<String> = refusedValues[feature.key].orEmpty()
+
     /** Known features the bar has neither reported nor refused: what a refresh should ask again. */
     fun missing(): List<TheatreFeature> =
         TheatreFeature.entries.filter { it.key !in confirmed && it.key !in refused }

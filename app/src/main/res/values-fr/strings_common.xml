@@ -54,4 +54,6 @@
     <!-- Message passager de tutti (remplace les toasts système). -->
     <string name="message_dismiss">Fermer</string>
     <string name="message_problem">Problème</string>
+    <string name="choice_refused">refusée</string>
+    <string name="choice_refused_note">La barre refuse %1$s. Touchez pour réessayer.</string>
 </resources>

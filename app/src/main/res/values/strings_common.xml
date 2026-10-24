@@ -54,4 +54,6 @@
     <!-- tutti's own transient message (replaces system toasts). -->
     <string name="message_dismiss">Dismiss</string>
     <string name="message_problem">Problem</string>
+    <string name="choice_refused">refused</string>
+    <string name="choice_refused_note">The bar refused %1$s. Tap it to try again.</string>
 </resources>

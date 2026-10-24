@@ -50,6 +50,7 @@ object TheatreReducer {
                 pending = if (pending?.value == message.value) state.pending - message.feature else state.pending,
                 refused = state.refused - message.feature,
                 silent = state.silent - message.feature,
+                refusedValues = state.refusedValues.without(message.feature, message.value),
             )
         }
         is TheatreInbound.Result -> result(state, message)
@@ -91,14 +92,24 @@ object TheatreReducer {
                 outstanding = outstanding,
                 confirmed = state.confirmed + (request.feature to confirmedValue),
                 pending = if (pendingIsThis) state.pending - request.feature else state.pending,
+                refusedValues = state.refusedValues.without(request.feature, confirmedValue),
             )
         } else {
             state.copy(
                 outstanding = outstanding,
                 pending = if (pendingIsThis) state.pending - request.feature else state.pending,
                 lastError = "${request.feature}: ${message.value ?: "refused"}",
+                refusedValues = state.refusedValues.with(request.feature, request.value),
             )
         }
+    }
+
+    private fun Map<String, Set<String>>.with(feature: String, value: String?): Map<String, Set<String>> =
+        if (value == null) this else this + (feature to (this[feature].orEmpty() + value))
+
+    private fun Map<String, Set<String>>.without(feature: String, value: String?): Map<String, Set<String>> {
+        val left = this[feature].orEmpty() - (value ?: return this)
+        return if (left.isEmpty()) this - feature else this + (feature to left)
     }
 
     private fun tick(state: TheatreState, now: Long): TheatreState {
@@ -106,7 +117,9 @@ object TheatreReducer {
         if (expired.isEmpty()) return state
         val expiredPending = state.pending.filterValues { it.requestId in expired.keys }
         val unanswered = expired.values.filter { !it.isSet && it.feature !in state.confirmed }.map { it.feature }
+        val unansweredSets = expired.values.filter { it.isSet && it.value != null }
         return state.copy(
+            refusedValues = unansweredSets.fold(state.refusedValues) { map, request -> map.with(request.feature, request.value) },
             outstanding = state.outstanding - expired.keys,
             silent = state.silent + unanswered,
             pending = state.pending - expiredPending.keys,

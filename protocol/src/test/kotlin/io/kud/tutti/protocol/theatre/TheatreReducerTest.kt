@@ -27,6 +27,24 @@ class TheatreReducerTest {
     private val start = TheatreState(connected = true, confirmed = mapOf(volume to "20"))
 
     @Test
+    fun `a refused value rolls back and is remembered until the bar takes it`() {
+        val refused = start.on(set(1, "30"), result(1, "ERR"))
+        assertEquals("20", refused.value(TheatreFeature.VOLUME))
+        assertEquals(setOf("30"), refused.refusedValues(TheatreFeature.VOLUME))
+
+        val retried = refused.on(set(2, "30"), result(2, "ACK"))
+        assertTrue(retried.refusedValues(TheatreFeature.VOLUME).isEmpty())
+        assertTrue(refused.on(notify("30")).refusedValues(TheatreFeature.VOLUME).isEmpty())
+    }
+
+    @Test
+    fun `a set the bar never answers rolls back and counts as refused`() {
+        val timedOut = start.on(set(1, "30", now = 0), TheatreEvent.Tick(now = 2_000))
+        assertEquals("20", timedOut.value(TheatreFeature.VOLUME))
+        assertEquals(setOf("30"), timedOut.refusedValues(TheatreFeature.VOLUME))
+    }
+
+    @Test
     fun `optimistic set shows at once and is confirmed by the ack`() {
         val sent = start.on(set(1, "30"))
         assertEquals("30", sent.value(TheatreFeature.VOLUME))

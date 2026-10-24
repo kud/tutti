@@ -19,10 +19,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import io.kud.tutti.R
 
-/** A settings row that opens a menu of options. [reason] greys it and says why. */
+/**
+ * A settings row that opens a menu of options. [reason] greys it and says why. [refused] options
+ * stay listed and tappable (a retry), marked with the warning glyph and the word, and the row
+ * says which value the bar refused.
+ */
 @Composable
 fun <T> ChoiceRow(
     label: String,
@@ -32,20 +37,31 @@ fun <T> ChoiceRow(
     modifier: Modifier = Modifier,
     reason: String? = null,
     @DrawableRes icon: Int? = null,
+    refused: Set<T> = emptySet(),
 ) {
     var expanded by remember { mutableStateOf(false) }
+    val refusedWord = stringResource(R.string.choice_refused)
+    val refusedNote = options.filter { it.first in refused }.joinToString { it.second }.ifEmpty { null }
+        ?.let { stringResource(R.string.choice_refused_note, it) }
     Box(modifier.fillMaxWidth()) {
         SettingsRow(
             title = label,
             detail = reason ?: valueLabel,
+            notice = if (reason == null) refusedNote?.let { "$valueLabel · $it" } else null,
             icon = icon,
             enabled = reason == null && options.isNotEmpty(),
             onClick = { expanded = true },
         )
         TuttiMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             for ((value, text) in options) {
+                val isRefused = value in refused
                 DropdownMenuItem(
-                    text = { Text(text) },
+                    text = { Text(if (isRefused) "$text · $refusedWord" else text) },
+                    leadingIcon = if (isRefused) {
+                        { Icon(painterResource(R.drawable.ic_warning), contentDescription = null) }
+                    } else {
+                        null
+                    },
                     onClick = {
                         expanded = false
                         onSelect(value)

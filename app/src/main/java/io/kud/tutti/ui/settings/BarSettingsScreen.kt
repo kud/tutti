@@ -136,6 +136,7 @@ private fun Choice(state: TuttiUiState, controller: TuttiController, feature: Th
         options = kind.options.map { it to optionLabel(it) },
         onSelect = { controller.setBarChoice(feature, it) },
         reason = barReason(state, feature),
+        refused = state.bar.refusedValues(feature),
     )
 }
 

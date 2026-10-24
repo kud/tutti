@@ -49,6 +49,10 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -62,6 +66,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.kud.tutti.R
@@ -145,15 +152,8 @@ fun SoundSheet(state: TuttiUiState, controller: TuttiController, modifier: Modif
         BarInputRow(state, controller)
         Spacer(Modifier.height(8.dp))
 
-        val tiles = listOf(
-            TheatreFeature.SOUND_FIELD,
-            TheatreFeature.VOICE,
-            TheatreFeature.NIGHT,
-            TheatreFeature.DRC,
-            TheatreFeature.AUTO_VOLUME,
-            TheatreFeature.IMAX,
-            TheatreFeature.SPATIAL_360,
-        ) + if (state.voiceZoomAvailable) listOf(TheatreFeature.VOICE_ZOOM) else emptyList()
+        val layout = soundSheetLayout(state.voiceZoomAvailable)
+        val tiles = layout.tiles
         for (row in tiles.chunked(2)) {
             Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 for (feature in row) {
@@ -162,15 +162,7 @@ fun SoundSheet(state: TuttiUiState, controller: TuttiController, modifier: Modif
                         feature = feature,
                         onTap = {
                             haptics.select()
-                            when (val kind = feature.kind) {
-                                is FeatureKind.Toggle -> controller.toggleBar(feature)
-                                is FeatureKind.Choice -> {
-                                    val current = state.bar.value(feature)
-                                    val next = kind.options[(kind.options.indexOf(current) + 1).mod(kind.options.size)]
-                                    controller.setBarChoice(feature, next)
-                                }
-                                else -> Unit
-                            }
+                            if (feature.kind is FeatureKind.Toggle) controller.toggleBar(feature)
                         },
                         modifier = Modifier.weight(1f),
                     )
@@ -179,10 +171,15 @@ fun SoundSheet(state: TuttiUiState, controller: TuttiController, modifier: Modif
             }
         }
 
-        LevelSlider(state, TheatreFeature.BASS, onLevel = { controller.setBarLevel(TheatreFeature.BASS, it) })
-        LevelSlider(state, TheatreFeature.REAR_LEVEL, onLevel = { controller.setBarLevel(TheatreFeature.REAR_LEVEL, it) })
-        if (state.voiceZoomAvailable) {
-            LevelSlider(state, TheatreFeature.VOICE_ZOOM_LEVEL, onLevel = { controller.setBarLevel(TheatreFeature.VOICE_ZOOM_LEVEL, it) })
+        for (feature in layout.choices) {
+            ChoiceSegments(state, feature, onSelect = {
+                haptics.select()
+                controller.setBarChoice(feature, it)
+            })
+        }
+
+        for (feature in layout.levels) {
+            LevelSlider(state, feature, onLevel = { controller.setBarLevel(feature, it) })
         }
 
         Spacer(Modifier.height(12.dp))
@@ -192,15 +189,102 @@ fun SoundSheet(state: TuttiUiState, controller: TuttiController, modifier: Modif
     }
 }
 
+/** The Sound sheet's settings, in order; [soundSheetLayout] sorts them by kind. */
+val SOUND_SHEET_FEATURES = listOf(
+    TheatreFeature.SOUND_FIELD,
+    TheatreFeature.VOICE,
+    TheatreFeature.NIGHT,
+    TheatreFeature.DRC,
+    TheatreFeature.AUTO_VOLUME,
+    TheatreFeature.IMAX,
+    TheatreFeature.SPATIAL_360,
+    TheatreFeature.VOICE_ZOOM,
+    TheatreFeature.BASS,
+    TheatreFeature.REAR_LEVEL,
+    TheatreFeature.VOICE_ZOOM_LEVEL,
+)
+
+data class SoundSheetLayout(val tiles: List<TheatreFeature>, val choices: List<TheatreFeature>, val levels: List<TheatreFeature>)
+
+/**
+ * The rule (Erwann, 2026-10-24: "on a pas mal d'options qui ont plus que on/off"): only an on/off
+ * setting ([FeatureKind.Toggle]) is a tile; every [FeatureKind.Choice], today DRC and IMAX, gets a
+ * row showing all its options; levels are sliders. Voice Zoom 3 shows only if the bar answered the
+ * probe. Tested in `SoundSheetLayoutTest`, so a new feature can't land as a misleading tile.
+ */
+fun soundSheetLayout(voiceZoom: Boolean, features: List<TheatreFeature> = SOUND_SHEET_FEATURES): SoundSheetLayout {
+    val shown = features.filter {
+        voiceZoom || (it != TheatreFeature.VOICE_ZOOM && it != TheatreFeature.VOICE_ZOOM_LEVEL)
+    }
+    return SoundSheetLayout(
+        tiles = shown.filter { it.kind is FeatureKind.Toggle },
+        choices = shown.filter { it.kind is FeatureKind.Choice },
+        levels = shown.filter { it.kind is FeatureKind.Level },
+    )
+}
+
+/**
+ * A three-way bar setting (DRC, IMAX: auto, on, off) as one labelled row of segments, every option
+ * in view and the current one ticked as well as filled, so it never rests on colour. TalkBack reads
+ * the setting's name, then each option as a radio button with its selected state. Unavailable,
+ * the segments are disabled and the reason shows under them, never hidden.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ChoiceSegments(state: TuttiUiState, feature: TheatreFeature, onSelect: (String) -> Unit) {
+    val kind = feature.kind as? FeatureKind.Choice ?: return
+    val reason = barReason(state, feature)
+    val value = state.bar.value(feature)
+    val label = stringResource(featureLabel(feature))
+    val refused = state.bar.refusedValues(feature)
+    val refusedWord = stringResource(R.string.choice_refused)
+    Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+        Text(label, style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(bottom = 6.dp))
+        SingleChoiceSegmentedButtonRow(
+            Modifier.fillMaxWidth().semantics { contentDescription = label },
+        ) {
+            kind.options.forEachIndexed { index, option ->
+                val isRefused = option in refused
+                SegmentedButton(
+                    selected = option == value,
+                    // A refused option stays tappable: a tap is a retry.
+                    onClick = { if (option != value) onSelect(option) },
+                    enabled = reason == null,
+                    shape = SegmentedButtonDefaults.itemShape(index, kind.options.size),
+                    icon = {
+                        if (isRefused && option != value) {
+                            Icon(painterResource(R.drawable.ic_warning), contentDescription = null, modifier = Modifier.size(SegmentedButtonDefaults.IconSize))
+                        } else {
+                            SegmentedButtonDefaults.Icon(active = option == value)
+                        }
+                    },
+                    modifier = Modifier.heightIn(min = 48.dp).then(
+                        if (isRefused) Modifier.semantics { stateDescription = refusedWord } else Modifier,
+                    ),
+                ) {
+                    Text(choiceLabel(option), maxLines = 1)
+                }
+            }
+        }
+        val labels = (kind.options + refused).associateWith { choiceLabel(it) }
+        val note = reason ?: refused.filter { it != value }.joinToString { labels[it] ?: it }.ifEmpty { null }
+            ?.let { stringResource(R.string.choice_refused_note, it) }
+        if (note != null) {
+            Text(
+                note,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+        }
+    }
+}
+
 @Composable
 private fun SoundTile(state: TuttiUiState, feature: TheatreFeature, onTap: () -> Unit, modifier: Modifier = Modifier) {
     val reason = barReason(state, feature)
     val value = state.bar.value(feature)
-    val on = when (feature.kind) {
-        is FeatureKind.Toggle -> state.bar.isOn(feature) == true
-        is FeatureKind.Choice -> value == "on" || value == "auto"
-        else -> false
-    }
+    val on = state.bar.isOn(feature) == true
     val scheme = MaterialTheme.colorScheme
     val container by animateColorAsState(if (on && reason == null) scheme.primaryContainer else scheme.surfaceContainerHigh, snappyOrFade(), label = "tile")
     val content = if (on && reason == null) scheme.onPrimaryContainer else scheme.onSurface
@@ -274,10 +358,7 @@ private fun SoundTile(state: TuttiUiState, feature: TheatreFeature, onTap: () ->
             }
         } else {
             Text(
-                text = reason ?: when (feature.kind) {
-                    is FeatureKind.Choice -> choiceLabel(value)
-                    else -> stringResource(if (on) R.string.state_on else R.string.state_off)
-                },
+                text = reason ?: stringResource(if (on) R.string.state_on else R.string.state_off),
                 style = MaterialTheme.typography.bodySmall,
                 color = if (reason == null) content else scheme.onSurfaceVariant,
                 maxLines = 2,
