@@ -522,6 +522,17 @@ private fun dpadZone(at: Offset, width: Float, height: Float, corner: Float, cor
 
 private val DIRECTIONS = listOf(V2Key.DPAD_UP, V2Key.DPAD_DOWN, V2Key.DPAD_LEFT, V2Key.DPAD_RIGHT)
 
+/**
+ * The D-pad disc's drawn edge in a pad of [width] x [height] whose switch holds the top [corner]
+ * square: the visible disc, which the volume rail lines up with in D-pad mode.
+ */
+internal fun dpadDiscRadius(width: Float, height: Float, corner: Float, onLeft: Boolean): Float =
+    dpadFaceRadius(width, height, corner, onLeft) * DISC_FRACTION
+
+/** How far the visible disc stands in from the top and foot of a [height]-tall pad of [width], in its unit. */
+internal fun dpadDiscInset(width: Float, height: Float, corner: Float, onLeft: Boolean): Float =
+    if (height <= 0f) 0f else (height / 2f - dpadDiscRadius(width, height, corner, onLeft)).coerceAtLeast(0f)
+
 /** The D-pad's OK radius in a face of [width] x [height] px, moat of [moat] px off, as [DpadFace] draws it. */
 internal fun dpadOkRadius(width: Float, height: Float, moat: Float): Float = min(width, height) / 2f * CENTRE_FRACTION - moat
 

@@ -180,4 +180,21 @@ class PadLayoutTest {
         assertEquals(0f, short.top, 0.01f)
         assertEquals(120f, short.bottom, 0.01f)
     }
+
+    @Test
+    fun `in D-pad mode the rail's top and foot are the disc's`() {
+        val corner = PAD_SWITCH_ZONE
+        for ((w, h) in listOf(300f to 300f, 300f to 255f, 300f to 360f, 280f to 238f)) {
+            for (onLeft in listOf(true, false)) {
+                val inset = dpadDiscInset(w, h, corner, onLeft)
+                val r = dpadDiscRadius(w, h, corner, onLeft)
+                // The rail spans exactly the disc's height, centred like the disc.
+                assertEquals(2f * r, h - 2f * inset, 0.01f)
+                assertTrue(inset >= 0f)
+                // Still room for +, the readout, - and the speaker (48 + 48 + 48 dp and the number).
+                assertTrue("rail ${h - 2f * inset} in a $w x $h pad", h - 2f * inset >= 200f)
+            }
+        }
+        assertEquals(0f, dpadDiscInset(300f, 0f, corner, true), 0f)
+    }
 }

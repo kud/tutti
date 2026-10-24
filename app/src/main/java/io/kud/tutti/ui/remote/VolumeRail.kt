@@ -32,6 +32,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
@@ -44,9 +45,13 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.disabled
+import androidx.compose.ui.semantics.progressBarRangeInfo
+import androidx.compose.ui.semantics.setProgress
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -57,22 +62,31 @@ import io.kud.tutti.controller.TuttiController
 import io.kud.tutti.ui.common.LocalReducedMotion
 import io.kud.tutti.ui.common.rememberHaptics
 import io.kud.tutti.ui.motion.Motion
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 /**
  * Vertical rail on the right edge: the soundbar's absolute volume (0–100), the second loudest
  * element. Dragging anywhere moves the level relatively (a stray tap never jumps the volume);
  * a tick per step, and the controller's bump at 0, 100 or the scene's cap.
  *
- * Three states, told apart by shape as well as colour: connected (level on top, the speaker at
- * the foot), muted (the fill greys, is hatched, and the foot speaker takes its slash), and not connected
- * (no level and no fill, a hollow track, and the foot speaker crossed at full strength).
+ * Three states, told apart by shape as well as colour: connected (the level's number under + and
+ * the fill, always shown; Erwann, 2026-10-24: "je veux que le niveau de volume reste affiché"),
+ * muted (the fill greys, is hatched, the speaker takes its slash and its disc inverts), and not
+ * connected (a dash for the number, no fill, a hollow track, the keys off and the speaker crossed).
  *
- * The foot speaker is the mute key (Iris, chosen by Erwann, 2026-10-24): a 48 dp target on a faint
- * disc, the icon at full strength. A tap toggles mute; the rail's drag only claims past touch
- * slop, so a tap never moves the level, and a drag that starts on the speaker cancels the tap.
- * It is its own accessibility node, a button beside the rail's volume readout; off while the bar
- * is unreachable.
+ * Three keys, one family (Erwann, 2026-10-24: "un bouton + et -, possiblement en haut et en bas";
+ * "pas ouf la transparence de l'icône"): + at the top, the readout under it, − just above the
+ * speaker, and the speaker (mute) at the foot where it always was. Each is a 48 dp target on a
+ * solid disc in the surface colour with a hairline ring, its icon at full strength in onSurface, so
+ * it reads the same over the fill and over the empty track, whatever the level. A press of + or −
+ * steps the bar by one at once (a tick inside the range, the controller's bump and the rail's
+ * stretch at a wall), and a hold repeats on [KeyRepeat]'s rhythm. A tap on the speaker toggles
+ * mute. Keys only take a tap: the rail's drag claims past touch slop, so a drag that starts on a
+ * key still moves the level and cancels the tap or the repeat. Each key is its own accessibility
+ * node ("Volume up", "Volume down", "Mute"); while the bar is unreachable they lose their disc and
+ * say disabled, + and − dimmed and the speaker crossed, so off is a shape too.
  *
  * While dragged the rail widens 64 → 72 dp over its neighbours' gap, so the layout never moves.
  * Reaching 0 or the cap stretches it 3 % against the wall and springs back (the controller plays
@@ -85,6 +99,7 @@ fun VolumeRail(
     muted: Boolean,
     enabled: Boolean,
     onVolume: (Int) -> Unit,
+    onStep: (Int) -> Unit,
     onMute: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -95,6 +110,7 @@ fun VolumeRail(
     val currentCap by rememberUpdatedState(cap)
     val setVolume by rememberUpdatedState(onVolume)
     val toggleMute by rememberUpdatedState(onMute)
+    val stepBy by rememberUpdatedState(onStep)
     val connected = enabled
     val scope = rememberCoroutineScope()
     val reduced by rememberUpdatedState(LocalReducedMotion.current)
@@ -116,13 +132,32 @@ fun VolumeRail(
     val label = stringResource(R.string.volume_label)
     val state = when {
         !connected -> stringResource(R.string.volume_state_disconnected)
-        shown == null -> ""
+        shown == null -> stringResource(R.string.volume_state_unknown)
         muted -> stringResource(R.string.volume_state_muted, shown)
         else -> shown.toString()
     }
-    // The foot speaker sits on the fill once the fill has climbed past its top edge.
-    val footTop = with(LocalDensity.current) { (FOOT_INSET + FOOT_ICON).toPx() }
-    val footOnFill = railHeight > 0 && fraction * railHeight >= footTop
+    // The number turns to the fill's ink once the fill has climbed past its middle.
+    val density = LocalDensity.current
+    val readoutOnFill = railHeight > 0 && fraction * railHeight >= railHeight - with(density) { (READOUT_TOP + READOUT_HALF).toPx() }
+
+    // A step key: the controller steps (and bumps at a wall); here, the tick inside the range or the
+    // stretch against the wall, as a drag gets.
+    val step = step@{ delta: Int ->
+        stepBy(delta)
+        // An unknown level: the controller asks the bar for it; nothing to tick yet.
+        val now = currentVolume ?: return@step
+        val ceiling = currentCap ?: TuttiController.MAX_VOLUME
+        val next = VolumeSteps.step(now, delta, ceiling)
+        if (VolumeSteps.ticks(next, ceiling)) {
+            haptics.tick()
+        } else if (!reduced) {
+            stretchOrigin = if (next <= 0) 0f else 1f
+            scope.launch {
+                stretch.animateTo(STRETCH, Motion.pressIn())
+                stretch.animateTo(1f, Motion.snappy())
+            }
+        }
+    }
 
     // The slot keeps its rest width; the rail widens over the gap around it while dragged.
     Box(modifier.width(RAIL_WIDTH).fillMaxHeight(), contentAlignment = Alignment.Center) {
@@ -141,9 +176,20 @@ fun VolumeRail(
                     if (connected) Modifier
                     else Modifier.border(1.5.dp, scheme.outlineVariant, RoundedCornerShape(32.dp)),
                 )
+                // A slider to TalkBack: the level as its value (the readout itself is silent), and
+                // the volume keys or a swipe set it while the bar is reachable.
                 .semantics {
                     contentDescription = label
                     stateDescription = state
+                    if (connected && shown != null) {
+                        progressBarRangeInfo = ProgressBarRangeInfo(shown.toFloat(), 0f..(currentCap ?: TuttiController.MAX_VOLUME).toFloat())
+                        setProgress { target ->
+                            setVolume(target.roundToInt())
+                            true
+                        }
+                    } else {
+                        disabled()
+                    }
                 }
                 .drawWithContent {
                     drawContent()
@@ -218,66 +264,130 @@ fun VolumeRail(
                         }
                     },
             )
-            if (shown != null) {
-                Text(
-                    text = shown.toString(),
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    color = if (fraction > 0.9f) scheme.onPrimary else scheme.onSurface,
-                    modifier = Modifier.align(Alignment.TopCenter).padding(top = 16.dp),
-                )
-            }
+            // Always a number while connected (the controller keeps the last level until the bar
+            // echoes a new one); a dash while the bar is unreachable, never a stale level.
+            Text(
+                text = shown?.toString() ?: NO_LEVEL,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = when {
+                    shown == null -> scheme.onSurfaceVariant
+                    readoutOnFill -> onFill
+                    else -> scheme.onSurface
+                },
+                modifier = Modifier.align(Alignment.TopCenter).padding(top = READOUT_TOP).clearAndSetSemantics { },
+            )
+            RailKey(
+                icon = R.drawable.ic_add,
+                label = stringResource(R.string.volume_up),
+                enabled = connected,
+                onPress = { step(+1) },
+                repeats = true,
+                modifier = Modifier.align(Alignment.TopCenter).padding(top = KEY_INSET),
+            )
+            RailKey(
+                icon = R.drawable.ic_remove,
+                label = stringResource(R.string.volume_down),
+                enabled = connected,
+                onPress = { step(-1) },
+                repeats = true,
+                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = MINUS_BOTTOM),
+            )
             // One speaker, always at the foot, so it never moves: the mute key while connected (the
-            // slash when muted), and the crossed speaker at full strength, untappable, when the bar is gone.
-            val muteLabel = stringResource(if (muted) R.string.volume_unmute else R.string.volume_mute)
-            val mutedState = stringResource(R.string.volume_muted)
+            // slash and an inverted disc when muted), the crossed speaker, untappable, when the bar is gone.
+            RailKey(
+                icon = when {
+                    !connected -> R.drawable.ic_no_sound
+                    muted -> R.drawable.ic_volume_off
+                    else -> R.drawable.ic_volume_up
+                },
+                label = stringResource(if (muted) R.string.volume_unmute else R.string.volume_mute),
+                state = if (muted) stringResource(R.string.volume_muted) else null,
+                enabled = connected,
+                selected = muted,
+                dimWhenOff = false,
+                onPress = {
+                    haptics.click()
+                    toggleMute()
+                },
+                repeats = false,
+                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = FOOT_INSET + FOOT_ICON / 2 - FOOT_TARGET / 2),
+            )
+        }
+    }
+}
+
+/**
+ * A key on the rail: a 48 dp target, its icon at full strength on a solid disc (the surface colour,
+ * a hairline ring) while [enabled], so it reads over the fill and the empty track alike. [selected]
+ * (mute on) inverts the disc. Off: no disc, the node disabled and, if [dimWhenOff], the icon dimmed.
+ * [repeats]: a press acts at once and a hold repeats ([KeyRepeat]) until the finger lifts or the
+ * rail's drag claims it; otherwise it acts on a tap.
+ */
+@Composable
+private fun RailKey(
+    icon: Int,
+    label: String,
+    enabled: Boolean,
+    onPress: () -> Unit,
+    repeats: Boolean,
+    modifier: Modifier = Modifier,
+    state: String? = null,
+    selected: Boolean = false,
+    dimWhenOff: Boolean = true,
+) {
+    val scheme = MaterialTheme.colorScheme
+    val act by rememberUpdatedState(onPress)
+    val disc = if (selected) scheme.onSurface else scheme.surface
+    val ink = when {
+        !enabled -> scheme.onSurfaceVariant
+        selected -> scheme.surface
+        else -> scheme.onSurface
+    }
+    Box(
+        modifier
+            .size(KEY_TARGET)
+            .semantics {
+                role = Role.Button
+                contentDescription = label
+                if (state != null) stateDescription = state
+                if (!enabled) disabled()
+            }
+            // Its own detector: the rail's drag sees the down too, and claims it only past slop,
+            // which cancels this press; a key never moves the level by itself.
+            .pointerInput(enabled, repeats) {
+                if (!enabled) return@pointerInput
+                if (repeats) {
+                    detectTapGestures(
+                        onPress = {
+                            act()
+                            coroutineScope {
+                                val repeat = launch { KeyRepeat.run { act() } }
+                                tryAwaitRelease()
+                                repeat.cancel()
+                            }
+                        },
+                    )
+                } else {
+                    detectTapGestures { act() }
+                }
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        if (enabled) {
             Box(
                 Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = FOOT_INSET + FOOT_ICON / 2 - FOOT_TARGET / 2)
-                    .size(FOOT_TARGET)
-                    .semantics {
-                        role = Role.Button
-                        contentDescription = muteLabel
-                        if (muted) stateDescription = mutedState
-                        if (!connected) disabled()
-                    }
-                    // Its own detector: the rail's drag sees the down too, and claims it only past slop,
-                    // which cancels this tap; an up before slop is a tap, so the level never moves.
-                    .pointerInput(connected) {
-                        if (!connected) return@pointerInput
-                        detectTapGestures {
-                            haptics.click()
-                            toggleMute()
-                        }
-                    },
-                contentAlignment = Alignment.Center,
-            ) {
-                if (connected) {
-                    Box(
-                        Modifier
-                            .size(FOOT_DISC)
-                            .background((if (footOnFill) onFill else scheme.onSurface).copy(alpha = DISC_ALPHA), CircleShape),
-                    )
-                }
-                Icon(
-                    painter = painterResource(
-                        when {
-                            !connected -> R.drawable.ic_no_sound
-                            muted -> R.drawable.ic_volume_off
-                            else -> R.drawable.ic_volume_up
-                        },
-                    ),
-                    contentDescription = null,
-                    tint = when {
-                        !connected -> scheme.onSurfaceVariant
-                        footOnFill -> onFill
-                        else -> scheme.onSurfaceVariant
-                    },
-                    modifier = Modifier.size(FOOT_ICON),
-                )
-            }
+                    .size(KEY_DISC)
+                    .background(disc, CircleShape)
+                    .border(1.dp, scheme.outlineVariant, CircleShape),
+            )
         }
+        Icon(
+            painterResource(icon),
+            contentDescription = null,
+            tint = ink,
+            modifier = Modifier.size(FOOT_ICON).alpha(if (enabled || !dimWhenOff) 1f else OFF_ALPHA),
+        )
     }
 }
 
@@ -292,10 +402,26 @@ private const val STRETCH = 1.03f
 private val FOOT_INSET = 18.dp
 private val FOOT_ICON = 20.dp
 private val FOOT_TARGET = 48.dp
-private val FOOT_DISC = 40.dp
+/** Every key's solid disc: 36 dp, clear of the 64 dp rail's edges, so it reads as a key on it. */
+private val KEY_DISC = 36.dp
 
-/** The foot's disc: faint, just enough to read as pressable. */
-private const val DISC_ALPHA = 0.12f
+/** + sits at the top as the speaker sits at the foot: its glyph 18 dp in, like the speaker's. */
+private val KEY_INSET = 4.dp
+private val KEY_TARGET = 48.dp
+
+/** − stands on the speaker's target: the two 48 dp targets meet, neither overlaps. */
+private val MINUS_BOTTOM = FOOT_INSET + FOOT_ICON / 2 + FOOT_TARGET / 2
+
+/** The readout, under +. */
+private val READOUT_TOP = KEY_INSET + KEY_TARGET + 4.dp
+private val READOUT_HALF = 14.dp
+
+/** The number while the bar is unreachable: a dash, never a stale level. */
+private const val NO_LEVEL = "–"
+
+/** A step key while the bar is unreachable: dimmed, on top of losing its disc. */
+private const val OFF_ALPHA = 0.38f
+
 
 /** One full rail height covers 60 steps: precise without being slow. */
 private const val SENSITIVITY = 0.6f

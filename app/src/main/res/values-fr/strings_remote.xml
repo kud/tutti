@@ -38,6 +38,9 @@
     <string name="volume_mute">Couper le son</string>
     <string name="volume_unmute">Rétablir le son</string>
     <string name="volume_muted">Son coupé</string>
+    <string name="volume_up">Monter le volume</string>
+    <string name="volume_state_unknown">Niveau pas encore reçu</string>
+    <string name="volume_down">Baisser le volume</string>
     <string name="scene_modified">modifiée</string>
     <string name="dock_add">Ajouter</string>
     <string name="dock_assign_title">Raccourci %1$d</string>

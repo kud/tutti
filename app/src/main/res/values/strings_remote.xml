@@ -37,6 +37,9 @@
     <string name="volume_mute">Mute</string>
     <string name="volume_unmute">Unmute</string>
     <string name="volume_muted">Muted</string>
+    <string name="volume_up">Volume up</string>
+    <string name="volume_state_unknown">Level not reported yet</string>
+    <string name="volume_down">Volume down</string>
     <string name="scene_modified">modified</string>
     <string name="dock_add">Add</string>
     <string name="dock_assign_title">Shortcut %1$d</string>

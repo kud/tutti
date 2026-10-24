@@ -51,12 +51,17 @@ import androidx.compose.ui.semantics.traversalIndex
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.animation.core.animateDpAsState
+import io.kud.tutti.ui.motion.snappyOrFade
 import io.kud.tutti.R
 import io.kud.tutti.controller.Link
 import io.kud.tutti.controller.TuttiController
 import io.kud.tutti.controller.TuttiUiState
 import io.kud.tutti.platform.data.DockAction
+import io.kud.tutti.platform.data.PadMode
 import io.kud.tutti.platform.data.PadSize
 import io.kud.tutti.platform.data.SecondaryButton
 import io.kud.tutti.protocol.atv.V2Key
@@ -284,6 +289,7 @@ fun RemoteScreen(
                         // under that thumb, the rail on the other side, the switch in the pad's corner facing
                         // the rail. TalkBack always reads the pad, then the rail, whichever side each stands on.
                         val padOnRight = layout.hand.padOnRight
+                        var padSize by remember { mutableStateOf(IntSize.Zero) }
                         val density = LocalDensity.current
                         val pad = @Composable { m: Modifier ->
                             Pad(
@@ -313,7 +319,23 @@ fun RemoteScreen(
                                     },
                             )
                         }
-                        // The rail fills the row, so it takes the pad's height, top and foot.
+                        // The rail fills the row, so it takes the pad's height, top and foot; in D-pad mode,
+                        // where the disc is the only visible shape, it stands in to the disc's own top and
+                        // foot (Erwann, 2026-10-24: "la taille du pad ne doit pas être la même que le
+                        // volume ?"), and it grows back to the box with the touchpad's surface.
+                        val discInset = with(density) {
+                            dpadDiscInset(
+                                padSize.width.toFloat(),
+                                padSize.height.toFloat(),
+                                PAD_SWITCH_ZONE.dp.toPx(),
+                                layout.hand.switchOnLeft,
+                            ).toDp()
+                        }
+                        val railInset by animateDpAsState(
+                            if (state.prefs.padMode == PadMode.DPAD) discInset else 0.dp,
+                            snappyOrFade(),
+                            label = "railInset",
+                        )
                         val rail = @Composable {
                             VolumeRail(
                                 volume = state.volume,
@@ -321,8 +343,9 @@ fun RemoteScreen(
                                 muted = state.muted,
                                 enabled = state.bar.connected,
                                 onVolume = controller::setVolume,
+                                onStep = controller::volumeStep,
                                 onMute = controller::toggleMute,
-                                modifier = Modifier.semantics { traversalIndex = 1f },
+                                modifier = Modifier.padding(vertical = railInset).semantics { traversalIndex = 1f },
                             )
                         }
                         Row(
@@ -336,9 +359,9 @@ fun RemoteScreen(
                             if (padOnRight) {
                                 rail()
                                 Spacer(Modifier.width(railGap))
-                                pad(Modifier.weight(1f).fillMaxHeight())
+                                pad(Modifier.weight(1f).fillMaxHeight().onSizeChanged { padSize = it })
                             } else {
-                                pad(Modifier.weight(1f).fillMaxHeight())
+                                pad(Modifier.weight(1f).fillMaxHeight().onSizeChanged { padSize = it })
                                 Spacer(Modifier.width(railGap))
                                 rail()
                             }
