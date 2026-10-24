@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.material3.BottomSheetScaffold
+import androidx.compose.material3.SheetValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.rememberBottomSheetScaffoldState
 import androidx.compose.foundation.layout.width
@@ -155,7 +156,9 @@ fun RemoteScreen(
         sheetSwipeEnabled = !editing && !inputOpen,
         sheetContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
         containerColor = MaterialTheme.colorScheme.background,
-        sheetContent = { SoundSheet(state, controller, onAddBar = onAddBar) },
+        sheetContent = {
+            SoundSheet(state, controller, peeking = sheet.bottomSheetState.targetValue != SheetValue.Expanded, onAddBar = onAddBar)
+        },
     ) { padding ->
         if (editing) {
             LayoutEditor(

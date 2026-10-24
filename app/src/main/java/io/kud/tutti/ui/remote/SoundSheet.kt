@@ -19,6 +19,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.ui.res.painterResource
 import io.kud.tutti.ui.common.LocalReducedMotion
 import io.kud.tutti.ui.common.PressStyle
@@ -108,8 +111,19 @@ fun soundSummary(state: TuttiUiState): String {
  * leads straight to the onboarding's bar step ([onAddBar]), never back through the TV's.
  */
 @Composable
-fun SoundSheet(state: TuttiUiState, controller: TuttiController, modifier: Modifier = Modifier, onAddBar: () -> Unit = {}) {
+fun SoundSheet(
+    state: TuttiUiState,
+    controller: TuttiController,
+    modifier: Modifier = Modifier,
+    peeking: Boolean = false,
+    onAddBar: () -> Unit = {},
+) {
     val haptics = rememberHaptics()
+    // Folded, the sheet shows its title line and nothing else: the peek also covers the gesture bar's
+    // inset, which used to reveal the top of "Bar input" under the summary. The rest fades in as the
+    // sheet opens (opacity only, so it is also the reduced-motion form) and stays out of TalkBack's
+    // reach until then; the drag handle's own action opens it.
+    val rest by animateFloatAsState(if (peeking) 0f else 1f, tween(Motion.MEDIUM), label = "sheet-rest")
     val context = LocalContext.current
     // The sheet may rise to the window's top; its handle stops below the status bar and the rest scrolls.
     val statusTop = WindowInsets.statusBars.getTop(LocalDensity.current)
@@ -139,52 +153,54 @@ fun SoundSheet(state: TuttiUiState, controller: TuttiController, modifier: Modif
                 modifier = Modifier.alignByBaseline().weight(1f, fill = false),
             )
         }
-        if (state.devices.bar == null) {
-            // The way in for a bar added after the TV (Erwann, 2026-10-24): the bar step alone.
-            Spacer(Modifier.height(8.dp))
-            FilledTonalButton(onClick = onAddBar, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
-                Icon(painterResource(R.drawable.ic_add), contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(8.dp))
-                Text(stringResource(R.string.sound_add_bar))
-            }
-        }
-        Spacer(Modifier.height(4.dp))
-        BarInputRow(state, controller)
-        Spacer(Modifier.height(8.dp))
-
-        val layout = soundSheetLayout(state.voiceZoomAvailable)
-        val tiles = layout.tiles
-        for (row in tiles.chunked(2)) {
-            Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                for (feature in row) {
-                    SoundTile(
-                        state = state,
-                        feature = feature,
-                        onTap = {
-                            haptics.select()
-                            if (feature.kind is FeatureKind.Toggle) controller.toggleBar(feature)
-                        },
-                        modifier = Modifier.weight(1f),
-                    )
+        Column(Modifier.graphicsLayer { alpha = rest }.then(if (peeking) Modifier.clearAndSetSemantics {} else Modifier)) {
+            if (state.devices.bar == null) {
+                // The way in for a bar added after the TV (Erwann, 2026-10-24): the bar step alone.
+                Spacer(Modifier.height(8.dp))
+                FilledTonalButton(onClick = onAddBar, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+                    Icon(painterResource(R.drawable.ic_add), contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(stringResource(R.string.sound_add_bar))
                 }
-                if (row.size == 1) Spacer(Modifier.weight(1f))
             }
-        }
+            Spacer(Modifier.height(4.dp))
+            BarInputRow(state, controller)
+            Spacer(Modifier.height(8.dp))
 
-        for (feature in layout.choices) {
-            ChoiceSegments(state, feature, onSelect = {
-                haptics.select()
-                controller.setBarChoice(feature, it)
-            })
-        }
+            val layout = soundSheetLayout(state.voiceZoomAvailable)
+            val tiles = layout.tiles
+            for (row in tiles.chunked(2)) {
+                Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    for (feature in row) {
+                        SoundTile(
+                            state = state,
+                            feature = feature,
+                            onTap = {
+                                haptics.select()
+                                if (feature.kind is FeatureKind.Toggle) controller.toggleBar(feature)
+                            },
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                    if (row.size == 1) Spacer(Modifier.weight(1f))
+                }
+            }
 
-        for (feature in layout.levels) {
-            LevelSlider(state, feature, onLevel = { controller.setBarLevel(feature, it) })
-        }
+            for (feature in layout.choices) {
+                ChoiceSegments(state, feature, onSelect = {
+                    haptics.select()
+                    controller.setBarChoice(feature, it)
+                })
+            }
 
-        Spacer(Modifier.height(12.dp))
-        FilledTonalButton(onClick = { openBraviaConnect(context) }, modifier = Modifier.fillMaxWidth()) {
-            Text(stringResource(R.string.sound_recalibrate))
+            for (feature in layout.levels) {
+                LevelSlider(state, feature, onLevel = { controller.setBarLevel(feature, it) })
+            }
+
+            Spacer(Modifier.height(12.dp))
+            FilledTonalButton(onClick = { openBraviaConnect(context) }, modifier = Modifier.fillMaxWidth()) {
+                Text(stringResource(R.string.sound_recalibrate))
+            }
         }
     }
 }
