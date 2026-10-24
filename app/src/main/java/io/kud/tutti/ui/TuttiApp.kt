@@ -26,6 +26,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.kud.tutti.R
+import io.kud.tutti.controller.KeyOutcome
 import io.kud.tutti.controller.TuttiController
 import io.kud.tutti.controller.TuttiEvent
 import io.kud.tutti.controller.TuttiUiState
@@ -122,6 +123,21 @@ fun TuttiApp(controller: TuttiController, discovery: TvDiscovery, diagnostics: D
                 }
                 TuttiEvent.VolumeLimit -> haptics.bump()
                 is TuttiEvent.ActionFailed -> problems.report(context.getString(R.string.error_action_failed), event.detail)
+                is TuttiEvent.KeyNotSent -> {
+                    // The press's own click already played: a held key gets a soft bump, a dropped
+                    // one the reject. The words repeat only once the last ones have gone.
+                    if (event.outcome == KeyOutcome.HELD) haptics.bump() else haptics.reject()
+                    val text = context.getString(
+                        when (event.outcome) {
+                            KeyOutcome.HELD -> R.string.key_held
+                            KeyOutcome.DROPPED_WAITING -> R.string.key_dropped_waiting
+                            KeyOutcome.DROPPED_DOWN -> R.string.key_dropped_down
+                            KeyOutcome.DROPPED_PAIRING -> R.string.key_dropped_pairing
+                            KeyOutcome.EXPIRED -> R.string.key_expired
+                        },
+                    )
+                    if (messages.current?.text != text) messages.show(text)
+                }
                 is TuttiEvent.MicUnavailable -> problems.report(context.getString(R.string.voice_mic_unavailable), event.detail)
                 is TuttiEvent.WakeFailed -> problems.report(
                     context.getString(

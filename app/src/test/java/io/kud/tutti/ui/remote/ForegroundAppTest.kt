@@ -71,6 +71,14 @@ class ForegroundAppTest {
     }
 
     @Test
+    fun `a reconnect says so, and a link down wins over what rest still reports`() {
+        val channel = NowShowing.Channel("2", "France 2", null)
+        assertEquals(CardShowing.Reconnecting, cardShowing(true, channel, Link.CONNECTING, PowerStatus.ACTIVE, barOn = true, reconnecting = true))
+        assertEquals(CardShowing.Offline, cardShowing(true, channel, Link.UNREACHABLE, PowerStatus.ACTIVE, barOn = true))
+        assertEquals(CardShowing.Standby(true), cardShowing(true, null, Link.CONNECTING, PowerStatus.STANDBY, barOn = true, reconnecting = true))
+    }
+
+    @Test
     fun `standby wins and says whether the bar stays on`() {
         val app = NowShowing.App("Netflix", "com.netflix.ninja")
         assertEquals(CardShowing.Standby(true), cardShowing(true, app, Link.ONLINE, PowerStatus.STANDBY, barOn = true))

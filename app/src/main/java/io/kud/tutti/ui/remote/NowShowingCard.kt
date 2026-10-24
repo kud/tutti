@@ -86,6 +86,7 @@ private fun cardWords(showing: CardShowing, tvName: String): CardWords = when (s
     }
     is CardShowing.Standby -> CardWords(stringResource(R.string.card_standby), if (showing.barOn) stringResource(R.string.card_bar_stays_on) else null)
     CardShowing.Home -> CardWords(stringResource(R.string.card_home), stringResource(R.string.card_home_detail))
+    CardShowing.Reconnecting -> CardWords(stringResource(R.string.card_reconnecting), stringResource(R.string.card_reconnecting_detail))
     CardShowing.Offline -> CardWords(stringResource(R.string.card_offline), stringResource(R.string.card_offline_detail))
 }
 
@@ -98,6 +99,8 @@ private fun CardShowing.icon(): Int = when (this) {
     }
     is CardShowing.Standby -> R.drawable.ic_power
     CardShowing.Home -> R.drawable.ic_home
+    // Quiet: the turning arrow, not the warning triangle, which is kept for out of reach.
+    CardShowing.Reconnecting -> R.drawable.ic_refresh
     CardShowing.Offline -> R.drawable.ic_warning
 }
 

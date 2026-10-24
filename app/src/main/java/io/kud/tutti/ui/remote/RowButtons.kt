@@ -116,7 +116,7 @@ fun LiveRowButton(
                 icon = rowButtonIcon(button),
                 contentDescription = rowButtonLabel(button),
                 onClick = { controller.key(key) },
-                unreachable = state.devices.tv != null && state.links.tv == Link.UNREACHABLE,
+                unreachable = state.devices.tv != null && state.links.tvShown.link == Link.UNREACHABLE,
                 onLongClick = secondary?.let { { onSecondary(it) } },
                 // Names the second action: read aloud by TalkBack, and tagged over the key when it lands.
                 onLongClickLabel = secondary?.let { state.dock.longPress[it] }?.let { actionLabel(it, state) },

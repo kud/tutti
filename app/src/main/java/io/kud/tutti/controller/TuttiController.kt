@@ -6,6 +6,7 @@ import android.content.Context
 import android.net.ConnectivityManager
 import android.net.Network
 import android.os.Build
+import android.os.SystemClock
 import dagger.hilt.android.qualifiers.ApplicationContext
 import io.kud.tutti.platform.data.DockAction
 import io.kud.tutti.platform.data.DockConfig
@@ -170,6 +171,11 @@ class TuttiController @Inject constructor(
     @Volatile
     private var tvLastConnect: String? = null
 
+    /** The TV's remote link was up this session, and went down at [tvDownSince] (elapsedRealtime). */
+    @Volatile private var tvWasUp = false
+
+    @Volatile private var tvDownSince: Long? = null
+
     private val mutableEvents = MutableSharedFlow<TuttiEvent>(extraBufferCapacity = 16)
     val events: SharedFlow<TuttiEvent> = mutableEvents.asSharedFlow()
 
@@ -253,6 +259,29 @@ class TuttiController @Inject constructor(
                 if (sceneId != activeSceneId.value) applyScene(sceneId)
             }
         }
+        scope.launch {
+            // The calm rule (TvLinkRule): what the remote shows of the TV's link, judged again at
+            // each threshold. UNREACHABLE and CONNECTING alternating in a reconnect keep the clock.
+            links.map { it.tv }.distinctUntilChanged().collectLatest { raw ->
+                when (raw) {
+                    Link.ONLINE -> {
+                        tvWasUp = true
+                        tvDownSince = null
+                    }
+                    Link.ABSENT, Link.NEEDS_PAIRING, Link.UNAUTHORIZED -> {
+                        tvWasUp = false
+                        tvDownSince = null
+                    }
+                    Link.CONNECTING, Link.UNREACHABLE -> if (tvWasUp && tvDownSince == null) tvDownSince = SystemClock.elapsedRealtime()
+                }
+                while (true) {
+                    val down = tvDownSince?.let { SystemClock.elapsedRealtime() - it }
+                    val shown = TvLinkRule.shown(raw, down)
+                    links.update { if (it.tvShown == shown) it else it.copy(tvShown = shown) }
+                    delay(TvLinkRule.nextChangeInMs(down) ?: break)
+                }
+            }
+        }
         runCatching {
             val connectivity = context.getSystemService(ConnectivityManager::class.java)
             connectivity?.registerDefaultNetworkCallback(object : ConnectivityManager.NetworkCallback() {
@@ -297,6 +326,8 @@ class TuttiController @Inject constructor(
     }
 
     private suspend fun runSessions() {
+        // Coming back to the app is a fresh blip, not the minutes spent away.
+        if (tvWasUp) tvDownSince = SystemClock.elapsedRealtime()
         psk = secure.tvPsk()
         pskSet.value = psk != null
         // A learnt MAC is not a reason to drop and reopen every session.
@@ -592,12 +623,35 @@ class TuttiController @Inject constructor(
     // region remote
 
     fun key(keyCode: Int) {
-        scope.launch { atv.sendKey(keyCode) }
+        scope.launch { sendTvKey(keyCode, long = false) }
     }
 
     /** Long-press Select is reserved for the TV: a held key. */
     fun longPress(keyCode: Int) {
-        scope.launch { atv.longPress(keyCode) }
+        scope.launch { sendTvKey(keyCode, long = true) }
+    }
+
+    /** Bumped by every held key, so only the newest one waiting is sent. */
+    private val heldKey = java.util.concurrent.atomic.AtomicInteger()
+
+    /**
+     * Sends a TV key, never dropping it silently: with the remote link down, [TvLinkRule.whileDown]
+     * holds a one-shot key for [TvLinkRule.HOLD_MS] or drops it, and either way says so
+     * ([TuttiEvent.KeyNotSent]). Before this, `AtvRemote.send` returned false and nothing listened.
+     */
+    private suspend fun sendTvKey(keyCode: Int, long: Boolean): Boolean {
+        val send: suspend () -> Boolean = { if (long) atv.longPress(keyCode) else atv.sendKey(keyCode) }
+        if (atv.state.value.ready && send()) return true
+        val current = links.value
+        val outcome = TvLinkRule.whileDown(keyCode, long, current.tv, current.tvShown)
+        mutableEvents.tryEmit(TuttiEvent.KeyNotSent(outcome))
+        if (outcome != KeyOutcome.HELD) return false
+        val mine = heldKey.incrementAndGet()
+        val back = withTimeoutOrNull(TvLinkRule.HOLD_MS) { atv.state.first { it.ready } } != null
+        if (mine != heldKey.get()) return false
+        if (back && send()) return true
+        mutableEvents.tryEmit(TuttiEvent.KeyNotSent(KeyOutcome.EXPIRED))
+        return false
     }
 
     /** Replaces the TV field's text (each keystroke, live). */
@@ -1094,7 +1148,7 @@ class TuttiController @Inject constructor(
             is DockAction.ToggleBar -> TheatreFeature.fromKey(action.featureKey)?.let(::toggleBar)
             is DockAction.RunScene -> applyScene(action.sceneId)
             is DockAction.SetBar -> setBarValue(action.featureKey, action.value)
-            is DockAction.Key -> if (action.long) atv.longPress(action.keyCode) else atv.sendKey(action.keyCode)
+            is DockAction.Key -> sendTvKey(action.keyCode, action.long)
             is DockAction.Ircc -> {
                 val result = bravia?.sendIrcc(action.code)
                 if (result !is BraviaResult.Ok) actionFailed("shortcut: IRCC key", outcomeOf(result))

@@ -62,4 +62,14 @@
     <string name="card_home_detail">Aucune appli en cours</string>
     <string name="card_offline">TV injoignable</string>
     <string name="card_offline_detail">Vérifiez qu\'elle est allumée et sur le même Wi-Fi</string>
+    <!-- The TV's link, calm rule (TvLinkRule): past a blip, then a key pressed while it's down. -->
+    <string name="system_reconnecting_tv">Reconnexion à la TV…</string>
+    <string name="card_reconnecting">Reconnexion…</string>
+    <string name="card_reconnecting_detail">Les touches reviennent dès que la TV répond</string>
+    <string name="tv_link_back">De nouveau connecté à la TV</string>
+    <string name="key_held">Envoi dès que la TV répond…</string>
+    <string name="key_dropped_waiting">Non envoyé : en attente de la TV</string>
+    <string name="key_dropped_down">Non envoyé : la TV est injoignable</string>
+    <string name="key_dropped_pairing">Non envoyé : associez à nouveau la TV</string>
+    <string name="key_expired">Non envoyé : la TV n\'est pas revenue à temps</string>
 </resources>

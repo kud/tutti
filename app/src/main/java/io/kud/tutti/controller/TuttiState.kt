@@ -39,8 +39,16 @@ enum class Link {
  */
 data class LinkNotes(val tv: String? = null, val rest: String? = null, val bar: String? = null)
 
-/** tv = remote v2 (6466), rest = BRAVIA REST + PSK, bar = TCP 33336. */
-data class Links(val tv: Link = Link.ABSENT, val rest: Link = Link.ABSENT, val bar: Link = Link.ABSENT)
+/**
+ * tv = remote v2 (6466), rest = BRAVIA REST + PSK, bar = TCP 33336, each as it is. [tvShown] is
+ * the TV's link after [TvLinkRule]'s calm rule: what the remote screen shows.
+ */
+data class Links(
+    val tv: Link = Link.ABSENT,
+    val rest: Link = Link.ABSENT,
+    val bar: Link = Link.ABSENT,
+    val tvShown: TvShown = TvShown(Link.ABSENT),
+)
 
 data class TvSettingsState(
     val loading: Boolean = false,
@@ -133,6 +141,9 @@ sealed interface TuttiEvent {
      * [cause] picks the user message: a TV whose MAC was never learnt needs the PSK, not only Remote start.
      */
     data class WakeFailed(val cause: WakeAttempt.Cause, val detail: String) : TuttiEvent
+
+    /** A TV key met a link that wasn't up: held for a moment, or not sent ([TvLinkRule]). */
+    data class KeyNotSent(val outcome: KeyOutcome) : TuttiEvent
 }
 
 data class TuttiUiState(

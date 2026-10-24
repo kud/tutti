@@ -21,7 +21,7 @@ fun foregroundAppName(currentApp: String?, tvLink: Link, tvPower: PowerStatus): 
 }
 
 fun foregroundAppName(state: TuttiUiState): String? =
-    if (state.devices.tv == null) null else foregroundAppName(state.remote.currentApp, state.links.tv, state.tv.power)
+    if (state.devices.tv == null) null else foregroundAppName(state.remote.currentApp, state.links.tvShown.link, state.tv.power)
 
 /** What the system chip's second line says is on the TV. */
 sealed interface NowShowing {
@@ -78,7 +78,7 @@ fun nowShowing(state: TuttiUiState): NowShowing? =
     if (state.devices.tv == null) {
         null
     } else {
-        nowShowing(state.tv.playing, state.tv.inputs, state.links.rest, state.remote.currentApp, state.links.tv, state.tv.power)
+        nowShowing(state.tv.playing, state.tv.inputs, state.links.rest, state.remote.currentApp, state.links.tvShown.link, state.tv.power)
     }
 
 private fun String.clean(): String? = trim().ifEmpty { null }
@@ -94,14 +94,19 @@ sealed interface CardShowing {
     /** The TV awake with nothing the catalogue knows: the home screen, or an app we can't name. */
     data object Home : CardShowing
 
+    /** A link that was up is being won back, past the blip ([io.kud.tutti.controller.TvLinkRule]). */
+    data object Reconnecting : CardShowing
+
     /** The TV's link is down or still connecting. */
     data object Offline : CardShowing
 }
 
 /**
- * Standby first (the power answer outlives the app's package), then what [nowShowing] finds,
- * then Offline while the TV's link isn't up, else Home. Null without a TV configured: then there
- * is nothing to show and the card stands aside.
+ * Standby first (the power answer outlives the app's package), then Reconnecting or Offline while
+ * the TV's link isn't up, then what [nowShowing] finds, else Home. [tvLink] is the shown link
+ * (`Links.tvShown`), so a blip stays on the last app. The link wins over a channel or input that
+ * REST still reports: the keys are what the card vouches for (Iris, 2026-10-24). Null without a
+ * TV configured: then there is nothing to show and the card stands aside.
  */
 fun cardShowing(
     hasTv: Boolean,
@@ -109,18 +114,21 @@ fun cardShowing(
     tvLink: Link,
     tvPower: PowerStatus,
     barOn: Boolean,
+    reconnecting: Boolean = false,
 ): CardShowing? = when {
     !hasTv -> null
     tvPower == PowerStatus.STANDBY -> CardShowing.Standby(barOn)
-    now != null -> CardShowing.Showing(now)
+    reconnecting -> CardShowing.Reconnecting
     tvLink != Link.ONLINE -> CardShowing.Offline
+    now != null -> CardShowing.Showing(now)
     else -> CardShowing.Home
 }
 
 fun cardShowing(state: TuttiUiState): CardShowing? = cardShowing(
     hasTv = state.devices.tv != null,
     now = nowShowing(state),
-    tvLink = state.links.tv,
+    tvLink = state.links.tvShown.link,
     tvPower = state.tv.power,
     barOn = state.links.bar == Link.ONLINE && state.bar.isOn(TheatreFeature.POWER) != false,
+    reconnecting = state.links.tvShown.reconnecting,
 )

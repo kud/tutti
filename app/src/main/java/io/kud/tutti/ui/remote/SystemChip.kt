@@ -64,7 +64,8 @@ private fun Link.isDown() = this == Link.UNREACHABLE || this == Link.NEEDS_PAIRI
 fun SystemChip(state: TuttiUiState, onClick: () -> Unit, modifier: Modifier = Modifier, showNow: Boolean = true) {
     val tv = state.devices.tv
     val bar = state.devices.bar
-    val tvLink = if (tv != null) state.links.tv else Link.ABSENT
+    // The shown link (TvLinkRule): a blip changes nothing here, a reconnect reads "Reconnecting…".
+    val tvLink = if (tv != null) state.links.tvShown.link else Link.ABSENT
     val barLink = if (bar != null) state.links.bar else Link.ABSENT
     val configured = listOfNotNull(tv?.let { it.name to tvLink }, bar?.let { it.name to barLink })
     val down = configured.filter { it.second.isDown() }
@@ -162,7 +163,9 @@ fun SystemChip(state: TuttiUiState, onClick: () -> Unit, modifier: Modifier = Mo
                     } else if (dotState == DotState.CONNECTING) {
                         // The words carry the state with the ring's shape; the colour only follows.
                         Text(
-                            stringResource(R.string.system_connecting),
+                            stringResource(
+                                if (tv != null && state.links.tvShown.reconnecting) R.string.system_reconnecting_tv else R.string.system_connecting,
+                            ),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,

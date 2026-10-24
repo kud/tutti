@@ -64,4 +64,14 @@
     <string name="card_home_detail">No app playing</string>
     <string name="card_offline">TV out of reach</string>
     <string name="card_offline_detail">Check it\'s on and on the same Wi-Fi</string>
+    <!-- The TV's link, calm rule (TvLinkRule): past a blip, then a key pressed while it's down. -->
+    <string name="system_reconnecting_tv">Reconnecting to the TV…</string>
+    <string name="card_reconnecting">Reconnecting…</string>
+    <string name="card_reconnecting_detail">Keys work again once the TV answers</string>
+    <string name="tv_link_back">Connected to the TV again</string>
+    <string name="key_held">Sending when the TV is back…</string>
+    <string name="key_dropped_waiting">Not sent: waiting for the TV</string>
+    <string name="key_dropped_down">Not sent: the TV is out of reach</string>
+    <string name="key_dropped_pairing">Not sent: pair the TV again</string>
+    <string name="key_expired">Not sent: the TV didn\'t come back in time</string>
 </resources>

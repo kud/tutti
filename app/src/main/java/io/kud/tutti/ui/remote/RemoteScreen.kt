@@ -50,6 +50,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.traversalIndex
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import io.kud.tutti.R
@@ -113,7 +114,25 @@ fun RemoteScreen(
         input = InputRules.tick(input, SystemClock.uptimeMillis())
     }
     val inputOpen = input.open
-    val tvReachable = !(state.devices.tv != null && state.links.tv == Link.UNREACHABLE)
+    val tvReachable = !(state.devices.tv != null && state.links.tvShown.link == Link.UNREACHABLE)
+    // TalkBack hears the TV's link change once per real change: the shown link (TvLinkRule) never
+    // moves on a blip, so neither does this. The first connect says nothing; the chip already does.
+    val view = LocalView.current
+    val tvLinkSay = state.devices.tv?.name?.let { name ->
+        when {
+            state.links.tvShown.reconnecting -> stringResource(R.string.system_reconnecting_tv)
+            state.links.tvShown.link == Link.UNREACHABLE -> stringResource(R.string.system_unreachable, name)
+            state.links.tvShown.link == Link.ONLINE -> stringResource(R.string.tv_link_back)
+            else -> null
+        }
+    }
+    var lastTvLinkSay by remember { mutableStateOf(tvLinkSay) }
+    LaunchedEffect(tvLinkSay) {
+        val was = lastTvLinkSay
+        lastTvLinkSay = tvLinkSay
+        @Suppress("DEPRECATION")
+        if (tvLinkSay != null && was != null && tvLinkSay != was) view.announceForAccessibility(tvLinkSay)
+    }
     val reduced = LocalReducedMotion.current
     val rise = with(LocalDensity.current) { INPUT_RISE.roundToPx() }
 
