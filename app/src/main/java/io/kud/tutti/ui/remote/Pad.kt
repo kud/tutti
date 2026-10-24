@@ -75,6 +75,7 @@ import kotlinx.coroutines.launch
 /**
  * The pad: one large quiet surface, no grid lines. Touchpad (swipe steps) or D-pad (a disc with
  * a chevron at each point and an OK centre); [PadModeSwitch] under it switches in one move. Tap = OK; long press = held Select for the TV.
+ * A held direction repeats on the [KeyRepeat] schedule, on the D-pad and under a finger resting after a swipe step.
  * Two gestures only, in touchpad mode: two-finger tap = play/pause, two-finger vertical drag = bar volume.
  *
  * Each swipe step leaves a dot behind the halo that fades over 250 ms; a two-finger step shows a
@@ -211,7 +212,22 @@ fun Pad(
                                 }
                             }
                         }
-                        tryAwaitRelease()
+                        // A held direction repeats (KeyRepeat); a quick one goes once, on release.
+                        var repeats = 0
+                        val repeater = if (zone == V2Key.DPAD_CENTER) {
+                            null
+                        } else {
+                            scope.launch {
+                                KeyRepeat.run {
+                                    repeats++
+                                    haptics.tick()
+                                    key(zone)
+                                }
+                            }
+                        }
+                        val released = tryAwaitRelease()
+                        repeater?.cancel()
+                        if (repeater != null && released && repeats == 0) key(zone)
                         scope.launch { pressAlpha.animateTo(0f, tween(durationMillis = 180)) }
                         if (ring != null) {
                             ring.cancel()
@@ -219,9 +235,10 @@ fun Pad(
                         }
                     }
                 },
+                // Directions are sent from onPress, so a hold can repeat; only OK waits for the tap.
                 onTap = { at ->
-                    val code = dpadZone(at, size.width.toFloat(), size.height.toFloat()) ?: return@detectTapGestures
-                    key(code)
+                    val zone = dpadZone(at, size.width.toFloat(), size.height.toFloat())
+                    if (zone == V2Key.DPAD_CENTER && pressedZone == V2Key.DPAD_CENTER) key(V2Key.DPAD_CENTER)
                 },
                 onLongPress = { at ->
                     if (dpadZone(at, size.width.toFloat(), size.height.toFloat()) == V2Key.DPAD_CENTER) {
