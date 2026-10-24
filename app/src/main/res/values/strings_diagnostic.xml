@@ -43,4 +43,5 @@
     <string name="crash_title">The app crashed</string>
     <string name="crash_copy">Copy</string>
     <string name="crash_close">Close</string>
+    <string name="crash_copied">Copied</string>
 </resources>

@@ -4,7 +4,6 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.os.Build
-import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -17,9 +16,6 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SnackbarDuration
-import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -37,8 +33,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import io.kud.tutti.R
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.launch
 
 /*
  * Every failure the user sees goes through here, so each one offers the same "Copy details":
@@ -47,12 +41,20 @@ import kotlinx.coroutines.launch
  * Clipboard only: nothing is ever sent anywhere.
  */
 
-/** Puts [detail] on the clipboard. Android 13+ confirms clipboard writes itself, so the toast is for older phones. */
-fun copyDetails(context: Context, detail: String, label: String = context.getString(R.string.problem_clip_label)) {
+/**
+ * Puts [detail] on the clipboard. Android 13+ confirms clipboard writes itself; on older phones
+ * [messages] says so in tutti's own message, never a system toast.
+ */
+fun copyDetails(
+    context: Context,
+    detail: String,
+    messages: Messages?,
+    label: String = context.getString(R.string.problem_clip_label),
+) {
     val clipboard = context.getSystemService(ClipboardManager::class.java) ?: return
     clipboard.setPrimaryClip(ClipData.newPlainText(label, detail))
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
-        Toast.makeText(context, R.string.problem_copied, Toast.LENGTH_SHORT).show()
+        messages?.show(context.getString(R.string.problem_copied))
     }
 }
 
@@ -62,37 +64,34 @@ fun copyDetails(context: Context, detail: String, label: String = context.getStr
  */
 val LocalDeveloperMode = staticCompositionLocalOf { false }
 
-/** Passing failures: a snackbar with the short message and, in developer mode, "Copy details". */
-class Problems(private val host: SnackbarHostState, private val scope: CoroutineScope, private val context: Context) {
+/** Passing failures: a problem message with the short text and, in developer mode, "Copy details". */
+class Problems(private val messages: Messages, private val context: Context) {
     /** Kept in step with the developer-mode pref by the app root. */
     @Volatile var developer: Boolean = false
 
     fun report(message: String, detail: String?) {
         val shown = detail?.takeIf { developer }
-        scope.launch {
-            host.currentSnackbarData?.dismiss()
-            val result = host.showSnackbar(
-                message = message,
-                actionLabel = shown?.let { context.getString(R.string.problem_copy) },
-                withDismissAction = true,
-                duration = SnackbarDuration.Long,
-            )
-            if (result == SnackbarResult.ActionPerformed && shown != null) copyDetails(context, shown)
-        }
+        messages.show(
+            text = message,
+            kind = MessageKind.PROBLEM,
+            actionLabel = shown?.let { context.getString(R.string.problem_copy) },
+            onAction = shown?.let { { copyDetails(context, it, messages) } },
+            long = true,
+        )
     }
 }
 
-/** Provided by the app root; null in previews and the quick overlay, where callers fall back to a toast. */
+/** Provided by the app root; null in previews and the quick overlay. */
 val LocalProblems = staticCompositionLocalOf<Problems?> { null }
 
-/** Reports through [LocalProblems], or a plain toast where there is no snackbar host. */
+/** Reports through [LocalProblems], or straight to [LocalMessages] where there is no app root. */
 @Composable
 fun rememberProblemReporter(): (String, String?) -> Unit {
     val problems = LocalProblems.current
-    val context = LocalContext.current
-    return remember(problems, context) {
+    val messages = LocalMessages.current
+    return remember(problems, messages) {
         { message, detail ->
-            if (problems != null) problems.report(message, detail) else Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+            if (problems != null) problems.report(message, detail) else messages?.show(message, MessageKind.PROBLEM, long = true)
         }
     }
 }
@@ -113,6 +112,7 @@ fun ProblemNote(message: String?, detail: String?, modifier: Modifier = Modifier
 private fun ProblemNoteContent(message: String?, detail: String?, modifier: Modifier) {
     if (message == null && detail == null) return
     val context = LocalContext.current
+    val messages = LocalMessages.current
     var open by rememberSaveable(detail) { mutableStateOf(false) }
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         if (message != null) {
@@ -136,7 +136,7 @@ private fun ProblemNoteContent(message: String?, detail: String?, modifier: Modi
                     )
                     Text(stringResource(if (open) R.string.problem_details_hide else R.string.problem_details_show))
                 }
-                TextButton(onClick = { copyDetails(context, detail) }) {
+                TextButton(onClick = { copyDetails(context, detail, messages) }) {
                     Text(stringResource(R.string.problem_copy))
                 }
             }

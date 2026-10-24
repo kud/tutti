@@ -4,6 +4,8 @@ import androidx.annotation.DrawableRes
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -40,7 +42,7 @@ fun <T> ChoiceRow(
             enabled = reason == null && options.isNotEmpty(),
             onClick = { expanded = true },
         )
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+        TuttiMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             for ((value, text) in options) {
                 DropdownMenuItem(
                     text = { Text(text) },
@@ -97,5 +99,26 @@ fun SwitchRow(
                 },
             )
         },
+    )
+}
+
+/**
+ * Every pop-up menu in tutti: the theme's medium shape (12 dp, the corners the rows and cards use)
+ * on a raised tonal surface, rather than Material's 4 dp default, which read as a system popup.
+ */
+@Composable
+fun TuttiMenu(
+    expanded: Boolean,
+    onDismissRequest: () -> Unit,
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    DropdownMenu(
+        expanded = expanded,
+        onDismissRequest = onDismissRequest,
+        modifier = modifier,
+        shape = MaterialTheme.shapes.medium,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        content = content,
     )
 }

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Dark: ink window, as the splash (true black, once chosen, is restored by WindowBackground); amber below Android 12. -->
+<resources>
+    <color name="window_background">#FF1C1B22</color>
+    <color name="theme_accent">#FFE3A35B</color>
+</resources>

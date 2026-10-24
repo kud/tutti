@@ -31,13 +31,17 @@ import io.kud.tutti.platform.diagnostic.Diagnostics
 import io.kud.tutti.platform.discovery.TvDiscovery
 import io.kud.tutti.ui.TuttiApp
 import io.kud.tutti.ui.common.CrashDialog
+import io.kud.tutti.ui.common.LocalMessages
 import io.kud.tutti.ui.common.LocalReducedMotion
+import io.kud.tutti.ui.common.MessageHost
+import io.kud.tutti.ui.common.Messages
 import io.kud.tutti.ui.common.rememberReducedMotion
 import io.kud.tutti.ui.intro.IntroAnchors
 import io.kud.tutti.ui.intro.LaunchIntro
 import io.kud.tutti.ui.intro.LaunchIntroOverlay
 import io.kud.tutti.ui.intro.LocalIntroAnchors
 import io.kud.tutti.ui.theme.TuttiTheme
+import io.kud.tutti.ui.theme.WindowBackground
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -52,6 +56,9 @@ class MainActivity : ComponentActivity() {
         val splash = installSplashScreen()
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+        // Before Compose's first frame: the background the theme last drew, so a dark choice on a
+        // light phone (or the reverse) never flashes the other one.
+        WindowBackground.restore(this)
         // The system splash is only a still bridge; the intro takes over at the same place and
         // plays on the app's own frame clock over the already-drawn remote: in full on a cold
         // start, short on a warm one, not at all for a recreated activity.
@@ -67,7 +74,9 @@ class MainActivity : ComponentActivity() {
                 ThemeMode.DARK -> true
             }
             TuttiTheme(darkTheme = dark, trueBlack = state.prefs.trueBlack) {
+                WindowBackground.Follow(this@MainActivity)
                 CompositionLocalProvider(
+                    LocalMessages provides remember { Messages() },
                     LocalFeedbackPrefs provides FeedbackPrefs(state.prefs.vibrationLevel, state.prefs.keySounds),
                     // Rows and every plain clickable: Material ripple plus the inset focus ring.
                     LocalIndication provides rememberTuttiIndication(RoundedCornerShape(12.dp), ripple = true, ringInset = true),
@@ -87,6 +96,8 @@ class MainActivity : ComponentActivity() {
                             crash = null
                         }
                     }
+                    // Last, so a message draws above the remote, its intro and every screen.
+                    MessageHost()
                 }
             }
         }

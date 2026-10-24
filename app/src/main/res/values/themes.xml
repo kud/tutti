@@ -1,10 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Dark window background from the first frame: no white flash before Compose draws. -->
-    <style name="Theme.Tutti" parent="android:Theme.Material.NoActionBar">
-        <item name="android:windowBackground">@android:color/black</item>
+    <!--
+        The window and anything the framework draws (text selection handles and toolbar, edge glow,
+        a window shown before Compose) follow the system's day or night: light here, dark in
+        values-night. Compose then repaints the window in the theme it draws (WindowBackground).
+    -->
+    <style name="Theme.Tutti" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/window_background</item>
+        <item name="android:colorAccent">@color/theme_accent</item>
+        <item name="android:colorPrimary">@color/theme_accent</item>
+        <item name="android:colorControlActivated">@color/theme_accent</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
     </style>
 
     <!-- Launch screen (core-splashscreen): the launcher mark, still; the in-app intro takes over from it. -->

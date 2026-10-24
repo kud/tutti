@@ -1,6 +1,5 @@
 package io.kud.tutti.ui.scenes
 
-import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -24,7 +23,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
@@ -57,6 +55,8 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import io.kud.tutti.R
+import io.kud.tutti.ui.common.LocalMessages
+import io.kud.tutti.ui.common.TuttiMenu
 import io.kud.tutti.controller.Link
 import io.kud.tutti.controller.TuttiController
 import io.kud.tutti.controller.TuttiUiState
@@ -94,6 +94,7 @@ fun SceneEditorScreen(
 ) {
     val haptics = rememberHaptics()
     val context = LocalContext.current
+    val messages = LocalMessages.current
     val original = remember(sceneId) { state.scenes.firstOrNull { it.scene.id == sceneId }?.scene }
     val id = remember(sceneId) { original?.id ?: controller.newSceneId() }
     val savedProfile = remember(id) { state.profiles.firstOrNull { it.sceneId == id }?.appPackage }
@@ -213,7 +214,7 @@ fun SceneEditorScreen(
                 onClick = {
                     val captured = controller.captureCurrent()
                     if (captured.isEmpty()) {
-                        Toast.makeText(context, R.string.editor_capture_empty, Toast.LENGTH_SHORT).show()
+                        messages?.show(context.getString(R.string.editor_capture_empty))
                     } else {
                         haptics.doublePulse()
                         settings = settings + captured
@@ -253,7 +254,7 @@ fun SceneEditorScreen(
                         Spacer(Modifier.size(6.dp))
                         Text(stringResource(R.string.editor_add_setting))
                     }
-                    DropdownMenu(expanded = adding, onDismissRequest = { adding = false }) {
+                    TuttiMenu(expanded = adding, onDismissRequest = { adding = false }) {
                         for (key in missing) {
                             DropdownMenuItem(
                                 text = { Text(keyName(key)) },

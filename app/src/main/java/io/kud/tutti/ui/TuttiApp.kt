@@ -11,11 +11,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -23,9 +19,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -39,7 +33,9 @@ import io.kud.tutti.platform.diagnostic.Diagnostics
 import io.kud.tutti.platform.discovery.TvDiscovery
 import io.kud.tutti.protocol.net.WakeAttempt
 import io.kud.tutti.ui.common.LocalDeveloperMode
+import io.kud.tutti.ui.common.LocalMessages
 import io.kud.tutti.ui.common.LocalProblems
+import io.kud.tutti.ui.common.Messages
 import io.kud.tutti.ui.common.LocalReducedMotion
 import io.kud.tutti.ui.common.Problems
 import io.kud.tutti.ui.common.rememberHaptics
@@ -99,9 +95,8 @@ fun TuttiApp(controller: TuttiController, discovery: TvDiscovery, diagnostics: D
         }
     }
 
-    val snackbar = remember { SnackbarHostState() }
-    val problemScope = rememberCoroutineScope()
-    val problems = remember(snackbar, problemScope, context) { Problems(snackbar, problemScope, context) }
+    val messages = LocalMessages.current ?: remember { Messages() }
+    val problems = remember(messages, context) { Problems(messages, context) }
     problems.developer = state.prefs.developerMode
 
     LaunchedEffect(controller, haptics, problems) {
@@ -200,7 +195,6 @@ fun TuttiApp(controller: TuttiController, discovery: TvDiscovery, diagnostics: D
                         Screen.About -> AboutScreen(onBack = ::pop)
                     }
                 }
-            SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(16.dp))
         }
     }
 }

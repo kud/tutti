@@ -4,6 +4,7 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
@@ -53,7 +54,8 @@ fun Modifier.belowStatusBar(topPx: Int): Modifier = layout { measurable, constra
 /**
  * Every modal sheet in tutti: opens fully expanded, grows up to just under the status bar and no
  * further, and leaves scrolling to its content (a `verticalScroll` or a lazy list), whose nested
- * scroll still hands a downward drag at the top back to the sheet.
+ * scroll still hands a downward drag at the top back to the sheet. It carries its own
+ * [MessageHost], since a message from the app root would draw under the sheet's window.
  *
  * The bars are read here, in the activity's window, and the sheet's own insets are switched off so
  * the two never add up: left to its defaults, the Apps sheet put its handle under the clock on
@@ -78,14 +80,16 @@ fun TuttiSheet(onDismissRequest: () -> Unit, content: @Composable ColumnScope.()
         dragHandle = { SheetHandle(sheetState, grip) },
         contentWindowInsets = { WindowInsets(0, 0, 0, 0) },
     ) {
-        Column(
-            Modifier
-                .belowStatusBar(statusTop)
-                .grip(grip, sheetState)
-                .padding(bottom = navigationBottom)
-                .consumeWindowInsets(PaddingValues(bottom = navigationBottom)),
-            content = content,
-        )
+        Box(Modifier.belowStatusBar(statusTop).grip(grip, sheetState)) {
+            Column(
+                Modifier
+                    .padding(bottom = navigationBottom)
+                    .consumeWindowInsets(PaddingValues(bottom = navigationBottom)),
+                content = content,
+            )
+            // The sheet is a window above the app root's host: its messages show here, over it.
+            MessageHost(Modifier.matchParentSize().padding(bottom = navigationBottom), insetNavigationBar = false)
+        }
     }
 }
 

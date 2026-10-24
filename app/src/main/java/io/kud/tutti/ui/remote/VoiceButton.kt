@@ -4,7 +4,6 @@ import io.kud.tutti.ui.motion.snappyOrFade
 import android.Manifest
 import android.app.Activity
 import android.os.SystemClock
-import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateColorAsState
@@ -50,6 +49,7 @@ import androidx.compose.ui.window.Popup
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import io.kud.tutti.R
+import io.kud.tutti.ui.common.LocalMessages
 import io.kud.tutti.controller.TuttiController
 import io.kud.tutti.protocol.atv.VoiceEvent
 import io.kud.tutti.protocol.atv.VoiceFailure
@@ -74,6 +74,7 @@ fun VoiceButton(controller: TuttiController, enabled: Boolean, size: Dp = 56.dp)
     val voice by controller.voice.collectAsState()
     var hold by remember { mutableStateOf(Hold.NONE) }
     val reportProblem = rememberProblemReporter()
+    val messages = LocalMessages.current
     var rationale by remember { mutableStateOf(false) }
 
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -81,7 +82,7 @@ fun VoiceButton(controller: TuttiController, enabled: Boolean, size: Dp = 56.dp)
             granted -> R.string.voice_hold_hint
             else -> R.string.voice_permission_denied
         }
-        Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
+        messages?.show(context.getString(text))
     }
 
     val current by rememberUpdatedState(enabled)
@@ -103,7 +104,7 @@ fun VoiceButton(controller: TuttiController, enabled: Boolean, size: Dp = 56.dp)
                 VoiceEvent.CAPPED -> {
                     haptics.bump()
                     hold = Hold.NONE
-                    Toast.makeText(context, R.string.voice_capped, Toast.LENGTH_SHORT).show()
+                    messages?.show(context.getString(R.string.voice_capped))
                 }
                 VoiceEvent.SENT, VoiceEvent.CANCELLED -> Unit
             }
@@ -212,7 +213,7 @@ fun VoiceButton(controller: TuttiController, enabled: Boolean, size: Dp = 56.dp)
                         cancelled || wasCancelling -> controller.cancelVoice()
                         SystemClock.uptimeMillis() - pressedAt < MIN_HOLD_MS -> {
                             controller.cancelVoice()
-                            Toast.makeText(context, R.string.voice_hold_hint, Toast.LENGTH_SHORT).show()
+                            messages?.show(context.getString(R.string.voice_hold_hint))
                         }
                         else -> {
                             haptics.click()

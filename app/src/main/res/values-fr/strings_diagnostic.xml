@@ -43,4 +43,5 @@
     <string name="crash_title">L’app a planté</string>
     <string name="crash_copy">Copier</string>
     <string name="crash_close">Fermer</string>
+    <string name="crash_copied">Copié</string>
 </resources>

@@ -5,7 +5,6 @@ import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.content.res.Configuration
 import android.speech.RecognizerIntent
-import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -86,6 +85,8 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.kud.tutti.R
+import io.kud.tutti.ui.common.MessageKind
+import io.kud.tutti.ui.common.LocalMessages
 import io.kud.tutti.platform.data.PadMode
 import io.kud.tutti.protocol.atv.ImeField
 import io.kud.tutti.protocol.atv.V2Key
@@ -123,6 +124,7 @@ fun InputView(
 ) {
     val haptics = rememberHaptics()
     val context = LocalContext.current
+    val messages = LocalMessages.current
     val focus = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
     val clipboard = LocalClipboardManager.current
@@ -342,7 +344,7 @@ fun InputView(
                     try {
                         dictate.launch(intent)
                     } catch (e: ActivityNotFoundException) {
-                        Toast.makeText(context, R.string.keyboard_dictation_unavailable, Toast.LENGTH_SHORT).show()
+                        messages?.show(context.getString(R.string.keyboard_dictation_unavailable), MessageKind.PROBLEM)
                     }
                 },
                 label = { Text(stringResource(R.string.keyboard_dictate)) },

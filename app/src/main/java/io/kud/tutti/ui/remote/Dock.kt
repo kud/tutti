@@ -19,7 +19,6 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -44,6 +43,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.kud.tutti.R
+import io.kud.tutti.ui.common.TuttiMenu
 import io.kud.tutti.controller.TuttiUiState
 import io.kud.tutti.platform.data.DockAction
 import io.kud.tutti.platform.data.DockConfig
@@ -197,7 +197,7 @@ private fun PinTile(
             PinFace(slot.primary, slot.icon, slot.letters, state, tint, iconSize = 20.dp)
         }
         if (secondary != null) {
-            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+            TuttiMenu(expanded = menu, onDismissRequest = { menu = false }) {
                 DropdownMenuItem(
                     text = { Text(actionLabel(secondary, state), fontWeight = FontWeight.Medium) },
                     leadingIcon = { Icon(painterResource(actionIcon(secondary, state)), contentDescription = null) },

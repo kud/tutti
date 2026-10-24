@@ -50,4 +50,7 @@
     <string name="pairing_code_field">Pairing code</string>
     <string name="pairing_code_progress">Entered: %1$d of %2$d</string>
     <string name="action_retry">Try again</string>
+    <!-- tutti's own transient message (replaces system toasts). -->
+    <string name="message_dismiss">Dismiss</string>
+    <string name="message_problem">Problem</string>
 </resources>
