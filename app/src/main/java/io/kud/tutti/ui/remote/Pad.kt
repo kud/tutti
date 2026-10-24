@@ -404,7 +404,8 @@ internal fun DpadFace(pressedZone: Int?, pressed: Float, modifier: Modifier = Mo
     }
 }
 
-private fun DrawScope.drawChevron(code: Int, distance: Float, arm: Float, color: Color, stroke: Stroke) {
+/** One chevron, [distance] from [centre] (the face's own centre by default); the launch intro draws them too. */
+internal fun DrawScope.drawChevron(code: Int, distance: Float, arm: Float, color: Color, stroke: Stroke, centre: Offset = center) {
     // Pointing up, the tip sits a little outward of the ring's middle line; rotate for the others.
     val (ux, uy) = when (code) {
         V2Key.DPAD_UP -> 0f to -1f
@@ -412,8 +413,8 @@ private fun DrawScope.drawChevron(code: Int, distance: Float, arm: Float, color:
         V2Key.DPAD_LEFT -> -1f to 0f
         else -> 1f to 0f
     }
-    val tip = center + Offset(ux, uy) * (distance + arm * 0.25f)
-    val back = center + Offset(ux, uy) * (distance - arm * 0.75f)
+    val tip = centre + Offset(ux, uy) * (distance + arm * 0.25f)
+    val back = centre + Offset(ux, uy) * (distance - arm * 0.75f)
     val side = Offset(-uy, ux) * arm
     val path = Path().apply {
         moveTo(back.x + side.x, back.y + side.y)
@@ -451,6 +452,18 @@ internal fun dpadOkRadius(width: Float, height: Float, moat: Float): Float = min
 
 /** The D-pad disc's outer edge in a face of [width] x [height] px, as [DpadFace] draws it. */
 internal fun dpadEdgeRadius(width: Float, height: Float): Float = min(width, height) / 2f * DISC_FRACTION
+
+/** The ring's inner edge (OK plus its moat) in a face of [width] x [height] px, as [DpadFace] draws it. */
+internal fun dpadRingInner(width: Float, height: Float): Float = min(width, height) / 2f * CENTRE_FRACTION
+
+/** A resting chevron's arm in a face of [width] x [height] px, as [DpadFace] draws it. */
+internal fun dpadChevronArm(width: Float, height: Float): Float = (dpadEdgeRadius(width, height) - dpadRingInner(width, height)) * 0.18f
+
+/** A resting chevron's stroke width, as [DpadFace] draws it. */
+internal val DPAD_CHEVRON_STROKE = 3.5.dp
+
+/** The directions clockwise from the top, for anything that plays the chevrons in turn. */
+internal val DPAD_CLOCKWISE = listOf(V2Key.DPAD_UP, V2Key.DPAD_RIGHT, V2Key.DPAD_DOWN, V2Key.DPAD_LEFT)
 
 /** Disc radius, as a fraction of half the pad's shorter side. */
 private const val DISC_FRACTION = 0.94f
