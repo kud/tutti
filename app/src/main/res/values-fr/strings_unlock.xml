@@ -86,4 +86,31 @@
     <string name="technical_bar_refused">Fonctions refusées par la barre</string>
     <string name="technical_none_device">Non ajoutée</string>
     <string name="technical_version">Version</string>
+    <!-- Relevés : « valeur · source ». La source nomme le port ou l'API d'où vient la valeur. -->
+    <string name="technical_from">%1$s · %2$s</string>
+    <string name="technical_source_tcp">port 33336</string>
+    <string name="technical_source_http">port 54545</string>
+    <string name="technical_source_rest">contrôle IP</string>
+    <string name="technical_asking">demande en cours…</string>
+    <string name="technical_refused">refusé par la barre</string>
+    <string name="technical_needs_bar_link">nécessite la liaison de contrôle (33336)</string>
+    <string name="technical_http_no_answer">pas de réponse sur le port 54545</string>
+    <string name="technical_needs_psk">nécessite le contrôle IP et la clé PSK</string>
+    <string name="technical_not_listed">non proposé par cette TV</string>
+    <string name="technical_no_answer">pas de réponse</string>
+    <string name="technical_none_reported">aucune indiquée</string>
+    <string name="technical_supported_functions">Fonctions prises en charge</string>
+    <string name="technical_bar_temperature">Température interne</string>
+    <string name="technical_bar_timezone">Fuseau horaire</string>
+    <string name="technical_bar_language">Langue</string>
+    <string name="technical_bar_region">Région</string>
+    <string name="technical_bar_manufacturer">Fabricant</string>
+    <string name="technical_bar_name">Nom</string>
+    <string name="technical_bar_tv_av_sync">Synchro AV, entrée TV</string>
+    <string name="technical_bar_network_mode">Mode réseau</string>
+    <string name="technical_bar_dhcp">DHCP</string>
+    <string name="technical_bar_connection_type">Type de connexion</string>
+    <string name="technical_bar_internet">Internet</string>
+    <string name="technical_bar_wifi">Force du Wi-Fi</string>
+    <string name="technical_bar_airplay">Nom AirPlay</string>
 </resources>

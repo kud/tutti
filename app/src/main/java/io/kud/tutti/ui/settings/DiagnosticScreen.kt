@@ -172,6 +172,7 @@ private fun planeLabel(plane: Plane): String = stringResource(
         Plane.REST -> R.string.diagnostic_plane_rest
         Plane.REMOTE -> R.string.diagnostic_plane_remote
         Plane.BAR -> R.string.diagnostic_plane_bar
+        Plane.BAR_HTTP -> R.string.diagnostic_plane_bar_http
         Plane.CLOUD -> R.string.diagnostic_plane_cloud
     },
 )
@@ -193,6 +194,7 @@ private fun stepLabel(id: String): String {
         DiagnosticSteps.BAR_CONNECT -> stringResource(R.string.diagnostic_step_bar_connect)
         DiagnosticSteps.BAR_FEATURES -> stringResource(R.string.diagnostic_step_bar_features)
         DiagnosticSteps.BAR_VOICE_ZOOM -> stringResource(R.string.diagnostic_step_bar_voicezoom)
+        DiagnosticSteps.BAR_HTTP -> stringResource(R.string.diagnostic_step_bar_http)
         DiagnosticSteps.CLOUD -> stringResource(R.string.diagnostic_step_cloud)
         else -> id
     }

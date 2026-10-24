@@ -89,4 +89,31 @@
     <string name="technical_bar_refused">Features the bar refused</string>
     <string name="technical_none_device">Not added</string>
     <string name="technical_version">Version</string>
+    <!-- Readouts: "value · source". The source names the port or API the value came from. -->
+    <string name="technical_from">%1$s · %2$s</string>
+    <string name="technical_source_tcp">port 33336</string>
+    <string name="technical_source_http">port 54545</string>
+    <string name="technical_source_rest">IP control</string>
+    <string name="technical_asking">asking…</string>
+    <string name="technical_refused">refused by the bar</string>
+    <string name="technical_needs_bar_link">needs the control link (33336)</string>
+    <string name="technical_http_no_answer">no answer on port 54545</string>
+    <string name="technical_needs_psk">needs IP control + PSK</string>
+    <string name="technical_not_listed">not listed by this TV</string>
+    <string name="technical_no_answer">no answer</string>
+    <string name="technical_none_reported">none reported</string>
+    <string name="technical_supported_functions">Supported functions</string>
+    <string name="technical_bar_temperature">Internal temperature</string>
+    <string name="technical_bar_timezone">Time zone</string>
+    <string name="technical_bar_language">Language</string>
+    <string name="technical_bar_region">Region</string>
+    <string name="technical_bar_manufacturer">Manufacturer</string>
+    <string name="technical_bar_name">Name</string>
+    <string name="technical_bar_tv_av_sync">AV sync, TV input</string>
+    <string name="technical_bar_network_mode">Network mode</string>
+    <string name="technical_bar_dhcp">DHCP</string>
+    <string name="technical_bar_connection_type">Connection type</string>
+    <string name="technical_bar_internet">Internet</string>
+    <string name="technical_bar_wifi">Wi-Fi strength</string>
+    <string name="technical_bar_airplay">AirPlay name</string>
 </resources>

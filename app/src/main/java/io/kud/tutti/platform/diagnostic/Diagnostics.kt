@@ -91,6 +91,7 @@ class Diagnostics @Inject constructor(
                 deviceInfo = ClientDeviceInfo(model = "Tutti", packageName = context.packageName),
                 // Keeps the scrubbed getPlayingContentInfo reply, to copy while an app plays.
                 developer = ui.prefs.developerMode,
+                barHttp = bar?.let { io.kud.tutti.platform.net.OkHttpBarHttpTransport(it.host) },
             )
             val environment = environment(targets)
             val publisher = launch {

@@ -24,6 +24,7 @@
     <string name="diagnostic_plane_rest">Téléviseur · API REST</string>
     <string name="diagnostic_plane_remote">Téléviseur · télécommande Android TV</string>
     <string name="diagnostic_plane_bar">Barre de son</string>
+    <string name="diagnostic_plane_bar_http">Barre de son · port 54545</string>
     <string name="diagnostic_plane_cloud">Connexion Sony</string>
 
     <string name="diagnostic_step_discovery">Recherche sur le réseau (mDNS)</string>
@@ -38,6 +39,7 @@
     <string name="diagnostic_step_bar_connect">Connexion au port 33336</string>
     <string name="diagnostic_step_bar_features">Lecture des réglages</string>
     <string name="diagnostic_step_bar_voicezoom">Voice Zoom 3</string>
+    <string name="diagnostic_step_bar_http">Relevés réseau, en lecture seule</string>
     <string name="diagnostic_step_cloud">Plan cloud Sony</string>
 
     <string name="crash_title">L’app a planté</string>

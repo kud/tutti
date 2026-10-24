@@ -165,6 +165,8 @@ data class TuttiUiState(
     val appIcons: Map<String, String> = emptyMap(),
     /** A TV PSK is stored on this phone (the key itself never leaves the secure store). */
     val pskSet: Boolean = false,
+    /** Readouts fetched when Technical details opens. */
+    val technical: TechnicalReadouts = TechnicalReadouts(),
 ) {
     /** [apps] minus the ones hidden in Settings: what the Apps sheet and pickers offer. */
     val visibleApps: List<io.kud.tutti.protocol.apps.KnownApp>
@@ -179,3 +181,20 @@ data class TuttiUiState(
 
     val keyboardField get() = remote.ime
 }
+
+/** Where an on-demand read stands. */
+enum class Fetch { IDLE, LOADING, DONE, FAILED, UNSUPPORTED }
+
+/**
+ * Technical details readouts that are not part of any live session: fetched each time that
+ * screen opens, never polled. The bar's TCP readouts live in [TuttiUiState.bar] like every
+ * other bar feature.
+ */
+data class TechnicalReadouts(
+    /** HTTP 54545; the last answer is kept while a new read runs. */
+    val barHttp: io.kud.tutti.protocol.theatre.BarHttpReadouts? = null,
+    val barHttpFetch: Fetch = Fetch.IDLE,
+    /** REST `getSystemSupportedFunction`, only reachable with IP control and the PSK. */
+    val tvFunctions: List<io.kud.tutti.protocol.bravia.SupportedFunction>? = null,
+    val tvFunctionsFetch: Fetch = Fetch.IDLE,
+)

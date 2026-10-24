@@ -62,6 +62,15 @@ fun featureLabel(feature: TheatreFeature): Int = when (feature) {
     TheatreFeature.FIRMWARE_VERSION -> R.string.bar_firmware
     TheatreFeature.BLUETOOTH_MODE -> R.string.bar_bt_mode
     TheatreFeature.BLUETOOTH_QUALITY -> R.string.bar_bt_quality
+    TheatreFeature.TEMPERATURE -> R.string.technical_bar_temperature
+    TheatreFeature.TIMEZONE -> R.string.technical_bar_timezone
+    TheatreFeature.LANGUAGE -> R.string.technical_bar_language
+    TheatreFeature.REGION -> R.string.technical_bar_region
+    TheatreFeature.MANUFACTURER -> R.string.technical_bar_manufacturer
+    TheatreFeature.DEVICE_NAME -> R.string.technical_bar_name
+    TheatreFeature.TV_AV_SYNC -> R.string.technical_bar_tv_av_sync
+    TheatreFeature.NETWORK_MODE -> R.string.technical_bar_network_mode
+    TheatreFeature.NETWORK_DHCP -> R.string.technical_bar_dhcp
 }
 
 /** TV keys offered as shortcuts. */

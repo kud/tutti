@@ -19,6 +19,7 @@ import io.kud.tutti.platform.data.SecondaryButton
 import io.kud.tutti.platform.data.TvDevice
 import io.kud.tutti.platform.diagnostic.AppVersion
 import io.kud.tutti.platform.data.BarDevice
+import io.kud.tutti.platform.net.OkHttpBarHttpTransport
 import io.kud.tutti.platform.net.OkHttpBraviaTransport
 import io.kud.tutti.platform.net.PinMismatchException
 import io.kud.tutti.platform.net.WakeOnLanSender
@@ -65,6 +66,7 @@ import io.kud.tutti.protocol.scenes.SceneMatch
 import io.kud.tutti.protocol.scenes.SceneRunner
 import io.kud.tutti.protocol.scenes.SceneStep
 import io.kud.tutti.protocol.scenes.SceneValue
+import io.kud.tutti.protocol.theatre.BarHttpClient
 import io.kud.tutti.protocol.theatre.FeatureKind
 import io.kud.tutti.protocol.theatre.TheatreClient
 import io.kud.tutti.protocol.theatre.TheatreFeature
@@ -141,6 +143,7 @@ class TuttiController @Inject constructor(
 
     /** Whether a PSK is stored, for the setup checklist; never the key itself. */
     private val pskSet = MutableStateFlow(false)
+    private val technical = MutableStateFlow(TechnicalReadouts())
     @Volatile private var bravia: BraviaClient? = null
     @Volatile private var braviaTransport: OkHttpBraviaTransport? = null
 
@@ -204,8 +207,8 @@ class TuttiController @Inject constructor(
         Extra(p, a, q, c, o.first, o.second, o.third)
     }
 
-    val state: StateFlow<TuttiUiState> = combine(stored, live, extra, library, pskSet) { s, l, e, a, k ->
-        build(s, l, e).copy(apps = a.first, appIcons = a.second, linkNotes = e.linkNotes, pskSet = k)
+    val state: StateFlow<TuttiUiState> = combine(stored, live, extra, library, combine(pskSet, technical, ::Pair)) { s, l, e, a, k ->
+        build(s, l, e).copy(apps = a.first, appIcons = a.second, linkNotes = e.linkNotes, pskSet = k.first, technical = k.second)
     }
         .stateIn(scope, SharingStarted.Eagerly, TuttiUiState())
 
@@ -947,6 +950,47 @@ class TuttiController @Inject constructor(
 
     fun refreshBar() {
         scope.launch { theatre.refreshAll() }
+    }
+
+    /**
+     * Technical details opened: the bar's detail readouts on 33336 (paced, queued behind any
+     * refresh), one read-only `http_get` on 54545, and the TV's supported functions over REST
+     * when IP control is up. Each runs once per opening; nothing here is polled.
+     */
+    fun loadTechnical() {
+        scope.launch { theatre.refreshDetails() }
+        val bar = state.value.devices.bar
+        if (bar != null) {
+            scope.launch {
+                technical.update { it.copy(barHttpFetch = Fetch.LOADING) }
+                val readouts = try {
+                    BarHttpClient(OkHttpBarHttpTransport(bar.host)).readouts()
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    null
+                }
+                technical.update {
+                    if (readouts != null) it.copy(barHttp = readouts, barHttpFetch = Fetch.DONE) else it.copy(barHttpFetch = Fetch.FAILED)
+                }
+            }
+        }
+        val client = bravia
+        if (client != null && links.value.rest == Link.ONLINE) {
+            scope.launch {
+                technical.update { it.copy(tvFunctionsFetch = Fetch.LOADING) }
+                val result = client.supportedFunctions()
+                technical.update {
+                    when {
+                        result is BraviaResult.Ok -> it.copy(tvFunctions = result.value, tvFunctionsFetch = Fetch.DONE)
+                        result is BraviaResult.Failure &&
+                            (result.error is BraviaError.Unsupported || (result.error as? BraviaError.Rpc)?.isUnsupported == true) ->
+                            it.copy(tvFunctionsFetch = Fetch.UNSUPPORTED)
+                        else -> it.copy(tvFunctionsFetch = Fetch.FAILED)
+                    }
+                }
+            }
+        }
     }
 
     // endregion
