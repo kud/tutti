@@ -8,6 +8,7 @@ enum class Plane(val label: String) {
     REST("bravia rest"),
     REMOTE("android tv remote v2"),
     BAR("soundbar tcp 33336"),
+    BAR_HTTP("soundbar http 54545"),
     CLOUD("sony cloud"),
 }
 
@@ -41,12 +42,14 @@ object DiagnosticSteps {
     const val BAR_CONNECT = "bar.connect"
     const val BAR_FEATURES = "bar.features"
     const val BAR_VOICE_ZOOM = "bar.voicezoom"
+    const val BAR_HTTP = "bar.http"
     const val CLOUD = "cloud.plane"
 
     /** Read-only REST calls after discovery: (step id, service, method). */
     val REST_READS: List<RestRead> = listOf(
         RestRead("rest.power", "system", "getPowerStatus"),
         RestRead("rest.power_saving", "system", "getPowerSavingMode"),
+        RestRead("rest.supported_functions", "system", "getSystemSupportedFunction"),
         RestRead("rest.ircc_codes", "system", "getRemoteControllerInfo"),
         RestRead("rest.volume", "audio", "getVolumeInformation"),
         RestRead("rest.sound", "audio", "getSoundSettings", target = true),
@@ -70,6 +73,7 @@ object DiagnosticSteps {
         add(BAR_CONNECT to Plane.BAR)
         add(BAR_FEATURES to Plane.BAR)
         add(BAR_VOICE_ZOOM to Plane.BAR)
+        add(BAR_HTTP to Plane.BAR_HTTP)
         add(CLOUD to Plane.CLOUD)
     }
 

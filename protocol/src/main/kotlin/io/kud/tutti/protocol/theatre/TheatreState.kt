@@ -29,9 +29,9 @@ data class TheatreState(
 ) {
     fun refusedValues(feature: TheatreFeature): Set<String> = refusedValues[feature.key].orEmpty()
 
-    /** Known features the bar has neither reported nor refused: what a refresh should ask again. */
+    /** Everyday features the bar has neither reported nor refused: what a refresh should ask again. Details are not re-asked. */
     fun missing(): List<TheatreFeature> =
-        TheatreFeature.entries.filter { it.key !in confirmed && it.key !in refused }
+        TheatreFeature.everyday.filter { it.key !in confirmed && it.key !in refused }
 
     /**
      * True once the bar has reported a value for [feature], by a `get` answer or a notify.

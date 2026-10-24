@@ -136,10 +136,18 @@ class TheatreClient(
      * Asks for every known feature, paced; answers fill [TheatreState.confirmed]. Features
      * still silent after the pass are asked once more, one at a time, after a pause.
      */
-    suspend fun refreshAll() = refresh(TheatreFeature.entries)
+    suspend fun refreshAll() = refresh(TheatreFeature.everyday)
 
     /** Asks again for what the bar has neither reported nor refused. */
     suspend fun refreshMissing() = refresh(state.value.missing())
+
+    /**
+     * The Technical details readouts ([TheatreFeature.details]) bar those the bar refused: at
+     * most nine paced `get`s each time that screen opens, so the temperature is fresh. Never on
+     * connect or in the periodic re-ask (see [TheatreFeature.detail]). Queues behind a refresh
+     * already running, like every refresh.
+     */
+    suspend fun refreshDetails() = refresh(TheatreFeature.details.filter { it.key !in state.value.refused })
 
     /**
      * Never a burst: the reference client for this port sends one request and waits for its

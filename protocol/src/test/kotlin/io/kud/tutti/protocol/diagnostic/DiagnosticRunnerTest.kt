@@ -103,11 +103,25 @@ private fun barAnswer(line: String): List<String> {
         "main.volumestep" -> "12"
         "system.modeltype" -> "HT-A9000"
         "system.version" -> "1.2.3"
+        "system.devicename" -> "Salon de Camille"
+        "system.temperature" -> "41"
         "audio.voicezoom3" -> return emptyList()
         "audio.voicezoom3step" -> return emptyList()
         else -> "off"
     }
     return listOf("""{"id":$id,"type":"result","feature":"$feature","value":"$value"}""")
+}
+
+/** The bar's HTTP 54545, answering every key it is asked; the AirPlay name must never reach the report. */
+private class FakeBarHttp : io.kud.tutti.protocol.theatre.BarHttpTransport {
+    val bodies = mutableListOf<String>()
+
+    override suspend fun post(body: String): String {
+        bodies += body
+        return """{"type":"http_get_result","packet":[[""" +
+            """{"feature":"network.connectiontype","value":"wireless"},{"feature":"network.internet","value":"connected"},""" +
+            """{"feature":"wlan.strength","value":"3"},{"feature":"airplay.accessoryname","value":"Salon de Camille"}]]}"""
+    }
 }
 
 /** A TV remote port that opens the v2 handshake and records every message the app sends. */
@@ -186,8 +200,10 @@ class DiagnosticRunnerTest {
         val rest = FakeRest(::livingRoomTv)
         val bar = FakeLineConnection(::barAnswer)
         val remote = FakeRemote(server)
+        val http = FakeBarHttp()
         val runner = DiagnosticRunner(
             targets(), rest, remote, FakeTcp(bar), { client }, { DiscoveryOutcome(found = 1, configuredTvSeen = true) }, "interface only",
+            barHttp = http,
         )
         runner.run()
         val steps = runner.steps.value
@@ -217,6 +233,19 @@ class DiagnosticRunnerTest {
         // The bar only ever receives gets.
         assertTrue(bar.written.all { "\"type\":\"get\"" in it }, bar.written.toString())
         assertEquals(StepStatus.SKIPPED, steps.of(DiagnosticSteps.CLOUD).status)
+
+        // The detail readouts are in the pass; the bar's own name only as answered.
+        assertTrue(steps.of(DiagnosticSteps.BAR_FEATURES).facts.contains("system.temperature" to "answered 41"))
+        assertTrue(steps.of(DiagnosticSteps.BAR_FEATURES).facts.contains("system.devicename" to "answered"))
+        // HTTP 54545: one read, only the four readout keys.
+        val httpStep = steps.of(DiagnosticSteps.BAR_HTTP)
+        assertEquals(StepStatus.OK, httpStep.status, httpStep.toString())
+        assertTrue(httpStep.facts.contains("wlan.strength" to "answered 3"))
+        assertTrue(httpStep.facts.contains("airplay.accessoryname" to "answered"))
+        assertEquals(1, http.bodies.size)
+        assertTrue("http_get" in http.bodies.single())
+        // The TV's supported functions are asked only when listed: this TV does not list them.
+        assertEquals(StepStatus.SKIPPED, steps.of("rest.supported_functions").status)
     }
 
     @Test
@@ -224,6 +253,7 @@ class DiagnosticRunnerTest {
         val runner = DiagnosticRunner(
             targets(), FakeRest(::livingRoomTv), FakeRemote(server), FakeTcp(FakeLineConnection(::barAnswer)), { client },
             { DiscoveryOutcome(1, true) }, "interface only",
+            barHttp = FakeBarHttp(),
         )
         runner.run()
         val environment = listOf(
@@ -234,7 +264,7 @@ class DiagnosticRunnerTest {
         )
         val report = DiagnosticReport.render(environment, runner.steps.value, runner.sensitive)
 
-        val leaks = listOf(PSK, TV, BAR, SERIAL, MAC, CID, "Camille", "fe80", pin.sha256Hex, "192.168.")
+        val leaks = listOf(PSK, TV, BAR, SERIAL, MAC, CID, "Camille", "Salon", "fe80", pin.sha256Hex, "192.168.")
         for (leak in leaks) assertFalse(leak in report, "report leaks $leak:\n$report")
         // Still useful: models, versions, method list, error classes.
         for (kept in listOf("K-65XR80", "getPowerStatus@1.0", "rpc_40005_standby", "HT-A9000", "BRAVIA 8", "summary:")) {

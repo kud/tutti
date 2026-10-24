@@ -81,6 +81,10 @@ class BraviaClient(
 
     suspend fun systemInformation() = call(BraviaService.SYSTEM, "getSystemInformation").map(BraviaParsers::systemInformation)
 
+    /** What the TV says it supports (`WOL`, `PIP`…). Read-only; values may identify the TV, see [SupportedFunction]. */
+    suspend fun supportedFunctions() =
+        call(BraviaService.SYSTEM, "getSystemSupportedFunction").map(BraviaParsers::supportedFunctions)
+
     /** Every interface (empty `netif` asks for all), with its MAC: what Wake-on-LAN needs. */
     suspend fun networkSettings() =
         call(BraviaService.SYSTEM, "getNetworkSettings", listOf(buildJsonObject { put("netif", "") })).map(BraviaParsers::networkSettings)

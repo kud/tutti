@@ -134,6 +134,12 @@ object BraviaParsers {
         )
     }
 
+    /** `system.getSystemSupportedFunction`: `[[{option, value}, …]]`. Entries without an option are dropped. */
+    fun supportedFunctions(result: JsonArray): List<SupportedFunction> = result.innerObjects().mapNotNull {
+        val option = it.string("option")?.takeIf(String::isNotBlank) ?: return@mapNotNull null
+        SupportedFunction(option, it.string("value"))
+    }
+
     /** `system.getNetworkSettings`: `[[{netif, hwAddr, ipAddrV4, …}, …]]`, one entry per interface. */
     fun networkSettings(result: JsonArray): List<NetworkInterfaceInfo> = result.innerObjects().map {
         NetworkInterfaceInfo(name = it.string("netif"), mac = it.string("hwAddr"), ipv4 = it.string("ipAddrV4"))

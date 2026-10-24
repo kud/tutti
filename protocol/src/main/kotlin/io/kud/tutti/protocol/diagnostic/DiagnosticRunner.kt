@@ -20,6 +20,10 @@ import io.kud.tutti.protocol.net.Redact
 import io.kud.tutti.protocol.net.TcpConnector
 import io.kud.tutti.protocol.net.TlsConnection
 import io.kud.tutti.protocol.net.TlsConnector
+import io.kud.tutti.protocol.theatre.BarHttpCodec
+import io.kud.tutti.protocol.theatre.BarHttpKey
+import io.kud.tutti.protocol.theatre.BarHttpTransport
+import io.kud.tutti.protocol.theatre.BarHttpValue
 import io.kud.tutti.protocol.theatre.JsonStreamSplitter
 import io.kud.tutti.protocol.theatre.TheatreCodec
 import io.kud.tutti.protocol.theatre.TheatreFeature
@@ -65,8 +69,8 @@ data class DiagnosticTimeouts(
     val settleMillis: Long = 2_500,
     /** How long one bar `get` may wait for its answer; three wait at once. */
     val barAnswerMillis: Long = 1_500,
-    /** The whole bar feature pass: about 30 paced `get`s, longer than an ordinary step. */
-    val barFeaturesMillis: Long = 30_000,
+    /** The whole bar feature pass: about 40 paced `get`s, one at a time, longer than an ordinary step. */
+    val barFeaturesMillis: Long = 45_000,
 )
 
 /**
@@ -92,6 +96,8 @@ class DiagnosticRunner(
     private val clock: () -> Long = { System.nanoTime() / 1_000_000 },
     /** Developer mode: keep the scrubbed reply of reads marked [RestRead.raw]. */
     private val developer: Boolean = false,
+    /** The bar's HTTP 54545 plane, read-only; null skips its step. */
+    private val barHttp: BarHttpTransport? = null,
 ) {
     private val mutableSteps = MutableStateFlow(DiagnosticSteps.initial())
     val steps: StateFlow<List<StepResult>> = mutableSteps.asStateFlow()
@@ -109,6 +115,7 @@ class DiagnosticRunner(
         // The bar first: it is quick and needs nothing from the TV, so a slow or stuck TV plane
         // can no longer leave its steps PENDING in a report copied mid-run.
         runBar()
+        runBarHttp()
         runRest()
         runRemote()
         skip(DiagnosticSteps.CLOUD, cloudNote)
@@ -341,6 +348,34 @@ class DiagnosticRunner(
 
     // region soundbar
 
+    /**
+     * One `http_get` for the [BarHttpKey] readouts: answered (value, or only "answered" for the
+     * AirPlay name), refused or not reported. Nothing else is ever asked on this plane.
+     */
+    private suspend fun runBarHttp() {
+        val transport = barHttp
+        if (targets.barHost == null || transport == null) return skip(DiagnosticSteps.BAR_HTTP, "no bar configured")
+        step(DiagnosticSteps.BAR_HTTP) {
+            fact("port", BarHttpKey.PORT.toString())
+            val body = transport.post(BarHttpCodec.request())
+            val readouts = BarHttpCodec.parse(body)
+                ?: fail("malformed", "not an http_get_result; body ${body.length} chars: ${Redact.text(body, scrub).take(120)}")
+            for (key in BarHttpKey.entries) {
+                val shown = when (val value = readouts[key]) {
+                    is BarHttpValue.Answered -> if (key.key in BarHttpKey.BLANKED) {
+                        scrub += value.value
+                        "answered"
+                    } else {
+                        "answered ${value.value}"
+                    }
+                    BarHttpValue.Refused -> "refused"
+                    BarHttpValue.NotReported -> "not reported"
+                }
+                fact(key.key, shown)
+            }
+        }
+    }
+
     private suspend fun runBar() {
         val host = targets.barHost
         val later = listOf(DiagnosticSteps.BAR_FEATURES, DiagnosticSteps.BAR_VOICE_ZOOM)
@@ -433,7 +468,11 @@ class DiagnosticRunner(
         val silent = byId.values.filter { it !in answers && it !in refused }
         fact("answered", "${answers.size}/${byId.size}, refused ${refused.size}, silent ${silent.size}")
         for (key in byId.values) {
-            fact(key, answers[key]?.let { "answered $it" } ?: if (key in refused) "refused" else "silent")
+            val answer = answers[key]
+            // The user's own name for the bar: answered or not, never its value.
+            if (answer != null && key in TheatreFeature.BLANKED) scrub += answer
+            val shown = answer?.let { if (key in TheatreFeature.BLANKED) "answered" else "answered $it" }
+            fact(key, shown ?: if (key in refused) "refused" else "silent")
         }
         if (notified.isNotEmpty()) fact("notify", notified.joinToString(", "))
         odd.forEachIndexed { i, line -> fact("unexpected ${i + 1}", line) }

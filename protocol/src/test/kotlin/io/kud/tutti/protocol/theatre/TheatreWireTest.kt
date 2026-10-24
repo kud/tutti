@@ -118,7 +118,7 @@ class TheatreWireTest {
         advanceTimeBy(600_000)
         runCurrent()
         assertEquals("on", client.state.value.value(TheatreFeature.NIGHT))
-        assertEquals(TheatreFeature.entries.size, connection.sent.size)
+        assertEquals(TheatreFeature.everyday.size, connection.sent.size)
         client.disconnect()
     }
 
@@ -134,11 +134,11 @@ class TheatreWireTest {
         runCurrent()
         assertTrue(connection.maxWaiting <= 3, "at most three in flight, saw ${connection.maxWaiting}")
         val asked = connection.sentFeatures()
-        assertEquals(TheatreFeature.entries.size + silent.size, asked.size)
+        assertEquals(TheatreFeature.everyday.size + silent.size, asked.size)
         silent.forEach { key -> assertEquals(2, asked.count { it == key }) }
         assertTrue((asked.toSet() intersect TheatreFeature.NEVER_ASKED).isEmpty())
         assertEquals(silent, client.state.value.silent)
-        assertEquals(TheatreFeature.entries.size - silent.size, client.state.value.confirmed.size)
+        assertEquals(TheatreFeature.everyday.size - silent.size, client.state.value.confirmed.size)
         client.disconnect()
     }
 
@@ -185,6 +185,69 @@ class TheatreWireTest {
         val log = TheatreWireLog(capacity = 3, clock = { 0 })
         repeat(5) { log.sent("line $it") }
         assertEquals(listOf("+0ms > line 2", "+0ms > line 3", "+0ms > line 4"), log.lines())
+    }
+
+    @Test
+    fun `detail readouts are asked only when technical details opens, never on connect or in the re-ask`() = runTest {
+        val connection = FakeConnection()
+        connection.answer = { id, feature ->
+            when (feature) {
+                TheatreFeature.TV_AV_SYNC.key -> """{"id":$id,"type":"result","feature":"$feature","value":"ERR"}"""
+                TheatreFeature.NETWORK_DHCP.key -> null
+                else -> """{"id":$id,"type":"result","feature":"$feature","value":"on"}"""
+            }
+        }
+        val client = TheatreClient(FakeConnector(connection), backgroundScope, clock = { testScheduler.currentTime })
+        client.connect("192.0.2.10")
+        advanceTimeBy(600_000)
+        runCurrent()
+        val details = TheatreFeature.details.map { it.key }.toSet()
+        assertTrue((connection.sentFeatures().toSet() intersect details).isEmpty(), "connect asked a detail")
+
+        connection.sent.clear()
+        client.refreshMissing()
+        assertTrue((connection.sentFeatures().toSet() intersect details).isEmpty(), "the re-ask asked a detail")
+
+        connection.sent.clear()
+        client.refreshDetails()
+        assertEquals(details, connection.sentFeatures().toSet())
+        assertTrue(connection.sent.all { "\"type\":\"get\"" in it })
+        assertEquals("on", client.state.value.value(TheatreFeature.TEMPERATURE))
+        assertTrue(TheatreFeature.TV_AV_SYNC.key in client.state.value.refused)
+
+        // A refused readout is not asked again; a silent one is.
+        connection.sent.clear()
+        client.refreshDetails()
+        val again = connection.sentFeatures()
+        assertFalse(TheatreFeature.TV_AV_SYNC.key in again)
+        assertTrue(TheatreFeature.NETWORK_DHCP.key in again)
+        client.disconnect()
+    }
+
+    @Test
+    fun `detail readouts are read-only and never set`() = runTest {
+        for (feature in TheatreFeature.details) {
+            assertEquals(FeatureKind.ReadOnly, feature.kind, feature.name)
+            assertFalse(feature.notifies, feature.name)
+            assertFalse(feature.key in TheatreFeature.NEVER_ASKED, feature.name)
+        }
+        val connection = FakeConnection()
+        val client = TheatreClient(FakeConnector(connection), backgroundScope, clock = { testScheduler.currentTime })
+        client.connect("192.0.2.10")
+        advanceTimeBy(600_000)
+        runCurrent()
+        connection.sent.clear()
+        for (feature in TheatreFeature.details) client.set(feature, "off")
+        runCurrent()
+        assertTrue(connection.sent.isEmpty(), connection.sent.toString())
+        client.disconnect()
+    }
+
+    @Test
+    fun `the wire log blanks the bar's own name`() {
+        val line = TheatreWireLog.scrub("""{"id":7,"type":"result","feature":"system.devicename","value":"Salon de Camille"}""")
+        assertFalse("Camille" in line, line)
+        assertTrue("system.devicename" in line, line)
     }
 
     // endregion

@@ -8,7 +8,7 @@ import io.kud.tutti.protocol.net.Redact
  * the framing the bar uses shows too. Control characters are escaped (`\n`, `\r`, `\0`).
  *
  * The bar has no secrets on this port, but identifiers still stay out: values of
- * [TheatreFeature.NEVER_ASKED] features are blanked, and every entry goes through [Redact.text]
+ * [TheatreFeature.BLANKED] features are blanked, and every entry goes through [Redact.text]
  * (IP, MAC, long hex, tokens) when it is recorded.
  */
 class TheatreWireLog(
@@ -54,7 +54,7 @@ class TheatreWireLog(
         fun scrub(text: String): String {
             // A read may cut an object in two, so blank every value in the entry rather than
             // trusting object boundaries: over-redacting a log line costs nothing.
-            val blanked = if (TheatreFeature.NEVER_ASKED.any { text.contains(it) }) {
+            val blanked = if (TheatreFeature.BLANKED.any { text.contains(it) }) {
                 VALUE.replace(text) { "\"value\":\"<redacted>\"" }
             } else {
                 text

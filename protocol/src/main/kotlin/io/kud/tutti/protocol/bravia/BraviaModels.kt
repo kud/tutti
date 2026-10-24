@@ -139,6 +139,16 @@ data class PlayingContent(
 /** [mac] is `macAddr`, often the wired interface's: prefer [NetworkInterfaceInfo] for Wake-on-LAN. Never log it. */
 data class SystemInfo(val model: String?, val product: String?, val generation: String?, val name: String?, val mac: String? = null)
 
+/**
+ * One entry of `system.getSystemSupportedFunction`: an [option] (e.g. `WOL`, `PIP`) and its
+ * [value]. Some values identify the TV (the `WOL` value is its MAC address), so the UI shows
+ * [shownValue], which is null for anything [io.kud.tutti.protocol.net.Redact] would scrub.
+ */
+data class SupportedFunction(val option: String, val value: String?) {
+    val shownValue: String?
+        get() = value?.takeIf { it.isNotBlank() && io.kud.tutti.protocol.net.Redact.text(it) == it }
+}
+
 /** One of the TV's network interfaces. Never log [mac]. */
 data class NetworkInterfaceInfo(val name: String?, val mac: String?, val ipv4: String?)
 

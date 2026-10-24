@@ -123,4 +123,16 @@ class BraviaParsersTest {
         )
         assertEquals(listOf(VolumeInfo("speaker", 12, false, 0, 100)), info)
     }
+
+    @Test
+    fun `supported functions keep the option and hide identifying values`() {
+        val functions = BraviaParsers.supportedFunctions(
+            array("""[[{"option":"WOL","value":"02:00:5E:00:53:01"},{"option":"PIP","value":"no"},{"value":"orphan"},{"option":"Recording"}]]"""),
+        )
+        assertEquals(listOf("WOL", "PIP", "Recording"), functions.map { it.option })
+        assertEquals(null, functions[0].shownValue)
+        assertEquals("02:00:5E:00:53:01", functions[0].value)
+        assertEquals("no", functions[1].shownValue)
+        assertEquals(null, functions[2].shownValue)
+    }
 }
