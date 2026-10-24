@@ -52,6 +52,11 @@ data class AppPrefs(
     val layout: RemoteLayout = RemoteLayout(),
     /** Technical details and "Copy details" under errors, and the diagnostics. Off by default, in every build. */
     val developerMode: Boolean = false,
+    /**
+     * The bar's last reported volume, kept across sessions: when the bar doesn't say its level at
+     * connect, a stale one still lets + and − work (Erwann, 2026-10-24: "même s'il est faux").
+     */
+    val lastBarVolume: Int? = null,
 ) {
     /** The old switch on reads as [VibrationLevel.ALL], off as [VibrationLevel.OFF]. */
     val vibrationLevel: VibrationLevel

@@ -549,7 +549,7 @@ class TuttiController @Inject constructor(
             voiceZoomAvailable = l.voiceZoom,
             scenes = scenes,
             profiles = s.profiles,
-            volume = volumeShown(e.overrides.volume ?: l.bar.level(TheatreFeature.VOLUME), l.bar.connected),
+            volume = volumeShown(e.overrides.volume, l.bar.level(TheatreFeature.VOLUME), s.prefs.lastBarVolume, l.bar.connected),
             volumeCap = cap,
             powered = powered,
             waking = e.waking,
@@ -839,9 +839,24 @@ class TuttiController @Inject constructor(
      * bar is connected, the last one, so the rail's level and number never drop to nothing when an
      * override expires before the bar has echoed the level. Unreachable: null.
      */
-    private fun volumeShown(current: Int?, connected: Boolean): Int? {
+    private fun volumeShown(override: Int?, reported: Int?, stored: Int?, connected: Boolean): Int? {
+        if (reported != null && reported != stored) persistVolume(reported)
+        val current = override ?: reported
         if (current != null) lastVolume = current
-        return current ?: lastVolume.takeIf { connected }
+        // Never reported this session: the level from the last one, even if the bar moved since.
+        return current ?: (lastVolume ?: stored).takeIf { connected }
+    }
+
+    @Volatile
+    private var persistVolumeJob: Job? = null
+
+    /** Keeps the bar's reported level for the next session, at most once a second. */
+    private fun persistVolume(level: Int) {
+        persistVolumeJob?.cancel()
+        persistVolumeJob = scope.launch {
+            delay(PERSIST_VOLUME_MS)
+            store.updatePrefs { it.copy(lastBarVolume = level) }
+        }
     }
 
     private fun setOverride(transform: (Overrides) -> Overrides) {
@@ -884,10 +899,10 @@ class TuttiController @Inject constructor(
 
     fun volumeStep(delta: Int) {
         // Level not known yet (the bar has not reported it): ask for it rather than guess a level to set.
-        val current = state.value.volume ?: run {
-            scope.launch { theatre.get(TheatreFeature.VOLUME) }
-            return
-        }
+        // The bar hasn't reported its level this session: ask for it, and step from the level
+        // shown meanwhile (possibly last session's) rather than doing nothing.
+        if (theatre.state.value.level(TheatreFeature.VOLUME) == null) scope.launch { theatre.get(TheatreFeature.VOLUME) }
+        val current = state.value.volume ?: return
         setVolume(current + delta)
     }
 
@@ -1468,6 +1483,7 @@ class TuttiController @Inject constructor(
         private const val POLL_BAR_MS = 20_000L
         private const val POLL_TV_MS = 10_000L
         private const val OVERRIDE_MS = 2_500L
+        private const val PERSIST_VOLUME_MS = 1_000L
         /** How long Power waits for a sleeping device: a TV woken by a magic packet needs a few seconds for its network. */
         private const val WAKE_TIMEOUT_MS = 12_000L
         private const val WAKE_RETRY_MS = 1_500L
