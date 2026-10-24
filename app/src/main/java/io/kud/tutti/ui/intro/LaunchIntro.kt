@@ -951,13 +951,17 @@ class LaunchIntro(val kind: IntroKind) {
             return
         }
         val view = splash.iconView
-        val at = IntArray(2).also(view::getLocationInWindow)
         provider = splash
         // The icon's 108 units span 288 dp centred on the icon view, whatever the view's own size:
         // core-splashscreen's compat view is 288 dp, Android 12+'s is the 192 dp circle the system
         // draws the 1.5x foreground into.
-        val half = MarkGeometry.SPLASH_ICON_DP * view.resources.displayMetrics.density / 2f
-        val centre = Offset(at[0] + view.width / 2f, at[1] + view.height / 2f)
+        val metrics = view.resources.displayMetrics
+        val half = MarkGeometry.SPLASH_ICON_DP * metrics.density / 2f
+        val centre = splashCentre(
+            icon = view.boundsInWindow(),
+            splash = splash.view.boundsInWindow(),
+            screen = Offset(metrics.widthPixels / 2f, metrics.heightPixels / 2f),
+        )
         icon = lockupMarkBox(Rect(centre.x - half, centre.y - half, centre.x + half, centre.y + half))
         shownMs = sinceLaunchMs()
     }
@@ -992,6 +996,22 @@ class LaunchIntro(val kind: IntroKind) {
             }
         }
     }
+}
+
+/**
+ * Where the splash icon's centre is, in window pixels. On a warm start the exit listener can fire
+ * before the icon view is laid out: it then reads 0x0 at 0,0, and the mark was drawn in the top-left
+ * corner. The system always centres the icon in the splash, so an unlaid icon falls back to the
+ * splash view's centre, and an unlaid splash to the screen's.
+ */
+internal fun splashCentre(icon: Rect?, splash: Rect?, screen: Offset): Offset =
+    icon?.takeIf { !it.isEmpty }?.center ?: splash?.takeIf { !it.isEmpty }?.center ?: screen
+
+/** This view's box in window pixels, or null while it has no size or has not been laid out. */
+private fun android.view.View.boundsInWindow(): Rect? {
+    if (!isLaidOut || width == 0 || height == 0) return null
+    val at = IntArray(2).also(::getLocationInWindow)
+    return Rect(at[0].toFloat(), at[1].toFloat(), at[0] + width.toFloat(), at[1] + height.toFloat())
 }
 
 /**

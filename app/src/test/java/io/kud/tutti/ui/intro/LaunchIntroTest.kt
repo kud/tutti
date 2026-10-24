@@ -1,5 +1,7 @@
 package io.kud.tutti.ui.intro
 
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
@@ -224,5 +226,14 @@ class LaunchIntroTest {
         assertEquals(IntroKind.COLD, LaunchIntro.kindFor(restored = false))
         assertEquals(IntroKind.WARM, LaunchIntro.kindFor(restored = false))
         assertEquals(IntroKind.NONE, LaunchIntro.kindFor(restored = true))
+    }
+
+    @Test
+    fun `an icon not laid out yet falls back to the splash centre, then the screen's`() {
+        val screen = Offset(540f, 1200f)
+        assertEquals(Offset(500f, 1000f), splashCentre(Rect(356f, 856f, 644f, 1144f), Rect(0f, 0f, 1080f, 2400f), screen))
+        assertEquals(Offset(540f, 1200f), splashCentre(Rect(0f, 0f, 0f, 0f), Rect(0f, 0f, 1080f, 2400f), screen))
+        assertEquals(Offset(540f, 1100f), splashCentre(null, Rect(0f, 0f, 1080f, 2200f), screen))
+        assertEquals(screen, splashCentre(null, null, screen))
     }
 }
