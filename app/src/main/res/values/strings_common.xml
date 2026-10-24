@@ -30,6 +30,8 @@
     <string name="bar_model">Model</string>
     <string name="bar_firmware">Software version</string>
     <string name="bar_bt_mode">Bluetooth mode</string>
+    <string name="bar_bt_mode_rx">Receiving (phone to bar)</string>
+    <string name="bar_bt_mode_tx">Sending (bar to headphones)</string>
     <string name="bar_bt_quality">Bluetooth quality</string>
     <string name="key_settings">TV settings</string>
     <string name="key_input">Input</string>

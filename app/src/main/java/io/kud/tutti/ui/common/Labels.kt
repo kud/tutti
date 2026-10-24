@@ -185,7 +185,12 @@ fun barValueLabel(feature: TheatreFeature, value: String): String = when (val ki
         "airplay2" -> "AirPlay 2"
         else -> optionLabel(value)
     }
-    FeatureKind.ReadOnly -> value
+    FeatureKind.ReadOnly -> when {
+        // The bar's raw "rx" / "tx" read as jargon (seen on the Bar 9, 2026-10-24).
+        feature == TheatreFeature.BLUETOOTH_MODE && value == "rx" -> stringResource(R.string.bar_bt_mode_rx)
+        feature == TheatreFeature.BLUETOOTH_MODE && value == "tx" -> stringResource(R.string.bar_bt_mode_tx)
+        else -> value
+    }
 }
 
 /** Icons a pin can wear instead of its action's, by name (stored in DockSlot.icon). */

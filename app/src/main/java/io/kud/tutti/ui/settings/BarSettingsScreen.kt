@@ -26,6 +26,7 @@ import io.kud.tutti.controller.TuttiController
 import io.kud.tutti.controller.TuttiUiState
 import io.kud.tutti.protocol.theatre.FeatureKind
 import io.kud.tutti.protocol.theatre.TheatreFeature
+import io.kud.tutti.ui.common.barValueLabel
 import io.kud.tutti.ui.common.ChoiceRow
 import io.kud.tutti.ui.common.LocalRowSurface
 import io.kud.tutti.ui.common.SettingsGroup
@@ -143,7 +144,7 @@ private fun Choice(state: TuttiUiState, controller: TuttiController, feature: Th
 private fun Info(state: TuttiUiState, feature: TheatreFeature) {
     LinkRow(
         title = stringResource(featureLabel(feature)),
-        detail = barReason(state, feature) ?: state.bar.value(feature).orEmpty(),
+        detail = barReason(state, feature) ?: state.bar.value(feature)?.let { barValueLabel(feature, it) }.orEmpty(),
         enabled = false,
         onClick = {},
     )

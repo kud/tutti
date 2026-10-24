@@ -30,6 +30,8 @@
     <string name="bar_model">Modèle</string>
     <string name="bar_firmware">Version du logiciel</string>
     <string name="bar_bt_mode">Mode Bluetooth</string>
+    <string name="bar_bt_mode_rx">Réception (téléphone vers la barre)</string>
+    <string name="bar_bt_mode_tx">Émission (barre vers un casque)</string>
     <string name="bar_bt_quality">Qualité Bluetooth</string>
     <string name="key_settings">Réglages TV</string>
     <string name="key_input">Source</string>
