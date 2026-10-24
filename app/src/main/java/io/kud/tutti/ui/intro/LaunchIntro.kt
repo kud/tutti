@@ -42,11 +42,15 @@ import androidx.compose.ui.graphics.drawscope.DrawStyle
 import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -74,6 +78,7 @@ import kotlin.math.sin
 import kotlin.math.sqrt
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 
 /*
@@ -82,6 +87,10 @@ import kotlinx.coroutines.withTimeoutOrNull
  * animated icons in its own process. Once the app has drawn its first frame, this overlay draws
  * the very same mark at the very same place, removes the system splash under it, and plays on the
  * app's own frame clock. Then the remote, already composed underneath and never held back.
+ *
+ * On a cold start it first opens on PR #11's splash composition ([SplashOpening]): the wordmark
+ * arrives under the mark and, on a dark splash, a soft halo behind it, while the intro decides;
+ * both leave as the choreography starts.
  *
  * "The OK becomes the pad" (Iris, 2026-10-23), richer (variant A of her second pass, plus B's
  * shimmering ring; Erwann, 2026-10-24): a sheen, the OK warms and slides onto the live D-pad's OK
@@ -185,6 +194,8 @@ class IntroScene(
     val theme: IntroTheme = IntroTheme(padOk, padOk, padOk, dark = false),
     /** The live touchpad, in the overlay's coordinates, when the pad is in touchpad mode. */
     val touchpad: TouchpadAnchor? = null,
+    /** The opening's wordmark and halo at this frame, set by the overlay before each draw. */
+    val opening: OpeningFrame = OpeningFrame(),
 )
 
 /**
@@ -203,6 +214,9 @@ data class IntroTheme(val accent: Color, val dim: Color, val sheen: Color, val d
 interface IntroChoreography {
     val durationMs: Float
     val landingMs: Float? get() = null
+
+    /** How the opening's wordmark and halo leave once this starts: 1 → 0 over its first beat. */
+    val openingExit: Track get() = OpeningExit
 
     fun DrawScope.draw(ms: Float, scene: IntroScene)
 }
@@ -375,6 +389,7 @@ internal class OkBecomesPad(warm: Boolean) : OkLanding(warm) {
                 drawPath(paint.backdrop, colours.background, alpha = alpha)
             }
         }
+        drawOpeningHalo(scene, openingExit.at(ms) * backdrop)
 
         drawBodyStepBack(ms, scene, paint)
 
@@ -489,6 +504,7 @@ internal class OkBecomesTouchpad(warm: Boolean) : OkLanding(warm) {
                 drawPath(paint.backdrop, colours.background, alpha = alpha)
             }
         }
+        drawOpeningHalo(scene, openingExit.at(ms) * backdrop)
 
         drawBodyStepBack(ms, scene, paint)
 
@@ -653,8 +669,10 @@ object HandOffToWelcome : IntroChoreography {
             markAlpha = if (target == null) backdrop else 1f,
             okWarmth = okWarmth.at(ms),
             okScale = okScale.at(ms),
-            backdropAlpha = backdrop,
+            backdropAlpha = 0f,
         )
+        drawBackdrop(scene.colours, backdrop)
+        drawOpeningHalo(scene, openingExit.at(ms) * backdrop)
         drawLaunchMark(pose, scene.colours, box)
     }
 }
@@ -665,11 +683,139 @@ object FadeIntro : IntroChoreography {
 
     override val durationMs: Float = 200f
 
+    /** The wordmark and the halo fade with the mark, nothing moves. */
+    override val openingExit: Track get() = alpha
+
     override fun DrawScope.draw(ms: Float, scene: IntroScene) {
         val a = alpha.at(ms)
-        drawLaunchMark(RestingPose.copy(markAlpha = a, backdropAlpha = a), scene.colours, scene.icon)
+        drawBackdrop(scene.colours, a)
+        drawOpeningHalo(scene, a)
+        drawLaunchMark(RestingPose.copy(markAlpha = a, backdropAlpha = 0f), scene.colours, scene.icon)
     }
 }
+
+/*
+ * The opening: PR #11's splash composition, in the app (Erwann, 2026-10-24: "oui, fais-le avec le
+ * mot et le halo"). The system splash takes an icon only, so the mark is all it shows; the intro's
+ * first frame is that same picture, and from there the lowercase wordmark (its i dotted in amber)
+ * arrives under the mark and, on a dark splash, a soft halo in the theme's accent rises behind it,
+ * [SplashOpening.MS]. The mark never moves for it (the MarkGeometry contract). Once the choreography
+ * starts, both leave over its first beat ([OpeningExit]) while the OK warms, and the rest plays as
+ * before. The opening runs while the intro waits for the stores and the remote's layout, so it adds
+ * at most its own 200 ms to a cold start, usually less; a warm start (after Back) has none.
+ */
+
+/** The opening's tracks, on the overlay's clock from its first frame. [reduced]: opacity only. */
+class SplashOpening(reduced: Boolean) {
+    val word = Track(Key(0f, 0f), Key(MS, 1f, Motion.Emphasized))
+    val rise = if (reduced) Track(Key(0f, 0f)) else Track(Key(0f, MarkGeometry.WORDMARK_RISE), Key(MS, 0f, Motion.Emphasized))
+    val halo = Track(Key(0f, 0f), Key(MS, 1f, Breath))
+
+    fun pose(ms: Float, into: OpeningFrame) {
+        into.word = word.at(ms)
+        into.rise = rise.at(ms)
+        into.halo = halo.at(ms)
+    }
+
+    companion object {
+        const val MS = 200f
+
+        /** Which launches open on the composition: cold ones only; a warm start stays short. */
+        fun runsFor(kind: IntroKind): Boolean = kind == IntroKind.COLD
+    }
+}
+
+/** The opening as the choreographies leave it: 160 ms, while the OK warms and before the body steps back. */
+val OpeningExit = Track(Key(0f, 1f), Key(160f, 0f, Motion.Exit))
+
+/** The opening at one frame: the wordmark's alpha and rise (mark units), the halo's alpha. */
+class OpeningFrame {
+    var word = 0f
+    var rise = 0f
+    var halo = 0f
+
+    // The wordmark's outline and the halo's paint, made once (the halo's again only for a new accent).
+    internal val ink: Path by lazy { PathParser().parsePathString(Wordmark.PATH).toPath() }
+    private var cachedHalo: android.graphics.Paint? = null
+    private var haloColour = Color.Unspecified
+
+    /** A dithered radial paint, unit [HALO_UNIT] radius, so a low alpha on a dark ground never bands. */
+    internal fun haloPaint(accent: Color): android.graphics.Paint {
+        cachedHalo?.takeIf { haloColour == accent }?.let { return it }
+        haloColour = accent
+        val stops = OPENING_HALO_STOPS
+        val shader = android.graphics.RadialGradient(
+            0f, 0f, HALO_UNIT,
+            IntArray(stops.size) { accent.copy(alpha = stops[it].second).toArgb() },
+            FloatArray(stops.size) { stops[it].first },
+            android.graphics.Shader.TileMode.CLAMP,
+        )
+        return android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            this.shader = shader
+            isDither = true
+        }.also { cachedHalo = it }
+    }
+}
+
+/** The splash's backdrop over the whole scope. */
+internal fun DrawScope.drawBackdrop(colours: MarkColours, alpha: Float) {
+    if (alpha > 0f) drawRect(colours.background, alpha = colours.background.alpha * alpha)
+}
+
+/**
+ * The opening's halo, over the backdrop and under the mark, at [level] of its arrival: dark splash
+ * only (the light study has none), the theme's accent, low and soft.
+ */
+internal fun DrawScope.drawOpeningHalo(scene: IntroScene, level: Float) {
+    val a = scene.opening.halo * level
+    if (a <= 0f || !scene.colours.dark) return
+    val paint = scene.opening.haloPaint(scene.theme.accent)
+    val u = scene.icon.width / MarkGeometry.VIEWPORT
+    paint.alpha = (a * 255f).toInt().coerceIn(0, 255)
+    drawIntoCanvas { canvas ->
+        val native = canvas.nativeCanvas
+        native.save()
+        native.translate(scene.icon.left + MarkGeometry.CENTRE * u, scene.icon.top + MarkGeometry.HALO_Y * u)
+        native.scale(MarkGeometry.HALO_RX * u / HALO_UNIT, MarkGeometry.HALO_RY * u / HALO_UNIT)
+        native.drawCircle(0f, 0f, HALO_UNIT, paint)
+        native.restore()
+    }
+}
+
+/**
+ * The wordmark under the mark, in the mark's ink (its body colour: ivory on a dark splash, ink on a
+ * light one) with the i's dot in the pill's amber, at [level] of its arrival. Left out when it would
+ * not clear the bottom of the window (a phone held sideways): the mark alone is the splash there.
+ */
+internal fun DrawScope.drawWordmark(scene: IntroScene, level: Float) {
+    val a = scene.opening.word * level
+    if (a <= 0f) return
+    val u = scene.icon.width / MarkGeometry.VIEWPORT
+    val s = Wordmark.SCALE * u
+    val baseline = scene.icon.top + (MarkGeometry.WORDMARK_BASELINE + scene.opening.rise) * u
+    if (baseline + Wordmark.BOTTOM * s > size.height - WORDMARK_CLEARANCE.toPx()) return
+    val left = scene.icon.left + MarkGeometry.CENTRE * u - (Wordmark.LEFT + Wordmark.RIGHT) / 2f * s
+    translate(left, baseline) {
+        scale(s, s, pivot = Offset.Zero) {
+            drawPath(scene.opening.ink, scene.colours.body, alpha = a)
+            drawCircle(scene.colours.line, Wordmark.DOT_RADIUS, Offset(Wordmark.DOT_X, Wordmark.DOT_Y), alpha = a)
+        }
+    }
+}
+
+private const val HALO_UNIT = 100f
+
+/** The halo's falloff, softened from the study's (0.25, 0.07 at 0.55, 0) like the rest of the light. */
+internal val OPENING_HALO_STOPS = listOf(
+    0f to 0.16f,
+    0.25f to 0.12f,
+    0.55f to 0.045f,
+    0.8f to 0.012f,
+    1f to 0f,
+)
+
+/** Room kept under the wordmark for the navigation bar. */
+private val WORDMARK_CLEARANCE = 56.dp
 
 private fun lerpRect(from: Rect, to: Rect, t: Float) = Rect(
     from.left + (to.left - from.left) * t,
@@ -836,15 +982,27 @@ fun LaunchIntroOverlay(intro: LaunchIntro, firstLaunch: Boolean?) {
     var script by remember { mutableStateOf<IntroChoreography?>(null) }
     var origin by remember { mutableStateOf(Offset.Zero) }
     val scenes = remember { SceneCache() }
+    val opening = remember(intro, reduced) { if (SplashOpening.runsFor(intro.kind)) SplashOpening(reduced) else null }
+    val frame = remember { OpeningFrame() }
+    var openMs by remember { mutableFloatStateOf(0f) }
     LaunchedEffect(intro) {
-        // The first frame draws the resting pose (the system splash's own picture); once it is on
-        // screen, the system splash goes.
+        // The opening's clock, from the first frame: it runs while the intro decides.
+        val clock = opening?.let {
+            launch {
+                val zero = withFrameNanos { it }
+                while (openMs < SplashOpening.MS) withFrameNanos { now -> openMs = (now - zero) / 1_000_000f }
+            }
+        }
+        // The first frame draws the resting pose (the system splash's own picture, no wordmark yet);
+        // once it is on screen, the system splash goes.
         withFrameNanos { }
         withFrameNanos { }
         intro.covered()
         val known = withTimeoutOrNull(DECIDE_WAIT_MS) { snapshotFlow { first }.filterNotNull().first() } ?: false
         // One more frame, so the remote (or the welcome screen) has laid out its anchor.
         withFrameNanos { }
+        // The opening composition is whole before anything leaves it.
+        clock?.join()
         val shown = when {
             anchors.pad != null -> PadShown.DPAD
             anchors.touchpad != null -> PadShown.TOUCHPAD
@@ -878,13 +1036,18 @@ fun LaunchIntroOverlay(intro: LaunchIntro, firstLaunch: Boolean?) {
     ) {
         val scene = scenes.get(
             this, colours, icon, origin, anchors.pad, anchors.touchpad, anchors.welcome,
-            padOk, padDisc, padChevron, theme,
+            padOk, padDisc, padChevron, theme, frame,
         )
+        opening?.pose(openMs, frame)
         val now = script
         if (now == null) {
-            drawLaunchMark(RestingPose, colours, scene.icon)
+            drawBackdrop(colours, 1f)
+            drawOpeningHalo(scene, 1f)
+            drawLaunchMark(RestingPose.copy(backdropAlpha = 0f), colours, scene.icon)
+            drawWordmark(scene, 1f)
         } else {
             with(now) { draw(elapsed, scene) }
+            drawWordmark(scene, now.openingExit.at(elapsed))
         }
     }
 }
@@ -921,6 +1084,7 @@ private class SceneCache {
         padDisc: Color,
         padChevron: Color,
         theme: IntroTheme,
+        opening: OpeningFrame,
     ): IntroScene {
         val same = colours == this.colours && icon == this.icon && origin == this.origin && pad == this.pad &&
             touchpad == this.touchpad && welcome == this.welcome && padOk == this.padOk && padDisc == this.padDisc &&
@@ -957,6 +1121,7 @@ private class SceneCache {
             padChevron = padChevron,
             theme = theme,
             touchpad = touchpad?.let { TouchpadAnchor(it.bounds.translate(-origin), it.cornerRadius) },
+            opening = opening,
         ).also { scene = it }
     }
 }
