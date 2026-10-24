@@ -33,6 +33,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -67,6 +70,7 @@ import io.kud.tutti.platform.data.flattened
 import io.kud.tutti.ui.common.AppIcon
 import io.kud.tutti.ui.common.PinGlyphs
 import io.kud.tutti.ui.common.PinnedHeader
+import io.kud.tutti.ui.common.keyLabel
 import io.kud.tutti.ui.common.TuttiSheet
 import io.kud.tutti.ui.common.actionIcon
 import io.kud.tutti.ui.common.actionLabel
@@ -285,6 +289,10 @@ fun PinEditorContent(
                             onWait = { steps[at] = MacroStep.Wait(it) },
                             onMove = { by -> steps.add(at + by, steps.removeAt(at)) },
                             onRemove = { steps.removeAt(at) },
+                            onHold = { long ->
+                                val held = ((step as? MacroStep.Run)?.action as? DockAction.Key)?.copy(long = long)
+                                if (held != null) steps[at] = MacroStep.Run(held)
+                            },
                         )
                     }
                 }
@@ -332,6 +340,9 @@ fun PinEditorContent(
                 } else {
                     TextButton(onClick = { picking = Picking.LongPress }) { Text(stringResource(R.string.pin_choose)) }
                 }
+            }
+            (secondary as? DockAction.Key)?.let { key ->
+                PressOrHold(key.long, { secondary = key.copy(long = it) }, Modifier.padding(top = 8.dp))
             }
             if (secondary != null) {
                 Spacer(Modifier.height(4.dp))
@@ -512,57 +523,85 @@ private fun StepRow(
     onWait: (Long) -> Unit,
     onMove: (Int) -> Unit,
     onRemove: () -> Unit,
+    onHold: (Boolean) -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
+    val key = (step as? MacroStep.Run)?.action as? DockAction.Key
     val label = when (step) {
-        is MacroStep.Run -> actionLabel(step.action, state)
+        // A key's press or hold is the pair under it, so its name stays plain here.
+        is MacroStep.Run -> if (key != null) keyLabel(key.keyCode) else actionLabel(step.action, state)
         is MacroStep.Wait -> stringResource(R.string.pin_wait, seconds(step.millis))
     }
     val description = stringResource(R.string.pin_step_desc, number, label)
-    Row(
-        modifier
-            .background(colors.surfaceContainerHigh)
-            .fillMaxWidth()
-            .heightIn(min = 56.dp)
-            .then(if (step is MacroStep.Run) Modifier.clickable(onClick = onChange) else Modifier)
-            .padding(start = 16.dp, end = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        when (step) {
-            is MacroStep.Run -> {
-                Row(Modifier.weight(1f).semantics(mergeDescendants = true) { contentDescription = description }, verticalAlignment = Alignment.CenterVertically) {
-                    ActionGlyph(step.action, state)
-                    Spacer(Modifier.width(16.dp))
-                    Text(label, style = MaterialTheme.typography.bodyLarge, color = colors.onSurface, maxLines = 2, overflow = TextOverflow.Ellipsis)
+    Column(modifier.background(colors.surfaceContainerHigh).fillMaxWidth()) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .heightIn(min = 56.dp)
+                .then(if (step is MacroStep.Run) Modifier.clickable(onClick = onChange) else Modifier)
+                .padding(start = 16.dp, end = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            when (step) {
+                is MacroStep.Run -> {
+                    Row(Modifier.weight(1f).semantics(mergeDescendants = true) { contentDescription = description }, verticalAlignment = Alignment.CenterVertically) {
+                        ActionGlyph(step.action, state)
+                        Spacer(Modifier.width(16.dp))
+                        Text(label, style = MaterialTheme.typography.bodyLarge, color = colors.onSurface, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    }
+                }
+                is MacroStep.Wait -> {
+                    Icon(painterResource(R.drawable.ic_timer), contentDescription = null, tint = colors.onSurfaceVariant, modifier = Modifier.size(24.dp))
+                    Spacer(Modifier.width(4.dp))
+                    SmallIcon(R.drawable.ic_remove, stringResource(R.string.pin_wait_less), enabled = step.millis > WAIT_STEP_MS) {
+                        onWait((step.millis - WAIT_STEP_MS).coerceAtLeast(WAIT_STEP_MS))
+                    }
+                    Text(
+                        stringResource(R.string.pin_wait_seconds, seconds(step.millis)),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = colors.onSurface,
+                        modifier = Modifier.semantics { contentDescription = description },
+                    )
+                    SmallIcon(R.drawable.ic_add, stringResource(R.string.pin_wait_more), enabled = step.millis < MAX_WAIT_MS) {
+                        onWait((step.millis + WAIT_STEP_MS).coerceAtMost(MAX_WAIT_MS))
+                    }
+                    Spacer(Modifier.weight(1f))
                 }
             }
-            is MacroStep.Wait -> {
-                Icon(painterResource(R.drawable.ic_timer), contentDescription = null, tint = colors.onSurfaceVariant, modifier = Modifier.size(24.dp))
-                Spacer(Modifier.width(4.dp))
-                SmallIcon(R.drawable.ic_remove, stringResource(R.string.pin_wait_less), enabled = step.millis > WAIT_STEP_MS) {
-                    onWait((step.millis - WAIT_STEP_MS).coerceAtLeast(WAIT_STEP_MS))
-                }
-                Text(
-                    stringResource(R.string.pin_wait_seconds, seconds(step.millis)),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = colors.onSurface,
-                    modifier = Modifier.semantics { contentDescription = description },
-                )
-                SmallIcon(R.drawable.ic_add, stringResource(R.string.pin_wait_more), enabled = step.millis < MAX_WAIT_MS) {
-                    onWait((step.millis + WAIT_STEP_MS).coerceAtMost(MAX_WAIT_MS))
-                }
-                Spacer(Modifier.weight(1f))
+            if (!alone) {
+                SmallIcon(R.drawable.ic_arrow_up, stringResource(R.string.pin_step_up), enabled = !first) { onMove(-1) }
+                SmallIcon(R.drawable.ic_arrow_down, stringResource(R.string.pin_step_down), enabled = !last) { onMove(1) }
+                SmallIcon(R.drawable.ic_close, stringResource(R.string.pin_step_remove), enabled = true, onClick = onRemove)
+            } else if (step is MacroStep.Run) {
+                TextButton(onClick = onChange) { Text(stringResource(R.string.pin_change)) }
             }
         }
-        if (!alone) {
-            SmallIcon(R.drawable.ic_arrow_up, stringResource(R.string.pin_step_up), enabled = !first) { onMove(-1) }
-            SmallIcon(R.drawable.ic_arrow_down, stringResource(R.string.pin_step_down), enabled = !last) { onMove(1) }
-            SmallIcon(R.drawable.ic_close, stringResource(R.string.pin_step_remove), enabled = true, onClick = onRemove)
-        } else if (step is MacroStep.Run) {
-            TextButton(onClick = onChange) { Text(stringResource(R.string.pin_change)) }
+        if (key != null) PressOrHold(key.long, onHold, Modifier.padding(start = 56.dp, end = 16.dp, bottom = 12.dp))
+    }
+}
+
+/**
+ * A key step's "Press" / "Hold" pair (Iris, 2026-10-24): quiet, read as radio buttons, Press by
+ * default. The picker only ever picks a press; holding is chosen here, per step.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun PressOrHold(long: Boolean, onHold: (Boolean) -> Unit, modifier: Modifier = Modifier) {
+    val group = stringResource(R.string.pin_press_or_hold)
+    SingleChoiceSegmentedButtonRow(modifier.semantics { contentDescription = group }) {
+        listOf(false to R.string.pin_press, true to R.string.pin_hold).forEachIndexed { index, (hold, text) ->
+            SegmentedButton(
+                selected = long == hold,
+                onClick = { if (long != hold) onHold(hold) },
+                shape = SegmentedButtonDefaults.itemShape(index, 2),
+                icon = { SegmentedButtonDefaults.Icon(active = long == hold) },
+            ) {
+                Text(stringResource(text), style = MaterialTheme.typography.labelMedium, maxLines = 1)
+            }
         }
     }
 }
+
 
 @Composable
 private fun SmallIcon(icon: Int, description: String, enabled: Boolean, onClick: () -> Unit) {

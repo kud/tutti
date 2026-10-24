@@ -6,8 +6,6 @@
     <string name="picker_tv">TV</string>
     <string name="picker_all_keys">Toutes les touches (%1$d)</string>
     <string name="picker_fewer_keys">Moins de touches</string>
-    <string name="picker_press_short">court</string>
-    <string name="picker_press_long">maintenu</string>
     <string name="picker_toggle">basculer</string>
     <string name="picker_value_previous">Valeur précédente</string>
     <string name="picker_value_next">Valeur suivante</string>
@@ -37,6 +35,9 @@
     <string name="pin_icon_auto">Automatique : l’icône de l’action</string>
     <string name="pin_on_tap">Au toucher</string>
     <string name="pin_change">Changer</string>
+    <string name="pin_press">Appuyer</string>
+    <string name="pin_hold">Maintenir</string>
+    <string name="pin_press_or_hold">Appuyer ou maintenir la touche</string>
     <string name="pin_choose">Choisir</string>
     <string name="pin_save">Enregistrer</string>
     <string name="pin_remove">Vider l’épingle</string>

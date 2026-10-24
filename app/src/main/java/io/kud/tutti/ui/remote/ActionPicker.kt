@@ -23,7 +23,6 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -129,7 +128,6 @@ fun ActionPickerContent(
     var query by rememberSaveable { mutableStateOf("") }
     var filter by rememberSaveable { mutableStateOf<Category?>(null) }
     var allKeys by rememberSaveable { mutableStateOf(false) }
-    val held = remember { mutableStateMapOf<Int, Boolean>() }
     val barValues = remember { mutableStateMapOf<TheatreFeature, String>() }
     val needle = fold(query.trim())
     val searching = needle.isNotEmpty()
@@ -233,14 +231,8 @@ fun ActionPickerContent(
                     if (codes.isEmpty()) continue
                     header("keys-${group?.name}", R.string.picker_keys, group?.let(::keyGroupLabel))
                     items(codes, key = { "key-$it" }) { code ->
-                        val long = held[code] == true
-                        KeyRow(
-                            label = keyLabels.getValue(code),
-                            icon = keyIcon(code),
-                            long = long,
-                            onMode = { held[code] = it },
-                            onPick = { onPick(DockAction.Key(code, long)) },
-                        )
+                        // A key is pressed; holding is chosen per step in the pin's editor, never here.
+                        PickRow(keyLabels.getValue(code), keyIcon(code)) { onPick(DockAction.Key(code)) }
                     }
                 }
                 if (!searching && filter == null) {
@@ -394,40 +386,6 @@ private fun RowLabel(@DrawableRes icon: Int, label: String, modifier: Modifier, 
 @Composable
 private fun PickRow(label: String, @DrawableRes icon: Int, app: String? = null, state: TuttiUiState? = null, onPick: () -> Unit) {
     RowCard(onPick) { RowLabel(icon, label, Modifier.weight(1f).padding(end = 8.dp), app, state) }
-}
-
-/** A key: the row picks it, the pills on the right choose a short press or a held one. */
-@Composable
-private fun KeyRow(label: String, @DrawableRes icon: Int, long: Boolean, onMode: (Boolean) -> Unit, onPick: () -> Unit) {
-    RowCard(onPick) {
-        RowLabel(icon, label, Modifier.weight(1f).padding(end = 8.dp))
-        Row(
-            Modifier.clip(RoundedCornerShape(20.dp)).background(MaterialTheme.colorScheme.surfaceContainerHighest),
-        ) {
-            Pill(stringResource(R.string.picker_press_short), selected = !long) { onMode(false) }
-            Pill(stringResource(R.string.picker_press_long), selected = long) { onMode(true) }
-        }
-    }
-}
-
-@Composable
-private fun Pill(text: String, selected: Boolean, onClick: () -> Unit) {
-    Box(
-        Modifier
-            .heightIn(min = 40.dp)
-            .widthIn(min = 64.dp)
-            .clip(RoundedCornerShape(20.dp))
-            .background(if (selected) MaterialTheme.colorScheme.primary else Color.Transparent)
-            .selectable(selected = selected, role = Role.RadioButton, onClick = onClick)
-            .padding(horizontal = 12.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text,
-            style = MaterialTheme.typography.labelLarge,
-            color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
 }
 
 /** A bar setting: the row picks it at the value the chevrons show (or "toggle" for a switch). */

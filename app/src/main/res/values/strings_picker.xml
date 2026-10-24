@@ -6,8 +6,6 @@
     <string name="picker_tv">TV</string>
     <string name="picker_all_keys">All keys (%1$d)</string>
     <string name="picker_fewer_keys">Fewer keys</string>
-    <string name="picker_press_short">short</string>
-    <string name="picker_press_long">held</string>
     <string name="picker_toggle">toggle</string>
     <string name="picker_value_previous">Previous value</string>
     <string name="picker_value_next">Next value</string>
@@ -37,6 +35,9 @@
     <string name="pin_icon_auto">Automatic: the action’s own icon</string>
     <string name="pin_on_tap">On tap</string>
     <string name="pin_change">Change</string>
+    <string name="pin_press">Press</string>
+    <string name="pin_hold">Hold</string>
+    <string name="pin_press_or_hold">Press or hold the key</string>
     <string name="pin_choose">Choose</string>
     <string name="pin_save">Save</string>
     <string name="pin_remove">Empty this pin</string>

@@ -163,6 +163,23 @@ fun keyIcon(keyCode: Int): Int = when (keyCode) {
     V2Key.VOLUME_MUTE -> R.drawable.ic_volume_off
     V2Key.ALL_APPS, V2Key.APP_SWITCH -> R.drawable.ic_apps
     223 -> R.drawable.ic_bedtime
+    V2Key.INFO -> R.drawable.ic_info
+    V2Key.GUIDE -> R.drawable.ic_guide
+    V2Key.CAPTIONS -> R.drawable.ic_subtitles
+    V2Key.MEDIA_AUDIO_TRACK, 252 -> R.drawable.ic_audiotrack
+    V2Key.MEDIA_PLAY -> R.drawable.ic_play
+    V2Key.MEDIA_PAUSE -> R.drawable.ic_pause
+    V2Key.MEDIA_STOP -> R.drawable.ic_stop
+    V2Key.MEDIA_NEXT -> R.drawable.ic_skip_next
+    V2Key.MEDIA_PREVIOUS -> R.drawable.ic_skip_previous
+    // Skips jump by a few seconds: drawn as the rewind and fast-forward they resemble.
+    V2Key.MEDIA_REWIND, 273 -> R.drawable.ic_fast_rewind
+    V2Key.MEDIA_FAST_FORWARD, 272 -> R.drawable.ic_fast_forward
+    130 -> R.drawable.ic_record
+    226 -> R.drawable.ic_article
+    V2Key.CHANNEL_UP -> R.drawable.ic_arrow_up
+    V2Key.CHANNEL_DOWN -> R.drawable.ic_arrow_down
+    // Only play/pause wears play/pause: every playback key above has its own glyph (KeyIconTest).
     else -> when (NamedKeys.byCode(keyCode)?.group) {
         KeyGroup.PLAYBACK -> R.drawable.ic_play_pause
         KeyGroup.NAVIGATION -> R.drawable.ic_dpad
