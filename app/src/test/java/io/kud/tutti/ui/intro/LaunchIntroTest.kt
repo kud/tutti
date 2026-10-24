@@ -143,27 +143,45 @@ class LaunchIntroTest {
     }
 
     @Test
-    fun `the opening starts on the system splash's picture and is whole by 200 ms`() {
-        for (reduced in listOf(false, true)) {
-            val opening = SplashOpening(reduced)
-            val frame = OpeningFrame()
-            opening.pose(0f, frame)
-            // The first frame is the system splash: the mark alone.
-            assertEquals(0f, frame.word, 0f)
-            assertEquals(0f, frame.halo, 0f)
-            opening.pose(SplashOpening.MS, frame)
-            assertEquals(1f, frame.word, 0f)
-            assertEquals(1f, frame.halo, 0f)
-            assertEquals(0f, frame.rise, 0f)
-        }
-        assertEquals(200f, SplashOpening.MS, 0f)
-        // The wordmark rises into place; under reduced motion it only fades in.
-        assertEquals(MarkGeometry.WORDMARK_RISE, SplashOpening(reduced = false).rise.at(0f), 0f)
-        for (ms in 0..200 step 10) assertEquals(0f, SplashOpening(reduced = true).rise.at(ms.toFloat()), 0f)
+    fun `the opening starts on the system splash's lockup, word and all, and the halo breathes in by 300 ms`() {
+        val opening = SplashOpening()
+        val frame = OpeningFrame()
+        // Any splash, warm ones included, already shows the word: the frame starts with it.
+        assertEquals(1f, frame.word, 0f)
+        assertEquals(0f, frame.halo, 0f)
+        opening.pose(0f, frame)
+        assertEquals(1f, frame.word, 0f)
+        assertEquals(0f, frame.halo, 0f)
+        opening.pose(SplashOpening.ARRIVAL_MS, frame)
+        assertEquals(1f, frame.word, 0f)
+        assertEquals(1f, frame.halo, 0f)
+        assertEquals(300f, SplashOpening.ARRIVAL_MS, 0f)
+        // The halo only changes opacity: there is nothing else to tone down under reduced motion.
+        var last = 0f
+        for (ms in 0..300 step 10) opening.halo.at(ms.toFloat()).also { assertTrue(it >= last); last = it }
     }
 
     @Test
-    fun `only a cold start opens on the composition`() {
+    fun `the hold makes the lockup read for 1200 ms from the launch, overlapping the system splash`() {
+        // A quick first frame: the rest of the 1.2 s, capped at 1 s.
+        assertEquals(1000f, SplashOpening.lengthFor(0f), 0f)
+        assertEquals(1000f, SplashOpening.lengthFor(150f), 0f)
+        assertEquals(900f, SplashOpening.lengthFor(300f), 0f)
+        assertEquals(700f, SplashOpening.lengthFor(500f), 0f)
+        // A slow one (or a process started earlier by the tile or the widget) still gets a real hold.
+        assertEquals(600f, SplashOpening.lengthFor(600f), 0f)
+        assertEquals(600f, SplashOpening.lengthFor(5_000f), 0f)
+        for (shown in 0..3000 step 50) {
+            val length = SplashOpening.lengthFor(shown.toFloat())
+            // Always longer than the halo's arrival, so the composition is whole and then held.
+            assertTrue(length - SplashOpening.ARRIVAL_MS >= 300f)
+            // Never a long wait: the whole cold start stays near 1.2 s plus the 800 ms landing.
+            assertTrue(shown + length <= maxOf(SplashOpening.LOCKUP_MS, shown + SplashOpening.MIN_MS))
+        }
+    }
+
+    @Test
+    fun `only a cold start holds the composition`() {
         assertTrue(SplashOpening.runsFor(IntroKind.COLD))
         assertTrue(!SplashOpening.runsFor(IntroKind.WARM))
         assertTrue(!SplashOpening.runsFor(IntroKind.NONE))
