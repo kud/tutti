@@ -58,7 +58,10 @@ data class AppPrefs(
         get() = vibration ?: if (haptics) VibrationLevel.ALL else VibrationLevel.OFF
 }
 
-/** The round buttons the row under the pad can hold. The first six are the row as it shipped. */
+/**
+ * The round buttons the row under the pad can hold. [MUTE] stays only so stored rows still decode:
+ * mute lives on the volume rail's foot now (Erwann, 2026-10-24), so the row never draws or offers it.
+ */
 @Serializable
 enum class RowButton { BACK, HOME, PLAY, VOICE, KEYBOARD, MUTE, INFO, CAPTIONS, INPUT, GUIDE, TV_SETTINGS }
 
@@ -78,11 +81,11 @@ data class RemoteLayout(
     val scenes: Boolean = true,
     val padSize: PadSize = PadSize.NORMAL,
 ) {
-    /** The row as drawn: no button twice, never more than [MAX_ROW]. */
-    val shownRow: List<RowButton> get() = row.distinct().take(MAX_ROW)
+    /** The row as drawn: no button twice, never mute (the rail's foot has it), never more than [MAX_ROW]. */
+    val shownRow: List<RowButton> get() = row.distinct().filter { it != RowButton.MUTE }.take(MAX_ROW)
 
     /** What could still go in the row, in the enum's order. */
-    val addable: List<RowButton> get() = RowButton.entries.filter { it !in shownRow }
+    val addable: List<RowButton> get() = RowButton.entries.filter { it !in shownRow && it != RowButton.MUTE }
 
     fun withAdded(button: RowButton): RemoteLayout =
         if (button in shownRow || shownRow.size >= MAX_ROW) this else copy(row = shownRow + button)
@@ -94,7 +97,7 @@ data class RemoteLayout(
 
     companion object {
         const val MAX_ROW = 6
-        val DEFAULT_ROW = listOf(RowButton.BACK, RowButton.HOME, RowButton.PLAY, RowButton.VOICE, RowButton.KEYBOARD, RowButton.MUTE)
+        val DEFAULT_ROW = listOf(RowButton.BACK, RowButton.HOME, RowButton.PLAY, RowButton.VOICE, RowButton.KEYBOARD)
     }
 }
 

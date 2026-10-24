@@ -33,6 +33,9 @@
     <string name="volume_label">Volume de la barre</string>
     <string name="volume_state_muted">%1$d, son coupé</string>
     <string name="volume_state_disconnected">Barre de son non connectée</string>
+    <string name="volume_mute">Couper le son</string>
+    <string name="volume_unmute">Rétablir le son</string>
+    <string name="volume_muted">Son coupé</string>
     <string name="scene_modified">modifiée</string>
     <string name="dock_add">Ajouter</string>
     <string name="dock_assign_title">Raccourci %1$d</string>

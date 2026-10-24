@@ -74,7 +74,7 @@ private sealed interface PickerTarget {
 
 /**
  * The home: system chip + one Power, scene pills, the pad with the volume rail on its right,
- * Back / Home / Play / Keyboard / Mute, and the 4-slot dock. Every tap gives its haptic first,
+ * Back / Home / Play / Mic / Keyboard (mute is the rail's foot), and the 4-slot dock. Every tap gives its haptic first,
  * then hands the action to the controller, which updates state before the network.
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -301,6 +301,7 @@ fun RemoteScreen(
                                 muted = state.muted,
                                 enabled = state.bar.connected,
                                 onVolume = controller::setVolume,
+                                onMute = controller::toggleMute,
                             )
                         }
                     }

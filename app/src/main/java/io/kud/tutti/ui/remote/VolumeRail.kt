@@ -7,6 +7,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -42,7 +44,10 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.disabled
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
@@ -59,9 +64,15 @@ import kotlinx.coroutines.launch
  * element. Dragging anywhere moves the level relatively (a stray tap never jumps the volume);
  * a tick per step, and the controller's bump at 0, 100 or the scene's cap.
  *
- * Three states, told apart by shape as well as colour: connected (level on top, a faint speaker
- * at the foot), muted (the fill greys, is hatched, and the foot speaker takes its slash), and not connected
+ * Three states, told apart by shape as well as colour: connected (level on top, the speaker at
+ * the foot), muted (the fill greys, is hatched, and the foot speaker takes its slash), and not connected
  * (no level and no fill, a hollow track, and the foot speaker crossed at full strength).
+ *
+ * The foot speaker is the mute key (Iris, chosen by Erwann, 2026-10-24): a 48 dp target on a faint
+ * disc, the icon at full strength. A tap toggles mute; the rail's drag only claims past touch
+ * slop, so a tap never moves the level, and a drag that starts on the speaker cancels the tap.
+ * It is its own accessibility node, a button beside the rail's volume readout; off while the bar
+ * is unreachable.
  *
  * While dragged the rail widens 64 → 72 dp over its neighbours' gap, so the layout never moves.
  * Reaching 0 or the cap stretches it 3 % against the wall and springs back (the controller plays
@@ -74,6 +85,7 @@ fun VolumeRail(
     muted: Boolean,
     enabled: Boolean,
     onVolume: (Int) -> Unit,
+    onMute: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val haptics = rememberHaptics()
@@ -82,6 +94,7 @@ fun VolumeRail(
     val currentVolume by rememberUpdatedState(volume)
     val currentCap by rememberUpdatedState(cap)
     val setVolume by rememberUpdatedState(onVolume)
+    val toggleMute by rememberUpdatedState(onMute)
     val connected = enabled
     val scope = rememberCoroutineScope()
     val reduced by rememberUpdatedState(LocalReducedMotion.current)
@@ -214,27 +227,56 @@ fun VolumeRail(
                     modifier = Modifier.align(Alignment.TopCenter).padding(top = 16.dp),
                 )
             }
-            // One speaker, always at the foot, so it never moves: a quiet hint while connected, the
-            // muted slash when muted, and the crossed speaker at full strength when the bar is gone.
-            Icon(
-                painter = painterResource(
-                    when {
-                        !connected -> R.drawable.ic_no_sound
-                        muted -> R.drawable.ic_volume_off
-                        else -> R.drawable.ic_volume_up
-                    },
-                ),
-                contentDescription = null,
-                tint = when {
-                    !connected -> scheme.onSurfaceVariant
-                    footOnFill -> onFill.copy(alpha = if (muted) 0.7f else 0.4f)
-                    else -> scheme.onSurfaceVariant.copy(alpha = if (muted) 0.7f else 0.4f)
-                },
-                modifier = Modifier
+            // One speaker, always at the foot, so it never moves: the mute key while connected (the
+            // slash when muted), and the crossed speaker at full strength, untappable, when the bar is gone.
+            val muteLabel = stringResource(if (muted) R.string.volume_unmute else R.string.volume_mute)
+            val mutedState = stringResource(R.string.volume_muted)
+            Box(
+                Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(bottom = FOOT_INSET)
-                    .size(FOOT_ICON),
-            )
+                    .padding(bottom = FOOT_INSET + FOOT_ICON / 2 - FOOT_TARGET / 2)
+                    .size(FOOT_TARGET)
+                    .semantics {
+                        role = Role.Button
+                        contentDescription = muteLabel
+                        if (muted) stateDescription = mutedState
+                        if (!connected) disabled()
+                    }
+                    // Its own detector: the rail's drag sees the down too, and claims it only past slop,
+                    // which cancels this tap; an up before slop is a tap, so the level never moves.
+                    .pointerInput(connected) {
+                        if (!connected) return@pointerInput
+                        detectTapGestures {
+                            haptics.click()
+                            toggleMute()
+                        }
+                    },
+                contentAlignment = Alignment.Center,
+            ) {
+                if (connected) {
+                    Box(
+                        Modifier
+                            .size(FOOT_DISC)
+                            .background((if (footOnFill) onFill else scheme.onSurface).copy(alpha = DISC_ALPHA), CircleShape),
+                    )
+                }
+                Icon(
+                    painter = painterResource(
+                        when {
+                            !connected -> R.drawable.ic_no_sound
+                            muted -> R.drawable.ic_volume_off
+                            else -> R.drawable.ic_volume_up
+                        },
+                    ),
+                    contentDescription = null,
+                    tint = when {
+                        !connected -> scheme.onSurfaceVariant
+                        footOnFill -> onFill
+                        else -> scheme.onSurfaceVariant
+                    },
+                    modifier = Modifier.size(FOOT_ICON),
+                )
+            }
         }
     }
 }
@@ -249,6 +291,11 @@ private const val STRETCH = 1.03f
 
 private val FOOT_INSET = 18.dp
 private val FOOT_ICON = 20.dp
+private val FOOT_TARGET = 48.dp
+private val FOOT_DISC = 40.dp
+
+/** The foot's disc: faint, just enough to read as pressable. */
+private const val DISC_ALPHA = 0.12f
 
 /** One full rail height covers 60 steps: precise without being slow. */
 private const val SENSITIVITY = 0.6f

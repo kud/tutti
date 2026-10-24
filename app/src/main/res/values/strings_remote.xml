@@ -32,6 +32,9 @@
     <string name="volume_label">Bar volume</string>
     <string name="volume_state_muted">%1$d, muted</string>
     <string name="volume_state_disconnected">Soundbar not connected</string>
+    <string name="volume_mute">Mute</string>
+    <string name="volume_unmute">Unmute</string>
+    <string name="volume_muted">Muted</string>
     <string name="scene_modified">modified</string>
     <string name="dock_add">Add</string>
     <string name="dock_assign_title">Shortcut %1$d</string>
