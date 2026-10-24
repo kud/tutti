@@ -9,7 +9,7 @@ import kotlinx.serialization.Serializable
  * Apps sheet still shows everything (with cached icons) when IP control is off or the TV asleep.
  *
  * @param tvUri the TV's `setActiveApp` uri, when the TV ever listed it.
- * @param iconUrl the TV's icon URL, LAN only; fetched once and cached by [packageName].
+ * @param iconUrl the TV's icon URL, never blank; fetched from the TV only ([AppIcons]) and cached by [packageName].
  */
 @Serializable
 data class KnownApp(
@@ -41,7 +41,7 @@ object AppLibrary {
     fun fromTv(app: TvApp): KnownApp? {
         val pkg = packageOf(app.uri) ?: return null
         val name = app.title.ifBlank { AppCatalog.byPackage(pkg)?.name ?: pkg }
-        return KnownApp(pkg, name, app.uri, app.icon)
+        return KnownApp(pkg, name, app.uri, app.icon?.trim()?.ifEmpty { null })
     }
 
     /**
@@ -53,7 +53,7 @@ object AppLibrary {
         seen.forEach { byPackage[it.packageName] = it }
         fresh.mapNotNull(::fromTv).forEach { app ->
             val old = byPackage[app.packageName]
-            byPackage[app.packageName] = app.copy(iconUrl = app.iconUrl ?: old?.iconUrl, tvUri = app.tvUri ?: old?.tvUri)
+            byPackage[app.packageName] = app.copy(iconUrl = app.iconUrl ?: old?.iconUrl?.takeIf { it.isNotBlank() }, tvUri = app.tvUri ?: old?.tvUri)
         }
         return byPackage.values.sortedBy { it.name.lowercase() }
     }

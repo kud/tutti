@@ -151,7 +151,18 @@ class Diagnostics @Inject constructor(
             "last app launch" to (controller.lastLaunchTrace ?: "none this session"),
             "bar settings" to "answered ${ui.bar.confirmed.size}, refused ${ui.bar.refused.sorted().joinToString().ifEmpty { "none" }}, " +
                 "silent ${ui.bar.silent.sorted().joinToString().ifEmpty { "none" }}",
-        ) + liveBarWire()
+        ) + appIcons() + liveBarWire()
+    }
+
+    /**
+     * What became of each TV app icon this session: a count per outcome, then one line per app
+     * without one (package, outcome, the URL's scheme, port, path head and how its host relates
+     * to the TV). Never a host or a header; scrubbed by the controller and again by the report.
+     */
+    private fun appIcons(): List<Pair<String, String>> {
+        val lines = controller.iconReport()
+        return listOf("app icons" to lines.first()) +
+            lines.drop(1).mapIndexed { i, line -> "app icon %02d".format(i + 1) to line }
     }
 
     /**

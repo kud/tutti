@@ -26,10 +26,14 @@ import io.kud.tutti.platform.net.PinMismatchException
 import io.kud.tutti.platform.net.WakeOnLanSender
 import io.kud.tutti.platform.security.ClientIdentityStore
 import io.kud.tutti.platform.security.SecureStore
+import io.kud.tutti.protocol.apps.AppIcons
 import io.kud.tutti.protocol.apps.AppLauncher
 import io.kud.tutti.protocol.apps.AppLibrary
 import io.kud.tutti.protocol.apps.AppsScreenOpener
 import io.kud.tutti.protocol.apps.AppsScreenRoute
+import io.kud.tutti.protocol.apps.IconAttempt
+import io.kud.tutti.protocol.apps.IconBook
+import io.kud.tutti.protocol.apps.IconOutcome
 import io.kud.tutti.protocol.apps.KnownApp
 import io.kud.tutti.protocol.apps.LaunchPlan
 import io.kud.tutti.protocol.apps.LaunchResult
@@ -106,6 +110,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.sync.Mutex
 import java.net.ConnectException
 import java.net.NoRouteToHostException
 import java.net.SocketTimeoutException
@@ -153,6 +158,9 @@ class TuttiController @Inject constructor(
     /** Official icons, cached by package in the app cache dir. */
     private val iconDir: File get() = File(context.cacheDir, "app-icons")
     private val icons = MutableStateFlow<Map<String, String>>(emptyMap())
+    private val iconBook = MutableStateFlow(IconBook())
+    private val iconPass = Mutex()
+    @Volatile private var tvHostForIcons: String? = null
     private val library = combine(store.apps, icons) { seen, cached -> AppLibrary.all(seen) to cached }
 
     private val links = MutableStateFlow(Links())
@@ -238,7 +246,14 @@ class TuttiController @Inject constructor(
     init {
         scope.launch { pskSet.value = secure.tvPsk() != null }
         scope.launch(Dispatchers.IO) {
-            val cached = iconDir.listFiles().orEmpty().filter { it.isFile && it.length() > 0 && !it.name.endsWith(".part") }
+            // A cached file that is not an image (an error page saved by an older build) would
+            // count as cached forever and never be fetched again: drop it instead.
+            val files = iconDir.listFiles().orEmpty().filter { it.isFile }
+            val (cached, broken) = files.partition { file ->
+                !file.name.endsWith(".part") && file.length() > 0 &&
+                    runCatching { file.inputStream().use { input -> ByteArray(16).let { head -> AppIcons.looksLikeImage(head.copyOf(input.read(head).coerceAtLeast(0))) } } }.getOrDefault(false)
+            }
+            broken.forEach { it.delete() }
             icons.update { current -> cached.associate { it.name to it.path } + current }
         }
         scope.launch {
@@ -480,6 +495,7 @@ class TuttiController @Inject constructor(
         val transport = OkHttpBraviaTransport(device.host, secure.tvRestPin()) { secure.setTvRestPin(it) }
         val client = BraviaClient(transport, psk = { psk })
         braviaTransport = transport
+        tvHostForIcons = device.host
         bravia = client
         var wait = MIN_BACKOFF_MS
         while (scope.isActive) {
@@ -546,7 +562,12 @@ class TuttiController @Inject constructor(
         val inputs = if (current.inputs.isEmpty() && active) client.externalInputs().getOrNull().orEmpty() else current.inputs
         val apps = if (current.apps.isEmpty() && active) client.applications().getOrNull().orEmpty() else current.apps
         tv.update { it.copy(power = power, input = input ?: it.input, playing = playing, pictureMode = pictureMode ?: it.pictureMode, inputs = inputs, apps = apps) }
-        if (current.apps.isEmpty() && apps.isNotEmpty()) scope.launch { rememberApps(apps) }
+        if (current.apps.isEmpty() && apps.isNotEmpty()) {
+            scope.launch { rememberApps(apps) }
+        } else if (active && apps.isNotEmpty()) {
+            // Icons that failed are asked again on later polls, each on its own backoff ([IconBook]).
+            scope.launch { fetchMissingIcons() }
+        }
         return true
     }
 
@@ -747,25 +768,58 @@ class TuttiController @Inject constructor(
         return result
     }
 
-    /** Keeps what the TV listed and fetches the icons not cached yet, one at a time. */
+    /** Keeps what the TV listed, then fetches the icons not cached yet. */
     private suspend fun rememberApps(fresh: List<TvApp>) {
         store.updateApps { AppLibrary.remember(it, fresh) }
-        val transport = braviaTransport ?: return
-        val dir = iconDir.apply { mkdirs() }
-        for (app in store.apps.first()) {
-            val url = app.iconUrl ?: continue
-            val name = iconFileName(app.packageName) ?: continue
-            if (icons.value.containsKey(name)) continue
-            val bytes = transport.fetchIcon(url) ?: continue
-            val path = withContextIO {
-                val part = File(dir, "$name.part")
-                part.writeBytes(bytes)
-                val target = File(dir, name)
-                if (part.renameTo(target)) target.path else null
-            } ?: continue
-            icons.update { it + (name to path) }
+        fetchMissingIcons()
+    }
+
+    /**
+     * Fetches every listed icon not cached yet and due by [IconBook], one at a time, through
+     * the transport current at each fetch (a reconnect mid-loop must not fail the rest). One
+     * pass at a time; every outcome is kept for the diagnostic report.
+     */
+    private suspend fun fetchMissingIcons() {
+        if (!iconPass.tryLock()) return
+        try {
+            val dir = iconDir.apply { mkdirs() }
+            for (app in store.apps.first()) {
+                val transport = braviaTransport ?: return
+                val host = tvHostForIcons ?: return
+                val name = iconFileName(app.packageName) ?: continue
+                val now = System.currentTimeMillis()
+                if (icons.value.containsKey(name)) {
+                    if (iconBook.value.entries[app.packageName]?.last?.outcome != IconOutcome.CACHED) {
+                        iconBook.update { it.record(app.packageName, app.iconUrl, "cache", IconAttempt(IconOutcome.CACHED), now) }
+                    }
+                    continue
+                }
+                if (!iconBook.value.due(app.packageName, app.iconUrl, now)) continue
+                val attempt = when (val plan = AppIcons.plan(app.iconUrl, host)) {
+                    is AppIcons.Plan.Skip -> plan.outcome.let { IconAttempt(it) } to plan.shape
+                    is AppIcons.Plan.Fetch -> when (val got = transport.fetchIcon(plan.url, psk)) {
+                        is OkHttpBraviaTransport.IconFetch.Failed -> got.attempt to plan.shape
+                        is OkHttpBraviaTransport.IconFetch.Image -> {
+                            val path = withContextIO {
+                                val part = File(dir, "$name.part")
+                                part.writeBytes(got.bytes)
+                                val target = File(dir, name)
+                                if (part.renameTo(target)) target.path else null
+                            }
+                            if (path != null) icons.update { it + (name to path) }
+                            (if (path != null) IconAttempt(IconOutcome.CACHED) else IconAttempt(IconOutcome.NETWORK, "cache write")) to plan.shape
+                        }
+                    }
+                }
+                iconBook.update { it.record(app.packageName, app.iconUrl, attempt.second, attempt.first, System.currentTimeMillis()) }
+            }
+        } finally {
+            iconPass.unlock()
         }
     }
+
+    /** Per-app icon outcomes this session, for the diagnostic report: package names and URL shapes, never a host. */
+    fun iconReport(): List<String> = iconBook.value.report().map { Redact.text(it) }
 
     private suspend fun <T> withContextIO(block: () -> T): T = kotlinx.coroutines.withContext(Dispatchers.IO) { block() }
 

@@ -1,6 +1,8 @@
 package io.kud.tutti.platform.net.sim
 
 import io.kud.tutti.platform.net.OkHttpBraviaTransport
+import io.kud.tutti.protocol.apps.IconAttempt
+import io.kud.tutti.protocol.apps.IconOutcome
 import io.kud.tutti.protocol.bravia.BraviaClient
 import io.kud.tutti.protocol.bravia.BraviaError
 import io.kud.tutti.protocol.bravia.BraviaResult
@@ -136,5 +138,61 @@ class BraviaSimTest {
         client.discover().ok()
         assertEquals(BraviaError.Unsupported("getVolumeInformation"), client.volumeInformation().error())
         assertEquals(PowerStatus.ACTIVE, client.powerStatus().ok())
+    }
+
+    private val png = byteArrayOf(0x89.toByte(), 'P'.code.toByte(), 'N'.code.toByte(), 'G'.code.toByte(), 13, 10, 26, 10, 0, 0, 0, 13)
+
+    private suspend fun pinnedTransport(): OkHttpBraviaTransport = transport().also { client(it).powerStatus().ok() }
+
+    private fun OkHttpBraviaTransport.IconFetch.failure(): IconAttempt =
+        (this as? OkHttpBraviaTransport.IconFetch.Failed)?.attempt ?: throw AssertionError("expected a failure, got $this")
+
+    @Test
+    fun `an icon comes from the pinned TV over HTTPS, and an error page is no icon`() = runBlocking {
+        tv.files["/DIAL/icon/a.png"] = png
+        val transport = pinnedTransport()
+        val got = transport.fetchIcon("https://$HOST:${tv.https.port}/DIAL/icon/a.png")
+        assertTrue(got is OkHttpBraviaTransport.IconFetch.Image && got.bytes.contentEquals(png))
+        assertEquals(IconAttempt(IconOutcome.HTTP_STATUS, "404"), transport.fetchIcon("https://$HOST:${tv.https.port}/DIAL/icon/b.png").failure())
+        tv.files["/DIAL/icon/c.png"] = "<html>oops</html>".encodeToByteArray()
+        assertEquals(IconOutcome.NOT_IMAGE, transport.fetchIcon("https://$HOST:${tv.https.port}/DIAL/icon/c.png").failure().outcome)
+        assertEquals(IconOutcome.TOO_BIG, transport.fetchIcon("https://$HOST:${tv.https.port}/DIAL/icon/a.png", maxBytes = 4).failure().outcome)
+    }
+
+    @Test
+    fun `an HTTP icon on a pinned TV with port 80 shut is asked over HTTPS`() = runBlocking {
+        tv.files["/DIAL/icon/a.png"] = png
+        val transport = pinnedTransport()
+        tv.http.sleep()
+        val got = transport.fetchIcon("http://$HOST:${tv.http.port}/DIAL/icon/a.png")
+        assertTrue("$got", got is OkHttpBraviaTransport.IconFetch.Image)
+        assertEquals(0, tv.http.accepted.get())
+    }
+
+    @Test
+    fun `HTTPS icons wait for a pin, and other hosts are refused`() = runBlocking {
+        tv.files["/DIAL/icon/a.png"] = png
+        val transport = transport()
+        assertEquals(IconOutcome.NO_PIN, transport.fetchIcon("https://$HOST:${tv.https.port}/DIAL/icon/a.png").failure().outcome)
+        assertEquals(IconOutcome.INTERNET, transport.fetchIcon("http://192.0.2.1/DIAL/icon/a.png").failure().outcome)
+        assertTrue(tv.gets.isEmpty())
+    }
+
+    @Test
+    fun `an icon refused without the key is asked once more with it`() = runBlocking {
+        tv.files["/DIAL/icon/a.png"] = png
+        tv.filesNeedPsk = true
+        val transport = pinnedTransport()
+        assertEquals(IconAttempt(IconOutcome.HTTP_STATUS, "403"), transport.fetchIcon("https://$HOST:${tv.https.port}/DIAL/icon/a.png").failure())
+        assertTrue(transport.fetchIcon("https://$HOST:${tv.https.port}/DIAL/icon/a.png", psk = "1234") is OkHttpBraviaTransport.IconFetch.Image)
+        assertEquals(3, tv.gets.size)
+    }
+
+    @Test
+    fun `an icon after the TV closed an idle connection is retried on a fresh one`() = runBlocking {
+        tv.files["/DIAL/icon/a.png"] = png
+        val transport = pinnedTransport()
+        tv.https.dropConnections()
+        assertTrue(transport.fetchIcon("https://$HOST:${tv.https.port}/DIAL/icon/a.png") is OkHttpBraviaTransport.IconFetch.Image)
     }
 }

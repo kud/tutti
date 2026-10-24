@@ -34,6 +34,15 @@ class FakeBraviaTv(
     @Volatile var volume: Int = 12
     @Volatile var authFailureStatus: Int = 403
 
+    /** Files served to a GET, by path, as the TV's `/DIAL/icon/…` app icons are. Anything else is 404. */
+    val files: MutableMap<String, ByteArray> = ConcurrentHashMap()
+
+    /** Whether a GET for [files] wants the PSK too, as some firmware may. */
+    @Volatile var filesNeedPsk: Boolean = false
+
+    /** GET paths in the order they arrived. */
+    val gets = CopyOnWriteArrayList<String>()
+
     /** Method names in the order they arrived, authorised or not. */
     val calls = CopyOnWriteArrayList<String>()
 
@@ -81,16 +90,15 @@ class FakeBraviaTv(
             while (true) {
                 val request = readRequest(link.input) ?: return
                 if (!link.received()) continue
-                val (status, body) = answer(request)
-                val bytes = body.encodeToByteArray()
+                val (status, bytes, type) = if (request.method == "GET") file(request) else answer(request).let { Triple(it.first, it.second.encodeToByteArray(), "application/json") }
                 val head = "HTTP/1.1 $status ${if (status == 200) "OK" else "Error"}\r\n" +
-                    "Content-Type: application/json\r\nContent-Length: ${bytes.size}\r\n\r\n"
+                    "Content-Type: $type\r\nContent-Length: ${bytes.size}\r\n\r\n"
                 link.write(head.encodeToByteArray() + bytes)
             }
         }
     }
 
-    private class Request(val path: String, val headers: Map<String, String>, val body: String)
+    private class Request(val method: String, val path: String, val headers: Map<String, String>, val body: String)
 
     private fun readRequest(input: InputStream): Request? {
         fun line(): String? {
@@ -111,7 +119,14 @@ class FakeBraviaTv(
         }
         val length = headers["content-length"]?.toInt() ?: 0
         val body = input.readNBytes(length).decodeToString()
-        return Request(start.split(' ')[1], headers, body)
+        return Request(start.split(' ')[0], start.split(' ')[1], headers, body)
+    }
+
+    private fun file(request: Request): Triple<Int, ByteArray, String> {
+        gets += request.path
+        if (filesNeedPsk && request.headers["x-auth-psk"] != psk) return Triple(authFailureStatus, ByteArray(0), "text/plain")
+        val bytes = files[request.path] ?: return Triple(404, "<html>Not Found</html>".encodeToByteArray(), "text/html")
+        return Triple(200, bytes, "image/png")
     }
 
     private fun answer(request: Request): Pair<Int, String> {

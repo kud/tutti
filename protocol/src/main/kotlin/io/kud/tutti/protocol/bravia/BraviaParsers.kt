@@ -72,7 +72,7 @@ object BraviaParsers {
 
     fun applications(result: JsonArray): List<TvApp> = result.innerObjects().mapNotNull { obj ->
         val uri = obj.string("uri") ?: return@mapNotNull null
-        TvApp(title = obj.string("title").orEmpty(), uri = uri, icon = obj.string("icon")?.ifEmpty { null })
+        TvApp(title = obj.string("title").orEmpty(), uri = uri, icon = obj.string("icon")?.trim()?.ifEmpty { null })
     }
 
     /** `[{bundled, type}, [{name, value}, …]]`. */

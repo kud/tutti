@@ -1,5 +1,9 @@
 package io.kud.tutti.platform.net
 
+import io.kud.tutti.protocol.apps.AppIcons
+import io.kud.tutti.protocol.apps.IconAttempt
+import io.kud.tutti.protocol.apps.IconOutcome
+import io.kud.tutti.protocol.bravia.BraviaClient
 import io.kud.tutti.protocol.bravia.BraviaTransport
 import io.kud.tutti.protocol.bravia.HttpReply
 import io.kud.tutti.protocol.net.CertificatePin
@@ -12,6 +16,7 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.Response
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.IOException
 import java.io.InterruptedIOException
@@ -91,23 +96,65 @@ class OkHttpBraviaTransport internal constructor(
             execute("http", path, body, headers)
         }
 
+    /** One icon fetch: the image bytes, or why there are none. */
+    sealed interface IconFetch {
+        class Image(val bytes: ByteArray) : IconFetch
+        data class Failed(val attempt: IconAttempt) : IconFetch
+    }
+
     /**
-     * One app icon from the TV's own list. Only from the TV itself: HTTPS through the same
-     * pinned client (no pin yet, no icon), or HTTP to a private LAN address. No PSK header
-     * goes with it. Null on any failure or anything over [maxBytes].
+     * One app icon, from this TV only ([AppIcons.plan] aims every icon URL at it). HTTPS goes
+     * through the same pinned client (no pin yet, no icon); HTTP only to a private address. An
+     * HTTP icon on a TV that refuses port 80 but is pinned is asked again over HTTPS at the same
+     * path. No PSK goes with the first request; a 401 or 403 is asked once more with it, since
+     * it is this TV's own key going to this TV. A stale pooled connection is retried once, as
+     * for [post]. Anything that is not an image, or over [maxBytes], is refused.
      */
-    suspend fun fetchIcon(url: String, maxBytes: Int = MAX_ICON_BYTES): ByteArray? = withContext(Dispatchers.IO) {
-        val parsed = url.toHttpUrlOrNull() ?: return@withContext null
-        if (!LanAddress.isPrivate(parsed.host)) return@withContext null
-        if (parsed.scheme == "https" && (parsed.host != host || (trust.expected == null && firstSeen == null))) return@withContext null
-        runCatching {
-            client.newCall(Request.Builder().url(parsed).get().build()).execute().use { response ->
-                if (!response.isSuccessful) return@use null
-                val declared = response.body.contentLength()
-                if (declared > maxBytes) return@use null
-                response.body.bytes().takeIf { it.isNotEmpty() && it.size <= maxBytes }
+    suspend fun fetchIcon(url: String, psk: String? = null, maxBytes: Int = MAX_ICON_BYTES): IconFetch = withContext(Dispatchers.IO) {
+        fun failed(outcome: IconOutcome, detail: String? = null) = IconFetch.Failed(IconAttempt(outcome, detail))
+        val parsed = url.toHttpUrlOrNull() ?: return@withContext failed(IconOutcome.MALFORMED)
+        if (parsed.host.removePrefix("[").removeSuffix("]") != host.removePrefix("[").removeSuffix("]")) {
+            return@withContext failed(IconOutcome.INTERNET, "not the tv")
+        }
+        runCatching { checkHost(parsed.host) }.onFailure { return@withContext failed(IconOutcome.INTERNET, "not private") }
+        val pinned = trust.expected != null || firstSeen != null
+        if (parsed.scheme == "https" && !pinned) return@withContext failed(IconOutcome.NO_PIN)
+        var target = parsed
+        var note: String? = null
+        fun get(withPsk: Boolean): IconFetch = execute(
+            Request.Builder().url(target).get()
+                .apply { if (withPsk && !psk.isNullOrEmpty()) header(BraviaClient.PSK_HEADER, psk) },
+        ) { response ->
+            when {
+                !response.isSuccessful -> failed(IconOutcome.HTTP_STATUS, "${response.code}")
+                response.body.contentLength() > maxBytes -> failed(IconOutcome.TOO_BIG)
+                else -> {
+                    val bytes = response.body.bytes()
+                    when {
+                        bytes.size > maxBytes -> failed(IconOutcome.TOO_BIG)
+                        !AppIcons.looksLikeImage(bytes) -> failed(IconOutcome.NOT_IMAGE, response.body.contentType()?.let { "${it.type}/${it.subtype}" })
+                        else -> IconFetch.Image(bytes)
+                    }
+                }
             }
-        }.getOrNull()
+        }
+        fun attempt(): IconFetch = try {
+            get(withPsk = false).let { first ->
+                val code = ((first as? IconFetch.Failed)?.attempt?.detail)
+                if (first is IconFetch.Failed && (code == "401" || code == "403") && !psk.isNullOrEmpty()) get(withPsk = true) else first
+            }
+        } catch (e: ConnectException) {
+            failed(IconOutcome.REFUSED)
+        } catch (e: IOException) {
+            failed(IconOutcome.NETWORK, e.javaClass.simpleName)
+        }
+        var result = attempt()
+        if (result is IconFetch.Failed && result.attempt.outcome == IconOutcome.REFUSED && parsed.scheme == "http" && pinned) {
+            target = parsed.newBuilder().scheme("https").port(httpsPort).build()
+            note = "http refused, https"
+            result = attempt()
+        }
+        if (result is IconFetch.Failed && note != null) failed(result.attempt.outcome, listOfNotNull(note, result.attempt.detail).joinToString(": ")) else result
     }
 
     private suspend fun persistFirstSeen() {
@@ -126,28 +173,27 @@ class OkHttpBraviaTransport internal constructor(
      * and neither is a failure on a connection opened for this call: those are real answers.
      */
     private fun execute(scheme: String, path: String, body: String, headers: Map<String, String>): HttpReply {
-        val attempt = Attempt()
-        return try {
-            executeOnce(scheme, path, body, headers, attempt)
-        } catch (e: IOException) {
-            if (attempt.freshConnection || e is InterruptedIOException || e is SSLException) throw e
-            client.connectionPool.evictAll()
-            executeOnce(scheme, path, body, headers, Attempt())
-        }
-    }
-
-    private fun executeOnce(scheme: String, path: String, body: String, headers: Map<String, String>, attempt: Attempt): HttpReply {
         val contentType = headers.entries.firstOrNull { it.key.equals("Content-Type", ignoreCase = true) }?.value
         val request = Request.Builder()
             .url("$scheme://${urlHost()}:${if (scheme == "https") httpsPort else httpPort}$path")
             .post(body.toRequestBody(contentType?.toMediaTypeOrNull()))
             .apply { headers.forEach { (name, value) -> if (!name.equals("Content-Type", true)) header(name, value) } }
-            .tag(Attempt::class.java, attempt)
-            .build()
-        client.newCall(request).execute().use { response ->
-            return HttpReply(response.code, response.body.string())
+        return execute(request) { response -> HttpReply(response.code, response.body.string()) }
+    }
+
+    private fun <T> execute(request: Request.Builder, read: (Response) -> T): T {
+        val attempt = Attempt()
+        return try {
+            executeOnce(request, attempt, read)
+        } catch (e: IOException) {
+            if (attempt.freshConnection || e is InterruptedIOException || e is SSLException) throw e
+            client.connectionPool.evictAll()
+            executeOnce(request, Attempt(), read)
         }
     }
+
+    private fun <T> executeOnce(request: Request.Builder, attempt: Attempt, read: (Response) -> T): T =
+        client.newCall(request.tag(Attempt::class.java, attempt).build()).execute().use(read)
 
     /** Whether a call opened its own connection rather than reusing a pooled one. */
     private class Attempt {

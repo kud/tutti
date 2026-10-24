@@ -4,7 +4,7 @@ The app buttons (the app keys in More, the Apps sheet, the action picker and Doc
 
 ## Order
 
-1. **The TV's launcher art**, once fetched over IP control (`state.appIcons`). It is the app's own icon, in its own colours.
+1. **The TV's launcher art**, once fetched over IP control (`state.appIcons`). It is the app's own icon, in its own colours. Only ever from the TV itself (`AppIcons.plan`): a blank icon URL counts as none; one naming another address of the TV (loopback, a second interface, a LAN name) is aimed back at the configured, pinned host; an internet host is never fetched. An HTTP icon on a pinned TV with port 80 shut is asked over HTTPS at the same path, a 401/403 once more with the PSK, and anything that is not an image is not cached. A failed icon is asked again on later polls, 30 s, 2 min, 10 min, 30 min, then hourly (`IconBook`); the diagnostic lists each app still without one and why.
 2. **The brand's official mark** from [Simple Icons](https://github.com/simple-icons/simple-icons), for the apps in `AppCatalog` it covers.
 3. **The app's first letter**, for everything else.
 
