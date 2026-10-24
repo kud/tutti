@@ -14,7 +14,7 @@ Nothing else. A new concern goes into one of these two.
 
 ## Working here
 
-- Cloud sessions cannot reach Google Maven or Maven Central: **you cannot compile**. CI is the compiler. Write real APIs at real versions, check imports by re-reading, and verify library versions with `git ls-remote --tags` on the upstream repo.
+- Cloud sessions cannot reach Google Maven or Maven Central, but where `/root/android-sdk` and a warm Gradle cache exist **the whole build runs offline**: `export ANDROID_HOME=/root/android-sdk; ./gradlew --offline -q :protocol:test :app:testDebugUnitTest :app:lintDebug :app:assembleDebug`, then `grep -c 'severity="Error"' app/build/reports/lint-results-debug.xml` must print 0. Run it before every push. Only a new or bumped dependency can't resolve offline; then CI is the compiler: write real APIs at real versions, check imports by re-reading, and verify library versions with `git ls-remote --tags` on the upstream repo.
 - Versions live in `gradle/libs.versions.toml`. AGP stays on 8.x and Hilt on 2.58 until a deliberate move to AGP 9 + Gradle 9 + Hilt 2.59+ (the 2.59 Hilt plugin already needs AGP 9 APIs; Dependabot ignores those).
 - Tests: `./gradlew :protocol:test` for the protocol layer. New protocol behaviour comes with a test there.
 - Never block the UI on the network: reducers are optimistic, the UI reads `StateFlow`s.
