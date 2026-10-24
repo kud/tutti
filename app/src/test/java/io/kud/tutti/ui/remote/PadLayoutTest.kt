@@ -184,26 +184,28 @@ class PadLayoutTest {
     }
 
     @Test
-    fun `the D-pad answers on the whole surface, as the touchpad does, bar the switch's corner`() {
+    fun `the D-pad answers only on its drawn disc, the surface round it is inert`() {
         val corner = PAD_SWITCH_ZONE
         // Compact, Normal and Large shapes on a 390 dp phone, and a tall one.
         for ((w, h) in listOf(282f to 240f, 282f to 282f, 282f to 338f, 300f to 360f)) {
             for (onLeft in listOf(true, false)) {
                 fun zone(x: Float, y: Float) = dpadZone(Offset(x, y), w, h, corner, onLeft)
-                assertEquals(V2Key.DPAD_CENTER, zone(w / 2f, h / 2f))
-                // The surface's very edges, top and foot level with the rail's, answer.
-                assertEquals(V2Key.DPAD_UP, zone(w / 2f, 1f))
-                assertEquals(V2Key.DPAD_DOWN, zone(w / 2f, h - 1f))
-                assertEquals(V2Key.DPAD_LEFT, zone(1f, h / 2f))
-                assertEquals(V2Key.DPAD_RIGHT, zone(w - 1f, h / 2f))
-                // The bottom corners, well outside the drawn disc, still answer.
-                assertTrue(zone(2f, h - 2f) in setOf(V2Key.DPAD_LEFT, V2Key.DPAD_DOWN))
-                assertTrue(zone(w - 2f, h - 2f) in setOf(V2Key.DPAD_RIGHT, V2Key.DPAD_DOWN))
-                // The switch's corner never answers as a direction; the other top corner does.
+                val r = dpadFaceRadius(w, h, corner, onLeft)
+                val cx = w / 2f
+                val cy = h / 2f
+                assertEquals(V2Key.DPAD_CENTER, zone(cx, cy))
+                // Just inside the disc's edge, each arrow answers.
+                assertEquals(V2Key.DPAD_UP, zone(cx, cy - r + 2f))
+                assertEquals(V2Key.DPAD_DOWN, zone(cx, cy + r - 2f))
+                assertEquals(V2Key.DPAD_LEFT, zone(cx - r + 2f, cy))
+                assertEquals(V2Key.DPAD_RIGHT, zone(cx + r - 2f, cy))
+                // Outside it, on the plate, nothing: the corners and just past the edge.
+                assertEquals(null, zone(cx, cy - r - 2f))
+                assertEquals(null, zone(2f, h - 2f))
+                assertEquals(null, zone(w - 2f, h - 2f))
+                // The switch's corner never answers as a direction.
                 val switchX = if (onLeft) 20f else w - 20f
-                val otherX = if (onLeft) w - 2f else 2f
                 for (y in listOf(1f, 20f, 51f)) assertEquals(null, zone(switchX, y))
-                assertTrue(zone(otherX, 2f) != null)
             }
         }
     }

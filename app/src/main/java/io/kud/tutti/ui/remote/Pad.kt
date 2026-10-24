@@ -489,8 +489,12 @@ internal fun dpadZone(at: Offset, width: Float, height: Float, corner: Float, co
     val dx = at.x - width / 2f
     val dy = at.y - height / 2f
     val radius = dpadFaceRadius(width, height, corner, cornerOnLeft)
+    val distance = Offset(dx, dy).getDistance()
+    // Only the drawn disc answers: the surface round it is the touchpad's plate, inert in D-pad
+    // mode (Erwann, 2026-10-24: "on devrait activer les flèches que quand on touche les flèches").
     return when {
-        Offset(dx, dy).getDistance() < radius * CENTRE_FRACTION -> V2Key.DPAD_CENTER
+        distance > radius -> null
+        distance < radius * CENTRE_FRACTION -> V2Key.DPAD_CENTER
         abs(dx) > abs(dy) -> if (dx > 0) V2Key.DPAD_RIGHT else V2Key.DPAD_LEFT
         else -> if (dy > 0) V2Key.DPAD_DOWN else V2Key.DPAD_UP
     }
