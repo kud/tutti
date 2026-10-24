@@ -506,6 +506,8 @@ class TuttiController @Inject constructor(
                     links.update { it.copy(rest = Link.ONLINE) }
                     linkNotes.update { it.copy(rest = null) }
                     tv.update { it.copy(capabilities = found.value) }
+                    // A reconnect may follow installs made meanwhile: ask for the app list again.
+                    tvWasActive = false
                     learnMac(client, device.host)
                     while (scope.isActive) {
                         if (!refreshTv(client)) break
@@ -539,6 +541,14 @@ class TuttiController @Inject constructor(
         }
     }
 
+    /** The TV was on at the last poll since REST (re)connected; read and written by the poll only. */
+    @Volatile
+    private var tvWasActive = false
+
+    /** When the poll last asked for the app list (elapsedRealtime), for [AppListRefresh]. */
+    @Volatile
+    private var appsAskedAt: Long? = null
+
     /** False when the TV stopped answering. */
     private suspend fun refreshTv(client: BraviaClient): Boolean {
         val power = when (val result = client.powerStatus()) {
@@ -560,9 +570,17 @@ class TuttiController @Inject constructor(
         }
         val current = tv.value
         val inputs = if (current.inputs.isEmpty() && active) client.externalInputs().getOrNull().orEmpty() else current.inputs
-        val apps = if (current.apps.isEmpty() && active) client.applications().getOrNull().orEmpty() else current.apps
+        // The app list rides this poll too ([AppListRefresh]): until it is known, on every wake and
+        // reconnect, and every AppListRefresh.EVERY_MS while on, so an app installed later shows up.
+        val now = SystemClock.elapsedRealtime()
+        val askApps = AppListRefresh.due(active, tvWasActive, current.apps.isNotEmpty(), appsAskedAt, now)
+        tvWasActive = active
+        val fetched = if (askApps) client.applications().getOrNull().also { appsAskedAt = now } else null
+        // A failed or empty answer keeps the list we had.
+        val apps = fetched?.takeIf { it.isNotEmpty() } ?: current.apps
         tv.update { it.copy(power = power, input = input ?: it.input, playing = playing, pictureMode = pictureMode ?: it.pictureMode, inputs = inputs, apps = apps) }
-        if (current.apps.isEmpty() && apps.isNotEmpty()) {
+        if (apps != current.apps) {
+            // New or changed apps go into the library, whose icon pass then fetches what is missing.
             scope.launch { rememberApps(apps) }
         } else if (active && apps.isNotEmpty()) {
             // Icons that failed are asked again on later polls, each on its own backoff ([IconBook]).
