@@ -8,9 +8,9 @@
     <string name="system_connecting">Connecting…</string>
     <string name="action_power">Power on or off</string>
     <string name="power_waking">Waking the TV and the bar</string>
-    <string name="power_wake_failed_tv">The TV did not wake. On the TV, turn on Settings → Network &amp; Internet → Remote start.</string>
-    <string name="power_wake_failed_tv_no_mac">The TV did not wake. On the TV, turn on Settings → Network &amp; Internet → Remote start. To wake it from a full switch-off too, add the TV’s PSK in tutti’s Settings: tutti then learns the address for its wake-up packet the next time the TV is on.</string>
-    <string name="power_wake_failed_tv_not_found">The TV did not answer, even to the wake-up packet. On the TV, check Settings → Network &amp; Internet → Remote start, and that this phone is on the TV’s Wi-Fi.</string>
+    <string name="power_wake_failed_tv">The TV did not wake: turn on Remote start</string>
+    <string name="power_wake_failed_tv_no_mac">The TV did not wake: set up Remote start and its PSK</string>
+    <string name="power_wake_failed_tv_not_found">The TV did not answer: check Remote start and the Wi-Fi</string>
     <string name="power_wake_failed_bar">The soundbar did not answer</string>
     <string name="action_back">Back</string>
     <string name="action_home">Home</string>

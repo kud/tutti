@@ -39,7 +39,7 @@
 
     <string name="unlock_start_title">Démarrage à distance</string>
     <string name="unlock_start_gives">La TV reste joignable en veille, pour que Marche dans tutti puisse la réveiller.</string>
-    <string name="unlock_start_how">Sur la TV : Paramètres → Réseau et Internet → Démarrage à distance : activé.\n\nLa TV consomme un peu plus en veille.</string>
+    <string name="unlock_start_how">Sur la TV : Paramètres → Réseau et Internet → Démarrage à distance : activé.\n\nLe réveil passe par le Wi-Fi : ce téléphone doit être sur le réseau de la TV. La TV consomme un peu plus en veille.</string>
     <string name="unlock_start_unknown">tutti le lit par le contrôle IP. D’ici là, vérifiez-le sur la TV.</string>
     <string name="unlock_start_recheck">Vérifier à nouveau</string>
 

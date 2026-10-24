@@ -130,6 +130,6 @@
     <string name="settings_apps_shown">Applis affichées</string>
     <string name="settings_apps_shown_detail">%1$d sur %2$d</string>
     <string name="settings_apps_shown_live">Voici les applis que votre TV indique. Désactivez celles que vous n’utilisez jamais.</string>
-    <string name="settings_apps_shown_static">IP control est désactivé, la TV ne peut donc pas dire quelles applis elle a : voici la liste de tutti. Désactivez celles que vous n’avez pas.</string>
+    <string name="settings_apps_shown_static">Sans le contrôle IP, la TV ne peut pas lister ses applis : voici la liste de tutti. Désactivez celles que vous n’avez pas.</string>
     <string name="settings_apps_shown_done">Terminé</string>
 </resources>

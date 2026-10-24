@@ -8,7 +8,7 @@
     <string name="onboarding_bar_body">Dans BRAVIA Connect, activez Contrôle externe (External control) pour la barre, puis saisissez son adresse IP.</string>
     <string name="onboarding_add_bar">Ajouter la barre</string>
     <string name="onboarding_psk_title">Clé PSK de la TV (facultatif)</string>
-    <string name="onboarding_psk_body">Pour les réglages d’image, de sortie son et des entrées. Sur la TV : Réglages › Réseau et Internet › Réseau local (ou Réseau domestique) › Contrôle IP : Authentification « Normale et clé pré-partagée », puis choisissez une clé. Activez aussi Réseau et Internet › Réglages des appareils distants › Contrôle à distance.</string>
+    <string name="onboarding_psk_body">Pour l’image, la sortie son et les entrées. Sur la TV :\n1. Paramètres → Réseau et Internet → Réseau local (ou Réseau domestique) → Contrôle IP.\n2. Authentification : « Normale et clé pré-partagée », puis choisissez une clé.\n3. Réseau et Internet → Réglages des appareils distants → Contrôle à distance : activé.</string>
     <string name="onboarding_psk_field">Clé pré-partagée</string>
     <string name="onboarding_save">Enregistrer</string>
     <string name="pairing_connecting">Connexion à la TV…</string>

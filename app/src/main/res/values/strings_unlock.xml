@@ -40,7 +40,7 @@
 
     <string name="unlock_start_title">Remote start</string>
     <string name="unlock_start_gives">The TV stays reachable in standby, so Power in tutti can wake it.</string>
-    <string name="unlock_start_how">On the TV: Settings → Network &amp; Internet → Remote start: On.\n\nThe TV uses a little more power in standby.</string>
+    <string name="unlock_start_how">On the TV: Settings → Network &amp; Internet → Remote start: On.\n\nThe wake-up goes over Wi-Fi, so this phone must be on the TV’s network. The TV uses a little more power in standby.</string>
     <string name="unlock_start_unknown">tutti reads this through IP control. Until then, check it on the TV.</string>
     <string name="unlock_start_recheck">Check again</string>
 

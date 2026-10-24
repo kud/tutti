@@ -6,13 +6,13 @@
     <string name="voice_hold_hint">Hold the mic to talk to the TV</string>
     <string name="voice_capped">15 seconds at most: sent</string>
     <string name="voice_not_connected">TV unreachable: voice needs the connection</string>
-    <string name="voice_unsupported">This TV doesn’t take voice from tutti: its search is open on screen</string>
-    <string name="voice_no_reply">The TV didn’t open the Assistant: try again, or use the remote’s mic</string>
+    <string name="voice_unsupported">This TV takes no voice from tutti: its search is open</string>
+    <string name="voice_no_reply">The Assistant did not open: try again, or use the remote’s mic</string>
     <string name="voice_disconnected">Lost the TV while you were talking</string>
     <string name="voice_mic_unavailable">The phone’s mic is unavailable</string>
     <string name="voice_permission_title">Use the microphone</string>
     <string name="voice_permission_rationale">To talk to the TV’s Assistant, tutti sends your voice to the TV over the local network, only while you hold the button. Nothing is recorded.</string>
     <string name="voice_permission_continue">Continue</string>
     <string name="voice_permission_not_now">Not now</string>
-    <string name="voice_permission_denied">Mic denied: allow it in the phone’s settings to talk to the TV</string>
+    <string name="voice_permission_denied">Mic denied: allow it in the phone’s settings</string>
 </resources>
