@@ -19,6 +19,7 @@ import io.kud.tutti.protocol.diagnostic.DiagnosticTargets
 import io.kud.tutti.protocol.diagnostic.DiscoveryOutcome
 import io.kud.tutti.protocol.diagnostic.StepResult
 import io.kud.tutti.protocol.grpc.CloudPlaneState
+import io.kud.tutti.protocol.net.Redact
 import io.kud.tutti.protocol.net.TcpConnector
 import io.kud.tutti.protocol.net.TlsConnector
 import kotlinx.coroutines.CoroutineScope
@@ -142,6 +143,8 @@ class Diagnostics @Inject constructor(
             "configured" to "tv ${yes(targets.tvHost != null)}, bar ${yes(targets.barHost != null)}, psk ${yes(targets.psk != null)}, " +
                 "remote pairing ${yes(targets.remotePin != null)}, rest pin ${yes(targets.restPinRecorded)}",
             "live session" to "remote ${links.tv}, rest ${links.rest}, bar ${links.bar}, voice zoom shown ${yes(ui.voiceZoomAvailable)}",
+            // The int5 probe: what the TV sends beside its field's text. The label goes by length only.
+            "tv text field" to (ui.remote.imeProbe?.let { "int5 ${it.int5}, label ${Redact.secret(it.label)}" } ?: "none seen"),
             // Feature names only, never values: the model and firmware stay out of the report.
             "bar settings" to "answered ${ui.bar.confirmed.size}, refused ${ui.bar.refused.sorted().joinToString().ifEmpty { "none" }}",
         )

@@ -52,6 +52,23 @@ class RemoteSessionTest {
     }
 
     @Test
+    fun `ime show keeps int5 and the label for the diagnostic probe, and the probe outlives the field`() {
+        val show = RemoteMessage(
+            remote_ime_show_request = RemoteImeShowRequest(
+                remote_text_field_status = RemoteTextFieldStatus(counter_field = 2, value_ = "x", int5 = 129, label = "Search"),
+            ),
+        )
+        val state = session.reduce(RemoteState(ready = true, currentApp = "a"), show).state
+        assertEquals(ImeProbe(129, "Search"), state.imeProbe)
+        assertEquals(1, state.imeShows)
+        assertEquals(2, session.reduce(state, show).state.imeShows)
+        val inject = RemoteMessage(remote_ime_key_inject = RemoteImeKeyInject(app_info = RemoteAppInfo(app_package = "b")))
+        val after = session.reduce(state, inject).state
+        assertNull(after.ime)
+        assertEquals(129, after.imeProbe?.int5)
+    }
+
+    @Test
     fun `ime show opens the field and batch edits update counters and text`() {
         val show = RemoteMessage(
             remote_ime_show_request = RemoteImeShowRequest(
