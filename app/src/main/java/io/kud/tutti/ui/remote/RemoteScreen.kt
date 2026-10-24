@@ -11,6 +11,7 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -235,57 +236,59 @@ fun RemoteScreen(
                     )
                 }
 
-                // Normal is the pad as it shipped. Large takes the margins back; compact keeps the
-                // rail full height and stands a shorter pad at its foot, nearer the thumb.
+                // The thumb reaches about half the screen (Erwann, 2026-10-24): the rarely used mode
+                // switch stands at the top, the pad and the rail stand low, one height side by side,
+                // and the free room goes between them (placePad). Large takes the margins back.
                 val large = layout.padSize == PadSize.LARGE
-                val rowPadding = if (large) 4.dp else 12.dp
-                Row(
+                val railGap = if (large) 8.dp else 12.dp
+                Column(
                     Modifier
                         .weight(1f)
                         .fillMaxWidth()
-                        .padding(horizontal = if (large) 8.dp else 16.dp, vertical = rowPadding),
+                        .padding(horizontal = if (large) 8.dp else 16.dp),
                 ) {
-                    // The mode switch stands under the pad, outside its surface, with at least
-                    // SWITCH_CLEARANCE above the button row so a thumb heading there lands on neither.
-                    val belowSwitch = SWITCH_CLEARANCE - rowPadding
-                    Column(
-                        Modifier.weight(1f).fillMaxHeight(),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                    ) {
-                        if (layout.padSize == PadSize.COMPACT) {
-                            Spacer(Modifier.weight(1f - COMPACT_SHARE))
-                        } else {
-                            // As much room above as the switch takes below, so the pad's middle stays
-                            // level with the rail's, where it always was.
-                            Spacer(Modifier.height(SWITCH_GAP + PAD_SWITCH_HEIGHT + belowSwitch))
+                    // Fixed under the pills (or the header), centred on the pad's axis, not the
+                    // screen's: the rail's slot stands empty beside it (Iris, 2026-10-24).
+                    Spacer(Modifier.height(SWITCH_TOP))
+                    Row(Modifier.fillMaxWidth()) {
+                        Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                            PadModeSwitch(
+                                mode = state.prefs.padMode,
+                                onModeChange = controller::setPadMode,
+                            )
                         }
-                        Pad(
-                            mode = state.prefs.padMode,
-                            onKey = controller::key,
-                            onLongSelect = { controller.longPress(V2Key.DPAD_CENTER) },
-                            onPlayPause = { controller.key(V2Key.MEDIA_PLAY_PAUSE) },
-                            onVolumeStep = controller::volumeStep,
-                            volume = state.volume.takeIf { state.bar.connected },
-                            volumeCap = state.volumeCap,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .weight(if (layout.padSize == PadSize.COMPACT) COMPACT_SHARE else 1f),
-                        )
-                        Spacer(Modifier.height(SWITCH_GAP))
-                        PadModeSwitch(
-                            mode = state.prefs.padMode,
-                            onModeChange = controller::setPadMode,
-                        )
-                        Spacer(Modifier.height(belowSwitch))
+                        Spacer(Modifier.width(railGap + RAIL_WIDTH))
                     }
-                    Spacer(Modifier.width(if (large) 8.dp else 12.dp))
-                    VolumeRail(
-                        volume = state.volume,
-                        cap = state.volumeCap,
-                        muted = state.muted,
-                        enabled = state.bar.connected,
-                        onVolume = controller::setVolume,
-                    )
+                    BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
+                        val place = placePad(maxHeight.value, (maxWidth - railGap - RAIL_WIDTH).value, layout.padSize)
+                        Row(
+                            Modifier
+                                .align(Alignment.BottomStart)
+                                .padding(bottom = place.below.dp)
+                                .fillMaxWidth()
+                                .height(place.height.dp),
+                        ) {
+                            Pad(
+                                mode = state.prefs.padMode,
+                                onKey = controller::key,
+                                onLongSelect = { controller.longPress(V2Key.DPAD_CENTER) },
+                                onPlayPause = { controller.key(V2Key.MEDIA_PLAY_PAUSE) },
+                                onVolumeStep = controller::volumeStep,
+                                volume = state.volume.takeIf { state.bar.connected },
+                                volumeCap = state.volumeCap,
+                                modifier = Modifier.weight(1f).fillMaxHeight(),
+                            )
+                            Spacer(Modifier.width(railGap))
+                            // The rail fills the row, so it takes the pad's height, top and foot.
+                            VolumeRail(
+                                volume = state.volume,
+                                cap = state.volumeCap,
+                                muted = state.muted,
+                                enabled = state.bar.connected,
+                                onVolume = controller::setVolume,
+                            )
+                        }
+                    }
                 }
 
                 val row = layout.shownRow
@@ -429,17 +432,11 @@ fun secondaryLabel(button: SecondaryButton): String = when (button) {
     SecondaryButton.PLAY -> stringResource(R.string.action_play_pause)
 }
 
-/** A compact pad's share of the height the normal one fills. */
-private const val COMPACT_SHARE = 0.78f
-
 /** The full-height sheets the bottom row's doors open. */
 private enum class RemoteSheet { APPS, KEYS }
 
-/** Between the pad's edge and the mode switch. */
-private val SWITCH_GAP = 14.dp
-
-/** At least this much between the mode switch's bottom edge and the button row under it. */
-private val SWITCH_CLEARANCE = 32.dp
+/** Above the mode switch's 48 dp target, so its 36 dp track is drawn 12 dp under the pills (Iris). */
+private val SWITCH_TOP = 6.dp
 
 /** How far the input view rises when the TV opens it. */
 private val INPUT_RISE = 24.dp

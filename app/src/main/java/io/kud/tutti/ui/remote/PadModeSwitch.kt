@@ -50,9 +50,11 @@ import io.kud.tutti.ui.common.rememberHaptics
 import kotlin.math.roundToInt
 
 /**
- * The pad's mode switch (K1, Iris with Erwann): a strip under the pad, never on it, with a cell
- * per mode and a thumb under the current one. A tap on the other cell switches; a tap on the
- * current one does nothing.
+ * The pad's mode switch (K1, Iris with Erwann): a track at the top of the pad's area, under the
+ * scene pills and centred on the pad's axis, never on the pad (Iris, 2026-10-24: it is rarely
+ * used, so it leaves the thumb's half). A cell per mode and a thumb under the current one. A tap on
+ * the other cell switches; a tap on the current one does nothing. The track is drawn
+ * [TRACK_HEIGHT] tall and answers over [PAD_SWITCH_HEIGHT]: nothing tappable sits round it.
  *
  * The current mode is told by shape, never colour: the thumb sits under it and its icon is the
  * solid one, the other the outline. To TalkBack, Switch Access and a keyboard the strip is one
@@ -97,7 +99,7 @@ fun PadModeSwitch(
 
     Box(
         modifier
-            .size(TRACK_WIDTH, TRACK_HEIGHT)
+            .size(TRACK_WIDTH, PAD_SWITCH_HEIGHT)
             .clearAndSetSemantics {
                 role = Role.Switch
                 contentDescription = label
@@ -128,12 +130,13 @@ fun PadModeSwitch(
                 true
             }
             .focusable(interactionSource = interaction)
-            .background(scheme.surfaceContainerLow, trackShape)
-            .border(if (focused) 2.dp else 1.3.dp, if (focused) scheme.primary else scheme.outlineVariant, trackShape)
-            // Exactly the drawn track: nothing reaches below its edge, toward the row under it.
+            // The whole 48 dp target answers; the track is drawn inside it.
             .pointerInput(Unit) {
                 detectTapGestures { at -> pick(if (at.x < size.width / 2f) PadMode.DPAD else PadMode.TOUCHPAD) }
-            },
+            }
+            .padding(vertical = (PAD_SWITCH_HEIGHT - TRACK_HEIGHT) / 2)
+            .background(scheme.surfaceContainerLow, trackShape)
+            .border(if (focused) 2.dp else 1.3.dp, if (focused) scheme.primary else scheme.outlineVariant, trackShape),
     ) {
         val at = thumb.value
         Box(
@@ -173,12 +176,12 @@ private val PadMode.position: Float get() = if (this == PadMode.TOUCHPAD) 1f els
 
 private val PadMode.other: PadMode get() = if (this == PadMode.TOUCHPAD) PadMode.DPAD else PadMode.TOUCHPAD
 
-private val CELL_WIDTH = 56.dp
-private val CELL_HEIGHT = 34.dp
+private val CELL_WIDTH = 52.dp
+private val CELL_HEIGHT = 28.dp
 private val CELL_GAP = 4.dp
 private val TRACK_INSET = 4.dp
 private val TRACK_WIDTH = TRACK_INSET * 2 + CELL_WIDTH * 2 + CELL_GAP
 
-/** The strip's drawn height, which is also its whole touch target. */
-internal val PAD_SWITCH_HEIGHT = 44.dp
-private val TRACK_HEIGHT = PAD_SWITCH_HEIGHT
+/** The switch's touch target, taller than the track it draws. */
+internal val PAD_SWITCH_HEIGHT = 48.dp
+private val TRACK_HEIGHT = 36.dp

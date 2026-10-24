@@ -239,7 +239,7 @@ fun VolumeRail(
     }
 }
 
-private val RAIL_WIDTH = 64.dp
+internal val RAIL_WIDTH = 64.dp
 private val DRAG_WIDTH = 72.dp
 private val HATCH_GAP = 8.dp
 private const val HATCH_ALPHA = 0.45f
