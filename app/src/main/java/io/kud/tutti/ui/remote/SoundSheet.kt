@@ -133,6 +133,10 @@ fun SoundSheet(
     // The sheet may rise to the window's top; its handle stops below the status bar and the rest scrolls.
     val statusTop = WindowInsets.statusBars.getTop(LocalDensity.current)
     val scroll = rememberScrollState()
+    // The section whose "?" was tapped: its explanation sheet is open (design.md, "Son" sheet).
+    var explaining by remember { mutableStateOf<SoundSection?>(null) }
+    val layout = soundSheetLayout(state.voiceZoomAvailable)
+    explaining?.let { ExplainSheet(it, layout, onDismiss = { explaining = null }) }
     // The title line is the sheet's pinned header: folded, it is the whole peek; open, it stays put
     // while the settings scroll under it (design.md, Sheets).
     PinnedHeader(
@@ -177,11 +181,11 @@ fun SoundSheet(
                 }
             }
             Spacer(Modifier.height(4.dp))
-            BarInputRow(state, controller)
-            Spacer(Modifier.height(8.dp))
+            BarInputRow(state, controller, onHelp = { explaining = SoundSection.Input })
+            Spacer(Modifier.height(4.dp))
 
-            val layout = soundSheetLayout(state.voiceZoomAvailable)
             val tiles = layout.tiles
+            SectionLabel(stringResource(R.string.sound_section_effects), onHelp = { explaining = SoundSection.Effects })
             for (row in tiles.chunked(2)) {
                 Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     for (feature in row) {
@@ -203,9 +207,13 @@ fun SoundSheet(
                 ChoiceSegments(state, feature, onSelect = {
                     haptics.select()
                     controller.setBarChoice(feature, it)
-                })
+                }, onHelp = { explaining = SoundSection.Choice(feature) })
             }
 
+            if (layout.levels.isNotEmpty()) {
+                Spacer(Modifier.height(4.dp))
+                SectionLabel(stringResource(R.string.sound_section_levels), onHelp = { explaining = SoundSection.Levels })
+            }
             for (feature in layout.levels) {
                 LevelSlider(state, feature, onLevel = { controller.setBarLevel(feature, it) })
             }
@@ -260,17 +268,18 @@ fun soundSheetLayout(voiceZoom: Boolean, features: List<TheatreFeature> = SOUND_
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ChoiceSegments(state: TuttiUiState, feature: TheatreFeature, onSelect: (String) -> Unit) {
+private fun ChoiceSegments(state: TuttiUiState, feature: TheatreFeature, onSelect: (String) -> Unit, onHelp: () -> Unit) {
     val kind = feature.kind as? FeatureKind.Choice ?: return
     val reason = barReason(state, feature)
     val value = state.bar.value(feature)
     val label = stringResource(featureLabel(feature))
     val refused = state.bar.refusedValues(feature)
     val refusedWord = stringResource(R.string.choice_refused)
+    val described = withHint(label, explanation(feature)?.let { stringResource(it) })
     Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
-        Text(label, style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(bottom = 6.dp))
+        SectionLabel(label, onHelp = onHelp, modifier = Modifier.padding(bottom = 2.dp))
         SingleChoiceSegmentedButtonRow(
-            Modifier.fillMaxWidth().semantics { contentDescription = label },
+            Modifier.fillMaxWidth().semantics { contentDescription = described },
         ) {
             kind.options.forEachIndexed { index, option ->
                 val isRefused = option in refused
@@ -322,6 +331,8 @@ private fun SoundTile(state: TuttiUiState, feature: TheatreFeature, onTap: () ->
     val feedback = rememberFeedback()
     val reduced = LocalReducedMotion.current
     val corner by animateDpAsState(if (on && reason == null) 16.dp else 24.dp, if (reduced) snap() else Motion.snappy(), label = "corner")
+    val name = stringResource(featureLabel(feature))
+    val hint = explanation(feature)?.let { stringResource(it) }
 
     // Pending, then the outcome: the tile has already flipped (optimistic). An arc shows only if the
     // bar takes more than 150 ms; a refusal springs the tile back (the rollback), shakes it 4 dp,
@@ -355,6 +366,11 @@ private fun SoundTile(state: TuttiUiState, feature: TheatreFeature, onTap: () ->
         delay(FAILED_MS)
         failed = false
     }
+    val stateLine = if (failed && reason == null) {
+        stringResource(R.string.sound_tile_failed)
+    } else {
+        reason ?: stringResource(if (on) R.string.state_on else R.string.state_off)
+    }
     Column(
         modifier
             .heightIn(min = 76.dp)
@@ -371,12 +387,14 @@ private fun SoundTile(state: TuttiUiState, feature: TheatreFeature, onTap: () ->
                 role = Role.Switch,
                 onClick = { if (reason == null) onTap() else feedback.bump() },
             )
+            // TalkBack: the name, its state (or why it's greyed), then what it does, as its section's "?" says it.
+            .semantics { contentDescription = withHint("$name, $stateLine", hint) }
             .alpha(if (reason == null) 1f else 0.6f)
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.Center,
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(stringResource(featureLabel(feature)), style = MaterialTheme.typography.titleSmall, color = content, modifier = Modifier.weight(1f))
+            Text(name, style = MaterialTheme.typography.titleSmall, color = content, modifier = Modifier.weight(1f))
             TileMark(on = on, locked = reason != null, pending = waiting.spinner && !failed, color = content, onColor = container)
         }
         if (failed && reason == null) {
@@ -456,6 +474,7 @@ fun LevelSlider(state: TuttiUiState, feature: TheatreFeature, onLevel: (Int) -> 
     val current = state.bar.level(feature) ?: 0
     var dragging by remember { mutableStateOf<Float?>(null) }
     val shown = dragging ?: current.toFloat()
+    val described = withHint(stringResource(featureLabel(feature)), explanation(feature)?.let { stringResource(it) })
     Column(modifier.fillMaxWidth().padding(top = 12.dp).alpha(if (reason == null) 1f else 0.6f)) {
         // Label and value differ in size: one baseline, and a long reason ellipsises instead of wrapping.
         Row(Modifier.fillMaxWidth()) {
@@ -487,6 +506,7 @@ fun LevelSlider(state: TuttiUiState, feature: TheatreFeature, onLevel: (Int) -> 
             valueRange = kind.min.toFloat()..kind.max.toFloat(),
             steps = (kind.max - kind.min - 1).coerceAtLeast(0),
             enabled = reason == null,
+            modifier = Modifier.semantics { contentDescription = described },
         )
     }
 }

@@ -106,7 +106,7 @@ private const val MAX_FITTED_INPUTS = 5
  * warning glyph and the word "refused", and stays tappable as a retry.
  */
 @Composable
-fun BarInputRow(state: TuttiUiState, controller: TuttiController, modifier: Modifier = Modifier) {
+fun BarInputRow(state: TuttiUiState, controller: TuttiController, modifier: Modifier = Modifier, onHelp: () -> Unit = {}) {
     val feature = TheatreFeature.INPUT
     val reason = barReason(state, feature)
     val current = state.bar.value(feature)
@@ -129,13 +129,10 @@ fun BarInputRow(state: TuttiUiState, controller: TuttiController, modifier: Modi
         failed = false
     }
     val title = stringResource(R.string.bar_input)
+    val described = withHint(title, stringResource(R.string.explain_input))
     Column(modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-        Row(Modifier.fillMaxWidth().heightIn(min = 32.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                title,
-                style = MaterialTheme.typography.titleSmall,
-                modifier = Modifier.alignByBaseline().weight(1f),
-            )
+        // The label, the current value, then the section's "?" (design.md, "Son" sheet).
+        SectionLabel(title, onHelp = onHelp) {
             Spacer(Modifier.width(12.dp))
             if (failed && reason == null) {
                 Icon(painterResource(R.drawable.ic_close), contentDescription = null, modifier = Modifier.size(14.dp))
@@ -152,7 +149,6 @@ fun BarInputRow(state: TuttiUiState, controller: TuttiController, modifier: Modi
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.alignByBaseline(),
             )
         }
         val choices = barInputChoices(current)
@@ -168,7 +164,7 @@ fun BarInputRow(state: TuttiUiState, controller: TuttiController, modifier: Modi
                 .clip(CircleShape)
                 .border(1.dp, outline, CircleShape)
                 .selectableGroup()
-                .semantics { contentDescription = title },
+                .semantics { contentDescription = described },
         ) {
             choices.forEachIndexed { index, option ->
                 if (index > 0) Box(Modifier.width(1.dp).fillMaxHeight().background(outline))

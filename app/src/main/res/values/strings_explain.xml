@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- What each Son sheet setting does, shown by its section's "?" and read as each control's TalkBack hint.
+     Kept to what Sony documents; nothing guessed (design.md, "Son" sheet). -->
+<resources>
+    <string name="sound_section_effects">Effects</string>
+    <string name="sound_section_levels">Levels</string>
+    <string name="explain_open">About %1$s</string>
+
+    <string name="explain_sound_field">Adds the bar’s surround effect. Off, the sound plays without it.</string>
+    <string name="explain_voice">Makes dialogue clearer.</string>
+    <string name="explain_night">For late evenings: loud sounds are softened, so the volume can stay low.</string>
+    <string name="explain_auto_volume">Evens out sudden jumps in loudness, such as adverts louder than the programme.</string>
+    <string name="explain_360">Creates virtual speakers for a wider, more enveloping sound.</string>
+    <string name="explain_voice_zoom">With a compatible BRAVIA TV, picks out voices so their level can be raised or lowered.</string>
+    <string name="explain_drc">Narrows the gap between loud and quiet sounds, so quiet ones are easier to hear. Auto: only when the source asks for it. On: always. Off: never.</string>
+    <string name="explain_imax">Tunes the sound for IMAX Enhanced content, as its makers intended. Auto leaves it to the bar.</string>
+    <string name="explain_bass">Raises or lowers the low end.</string>
+    <string name="explain_rear">The volume of the rear speakers, if there are any.</string>
+    <string name="explain_voice_zoom_level">How much Voice Zoom 3 raises or lowers voices.</string>
+    <string name="explain_input">What the bar plays: the TV, the device on its HDMI input, or a phone over Spotify Connect, Bluetooth or AirPlay.</string>
+</resources>

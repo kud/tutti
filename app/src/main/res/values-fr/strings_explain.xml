@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="sound_section_effects">Effets</string>
+    <string name="sound_section_levels">Niveaux</string>
+    <string name="explain_open">Explications : %1$s</string>
+
+    <string name="explain_sound_field">Ajoute l’effet surround de la barre. Désactivé, le son est joué sans.</string>
+    <string name="explain_voice">Rend les dialogues plus clairs.</string>
+    <string name="explain_night">Pour le soir : les sons forts sont adoucis, le volume peut rester bas.</string>
+    <string name="explain_auto_volume">Atténue les sauts de volume soudains, comme une pub plus forte que le programme.</string>
+    <string name="explain_360">Crée des enceintes virtuelles pour un son plus large et plus enveloppant.</string>
+    <string name="explain_voice_zoom">Avec une TV BRAVIA compatible, repère les voix pour en monter ou baisser le niveau.</string>
+    <string name="explain_drc">Réduit l’écart entre sons forts et sons faibles, pour mieux entendre les plus faibles. Auto : seulement quand la source le demande. Activé : toujours. Désactivé : jamais.</string>
+    <string name="explain_imax">Adapte le son aux contenus IMAX Enhanced, comme leurs créateurs l’ont voulu. Auto laisse la barre décider.</string>
+    <string name="explain_bass">Monte ou baisse les graves.</string>
+    <string name="explain_rear">Le volume des enceintes arrière, s’il y en a.</string>
+    <string name="explain_voice_zoom_level">De combien Voice Zoom 3 monte ou baisse les voix.</string>
+    <string name="explain_input">Ce que joue la barre : la TV, l’appareil branché en HDMI, ou un téléphone via Spotify Connect, Bluetooth ou AirPlay.</string>
+</resources>
