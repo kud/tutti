@@ -14,7 +14,7 @@ Three places, opening on the remote.
    - Under the pad: Back, Home, Play/Pause, Mic, Keyboard, Mute. The mic is hold to talk to the TV's assistant: it grows and fills with the primary colour while listening, a pill above it reads "À l'écoute… relâchez pour envoyer"; sliding a finger off turns it to the error container ("Relâchez pour annuler"), with a tick at the edge. A tap shorter than 300 ms sends nothing and explains the gesture. (Maya's placement, pending Iris's review.)
    - Right of the pad: vertical volume rail (soundbar volume, absolute), the pad's height, top and foot level with it.
    - Bottom: a dock of 4 shortcut slots.
-   - Peek sheet "Son" at the bottom; pulled up it shows sound controls.
+   - Peek sheet "Son" at the bottom, its peek only the handle (a 48 dp row that opens it on a tap; "Son" to TalkBack, Erwann 2026-10-24), so the room goes to the remote; pulled up it shows the title, what is on, and the sound controls.
 2. **Scenes**: gallery and editor.
 3. **Réglages**: devices and pairing, TV settings (picture, sound output, inputs, power saving), soundbar system settings, app preferences, haptics.
 

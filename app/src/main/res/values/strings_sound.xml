@@ -2,6 +2,8 @@
 <resources>
     <string name="sound_title">Sound</string>
     <string name="sound_summary_plain">Plain sound</string>
+    <string name="sound_open">Open sound</string>
+    <string name="sound_close">Close sound</string>
     <string name="sound_reason_no_bar">No soundbar added</string>
     <string name="sound_reason_unreported">Not reported by the bar</string>
     <string name="sound_recalibrate">Recalibrate in BRAVIA Connect</string>
