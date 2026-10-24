@@ -28,7 +28,7 @@ Typography: **Inter Display** for brand headlines and **Inter** for UI; wordmark
 
 - [Review board](review-board.svg) — primary mark, dark/light/flat variants, palette, typography
 - [Primary icon SVG](app-icon.svg) and [PNG 512](app-icon.png) — proposed launcher icon
-- The selected illustration is the aesthetic reference; the editable vectors intentionally simplify its highlights.
+- [Original art reference](art-direction-reference.jpg) — the selected generated aesthetic reference; editable vector approximations do not reproduce every highlight
 - [Light icon](app-icon-light.svg), [flat icon](app-icon-flat.svg), [monochrome symbol](symbol-monochrome.svg)
 - [Transparent symbol](symbol.svg), [dark lockup](lockup-dark.svg), [light lockup](lockup-light.svg)
 - [GitHub cover](github-cover.svg)
