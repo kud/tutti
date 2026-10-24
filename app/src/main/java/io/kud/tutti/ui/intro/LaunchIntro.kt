@@ -27,15 +27,22 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.geometry.lerp
+import androidx.compose.ui.geometry.RoundRect
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathFillType
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -47,8 +54,14 @@ import io.kud.tutti.R
 import io.kud.tutti.ui.common.LocalReducedMotion
 import io.kud.tutti.ui.common.rememberHaptics
 import io.kud.tutti.ui.motion.Motion
+import io.kud.tutti.protocol.atv.V2Key
+import io.kud.tutti.ui.remote.DPAD_CHEVRON_STROKE
+import io.kud.tutti.ui.remote.DPAD_CLOCKWISE
+import io.kud.tutti.ui.remote.drawChevron
+import io.kud.tutti.ui.remote.dpadChevronArm
 import io.kud.tutti.ui.remote.dpadEdgeRadius
 import io.kud.tutti.ui.remote.dpadOkRadius
+import io.kud.tutti.ui.remote.dpadRingInner
 import kotlin.math.cos
 import kotlin.math.exp
 import kotlin.math.hypot
@@ -65,10 +78,11 @@ import kotlinx.coroutines.withTimeoutOrNull
  * the very same mark at the very same place, removes the system splash under it, and plays on the
  * app's own frame clock. Then the remote, already composed underneath and never held back.
  *
- * Concept B, "the OK becomes the pad" (Iris, 2026-10-23): the mark's OK button warms and swells,
- * the body steps back, the OK slides and grows onto the live D-pad's OK while a wave runs out to
- * the disc's edge; a click on landing, then the backdrop opens from the pad outwards. 650 ms on a
- * cold start, 250 ms (the OK alone) on a warm one, nothing on a hot resume. The first launch ever
+ * "The OK becomes the pad" (Iris, 2026-10-23), richer (variant A of her second pass, plus B's
+ * shimmering ring; Erwann, 2026-10-24): a glint, the OK warms and slides onto the live D-pad's OK
+ * while a ring runs out and becomes the disc; a click and an amber bloom on landing, the chevrons
+ * pop, a last glint signs the OK, then the backdrop opens from the pad outwards. 800 ms on a cold
+ * start, 300 ms on a warm one, nothing on a hot resume. The first launch ever
  * hands the mark to the welcome screen instead. Reduced motion, or no D-pad on screen (touchpad
  * mode, not drawn yet), is a 200 ms fade. A tap skips any of them.
  *
@@ -130,8 +144,18 @@ class IntroAnchors {
 
 val LocalIntroAnchors = staticCompositionLocalOf { IntroAnchors() }
 
-/** The live D-pad's OK and disc edge, in the overlay's coordinates. */
-data class PadTarget(val centre: Offset, val okRadius: Float, val edgeRadius: Float)
+/** The live D-pad's geometry, in the overlay's coordinates, as [io.kud.tutti.ui.remote.DpadFace] draws it. */
+data class PadTarget(
+    val centre: Offset,
+    val okRadius: Float,
+    val edgeRadius: Float,
+    /** The ring's inner edge: the OK plus its moat. */
+    val innerRadius: Float = okRadius,
+    /** A resting chevron's arm. */
+    val chevronArm: Float = 0f,
+) {
+    val ringMid: Float get() = (innerRadius + edgeRadius) / 2f
+}
 
 /** Everything a choreography draws from at one frame. */
 class IntroScene(
@@ -140,14 +164,16 @@ class IntroScene(
     val icon: Rect,
     val pad: PadTarget?,
     val welcome: Rect?,
-    /** The D-pad's OK and disc colours, so the landing is seamless. */
+    /** The D-pad's OK, disc and chevron colours, so the landing is seamless. */
     val padOk: Color,
     val padDisc: Color,
+    val padChevron: Color = padDisc,
 )
 
 /**
  * A choreography: everything the intro draws, as a function of time. At 0 ms it must draw exactly
- * what the system splash shows. [landingMs] is when the click haptic lands, if any.
+ * what the system splash shows. [landingMs] is when the click (haptic, and the key sound if it is
+ * on) lands, if any.
  */
 interface IntroChoreography {
     val durationMs: Float
@@ -169,50 +195,100 @@ data class MarkPose(
 val RestingPose = MarkPose(markScale = 1f, markAlpha = 1f, okWarmth = 0f, okScale = 1f, backdropAlpha = 1f)
 
 /**
- * B, the OK becomes the pad. Cold start: 0-150 ms the OK warms and swells; 150-300 the body and
- * the line step back; 150-460 the OK slides onto the pad's OK and grows to its size along
- * [Motion.snappy], from warm to the pad's colour, while a wave (200-460) runs out to the disc's
- * edge; click at 460; 460-650 the backdrop opens from the pad outwards and fades.
- * Warm start ([warm]): no breath, no wave, the OK alone travels over 250 ms.
+ * A, "classy, richer" (Iris's second pass, chosen by Erwann 2026-10-24), with B's shimmering ring.
+ * Cold start, 800 ms:
+ * - 0-240 a glint crosses the mark; the OK warms and swells (x1.18) with an amber halo and rim.
+ * - 160-300 the body and the line step back; 160-470 the OK slides onto the pad's OK ([Motion.snappy]).
+ * - 220-470 ring 1 (amber, shimmering) runs out to the disc's edge and the disc fills behind it;
+ *   290-530 a thin ivory ring echoes it.
+ * - 470 the landing: the click and an amber bloom (never white), gone by 740.
+ * - 470-655 the chevrons pop clockwise from the top, 35 ms apart; 560-760 the glint signs the pad's OK.
+ * - 500-800 the backdrop opens from the disc's edge.
+ * Warm start ([warm]), 300 ms: the slide with ring 1 and half a bloom; no glint, no echo, the
+ * chevrons together, no click.
+ *
+ * The overlay draws its own disc and chevrons over the pad until the end, identical to it, so the
+ * hand-over is invisible. Cost: four gradient brushes and two clip paths, built once per pad
+ * geometry ([IntroPaints]) and moved with canvas transforms, so their shaders are never rebuilt;
+ * per frame, a dozen primitives, two strokes and the four chevron paths the pad itself draws.
  */
 class OkBecomesPad(warm: Boolean) : IntroChoreography {
-    val warmth = if (warm) Track(Key(0f, 0f)) else Track(Key(0f, 0f), Key(150f, 1f, Motion.Emphasized))
-    val swell = if (warm) Track(Key(0f, 1f)) else Track(Key(0f, 1f), Key(150f, 1.15f, Motion.Emphasized))
-    val body = if (warm) Track(Key(0f, 1f), Key(100f, 0f, Motion.Exit)) else Track(Key(0f, 1f), Key(150f, 1f), Key(300f, 0f, Motion.Exit))
-    val travel = if (warm) Track(Key(0f, 0f), Key(250f, 1f, SpringEasing(250f))) else Track(Key(0f, 0f), Key(150f, 0f), Key(460f, 1f, SpringEasing(310f)))
-    val wave = if (warm) null else Track(Key(0f, 0f), Key(200f, 0f), Key(460f, 1f, Motion.Emphasized))
-    val reveal = if (warm) Track(Key(0f, 0f), Key(100f, 0f), Key(250f, 1f, Motion.Emphasized)) else Track(Key(0f, 0f), Key(460f, 0f), Key(650f, 1f, Motion.Emphasized))
+    val warmth = if (warm) Track(Key(0f, 0f)) else Track(Key(0f, 0f), Key(160f, 1f, Motion.Emphasized))
+    val swell = if (warm) Track(Key(0f, 1f)) else Track(Key(0f, 1f), Key(160f, 1.18f, Motion.Emphasized))
+    val halo = if (warm) Track(Key(0f, 0f)) else Track(Key(0f, 0f), Key(120f, 1f, Motion.Emphasized), Key(160f, 1f), Key(320f, 0f, Motion.Exit))
+    val glint = if (warm) null else Track(Key(0f, 0f), Key(240f, 1f, Breath))
+    val body = if (warm) Track(Key(0f, 1f), Key(100f, 0f, Motion.Exit)) else Track(Key(0f, 1f), Key(160f, 1f), Key(300f, 0f, Motion.Exit))
+    val travel = if (warm) Track(Key(0f, 0f), Key(220f, 1f, SpringEasing(220f))) else Track(Key(0f, 0f), Key(160f, 0f), Key(470f, 1f, SpringEasing(310f)))
+    val ring = if (warm) Track(Key(0f, 0f), Key(40f, 0f), Key(220f, 1f, Motion.Emphasized)) else Track(Key(0f, 0f), Key(220f, 0f), Key(470f, 1f, Motion.Emphasized))
+    val ringFade = if (warm) Track(Key(0f, 1f), Key(220f, 1f), Key(300f, 0f, Motion.Exit)) else Track(Key(0f, 1f), Key(470f, 1f), Key(620f, 0f, Motion.Exit))
+    val echo = if (warm) null else Track(Key(0f, 0f), Key(290f, 0f), Key(530f, 1f, Motion.Emphasized))
+    val bloom = if (warm) {
+        Track(Key(0f, 0f), Key(220f, 0f), Key(250f, 0.5f, Motion.Emphasized), Key(300f, 0f, Motion.Exit))
+    } else {
+        Track(Key(0f, 0f), Key(470f, 0f), Key(520f, 1f, Motion.Emphasized), Key(740f, 0f, Motion.Exit))
+    }
+    val okGlint = if (warm) null else Track(Key(0f, 0f), Key(560f, 0f), Key(760f, 1f, Breath))
+    val reveal = if (warm) Track(Key(0f, 0f), Key(180f, 0f), Key(300f, 1f, Motion.Emphasized)) else Track(Key(0f, 0f), Key(500f, 0f), Key(800f, 1f, Motion.Emphasized))
 
-    override val durationMs: Float = if (warm) 250f else 650f
-    override val landingMs: Float? = if (warm) null else 460f
+    /** When each chevron (up, right, down, left) starts to pop. */
+    val chevronStart: List<Float> = List(4) { i -> if (warm) 220f else 470f + 35f * i }
+    private val pop = if (warm) 60f else 80f
+    val chevronScale = chevronStart.map { s -> Track(Key(s, 0.4f), Key(s + pop * 0.62f, 1.06f, Motion.Emphasized), Key(s + pop, 1f, Breath)) }
+    val chevronAlpha = chevronStart.map { s -> Track(Key(s, 0f), Key(s + pop + 10f, 1f, Motion.Emphasized)) }
+
+    override val durationMs: Float = if (warm) 300f else 800f
+    override val landingMs: Float? = if (warm) null else 470f
+
+    private var paints: IntroPaints? = null
 
     override fun DrawScope.draw(ms: Float, scene: IntroScene) {
         val pad = scene.pad ?: return drawLaunchMark(RestingPose, scene.colours, scene.icon)
         val colours = scene.colours
+        val paint = paints?.takeIf { it.fits(pad, colours) } ?: IntroPaints(this, pad, colours).also { paints = it }
         val u = scene.icon.width / 108f
         val open = reveal.at(ms)
 
         // The backdrop, with a hole that opens from the disc's edge to the farthest corner.
-        val far = maxOf(
-            hypot(pad.centre.x, pad.centre.y),
-            hypot(size.width - pad.centre.x, pad.centre.y),
-            hypot(pad.centre.x, size.height - pad.centre.y),
-            hypot(size.width - pad.centre.x, size.height - pad.centre.y),
-        )
         val backdropAlpha = if (open < 0.5f) 1f else 1f - (open - 0.5f) * 2f
         if (backdropAlpha > 0f) {
-            val backdrop = Path().apply {
-                fillType = PathFillType.EvenOdd
-                addRect(Rect(Offset.Zero, size))
-                if (open > 0f) addOval(Rect(pad.centre, pad.edgeRadius + (far - pad.edgeRadius) * open))
+            val alpha = colours.background.alpha * backdropAlpha
+            if (open <= 0f) {
+                drawRect(colours.background, alpha = alpha)
+            } else {
+                val far = maxOf(
+                    hypot(pad.centre.x, pad.centre.y),
+                    hypot(size.width - pad.centre.x, pad.centre.y),
+                    hypot(pad.centre.x, size.height - pad.centre.y),
+                    hypot(size.width - pad.centre.x, size.height - pad.centre.y),
+                )
+                val hole = paint.backdrop.apply {
+                    reset()
+                    fillType = PathFillType.EvenOdd
+                    addRect(Rect(Offset.Zero, size))
+                    addOval(Rect(pad.centre, pad.edgeRadius + (far - pad.edgeRadius) * open))
+                }
+                drawPath(hole, colours.background, alpha = alpha)
             }
-            drawPath(backdrop, colours.background, alpha = colours.background.alpha * backdropAlpha)
         }
 
-        // The body and the line step back; the OK is drawn on its own below.
+        // The body and the line step back, with the first glint across them; the OK is drawn below.
         val bodyAlpha = body.at(ms)
         if (bodyAlpha > 0f) {
             drawLaunchMark(RestingPose.copy(markAlpha = bodyAlpha, backdropAlpha = 0f), colours, scene.icon, withOk = false)
+            val g = glint?.at(ms) ?: 0f
+            if (g > 0f && g < 1f) {
+                translate(scene.icon.left, scene.icon.top) {
+                    scale(u, u, pivot = Offset.Zero) {
+                        clipPath(paint.bodyClip) {
+                            rotate(GLINT_TILT, pivot = Offset(54f, 54f)) {
+                                translate(6f + 92f * g - MARK_BAND / 2f, -10f) {
+                                    drawRect(paint.markGlint, Offset.Zero, Size(MARK_BAND, 128f), alpha = bodyAlpha)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         val t = travel.at(ms)
@@ -223,14 +299,143 @@ class OkBecomesPad(warm: Boolean) : IntroChoreography {
         val ink = lerp(colours.button, colours.buttonWarm, warmth.at(ms))
         val okColour = lerp(ink, scene.padOk, t.coerceIn(0f, 1f))
 
-        val w = wave?.at(ms) ?: 0f
-        if (w > 0f && open <= 0f) {
-            val ring = radius + (pad.edgeRadius - radius) * w
-            drawCircle(scene.padDisc, ring, centre, style = Stroke(width = 3.dp.toPx()), alpha = 0.5f + 0.5f * w)
+        // The halo, over the body and under the OK; one unit-radius brush, scaled to the OK.
+        val glow = halo.at(ms)
+        if (glow > 0f) {
+            translate(centre.x, centre.y) {
+                scale(radius * HALO_REACH / UNIT, pivot = Offset.Zero) {
+                    drawCircle(paint.halo, UNIT, Offset.Zero, alpha = glow)
+                }
+            }
         }
+
+        // Ring 1 runs out and the disc fills behind it, from the moat (growing in as the OK lands) out.
+        val reach = ring.at(ms)
+        val ringRadius = radius + (pad.edgeRadius - radius) * reach
+        if (reach > 0f) {
+            val inner = radius + (pad.innerRadius - pad.okRadius) * t.coerceIn(0f, 1f)
+            if (ringRadius > inner) {
+                val width = ringRadius - inner
+                drawCircle(scene.padDisc, inner + width / 2f, centre, style = Stroke(width))
+            }
+        }
+
+        // The chevrons pop clockwise, the pad's own drawing at the pad's own size.
+        for (i in DPAD_CLOCKWISE.indices) {
+            val a = chevronAlpha[i].at(ms)
+            if (ms < chevronStart[i] || a <= 0f) continue
+            val code = DPAD_CLOCKWISE[i]
+            val pivot = pad.centre + direction(code) * pad.ringMid
+            scale(chevronScale[i].at(ms), pivot) {
+                drawChevron(code, pad.ringMid, pad.chevronArm, scene.padChevron.copy(alpha = scene.padChevron.alpha * a), paint.chevron, pad.centre)
+            }
+        }
+
+        // Ring 2, thin ivory, a beat behind; then ring 1 on top, shimmering (a turning sweep).
+        val e = echo?.at(ms) ?: 0f
+        if (e > 0f && e < 1f) {
+            drawCircle(colours.ivory, radius + (pad.edgeRadius - radius) * e, centre, style = paint.echo, alpha = 0.8f * (1f - e))
+        }
+        val ringAlpha = ringFade.at(ms)
+        if (reach > 0f && ringAlpha > 0f) {
+            translate(centre.x, centre.y) {
+                rotate(ms * SHIMMER_DEGREES_PER_MS, pivot = Offset.Zero) {
+                    drawCircle(paint.shimmer, ringRadius, Offset.Zero, style = paint.ring, alpha = ringAlpha)
+                }
+            }
+        }
+
         drawCircle(okColour, radius, centre)
+        if (glow > 0f) drawCircle(colours.line, radius, centre, style = paint.rim, alpha = glow)
+
+        // The glint signs the pad's OK, once.
+        val sign = okGlint?.at(ms) ?: 0f
+        if (sign > 0f && sign < 1f) {
+            val r = pad.okRadius
+            translate(pad.centre.x, pad.centre.y) {
+                clipPath(paint.okClip) {
+                    rotate(GLINT_TILT, pivot = Offset.Zero) {
+                        translate(-1.8f * r + 3.6f * r * sign - paint.okBand / 2f, -2f * r) {
+                            drawRect(paint.okGlint, Offset.Zero, Size(paint.okBand, 4f * r), alpha = 0.8f)
+                        }
+                    }
+                }
+            }
+        }
+
+        // The landing's bloom: amber, additive on dark, plain over light (to be judged on a phone).
+        val b = bloom.at(ms)
+        if (b > 0f) {
+            translate(pad.centre.x, pad.centre.y) {
+                drawCircle(paint.bloom, paint.bloomRadius, Offset.Zero, alpha = b, blendMode = if (colours.dark) BlendMode.Plus else BlendMode.SrcOver)
+            }
+        }
     }
 }
+
+private fun direction(code: Int): Offset = when (code) {
+    V2Key.DPAD_UP -> Offset(0f, -1f)
+    V2Key.DPAD_DOWN -> Offset(0f, 1f)
+    V2Key.DPAD_LEFT -> Offset(-1f, 0f)
+    else -> Offset(1f, 0f)
+}
+
+/**
+ * The intro's brushes, paths and strokes, built once for a pad's geometry. Every gradient is laid
+ * out in fixed local coordinates and moved by translate, rotate or scale, so its shader (cached by
+ * the brush for the scope's size) is made once, not per frame.
+ */
+private class IntroPaints(scope: DrawScope, pad: PadTarget, colours: MarkColours) {
+    private val okRadius = pad.okRadius
+    private val edgeRadius = pad.edgeRadius
+    private val dark = colours.dark
+    private val amber = colours.line
+    private val ivory = colours.ivory
+
+    fun fits(pad: PadTarget, colours: MarkColours) =
+        pad.okRadius == okRadius && pad.edgeRadius == edgeRadius && colours.dark == dark && colours.line == amber && colours.ivory == ivory
+
+    val backdrop = Path()
+    val bodyClip = Path().apply { addRoundRect(RoundRect(36f, 28f, 72f, 80f, CornerRadius(14f))) }
+    val okClip = Path().apply { addOval(Rect(Offset.Zero, okRadius)) }
+
+    private val band = arrayOf(
+        0f to amber.copy(alpha = 0f),
+        0.22f to amber.copy(alpha = 0.45f),
+        0.4f to ivory.copy(alpha = 0.85f),
+        0.5f to Color.White.copy(alpha = 0.95f),
+        0.6f to ivory.copy(alpha = 0.85f),
+        0.78f to amber.copy(alpha = 0.45f),
+        1f to amber.copy(alpha = 0f),
+    )
+    val markGlint = Brush.horizontalGradient(*band, startX = 0f, endX = MARK_BAND)
+    val okBand = okRadius * 0.7f
+    val okGlint = Brush.horizontalGradient(*band, startX = 0f, endX = okBand)
+    val halo = Brush.radialGradient(0f to amber.copy(alpha = 0.55f), 0.5f to amber.copy(alpha = 0.22f), 1f to amber.copy(alpha = 0f), center = Offset.Zero, radius = UNIT)
+    val bloomRadius = edgeRadius * if (dark) 1.15f else 1f
+    val bloom = Brush.radialGradient(0f to amber.copy(alpha = 0.6f), 0.45f to amber.copy(alpha = 0.28f), 1f to amber.copy(alpha = 0f), center = Offset.Zero, radius = bloomRadius)
+    val shimmer = Brush.sweepGradient(
+        0f to amber,
+        0.14f to ivory,
+        0.3f to amber,
+        0.64f to amber,
+        0.78f to ivory,
+        0.94f to amber,
+        1f to amber,
+        center = Offset.Zero,
+    )
+
+    val ring = with(scope) { Stroke(2.5.dp.toPx()) }
+    val echo = with(scope) { Stroke(1.dp.toPx()) }
+    val rim = with(scope) { Stroke(1.5.dp.toPx()) }
+    val chevron = with(scope) { Stroke(DPAD_CHEVRON_STROKE.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round) }
+}
+
+private const val GLINT_TILT = 25f
+private const val MARK_BAND = 14f
+private const val UNIT = 100f
+private const val HALO_REACH = 2.2f
+private const val SHIMMER_DEGREES_PER_MS = 0.6f
 
 /**
  * The very first launch: the OK breathes while the mark rises and grows onto the welcome screen's
@@ -280,7 +485,13 @@ private fun lerpRect(from: Rect, to: Rect, t: Float) = Rect(
 )
 
 /** The splash's colours, from values/ and values-night/, the same resources the system splash uses. */
-data class MarkColours(val background: Color, val body: Color, val button: Color, val buttonWarm: Color, val line: Color)
+data class MarkColours(val background: Color, val body: Color, val button: Color, val buttonWarm: Color, val line: Color) {
+    /** A dark splash (night): the bloom adds light there, and only there. */
+    val dark: Boolean get() = background.luminance() < 0.5f
+
+    /** The mark's ivory, whichever of body and backdrop it is in this theme: the glint and the echo ring. */
+    val ivory: Color get() = if (dark) body else background
+}
 
 @Composable
 fun markColours() = MarkColours(
@@ -404,9 +615,11 @@ fun LaunchIntroOverlay(intro: LaunchIntro, firstLaunch: Boolean?) {
     val colours = markColours()
     val anchors = LocalIntroAnchors.current
     val reduced = LocalReducedMotion.current
-    val haptics = rememberHaptics()
+    // Latest prefs at landing: the stores may load after the intro starts, and the key sound follows them.
+    val haptics by rememberUpdatedState(rememberHaptics())
     val padOk = MaterialTheme.colorScheme.secondaryContainer
     val padDisc = MaterialTheme.colorScheme.surfaceContainerHigh
+    val padChevron = MaterialTheme.colorScheme.onSurfaceVariant
     val first by rememberUpdatedState(firstLaunch)
     var elapsed by remember { mutableFloatStateOf(0f) }
     var script by remember { mutableStateOf<IntroChoreography?>(null) }
@@ -448,9 +661,15 @@ fun LaunchIntroOverlay(intro: LaunchIntro, firstLaunch: Boolean?) {
     ) {
         val moat = 4.dp.toPx()
         val pad = anchors.pad?.let { box ->
-            PadTarget(box.center - origin, dpadOkRadius(box.width, box.height, moat), dpadEdgeRadius(box.width, box.height))
+            PadTarget(
+                centre = box.center - origin,
+                okRadius = dpadOkRadius(box.width, box.height, moat),
+                edgeRadius = dpadEdgeRadius(box.width, box.height),
+                innerRadius = dpadRingInner(box.width, box.height),
+                chevronArm = dpadChevronArm(box.width, box.height),
+            )
         }
-        val scene = IntroScene(colours, icon.translate(-origin), pad, anchors.welcome?.translate(-origin), padOk, padDisc)
+        val scene = IntroScene(colours, icon.translate(-origin), pad, anchors.welcome?.translate(-origin), padOk, padDisc, padChevron)
         val now = script
         if (now == null) {
             drawLaunchMark(RestingPose, colours, scene.icon)

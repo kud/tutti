@@ -17,16 +17,55 @@ class LaunchIntroTest {
     }
 
     @Test
-    fun `the cold intro stays inside its 650 ms and the warm one inside 250`() {
+    fun `the cold intro stays inside its 800 ms and the warm one inside 300`() {
         val cold = OkBecomesPad(warm = false)
         val warm = OkBecomesPad(warm = true)
-        assertEquals(650f, cold.durationMs, 0f)
-        assertEquals(250f, warm.durationMs, 0f)
-        assertEquals(1f, cold.travel.at(460f), 0f)
-        assertEquals(1f, cold.reveal.at(650f), 0f)
-        assertEquals(1f, warm.reveal.at(250f), 0f)
-        assertEquals(460f, cold.landingMs!!, 0f)
+        assertEquals(800f, cold.durationMs, 0f)
+        assertEquals(300f, warm.durationMs, 0f)
+        assertEquals(1f, cold.travel.at(470f), 0f)
+        assertEquals(1f, cold.ring.at(470f), 0f)
+        assertEquals(1f, cold.reveal.at(800f), 0f)
+        assertEquals(1f, warm.travel.at(220f), 0f)
+        assertEquals(1f, warm.reveal.at(300f), 0f)
+        assertEquals(470f, cold.landingMs!!, 0f)
         assertEquals(null, warm.landingMs)
+        // Everything that moves has settled by the end.
+        for (choreography in listOf(cold, warm)) {
+            val end = choreography.durationMs
+            assertEquals(0f, choreography.bloom.at(end), 0f)
+            assertEquals(0f, choreography.ringFade.at(end), 0f)
+            choreography.chevronScale.forEach { assertEquals(1f, it.at(end), 0f) }
+            choreography.chevronAlpha.forEach { assertEquals(1f, it.at(end), 0f) }
+        }
+    }
+
+    @Test
+    fun `the chevrons pop clockwise 35 ms apart from the landing, and settle by 655`() {
+        val cold = OkBecomesPad(warm = false)
+        assertEquals(listOf(470f, 505f, 540f, 575f), cold.chevronStart)
+        cold.chevronScale.forEach { scale ->
+            assertEquals(1f, scale.at(655f), 0f)
+            val peak = (470..655).maxOf { scale.at(it.toFloat()) }
+            assertEquals(1.06f, peak, 0.005f)
+        }
+        assertEquals(0.4f, cold.chevronScale[3].at(575f), 0f)
+        assertEquals(0f, cold.chevronAlpha[3].at(575f), 0f)
+        // Warm: together, no stagger.
+        assertEquals(1, OkBecomesPad(warm = true).chevronStart.distinct().size)
+    }
+
+    @Test
+    fun `the bloom peaks just after the landing, at half on a warm start`() {
+        val cold = OkBecomesPad(warm = false)
+        val warm = OkBecomesPad(warm = true)
+        assertEquals(0f, cold.bloom.at(470f), 0f)
+        assertEquals(1f, cold.bloom.at(520f), 0f)
+        assertEquals(0f, cold.bloom.at(740f), 0f)
+        assertEquals(0.5f, (0..300).maxOf { warm.bloom.at(it.toFloat()) }, 0f)
+        // Warm: no glint, no echo.
+        assertEquals(null, warm.glint)
+        assertEquals(null, warm.okGlint)
+        assertEquals(null, warm.echo)
     }
 
     @Test
