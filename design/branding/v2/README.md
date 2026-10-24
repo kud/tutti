@@ -1,48 +1,52 @@
-# tutti — Tactile brand exploration (v2)
+# tutti — Living room remote identity (v2)
 
-> **One remote. The whole living room.**
+> **Your living room, in control.**
 
-![The proposed direction](review-board.svg)
+![English visual identity](review-board.svg)
 
-![GitHub cover](github-cover.svg)
+![Brand banner](github-cover.svg)
 
-## Direction
+## What tutti is
 
-This is the **first selected ivory-and-ink remote icon direction**: a softly sculpted dark navigation disc, a small top button and a single amber control. The mark must read immediately as a remote control. Do not return to the abstract double-t monogram.
+Tutti is **one living room remote-control app** — not a suite of applications, a transport service or a broad smart-home dashboard. It puts the television, soundbar and scenes under one calm, recognisable remote.
 
-The primary mark is subtly tactile, while the product interface remains calm and Material You-led. This is a proposal for Claude and the team to assess, **not an instruction to replace the installed launcher**.
+This direction keeps the **first selected tactile remote**: an ivory handset, dark circular navigation disc, small top button and single warm amber control. The design should remain unmistakably a remote at launcher size.
 
-## Palette and type
+## English brand language
 
-| Role | Colour |
-| --- | --- |
-| Ink | `#1C1B22` |
-| Ivory | `#F4EFE7` |
-| Amber | `#E5A14A` |
-| Graphite | `#302E37` |
-| Plum (example of dynamic UI colour) | `#625C70` |
+- Category: **Living room remote**
+- Brand line: **Your living room, in control.**
+- Longer line: **Everything in your living room, at your fingertips.**
+- Supporting description: **One remote for TV, sound and scenes.**
 
-Typography: **Inter Display** for brand headlines and **Inter** for UI; wordmark is provided as vector outlines, with no font files distributed.
+All brand presentation and assets use English. Android localisation continues to follow `values/` (English) and `values-fr/` (French), outside this PR.
 
-## Assets
+## Palette
 
-- [Review board](review-board.svg) — primary mark, dark/light/flat variants, palette, typography
-- [Primary icon SVG](app-icon.svg) and [PNG 512](app-icon.png) — proposed launcher icon
-- **Art-direction reference:** the first ivory remote illustration selected in the design conversation. The PNG and SVG included here are production-oriented interpretations; they do not reproduce the original 3D artwork pixel-for-pixel.
-- [Light icon](app-icon-light.svg), [flat icon](app-icon-flat.svg), [monochrome symbol](symbol-monochrome.svg)
-- [Transparent symbol](symbol.svg), [dark lockup](lockup-dark.svg), [light lockup](lockup-light.svg)
-- [GitHub cover](github-cover.svg)
-- [Android foreground proposal](android/ic_launcher_foreground.xml) — candidate only, not installed
+| Ink | Ivory | Amber | Night | Graphite |
+| --- | --- | --- | --- | --- |
+| `#1C1B22` | `#F4EFE7` | `#E5A14A` | `#3E3B52` | `#302E37` |
 
-## Review notes for Claude
+The brand palette does not replace Material You dynamic UI colouring. Inter Display is a reference for editorial headings; no font files are included. The supplied logotype is outlined vector artwork.
 
-1. Compare these assets with the existing `design/branding/` proposal and choose whether to keep v2.
-2. Check the icon in an Android home-screen grid at 48 px in both modes, respecting adaptive-icon masks.
-3. Check the navigation disc remains legible at small sizes; the flat alternative exists for this purpose.
-4. Check brand copy is **English by default**; translations belong to locale-specific app resources.
-5. Inspect text layout in [review-board.svg](review-board.svg) and [github-cover.svg](github-cover.svg) for **no overlaps or clipped text** at mobile widths. Each caption has its own bounded region, separate from imagery.
-6. After selecting the icon, align the splash-screen final frame to it exactly. Preserve the existing remote UI/D-pad; it is not in scope.
+## Review assets
 
-**To use after review:** apply the approved adaptive icon to the existing launcher resource, confirm the real icon at small sizes under Android masks, and match the splash end frame to that icon. The running D-pad and UI are intentionally unchanged in this PR.
+- [Brand board](review-board.svg) — English identity, icon variants and opening-screen compositions
+- [GitHub banner](github-cover.svg)
+- [Primary icon PNG (512 px)](app-icon.png) and [SVG](app-icon.svg)
+- [Light SVG](app-icon-light.svg), [flat SVG](app-icon-flat.svg), [monochrome symbol](symbol-monochrome.svg)
+- [Isolated symbol](symbol.svg), [dark wordmark lockup](lockup-dark.svg), [light wordmark lockup](lockup-light.svg)
+- [Dark opening study](splash-dark.svg), [light opening study](splash-light.svg), [side-by-side review](splash-review.svg)
+- [Android vector foreground candidate](android/ic_launcher_foreground.xml) — design handoff only
 
-**Scope:** design files only. No Kotlin, Android resources in `app/`, package names, styles, release configuration or runtime behaviour change.
+## Splash / launch direction
+
+The paired opening studies follow the **selected second branding image**, particularly its launch screens: dark background, centred remote icon with very restrained warm radiance, and a lowercase `tutti` logotype underneath. A matching light treatment uses the same geometry. The imagery is quiet; it should never delay access to the remote.
+
+**These are creative SVG mock-ups, not screenshots of Android system splash or a runtime implementation.** Android system splash does not allow an arbitrary composition with icon and wordmark. If included, the logotype belongs to the app-controlled intro, which should be reconciled with `docs/design.md` and the existing `ui/intro/LaunchIntro.kt` direction. Avoid doubled splash screens, a mismatched resting frame, white flashes, or unnecessary launch latency. Respect reduced motion.
+
+## Integration checks
+
+Before choosing production assets, review the 48 px icon under adaptive masks, the monochrome variant, text clipping on mobile, dark/light launch consistency and the existing intro implementation. The PNG and vector artwork are interpretations of the chosen tactile source, **not pixel-identical exports of the original rendered 3D reference**.
+
+**Scope:** this PR is design-only. No Kotlin, installed launcher resources, UI layout, D-pad, locale resources or application logic is changed. No APK build or on-device check is claimed.
