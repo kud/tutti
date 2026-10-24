@@ -13,8 +13,11 @@ import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.StrokeCap
+import io.kud.tutti.ui.common.LocalReducedMotion
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import io.kud.tutti.ui.common.LocalChipNudge
@@ -88,6 +91,19 @@ fun SystemChip(state: TuttiUiState, onClick: () -> Unit, modifier: Modifier = Mo
     }
     val pulseColor = MaterialTheme.colorScheme.onSurface
     val dot by animateColorAsState(dotTarget, snappyOrFade(), label = "dot")
+    // The open ring closes into the full dot with one pulse out of it; none under reduced motion.
+    val reduced = LocalReducedMotion.current
+    val landed = remember { Animatable(0f) }
+    var lastDot by remember { mutableStateOf(dotState) }
+    LaunchedEffect(dotState) {
+        val was = lastDot
+        lastDot = dotState
+        if (was == DotState.CONNECTING && dotState == DotState.ONLINE && !reduced) {
+            landed.snapTo(0f)
+            landed.animateTo(1f, tween(LANDED_PULSE_MS, easing = Motion.Emphasized))
+            landed.snapTo(0f)
+        }
+    }
     val room = stringResource(R.string.system_room)
     Surface(
         onClick = onClick,
@@ -100,8 +116,16 @@ fun SystemChip(state: TuttiUiState, onClick: () -> Unit, modifier: Modifier = Mo
     ) {
         Row(Modifier.padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
             // Ring to dot (and back) is a short fade between shapes; the colour follows on its own.
-            Crossfade(dotState, Modifier.size(12.dp), animationSpec = tween(Motion.SHORT), label = "dotShape") { shape ->
-                StatusDot(shape, dot, Modifier.size(12.dp))
+            Crossfade(
+                dotState,
+                Modifier.size(12.dp).drawBehind {
+                    val p = landed.value
+                    if (p > 0f) drawCircle(dot, size.minDimension / 2f * (1f + 1.2f * p), style = Stroke(1.5.dp.toPx()), alpha = 1f - p)
+                },
+                animationSpec = tween(Motion.SHORT),
+                label = "dotShape",
+            ) { shape ->
+                StatusDot(shape, dot, Modifier.size(12.dp), turning = !reduced)
             }
             Spacer(Modifier.width(10.dp))
             Column {
@@ -133,6 +157,14 @@ fun SystemChip(state: TuttiUiState, onClick: () -> Unit, modifier: Modifier = Mo
                             stringResource(R.string.system_nothing_reachable),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.error,
+                            maxLines = 1,
+                        )
+                    } else if (dotState == DotState.CONNECTING) {
+                        // The words carry the state with the ring's shape; the colour only follows.
+                        Text(
+                            stringResource(R.string.system_connecting),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
                         )
                     } else {
@@ -175,17 +207,18 @@ fun SystemChip(state: TuttiUiState, onClick: () -> Unit, modifier: Modifier = Mo
 private enum class DotState { NONE, ONLINE, CONNECTING, PARTIAL, DOWN }
 
 /**
- * Online is a filled dot, connecting a dashed ring that turns, one device down a half-filled dot
- * (with the second line), all down a slashed ring (with "Nothing reachable"). The turn stays under
- * reduced motion: it is a status indicator, not decoration.
+ * Online is a filled dot, connecting an open ring that turns once every 900 ms (with
+ * "Connecting…"), one device down a half-filled dot (with the second line), all down a slashed
+ * ring (with "Nothing reachable"). Under reduced motion ([turning] off) the open ring holds still:
+ * its shape and the words already say it (Iris's splash notes, 2026-10-24).
  */
 @Composable
-private fun StatusDot(state: DotState, color: Color, modifier: Modifier = Modifier) {
-    val turn = if (state == DotState.CONNECTING) {
+private fun StatusDot(state: DotState, color: Color, modifier: Modifier = Modifier, turning: Boolean = true) {
+    val turn = if (state == DotState.CONNECTING && turning) {
         rememberInfiniteTransition(label = "dot").animateFloat(
             initialValue = 0f,
             targetValue = 360f,
-            animationSpec = infiniteRepeatable(tween(durationMillis = 1600, easing = LinearEasing)),
+            animationSpec = infiniteRepeatable(tween(durationMillis = CONNECTING_TURN_MS, easing = LinearEasing)),
             label = "turn",
         ).value
     } else {
@@ -199,7 +232,15 @@ private fun StatusDot(state: DotState, color: Color, modifier: Modifier = Modifi
             DotState.ONLINE -> drawCircle(color)
             DotState.NONE -> drawCircle(color, radius, style = ring)
             DotState.CONNECTING -> rotate(turn) {
-                drawCircle(color, radius, style = Stroke(width, pathEffect = PathEffect.dashPathEffect(floatArrayOf(radius * 0.9f, radius * 0.7f))))
+                drawArc(
+                    color,
+                    startAngle = -90f,
+                    sweepAngle = 270f,
+                    useCenter = false,
+                    topLeft = Offset(center.x - radius, center.y - radius),
+                    size = Size(radius * 2f, radius * 2f),
+                    style = Stroke(width, cap = StrokeCap.Round),
+                )
             }
             DotState.PARTIAL -> {
                 drawCircle(color, radius, style = ring)
@@ -215,3 +256,9 @@ private fun StatusDot(state: DotState, color: Color, modifier: Modifier = Modifi
 }
 
 private const val NUDGE_LAYER = 0.16f
+
+/** One turn of the connecting ring (Iris's splash notes). */
+private const val CONNECTING_TURN_MS = 900
+
+/** The pulse out of the dot when the connection lands. */
+private const val LANDED_PULSE_MS = 220
