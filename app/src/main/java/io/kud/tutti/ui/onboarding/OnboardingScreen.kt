@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -37,6 +38,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -97,6 +99,10 @@ import kotlinx.coroutines.withTimeoutOrNull
  * crossfade on each change (a [Motion.SHORT] fade with reduced motion). Welcome shows only on a
  * first setup; from Settings' "Pair" it opens on the search. [barOnly] (Settings' "Add the
  * soundbar", the Son sheet's) is the Bar step alone, no step bar: done or "Later", it leaves.
+ * [onCancel], given whenever the flow is opened from an app already set up (Erwann, 2026-10-24:
+ * "il faudrait pas un bouton annuler ou retour ici ?"), puts a Back at the top left and on the
+ * system back: it drops any pairing in progress and leaves, changing nothing. The first launch
+ * has none: there is nowhere to go back to.
  */
 @Composable
 fun OnboardingScreen(
@@ -105,6 +111,7 @@ fun OnboardingScreen(
     discovery: TvDiscovery,
     onDone: () -> Unit,
     barOnly: Boolean = false,
+    onCancel: (() -> Unit)? = null,
 ) {
     val reduced = LocalReducedMotion.current
     val discovered by remember(discovery) { discovery.discover() }.collectAsStateWithLifecycle(initialValue = emptyList())
@@ -136,6 +143,13 @@ fun OnboardingScreen(
             }
         }
     }
+    val cancel = {
+        if (state.pairing != PairingUi.Idle && state.pairing != PairingUi.Done) controller.resetPairing()
+        onCancel?.invoke()
+        Unit
+    }
+    // Declared first, so the step-back below (Code to TV) still wins where it applies.
+    BackHandler(enabled = onCancel != null) { cancel() }
     BackHandler(enabled = step == IntroStep.CODE || (step == IntroStep.TV && first == IntroStep.WELCOME)) {
         if (step == IntroStep.CODE) {
             controller.resetPairing()
@@ -162,6 +176,12 @@ fun OnboardingScreen(
                 .imePadding()
                 .padding(horizontal = 24.dp, vertical = 16.dp),
         ) {
+            if (onCancel != null) {
+                // 48 dp, pulled into the margin so the arrow lines up with the content's edge.
+                IconButton(onClick = cancel, modifier = Modifier.offset(x = (-12).dp, y = (-8).dp).size(48.dp)) {
+                    Icon(painterResource(R.drawable.ic_back), contentDescription = stringResource(R.string.intro_leave))
+                }
+            }
             AnimatedVisibility(step.segment >= 0 && !barOnly, enter = fadeIn(Motion.fade()), exit = fadeOut(Motion.exit())) {
                 StepBar(current = step.segment.coerceAtLeast(0), labels = segments, modifier = Modifier.padding(bottom = 24.dp))
             }

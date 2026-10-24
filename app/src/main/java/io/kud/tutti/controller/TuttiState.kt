@@ -163,6 +163,8 @@ data class TuttiUiState(
     val apps: List<io.kud.tutti.protocol.apps.KnownApp> = emptyList(),
     /** Cached official icons: package name to a file in the cache dir. */
     val appIcons: Map<String, String> = emptyMap(),
+    /** A TV PSK is stored on this phone (the key itself never leaves the secure store). */
+    val pskSet: Boolean = false,
 ) {
     /** [apps] minus the ones hidden in Settings: what the Apps sheet and pickers offer. */
     val visibleApps: List<io.kud.tutti.protocol.apps.KnownApp>

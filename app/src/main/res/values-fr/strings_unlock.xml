@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="unlock_entry">Ce que tutti sait faire</string>
+    <string name="unlock_entry_progress">%1$d sur %2$d en place · ensuite : %3$s</string>
+    <string name="unlock_entry_all">Tout est en place</string>
+    <string name="unlock_title">Ce que tutti sait faire</string>
+    <string name="unlock_intro">La télécommande marche dès que la TV est associée. Chaque étape ci-dessous se fait une fois, sur la TV ou dans BRAVIA Connect, et en ouvre davantage.</string>
+    <string name="unlock_group_tv">TV</string>
+    <string name="unlock_group_bar">Barre de son</string>
+    <string name="unlock_group_tutti">Pour les curieux</string>
+    <string name="unlock_group_sony">Compte Sony</string>
+    <string name="unlock_unlocks">Débloque</string>
+    <string name="unlock_how">Comment</string>
+    <string name="unlock_now">Pour l’instant : %1$s</string>
+    <string name="unlock_expanded">ouvert</string>
+    <string name="unlock_collapsed">fermé</string>
+
+    <string name="unlock_status_done">Fait</string>
+    <string name="unlock_status_todo">Pas encore</string>
+    <string name="unlock_status_attention">À vérifier</string>
+    <string name="unlock_status_checking">Vérification…</string>
+    <string name="unlock_status_blocked">Associez d’abord la TV</string>
+    <string name="unlock_status_unknown">Impossible à lire d’ici</string>
+    <string name="unlock_status_coming">Plus tard</string>
+
+    <string name="unlock_pair_title">Télécommande de la TV</string>
+    <string name="unlock_pair_gives">La télécommande elle-même : pavé, touches, clavier, voix et l’app à l’écran.</string>
+    <string name="unlock_pair_how">1. Allumez la TV, sur le même Wi-Fi que ce téléphone.\n2. Dans tutti, trouvez la TV et choisissez-la.\n3. Saisissez le code affiché par la TV.</string>
+    <string name="unlock_pair_action">Associer la TV</string>
+    <string name="unlock_pair_again">Associer à nouveau</string>
+
+    <string name="unlock_ip_title">Contrôle IP et clé PSK</string>
+    <string name="unlock_ip_gives">Les réglages de la TV (image, sortie son, économie d’énergie), ce qui passe et sur quelle entrée, les apps de la TV et leurs icônes, et le réveil d’une TV complètement éteinte.</string>
+    <string name="unlock_ip_how">Sur la TV :\n1. Paramètres → Réseau et Internet → Configuration du réseau local → Contrôle IP.\n2. Authentification : « Normale et clé pré-partagée ».\n3. Clé pré-partagée : choisissez une clé.\n\nPuis saisissez la même clé dans tutti.</string>
+    <string name="unlock_ip_action">Saisir la clé PSK</string>
+    <string name="unlock_ip_change">Changer la clé PSK</string>
+    <string name="unlock_wake_ready">Réveil depuis l’arrêt : prêt.</string>
+    <string name="unlock_wake_pending">Réveil depuis l’arrêt : tutti apprend l’adresse matérielle de la TV la prochaine fois qu’elle est allumée.</string>
+
+    <string name="unlock_start_title">Démarrage à distance</string>
+    <string name="unlock_start_gives">La TV reste joignable en veille, pour que Marche dans tutti puisse la réveiller.</string>
+    <string name="unlock_start_how">Sur la TV : Paramètres → Réseau et Internet → Démarrage à distance : activé.\n\nLa TV consomme un peu plus en veille.</string>
+    <string name="unlock_start_unknown">tutti le lit par le contrôle IP. D’ici là, vérifiez-le sur la TV.</string>
+    <string name="unlock_start_recheck">Vérifier à nouveau</string>
+
+    <string name="unlock_bar_title">Barre de son</string>
+    <string name="unlock_bar_gives">Le rail de volume et la sourdine, le panneau Son (champ sonore, Voix, Nuit…), la barre dans les scènes, et un seul bouton Marche pour les deux.</string>
+    <string name="unlock_bar_how">1. Dans BRAVIA Connect, activez Contrôle externe (External control) pour la barre.\n2. Notez l’adresse IP de la barre (BRAVIA Connect ou votre box l’affiche).\n3. Ajoutez la barre dans tutti avec cette adresse.</string>
+    <string name="unlock_bar_action">Ajouter la barre de son</string>
+    <string name="unlock_bar_again">Reconfigurer la barre</string>
+
+    <string name="unlock_dev_title">Mode développeur</string>
+    <string name="unlock_dev_gives">Diagnostic, détails techniques de chaque connexion, et Copier les détails sous les erreurs. L’app de tous les jours n’en a pas besoin.</string>
+    <string name="unlock_dev_action">Activer le mode développeur</string>
+    <string name="unlock_dev_off">Le désactiver</string>
+
+    <string name="unlock_sony_title">Connexion Sony</string>
+    <string name="unlock_sony_gives">Les réglages qui ne passent que par les serveurs de Sony. Pas encore dans tutti : rien à faire.</string>
+
+    <string name="unlock_show_how">Montrez-moi</string>
+    <string name="intro_leave">Quitter la configuration</string>
+    <string name="unlock_tv_settings_more">Voir tout ce que tutti sait faire</string>
+
+    <string name="settings_advanced">Avancé</string>
+    <string name="technical_title">Détails techniques</string>
+    <string name="technical_entry_detail">Adresses, connexions, ce que la TV et la barre indiquent</string>
+    <string name="technical_tv">TV</string>
+    <string name="technical_bar">Barre de son</string>
+    <string name="technical_app">tutti</string>
+    <string name="technical_address">Adresse</string>
+    <string name="technical_remote_link">Liaison télécommande (6466)</string>
+    <string name="technical_rest_link">Contrôle IP (REST)</string>
+    <string name="technical_psk">Clé PSK</string>
+    <string name="technical_psk_stored">enregistrée sur ce téléphone</string>
+    <string name="technical_psk_none">aucune</string>
+    <string name="technical_mac">Adresse matérielle</string>
+    <string name="technical_mac_learnt">apprise</string>
+    <string name="technical_mac_not_yet">pas encore apprise</string>
+    <string name="technical_remote_start">Démarrage à distance</string>
+    <string name="technical_on">activé</string>
+    <string name="technical_off">désactivé</string>
+    <string name="technical_unknown">non indiqué</string>
+    <string name="technical_model">Modèle</string>
+    <string name="technical_generation">Génération</string>
+    <string name="technical_bar_link">Liaison de contrôle (33336)</string>
+    <string name="technical_bar_refused">Fonctions refusées par la barre</string>
+    <string name="technical_none_device">Non ajoutée</string>
+    <string name="technical_version">Version</string>
+</resources>

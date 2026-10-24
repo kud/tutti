@@ -2,6 +2,14 @@
 
 The app replaces BRAVIA Connect day to day, with a Google TV–grade remote at its heart. Setup and room calibration stay in BRAVIA Connect.
 
+## Principle: calm on top, deep underneath, and always say what unlocks more
+
+Erwann, 2026-10-24: "Il faut vraiment que ce soit une app à la fois amazing UX et une app de geek dans les options. Assister aussi l'utilisateur pour lui dire ce qu'il doit faire s'il veut plus d'options, genre PSK etc."
+
+- **The surface is calm.** The remote, the Son sheet and the scenes are for every evening: no protocol words, no ports, no readouts nobody asked for. A missing capability is never a dead control or a silent absence; it is one plain line saying why, with a way forward.
+- **Depth lives one level down.** Everything an enthusiast wants (diagnostics, technical details, the readouts and hidden options the reverse map brings, `docs/reverse/bravia-connect.md`) sits in Settings › Advanced, behind developer mode. It may grow as large as it likes; it never leaks onto the everyday screens.
+- **tutti always tells you what unlocks more, and how.** What tutti can do depends on setup done on the TV and in BRAVIA Connect. Each such step has one home, "What tutti can do" (below), that says whether it is done, what it unlocks, the exact menu path, and a button into tutti's own field for it. Wherever a missing step blocks something, the message that says so offers "Show me how", opening that step.
+
 ## Information architecture
 
 Three places, opening on the remote.
@@ -18,6 +26,29 @@ Three places, opening on the remote.
    - Peek sheet "Son" at the bottom; pulled up it shows sound controls.
 2. **Scenes**: gallery and editor.
 3. **Réglages**: devices and pairing (a TV but no bar: "Add the soundbar", the onboarding's Bar step alone, BRAVIA Connect's External control, the address and the three checks, then back to the remote, never through the TV's steps again (Erwann, 2026-10-24: "c'est dur de revenir sur le onboarding"); no TV: "Add a device", the whole flow; with a TV, "Run setup again" walks it all from the search), TV settings (picture, sound output, inputs, power saving), soundbar system settings, app preferences, haptics.
+
+### What tutti can do (the setup checklist)
+
+Settings' first row, "What tutti can do", reads the progress in words ("2 of 4 set up · next: IP control and PSK", or "All set up") and opens one screen (`ui/settings/UnlockScreen.kt`; the rules, pure and tested, in `Unlocks.kt` / `UnlocksTest`). A short intro ("The remote works as soon as the TV is paired…"), then one group per device:
+
+- **TV**: *TV remote* (pairing, 6466/6467: the base), *IP control and PSK* (TV settings, what's playing and on which input, the TV's own apps and icons, waking a TV that is fully off, since IP control is where tutti learns its hardware address), *Remote start* (the TV stays reachable in standby, read from `getWolMode`).
+- **Soundbar**: *Soundbar* (External control in BRAVIA Connect, TCP 33336: the rail, mute, the Son sheet, the bar in scenes, one Power).
+- **For the curious**: *Developer mode*. Optional, outside the count.
+- **Sony account**: *Sony sign-in*, "Coming later", nothing to do. Optional, outside the count; it becomes a real step when phase 2 of the reverse map lands.
+
+Each step is one row: a status disc, the title, the status in a word, and what it unlocks in one small line under it. The status never rests on colour (Erwann is colourblind): each has its own glyph and word, done (filled disc, tick, "Done"), not yet (empty ring, "Not yet"), set up but failing (warning triangle, "Needs a look", plus "Now: PSK refused or missing" in the link's own words), checking (circling arrows), waiting on an earlier step (padlock, "Pair the TV first"), unknown (question mark, "Can't tell from here": Remote start before IP control answers), coming (timer). Only "Done" also fills its disc in the primary container, as emphasis on top of the tick.
+
+One step is open at a time, and the screen opens on the one asked for (a nudge's) or else the next to do, failing steps before undone ones. Open, it shows "How" with the exact path on the TV or in BRAVIA Connect, numbered, and one button into tutti's own field: "Enter the PSK" (the PSK dialog in place), "Pair the TV", "Add the soundbar" (the onboarding's Bar step alone), "Turn on developer mode". Done steps keep a quiet way back ("Change the PSK", "Turn it off"); IP control done adds whether waking from off is ready. Menu paths are Sony's names in each language: English "Settings → Network & Internet → Local network setup → IP control", "Normal and Pre-Shared Key", "Remote start"; French "Paramètres → Réseau et Internet → Configuration du réseau local → Contrôle IP", « Normale et clé pré-partagée », « Démarrage à distance », and BRAVIA Connect's "Contrôle externe (External control)".
+
+Nudges, where a missing step is the cause: a failed wake carries "Show me how" (no hardware address learnt → IP control; asleep or not found → Remote start; the bar silent → Soundbar), which takes the message's one action ahead of "Copy details"; the TV settings explainer adds "See everything tutti can do"; with no bar, the Son sheet and Settings already offer "Add the soundbar".
+
+### Advanced
+
+Settings' last technical group is "Advanced": the developer-mode switch, and with it on, Diagnostics and Technical details (`TechnicalScreen`: per device, the address, each link, whether a PSK is stored and whether the hardware address is learnt, never their values, Remote start, the model and generation, the features the bar refused; tutti's version). The reverse map's phase-2 readouts and hidden options join here as rows or screens of their own. Nothing in Advanced is needed day to day, and nothing from it appears elsewhere.
+
+### Leaving setup
+
+Opened from an app already set up (Settings' "Run setup again", "Add a device", "Add the soundbar", the Son sheet's or a checklist button), setup has a Back at the top left (48 dp, "Leave setup" to TalkBack), and the system back does the same: any pairing in progress is dropped and you land where you came from, nothing changed. Inside the flow, back from the code still steps back to the search first. The very first launch has no such exit: there is nowhere to go back to (Erwann, 2026-10-24: "il faudrait pas un bouton annuler ou retour ici ?").
 
 One tap from the remote: power, volume, mute, input, keyboard, any scene, any shortcut, Night, Voice.
 Two levels deep at most.

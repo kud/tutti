@@ -52,7 +52,7 @@ import kotlin.math.roundToInt
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TvSettingsScreen(state: TuttiUiState, controller: TuttiController, onBack: () -> Unit) {
+fun TvSettingsScreen(state: TuttiUiState, controller: TuttiController, onBack: () -> Unit, onOpenUnlock: () -> Unit = {}) {
     val rest = state.links.rest
     LaunchedEffect(rest) { if (rest == Link.ONLINE) controller.loadTvSettings() }
     var pskDialog by remember { mutableStateOf(false) }
@@ -73,7 +73,7 @@ fun TvSettingsScreen(state: TuttiUiState, controller: TuttiController, onBack: (
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(bottom = 32.dp)) {
             if (rest != Link.ONLINE) {
-                RestExplainer(rest, note = state.linkNotes.rest, onEnterPsk = { pskDialog = true })
+                RestExplainer(rest, note = state.linkNotes.rest, onEnterPsk = { pskDialog = true }, onOpenUnlock = onOpenUnlock)
                 return@Column
             }
             if (settings.loading) LinearProgressIndicator(Modifier.fillMaxWidth())
@@ -187,7 +187,7 @@ fun TvSettingsScreen(state: TuttiUiState, controller: TuttiController, onBack: (
 }
 
 @Composable
-private fun RestExplainer(rest: Link, note: String?, onEnterPsk: () -> Unit) {
+private fun RestExplainer(rest: Link, note: String?, onEnterPsk: () -> Unit, onOpenUnlock: () -> Unit) {
     if (rest == Link.CONNECTING) LinearProgressIndicator(Modifier.fillMaxWidth())
     val (title, body) = when (rest) {
         Link.CONNECTING -> R.string.tv_rest_connecting to null
@@ -205,6 +205,9 @@ private fun RestExplainer(rest: Link, note: String?, onEnterPsk: () -> Unit) {
             )
             OutlinedButton(onClick = onEnterPsk, modifier = Modifier.padding(top = 16.dp)) {
                 Text(stringResource(R.string.tv_rest_enter_psk))
+            }
+            androidx.compose.material3.TextButton(onClick = onOpenUnlock, modifier = Modifier.padding(top = 4.dp)) {
+                Text(stringResource(R.string.unlock_tv_settings_more))
             }
         }
         if (rest != Link.CONNECTING) ProblemNote(message = null, detail = note, modifier = Modifier.padding(top = 8.dp))

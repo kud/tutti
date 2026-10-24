@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- What tutti can do: the setup checklist (Iris, 2026-10-24). Sony menu names as on the TV. -->
+    <string name="unlock_entry">What tutti can do</string>
+    <string name="unlock_entry_progress">%1$d of %2$d set up · next: %3$s</string>
+    <string name="unlock_entry_all">All set up</string>
+    <string name="unlock_title">What tutti can do</string>
+    <string name="unlock_intro">The remote works as soon as the TV is paired. Each step below is done once, on the TV or in BRAVIA Connect, and opens up more.</string>
+    <string name="unlock_group_tv">TV</string>
+    <string name="unlock_group_bar">Soundbar</string>
+    <string name="unlock_group_tutti">For the curious</string>
+    <string name="unlock_group_sony">Sony account</string>
+    <string name="unlock_unlocks">Unlocks</string>
+    <string name="unlock_how">How</string>
+    <string name="unlock_now">Now: %1$s</string>
+    <string name="unlock_expanded">expanded</string>
+    <string name="unlock_collapsed">collapsed</string>
+
+    <string name="unlock_status_done">Done</string>
+    <string name="unlock_status_todo">Not yet</string>
+    <string name="unlock_status_attention">Needs a look</string>
+    <string name="unlock_status_checking">Checking…</string>
+    <string name="unlock_status_blocked">Pair the TV first</string>
+    <string name="unlock_status_unknown">Can’t tell from here</string>
+    <string name="unlock_status_coming">Coming later</string>
+
+    <string name="unlock_pair_title">TV remote</string>
+    <string name="unlock_pair_gives">The remote itself: pad, keys, keyboard, voice and the app on screen.</string>
+    <string name="unlock_pair_how">1. Turn the TV on, on the same Wi-Fi as this phone.\n2. In tutti, find the TV and pick it.\n3. Type the code the TV shows.</string>
+    <string name="unlock_pair_action">Pair the TV</string>
+    <string name="unlock_pair_again">Pair again</string>
+
+    <string name="unlock_ip_title">IP control and PSK</string>
+    <string name="unlock_ip_gives">TV settings (picture, sound output, power saving), what’s playing and on which input, the TV’s own apps and icons, and waking a TV that is fully off.</string>
+    <string name="unlock_ip_how">On the TV:\n1. Settings → Network &amp; Internet → Local network setup → IP control.\n2. Authentication: “Normal and Pre-Shared Key”.\n3. Pre-Shared Key: choose a key.\n\nThen enter the same key in tutti.</string>
+    <string name="unlock_ip_action">Enter the PSK</string>
+    <string name="unlock_ip_change">Change the PSK</string>
+    <string name="unlock_wake_ready">Waking from off: ready.</string>
+    <string name="unlock_wake_pending">Waking from off: tutti learns the TV’s hardware address the next time it is on.</string>
+
+    <string name="unlock_start_title">Remote start</string>
+    <string name="unlock_start_gives">The TV stays reachable in standby, so Power in tutti can wake it.</string>
+    <string name="unlock_start_how">On the TV: Settings → Network &amp; Internet → Remote start: On.\n\nThe TV uses a little more power in standby.</string>
+    <string name="unlock_start_unknown">tutti reads this through IP control. Until then, check it on the TV.</string>
+    <string name="unlock_start_recheck">Check again</string>
+
+    <string name="unlock_bar_title">Soundbar</string>
+    <string name="unlock_bar_gives">The volume rail and mute, the Sound sheet (sound field, Voice, Night…), the bar in scenes, and one Power for both.</string>
+    <string name="unlock_bar_how">1. In BRAVIA Connect, turn on External control for the bar.\n2. Note the bar’s IP address (BRAVIA Connect or your router shows it).\n3. Add the bar in tutti with that address.</string>
+    <string name="unlock_bar_action">Add the soundbar</string>
+    <string name="unlock_bar_again">Set up the bar again</string>
+
+    <string name="unlock_dev_title">Developer mode</string>
+    <string name="unlock_dev_gives">Diagnostics, technical details for each connection, and Copy details under errors. The everyday app doesn’t need it.</string>
+    <string name="unlock_dev_action">Turn on developer mode</string>
+    <string name="unlock_dev_off">Turn it off</string>
+
+    <string name="unlock_sony_title">Sony sign-in</string>
+    <string name="unlock_sony_gives">Settings that only go through Sony’s servers. Not in tutti yet: there is nothing to do.</string>
+
+    <!-- Nudges where a missing step blocks something. -->
+    <string name="unlock_show_how">Show me how</string>
+    <string name="intro_leave">Leave setup</string>
+    <string name="unlock_tv_settings_more">See everything tutti can do</string>
+
+    <!-- Advanced (developer mode). -->
+    <string name="settings_advanced">Advanced</string>
+    <string name="technical_title">Technical details</string>
+    <string name="technical_entry_detail">Addresses, links, what the TV and the bar report</string>
+    <string name="technical_tv">TV</string>
+    <string name="technical_bar">Soundbar</string>
+    <string name="technical_app">tutti</string>
+    <string name="technical_address">Address</string>
+    <string name="technical_remote_link">Remote link (6466)</string>
+    <string name="technical_rest_link">IP control (REST)</string>
+    <string name="technical_psk">PSK</string>
+    <string name="technical_psk_stored">stored on this phone</string>
+    <string name="technical_psk_none">none</string>
+    <string name="technical_mac">Hardware address</string>
+    <string name="technical_mac_learnt">learnt</string>
+    <string name="technical_mac_not_yet">not learnt yet</string>
+    <string name="technical_remote_start">Remote start</string>
+    <string name="technical_on">on</string>
+    <string name="technical_off">off</string>
+    <string name="technical_unknown">not reported</string>
+    <string name="technical_model">Model</string>
+    <string name="technical_generation">Generation</string>
+    <string name="technical_bar_link">Control link (33336)</string>
+    <string name="technical_bar_refused">Features the bar refused</string>
+    <string name="technical_none_device">Not added</string>
+    <string name="technical_version">Version</string>
+</resources>

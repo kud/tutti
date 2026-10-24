@@ -49,6 +49,8 @@ import io.kud.tutti.ui.settings.BarSettingsScreen
 import io.kud.tutti.ui.settings.DiagnosticScreen
 import io.kud.tutti.ui.settings.SettingsScreen
 import io.kud.tutti.ui.settings.TvSettingsScreen
+import io.kud.tutti.ui.settings.TechnicalScreen
+import io.kud.tutti.ui.settings.UnlockScreen
 
 /** Three places, opening on the remote; two levels deep at most. */
 sealed interface Screen {
@@ -68,9 +70,14 @@ sealed interface Screen {
     data object Diagnostic : Screen
 
     /** The onboarding; [barOnly] opens it on the bar step alone, for a bar added after the TV. */
-    data class Onboarding(val barOnly: Boolean = false) : Screen
+    data class Onboarding(val barOnly: Boolean = false, val cancellable: Boolean = false) : Screen
 
     data object About : Screen
+
+    /** What tutti can do; [focus] opens one step (from a nudge). */
+    data class Unlock(val focus: io.kud.tutti.ui.settings.Unlock? = null) : Screen
+
+    data object Technical : Screen
 }
 
 @Composable
@@ -126,6 +133,17 @@ fun TuttiApp(controller: TuttiController, discovery: TvDiscovery, diagnostics: D
                         },
                     ),
                     event.detail,
+                    help = {
+                        push(
+                            Screen.Unlock(
+                                when (event.cause) {
+                                    WakeAttempt.Cause.TV_NO_MAC -> io.kud.tutti.ui.settings.Unlock.IP_CONTROL
+                                    WakeAttempt.Cause.TV_NOT_FOUND, WakeAttempt.Cause.TV_ASLEEP -> io.kud.tutti.ui.settings.Unlock.REMOTE_START
+                                    WakeAttempt.Cause.BAR_SILENT -> io.kud.tutti.ui.settings.Unlock.SOUNDBAR
+                                },
+                            ),
+                        )
+                    },
                 )
             }
         }
@@ -158,7 +176,7 @@ fun TuttiApp(controller: TuttiController, discovery: TvDiscovery, diagnostics: D
                             onOpenScenes = { push(Screen.Scenes) },
                             onOpenSettings = { push(Screen.Settings) },
                             onEditScene = { push(Screen.SceneEditor(it)) },
-                            onAddBar = { push(Screen.Onboarding(barOnly = true)) },
+                            onAddBar = { push(Screen.Onboarding(barOnly = true, cancellable = true)) },
                             editing = editingLayout,
                             onEditingChange = { editingLayout = it },
                         )
@@ -188,11 +206,27 @@ fun TuttiApp(controller: TuttiController, discovery: TvDiscovery, diagnostics: D
                             },
                             onPair = {
                                 controller.resetPairing()
-                                push(Screen.Onboarding())
+                                push(Screen.Onboarding(cancellable = true))
                             },
-                            onAddBar = { push(Screen.Onboarding(barOnly = true)) },
+                            onAddBar = { push(Screen.Onboarding(barOnly = true, cancellable = true)) },
+                            onOpenUnlock = { push(Screen.Unlock()) },
+                            onOpenTechnical = { push(Screen.Technical) },
                         )
-                        Screen.TvSettings -> TvSettingsScreen(state = state, controller = controller, onBack = ::pop)
+                        Screen.TvSettings -> TvSettingsScreen(
+                            state = state,
+                            controller = controller,
+                            onBack = ::pop,
+                            onOpenUnlock = { push(Screen.Unlock(io.kud.tutti.ui.settings.Unlock.IP_CONTROL)) },
+                        )
+                        is Screen.Unlock -> UnlockScreen(
+                            state = state,
+                            controller = controller,
+                            focus = screen.focus,
+                            onBack = ::pop,
+                            onPair = { push(Screen.Onboarding(cancellable = true)) },
+                            onAddBar = { push(Screen.Onboarding(barOnly = true, cancellable = true)) },
+                        )
+                        Screen.Technical -> TechnicalScreen(state = state, onBack = ::pop)
                         Screen.BarSettings -> BarSettingsScreen(state = state, controller = controller, onBack = ::pop)
                         Screen.Diagnostic -> DiagnosticScreen(diagnostics = diagnostics, onBack = ::pop)
                         is Screen.Onboarding -> OnboardingScreen(
@@ -202,6 +236,7 @@ fun TuttiApp(controller: TuttiController, discovery: TvDiscovery, diagnostics: D
                             barOnly = screen.barOnly,
                             // The bar alone lands back on the remote, where it now plays (Erwann, 2026-10-24).
                             onDone = if (screen.barOnly) ::home else ::pop,
+                            onCancel = if (screen.cancellable) ::pop else null,
                         )
                         Screen.About -> AboutScreen(onBack = ::pop)
                     }

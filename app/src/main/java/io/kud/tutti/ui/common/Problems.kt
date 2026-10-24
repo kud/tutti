@@ -69,13 +69,18 @@ class Problems(private val messages: Messages, private val context: Context) {
     /** Kept in step with the developer-mode pref by the app root. */
     @Volatile var developer: Boolean = false
 
-    fun report(message: String, detail: String?) {
+    /**
+     * [help], when a missing setup step is the cause, takes the message's one action ("Show me
+     * how", into the checklist) ahead of "Copy details": the fix beats the diagnosis, and the
+     * diagnostics still hold the detail.
+     */
+    fun report(message: String, detail: String?, help: (() -> Unit)? = null) {
         val shown = detail?.takeIf { developer }
         messages.show(
             text = message,
             kind = MessageKind.PROBLEM,
-            actionLabel = shown?.let { context.getString(R.string.problem_copy) },
-            onAction = shown?.let { { copyDetails(context, it, messages) } },
+            actionLabel = if (help != null) context.getString(R.string.unlock_show_how) else shown?.let { context.getString(R.string.problem_copy) },
+            onAction = help ?: shown?.let { { copyDetails(context, it, messages) } },
             long = true,
         )
     }

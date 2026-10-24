@@ -103,6 +103,8 @@ fun SettingsScreen(
     onPair: () -> Unit,
     onOpenAbout: () -> Unit = {},
     onAddBar: () -> Unit = {},
+    onOpenUnlock: () -> Unit = {},
+    onOpenTechnical: () -> Unit = {},
 ) {
     val context = LocalContext.current
     var picker by remember { mutableStateOf<SecondaryButton?>(null) }
@@ -128,6 +130,8 @@ fun SettingsScreen(
             val tv = state.devices.tv
             val bar = state.devices.bar
             SettingsGroup(stringResource(R.string.settings_devices)) {
+                // What tutti can do, and what unlocks more: always first, so it's found.
+                UnlockEntryRow(state, onOpenUnlock)
                 if (tv != null) {
                     SettingsRow(
                         title = tv.name,
@@ -290,7 +294,10 @@ fun SettingsScreen(
                 )
             }
 
-            SettingsGroup(stringResource(R.string.settings_developer)) {
+            // Advanced (Erwann, 2026-10-24: "une app de geek dans les options"): one switch, and
+            // with it on, every technical screen in one place. The reverse map's readouts and
+            // hidden options land here as rows, never on the everyday screens.
+            SettingsGroup(stringResource(R.string.settings_advanced)) {
                 SwitchRow(
                     label = stringResource(R.string.settings_developer_mode),
                     supporting = stringResource(R.string.settings_developer_mode_detail),
@@ -305,6 +312,14 @@ fun SettingsScreen(
                         enabled = true,
                         onClick = onOpenDiagnostic,
                         icon = R.drawable.ic_article,
+                        opens = true,
+                    )
+                    LinkRow(
+                        title = stringResource(R.string.technical_title),
+                        detail = stringResource(R.string.technical_entry_detail),
+                        enabled = true,
+                        onClick = onOpenTechnical,
+                        icon = R.drawable.ic_code,
                         opens = true,
                     )
                 }

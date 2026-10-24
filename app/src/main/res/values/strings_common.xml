@@ -46,7 +46,6 @@
     <string name="problem_details_hide">Hide details</string>
     <string name="problem_clip_label">tutti details</string>
     <string name="scene_failed_steps">Part of the scene did not apply</string>
-    <string name="settings_developer">Developer</string>
     <string name="settings_developer_mode">Developer mode</string>
     <string name="settings_developer_mode_detail">Shows the technical details under errors, with Copy details, and the diagnostics.</string>
     <string name="pairing_code_field">Pairing code</string>

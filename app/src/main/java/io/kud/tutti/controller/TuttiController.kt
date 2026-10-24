@@ -138,6 +138,9 @@ class TuttiController @Inject constructor(
     private val atv = AtvRemote(tls, scope, ClientDeviceInfo(model = "Tutti", packageName = context.packageName))
 
     @Volatile private var psk: String? = null
+
+    /** Whether a PSK is stored, for the setup checklist; never the key itself. */
+    private val pskSet = MutableStateFlow(false)
     @Volatile private var bravia: BraviaClient? = null
     @Volatile private var braviaTransport: OkHttpBraviaTransport? = null
 
@@ -201,8 +204,8 @@ class TuttiController @Inject constructor(
         Extra(p, a, q, c, o.first, o.second, o.third)
     }
 
-    val state: StateFlow<TuttiUiState> = combine(stored, live, extra, library) { s, l, e, a ->
-        build(s, l, e).copy(apps = a.first, appIcons = a.second, linkNotes = e.linkNotes)
+    val state: StateFlow<TuttiUiState> = combine(stored, live, extra, library, pskSet) { s, l, e, a, k ->
+        build(s, l, e).copy(apps = a.first, appIcons = a.second, linkNotes = e.linkNotes, pskSet = k)
     }
         .stateIn(scope, SharingStarted.Eagerly, TuttiUiState())
 
@@ -222,6 +225,7 @@ class TuttiController @Inject constructor(
     @Volatile private var codeAnswer: CompletableDeferred<String?>? = null
 
     init {
+        scope.launch { pskSet.value = secure.tvPsk() != null }
         scope.launch(Dispatchers.IO) {
             val cached = iconDir.listFiles().orEmpty().filter { it.isFile && it.length() > 0 && !it.name.endsWith(".part") }
             icons.update { current -> cached.associate { it.name to it.path } + current }
@@ -291,6 +295,7 @@ class TuttiController @Inject constructor(
 
     private suspend fun runSessions() {
         psk = secure.tvPsk()
+        pskSet.value = psk != null
         // A learnt MAC is not a reason to drop and reopen every session.
         val hosts = store.devices.map { it.copy(tv = it.tv?.copy(mac = null)) }.distinctUntilChanged()
         combine(hosts, restart) { devices, _ -> devices }.collectLatest { devices ->
@@ -1261,6 +1266,7 @@ class TuttiController @Inject constructor(
         scope.launch {
             secure.setTvPsk(value)
             psk = secure.tvPsk()
+            pskSet.value = psk != null
             restart.update { it + 1 }
         }
     }
@@ -1274,6 +1280,7 @@ class TuttiController @Inject constructor(
             secure.forgetTv()
             identities.forget()
             psk = null
+            pskSet.value = false
             activeSceneId.value = null
             store.updateDevices { it.copy(tv = null) }
             tv.value = TvState()
