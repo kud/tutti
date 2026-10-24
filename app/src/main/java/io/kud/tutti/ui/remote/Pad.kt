@@ -39,6 +39,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.pointer.PointerEvent
@@ -68,6 +69,10 @@ import io.kud.tutti.ui.intro.LocalIntroAnchors
 import io.kud.tutti.ui.intro.TouchpadAnchor
 import io.kud.tutti.ui.motion.Motion
 import io.kud.tutti.ui.motion.snappyOrFade
+import io.kud.tutti.ui.relief.LocalRelief
+import io.kud.tutti.ui.relief.ReliefDepth
+import io.kud.tutti.ui.relief.ReliefScene
+import io.kud.tutti.ui.relief.Slabber
 import kotlin.math.abs
 import kotlin.math.min
 import kotlinx.coroutines.Job
@@ -357,6 +362,7 @@ fun Pad(
                 pressed = pressAlpha.value,
                 reduced = reducedMotion,
                 okRing = okRing.value,
+                relief = LocalRelief.current,
                 modifier = Modifier
                     .align(Alignment.Center)
                     .size(faceSide)
@@ -390,8 +396,18 @@ fun Pad(
  * long-press sweep, drawn in the moat round OK.
  */
 @Composable
-internal fun DpadFace(pressedZone: Int?, pressed: Float, modifier: Modifier = Modifier, reduced: Boolean = false, okRing: Float = 0f) {
+internal fun DpadFace(
+    pressedZone: Int?,
+    pressed: Float,
+    modifier: Modifier = Modifier,
+    reduced: Boolean = false,
+    okRing: Float = 0f,
+    relief: ReliefScene? = null,
+) {
     val scheme = MaterialTheme.colorScheme
+    // "3D relief": the disc is a ring-shaped slab (its outside and its hole both have walls) and
+    // OK a taller one standing in the hole. Off, every offset below is zero and nothing extra draws.
+    val slabs = remember(relief != null) { if (relief != null) DpadSlabs() else null }
     val disc = scheme.surfaceContainerHighest
     val chevron = scheme.onSurfaceVariant
     val chevronPressed = scheme.onSurface
@@ -407,9 +423,20 @@ internal fun DpadFace(pressedZone: Int?, pressed: Float, modifier: Modifier = Mo
         val ringWidth = outer - inner
         val ringMid = (outer + inner) / 2f
 
-        drawCircle(disc, radius = ringMid, style = Stroke(width = ringWidth))
+        var ringTop = Offset.Zero
+        if (relief != null && slabs != null) {
+            // A held direction presses the whole disc part way in; it is one piece.
+            val sink = if (!reduced && pressedZone != null && pressedZone != V2Key.DPAD_CENTER) RING_SINK * pressed else 0f
+            val depth = ReliefDepth.DISC.toPx() * (1f - sink)
+            slabs.disc.polygon.setRoundRect(center.x - outer, center.y - outer, outer * 2f, outer * 2f, outer)
+            ringTop = slabs.disc.drawSlab(this, relief, depth, disc)
+            slabs.hole.polygon.setRoundRect(center.x - inner, center.y - inner, inner * 2f, inner * 2f, inner)
+            slabs.hole.drawSlab(this, relief, depth, disc, hole = true)
+        }
 
-        if (pressedZone != null && pressedZone != V2Key.DPAD_CENTER && pressed > 0f) {
+        shifted(ringTop) { drawCircle(disc, radius = ringMid, style = Stroke(width = ringWidth)) }
+
+        if (pressedZone != null && pressedZone != V2Key.DPAD_CENTER && pressed > 0f) shifted(ringTop) {
             drawArc(
                 color = ringLayer.copy(alpha = PRESSED_LAYER * pressed),
                 startAngle = sweepStart(pressedZone),
@@ -424,11 +451,17 @@ internal fun DpadFace(pressedZone: Int?, pressed: Float, modifier: Modifier = Mo
         // OK tightens to 0.94 under the finger; the disc itself never scales.
         val okPressed = if (pressedZone == V2Key.DPAD_CENTER && !reduced) pressed else 0f
         val okRadius = (inner - moat) * (1f - (1f - OK_SCALE) * okPressed)
-        drawCircle(centre, radius = okRadius)
-        if (pressedZone == V2Key.DPAD_CENTER && pressed > 0f) {
+        var okTop = Offset.Zero
+        if (relief != null && slabs != null) {
+            val sink = if (!reduced && pressedZone == V2Key.DPAD_CENTER) pressed else 0f
+            slabs.ok.polygon.setRoundRect(center.x - okRadius, center.y - okRadius, okRadius * 2f, okRadius * 2f, okRadius)
+            okTop = slabs.ok.drawSlab(this, relief, ReliefDepth.OK.toPx() * (1f - sink), centre)
+        }
+        shifted(okTop) { drawCircle(centre, radius = okRadius) }
+        if (pressedZone == V2Key.DPAD_CENTER && pressed > 0f) shifted(okTop) {
             drawCircle(centreLayer.copy(alpha = PRESSED_LAYER * pressed), radius = okRadius)
         }
-        if (okRing > 0f) {
+        if (okRing > 0f) shifted(okTop) {
             val ringRadius = inner - moat / 2f
             drawArc(
                 color = ringColor,
@@ -447,10 +480,25 @@ internal fun DpadFace(pressedZone: Int?, pressed: Float, modifier: Modifier = Mo
             // Position and weight carry the press, not hue: the chevron steps 3 dp out and gets bolder.
             val stroke = Stroke(width = (3.5f + 1.5f * lit).dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
             val travel = if (reduced) 0f else CHEVRON_TRAVEL.toPx() * lit
-            drawChevron(code, ringMid + travel, arm, lerp(chevron, chevronPressed, lit), stroke)
+            shifted(ringTop) { drawChevron(code, ringMid + travel, arm, lerp(chevron, chevronPressed, lit), stroke) }
         }
     }
 }
+
+/** The D-pad's three slabs under "3D relief": the disc's outside, its hole, and OK. */
+private class DpadSlabs {
+    val disc = Slabber(segmentsPerCorner = 10)
+    val hole = Slabber(segmentsPerCorner = 8)
+    val ok = Slabber(segmentsPerCorner = 8)
+}
+
+/** Draws [block] moved by [by]; with no offset (relief off) it draws exactly as before, untranslated. */
+private inline fun DrawScope.shifted(by: Offset, block: DrawScope.() -> Unit) {
+    if (by == Offset.Zero) block() else translate(by.x, by.y, block)
+}
+
+/** How far a held direction presses the disc in, of its depth. */
+private const val RING_SINK = 0.4f
 
 /** One chevron, [distance] from [centre] (the face's own centre by default); the launch intro draws them too. */
 internal fun DrawScope.drawChevron(code: Int, distance: Float, arm: Float, color: Color, stroke: Stroke, centre: Offset = center) {

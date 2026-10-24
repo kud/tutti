@@ -57,6 +57,8 @@ data class AppPrefs(
      * connect, a stale one still lets + and − work (Erwann, 2026-10-24: "même s'il est faux").
      */
     val lastBarVolume: Int? = null,
+    /** "3D relief" (prototype): the remote's keys drawn as raised slabs that follow the phone's tilt. Off by default. */
+    val relief: Boolean = false,
 ) {
     /** The old switch on reads as [VibrationLevel.ALL], off as [VibrationLevel.OFF]. */
     val vibrationLevel: VibrationLevel

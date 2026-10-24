@@ -62,6 +62,9 @@ import io.kud.tutti.controller.TuttiController
 import io.kud.tutti.ui.common.LocalReducedMotion
 import io.kud.tutti.ui.common.rememberHaptics
 import io.kud.tutti.ui.motion.Motion
+import io.kud.tutti.ui.relief.LocalRelief
+import io.kud.tutti.ui.relief.ReliefDepth
+import io.kud.tutti.ui.relief.relief
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -364,9 +367,12 @@ private fun RailKey(
         selected -> scheme.surface
         else -> scheme.onSurface
     }
+    // "3D relief": the disc is the slab; the touch target round it stays flat and where it was.
+    val relief = LocalRelief.current.takeIf { enabled }
     Box(
         modifier
             .size(KEY_TARGET)
+            .relief(relief, ReliefDepth.RAIL_KEY, side = { disc }, slab = KEY_DISC)
             .semantics {
                 role = Role.Button
                 contentDescription = label

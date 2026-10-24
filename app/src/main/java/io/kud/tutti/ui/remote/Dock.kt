@@ -81,6 +81,10 @@ import io.kud.tutti.ui.common.actionIcon
 import io.kud.tutti.ui.common.actionLabel
 import io.kud.tutti.ui.common.pinGlyphRes
 import io.kud.tutti.ui.common.slotLabel
+import io.kud.tutti.ui.relief.LocalRelief
+import io.kud.tutti.ui.relief.ReliefCorner
+import io.kud.tutti.ui.relief.ReliefDepth
+import io.kud.tutti.ui.relief.relief
 
 /**
  * The bottom row: two fixed doors, Apps and Keys (the rest of the remote), then his pins, four to
@@ -248,6 +252,7 @@ private fun PinTile(
             label = label,
             press = press,
             shape = shape,
+            corner = corner,
             stateText = toggleStateText(toggle, state),
             modifier = Modifier.combinedClickable(
                 interactionSource = press.interaction,
@@ -340,13 +345,18 @@ private fun Tile(
     modifier: Modifier,
     outer: Modifier = Modifier.fillMaxWidth(),
     shape: Shape = TileShape,
+    /** The corner of [shape], for the "3D relief" slab under it. */
+    corner: Dp = TILE_CORNER,
     stateText: String? = null,
     icon: @Composable (Color) -> Unit,
 ) {
+    val relief = LocalRelief.current
+    val reliefCorner = remember(corner) { ReliefCorner.of(corner) }
     Column(
         modifier = outer
             .height(64.dp)
             .pressScale(press.state)
+            .relief(relief, ReliefDepth.TILE, side = { background }, corner = reliefCorner, press = { press.state.fraction })
             .clip(shape)
             .background(background, shape)
             .then(modifier)
@@ -430,4 +440,5 @@ private fun PinStateBadge(toggle: PinToggle, color: Color, cutout: Color, modifi
 }
 
 private val GAP = 6.dp
-private val TileShape = RoundedCornerShape(20.dp)
+private val TILE_CORNER = 20.dp
+private val TileShape = RoundedCornerShape(TILE_CORNER)

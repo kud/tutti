@@ -47,9 +47,14 @@ import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
 import io.kud.tutti.ui.motion.Motion
 import io.kud.tutti.ui.motion.snappyOrFade
+import io.kud.tutti.ui.relief.LocalRelief
+import io.kud.tutti.ui.relief.ReliefCorner
+import io.kud.tutti.ui.relief.ReliefDepth
+import io.kud.tutti.ui.relief.relief
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.filter
+import kotlin.math.min
 
 /**
  * A big round tonal key (Iris's interaction spec, round keys). On press-down, in the frame: it
@@ -108,6 +113,12 @@ fun TonalRoundButton(
     val shape = remember(press, restCorner) {
         MorphCornerShape { restCorner.value + (ON_CORNER - restCorner.value).coerceAtMost(0f) * press.fraction }
     }
+    // "3D relief": a slab of the key's own colour that the press pushes flat. An unreachable key
+    // is only a dashed ring, not a thing standing there, so it stays flat.
+    val relief = LocalRelief.current.takeIf { !unreachable }
+    val reliefCorner = remember(press, restCorner) {
+        ReliefCorner { w, h, _ -> min(w, h) * (restCorner.value + (ON_CORNER - restCorner.value).coerceAtMost(0f) * press.fraction) / 100f }
+    }
     val scheme = MaterialTheme.colorScheme
     val container by animateColorAsState(
         when {
@@ -133,6 +144,7 @@ fun TonalRoundButton(
                 scaleY = scale
                 alpha = if (enabled) 1f else 0.38f
             }
+            .relief(relief, ReliefDepth.KEY, side = { container }, corner = reliefCorner, press = { press.fraction })
             .drawBehind {
                 val outline = shape.createOutline(this.size, layoutDirection, this)
                 if (unreachable) {

@@ -264,6 +264,13 @@ fun SettingsScreen(
                     onCheckedChange = controller::setTrueBlack,
                     icon = R.drawable.ic_bedtime,
                 )
+                SwitchRow(
+                    label = stringResource(R.string.settings_relief),
+                    supporting = stringResource(R.string.settings_relief_detail),
+                    checked = state.prefs.relief,
+                    onCheckedChange = controller::setRelief,
+                    icon = R.drawable.ic_dpad,
+                )
                 QuickNotificationSetting(icon = R.drawable.ic_bolt)
             }
 

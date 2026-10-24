@@ -42,6 +42,8 @@
     <string name="settings_theme_dark">Dark</string>
     <string name="settings_true_black">True black</string>
     <string name="settings_true_black_detail">Fully black background for OLED screens</string>
+    <string name="settings_relief">3D relief</string>
+    <string name="settings_relief_detail">Keys stand out and shift as you tilt the phone. Prototype.</string>
     <string name="settings_sony">Sony</string>
     <string name="settings_sony_connection">Sony connection (experimental)</string>
     <string name="settings_sony_unavailable">Not available</string>
