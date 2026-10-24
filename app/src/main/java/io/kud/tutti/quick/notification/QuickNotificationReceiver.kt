@@ -10,16 +10,12 @@ import kotlinx.coroutines.withTimeoutOrNull
 class QuickNotificationReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         QuickRuntime.start(context)
+        val action = intent.action?.let(::mediaAction)
+        if (action == null) return
         val pending = goAsync()
         val job = QuickRuntime.act(context) {
             // goAsync allows ~10 s; quick actions are optimistic and return far sooner.
-            withTimeoutOrNull(ACTION_TIMEOUT_MS) {
-                when (intent.action) {
-                    ACTION_VOLUME_UP -> volumeUp()
-                    ACTION_VOLUME_DOWN -> volumeDown()
-                    ACTION_MUTE -> toggleMute()
-                }
-            }
+            withTimeoutOrNull(ACTION_TIMEOUT_MS) { perform(commandFor(action)) }
         }
         if (job == null) pending.finish() else job.invokeOnCompletion { pending.finish() }
     }
@@ -28,6 +24,18 @@ class QuickNotificationReceiver : BroadcastReceiver() {
         const val ACTION_VOLUME_UP = "io.kud.tutti.quick.action.VOLUME_UP"
         const val ACTION_VOLUME_DOWN = "io.kud.tutti.quick.action.VOLUME_DOWN"
         const val ACTION_MUTE = "io.kud.tutti.quick.action.MUTE"
+        const val ACTION_PLAY_PAUSE = "io.kud.tutti.quick.action.PLAY_PAUSE"
         private const val ACTION_TIMEOUT_MS = 8_000L
+
+        /** One string per button, shared by the notification's intents and the session's custom actions. */
+        fun intentAction(action: MediaAction): String = when (action) {
+            MediaAction.PLAY_PAUSE -> ACTION_PLAY_PAUSE
+            MediaAction.VOLUME_DOWN -> ACTION_VOLUME_DOWN
+            MediaAction.MUTE -> ACTION_MUTE
+            MediaAction.VOLUME_UP -> ACTION_VOLUME_UP
+        }
+
+        fun mediaAction(value: String): MediaAction? =
+            MediaAction.entries.firstOrNull { intentAction(it) == value }
     }
 }

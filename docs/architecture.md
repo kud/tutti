@@ -16,6 +16,8 @@
 
 `:app` owns sockets, TLS, HTTP, reconnection and lifecycles; `:protocol` owns bytes and state. Every client exposes a `StateFlow`; every write updates state before the network round trip, so the UI and haptics respond within a frame.
 
+The quick surfaces (tile, widget, notification) read `QuickControls`, a narrow slice of the controller. The notification owns a framework `MediaSession` (no androidx.media dependency) on the process-wide `QuickRuntime` scope: it exists only while the notification shows, carries a remote `VolumeProvider` that routes the phone's volume keys to the bar (or the TV) through the same `QuickControls`, and dies with the process. No foreground service; see design.md, "Notification".
+
 ## Protocols
 
 ### 1. Android TV Remote v2 (TV remote, keyboard, foreground app)

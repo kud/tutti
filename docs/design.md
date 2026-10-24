@@ -53,7 +53,15 @@ Every sheet (Son, All keys, Apps, a pin's editor, the action picker) can rise to
 - Hardware keyboard: arrows → D-pad, Enter → OK, Esc → Back, text → IME.
 
 ## Quick access (v1)
-Quick Settings tile (opens a compact remote overlay), phone volume buttons drive the bar while the app is in front, home-screen widget (scenes + volume), media-style notification with volume, mute and active scene.
+Quick Settings tile (opens a compact remote overlay), phone volume buttons drive the bar while the app is in front (and while the notification shows, below), home-screen widget (scenes + volume), media-style notification.
+
+### Notification
+- Media style, backed by a MediaSession (`quick/notification/`; rules in `MediaCard.kt`, unit-tested). Shown while the TV is on, the room's link is up and the setting is on; Android 13+ also needs POST_NOTIFICATIONS. No foreground service: it mirrors the controller, it does not keep it alive.
+- Title: the TV's foreground app ("YouTube"), else the active scene, else tutti. Text: the configured devices, then whose level it is: "BRAVIA 8 · Bar 9 · Bar vol. 10". Large icon: the app's cached icon, else tutti's mark. Lock screen: public; nothing on it is a secret.
+- One volume rule for every quick surface: the bar when one is configured, else the TV. A level not yet reported is unknown and left out, never shown as 0; the TV's remote link reports `0/0` while its sound goes to the bar, so a TV level with no range is unknown too.
+- Buttons: play/pause (always the TV), vol −, mute, vol +. Mute shows the state (struck speaker while muted); its label says what a tap does. Collapsed (Android 12 and older): play/pause, vol −, mute; down rather than up because turning it down is the urgent one. Android 13+ builds its controls from the session: vol − and vol + take the skip slots either side of play/pause, mute the next. The TV does not report play/pause, so the session always reads "playing" and the button is a toggle.
+- Volume keys: a remote, absolute VolumeProvider (0..the bar's cap, or the TV's max) makes the phone's keys drive the bar (or the TV) whenever the notification shows (Erwann, 2026-10-24, answering the long-pending question). Android sends keys to the most recent playing session, so a phone app playing its own media takes them back while it plays; with nothing playing on the phone, the keys stay on the room, ringer included, lock screen included. If that proves too eager, the narrower scope (only while tutti is in front) is one switch: `VolumeKeysScope.IN_FRONT` in `QuickNotifications`, which then needs an app-in-front signal.
+- Posts are held 400 ms apart, trailing, and an unchanged card is never re-posted: Android silently sheds updates past about five a second, and the shed one can be the last.
 
 ## Visual
 - Material 3 Expressive, restrained: dynamic colour, springy shape changes, big rounded targets. Expressive in motion, not decoration.

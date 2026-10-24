@@ -28,14 +28,18 @@ interface QuickControls {
     /** One Power for the whole room: switches the TV and the bar together. */
     suspend fun togglePower()
 
+    /** One step on [QuickState.level]'s device: the bar when one is configured, else the TV. */
     suspend fun volumeUp()
 
     suspend fun volumeDown()
 
-    /** Absolute bar volume, 0–100. The implementation clamps to the active cap. */
+    /** Absolute level on [QuickState.level]'s device. The bar clamps to the active cap; the TV gets key presses. */
     suspend fun setVolume(level: Int)
 
     suspend fun toggleMute()
+
+    /** Play/pause on the TV, over the remote link. */
+    suspend fun playPause() {}
 
     suspend fun applyScene(id: String)
 }
@@ -45,7 +49,7 @@ data class QuickState(
     val connected: Boolean = false,
     /** The TV is on. The notification shows only while this and [connected] hold. */
     val power: Boolean = false,
-    /** Bar volume, 0–100. */
+    /** Bar volume, 0–100. 0 while unknown: surfaces that must not show a made-up 0 read [level]. */
     val volume: Int = 0,
     /** Effective ceiling: 100, or the active scene's volume cap (Nuit: 20). */
     val volumeLimit: Int = 100,
@@ -58,6 +62,13 @@ data class QuickState(
     /** The app's Feedback settings, so the overlay vibrates exactly as the remote does. */
     val vibration: VibrationLevel = VibrationLevel.ALL,
     val keySounds: Boolean = false,
+    /** The level the notification shows and the volume keys drive, with its device. Null while unknown. */
+    val level: AudioLevel? = null,
+    /** What the TV is showing, when its foreground app is known. */
+    val nowShowing: QuickNowShowing? = null,
+    /** Configured device names, for the notification's subtitle. */
+    val tvName: String? = null,
+    val barName: String? = null,
 ) {
     val activeScene: QuickScene? get() = scenes.firstOrNull { it.id == activeSceneId }
 }
@@ -69,3 +80,24 @@ data class QuickScene(
     /** ARGB seed, as `Scene.color`. */
     val color: Long,
 )
+
+/** Whose volume a quick surface is showing and stepping. */
+enum class VolumeTarget { BAR, TV }
+
+/** A device's volume as last reported (or optimistically set), on its own scale 0..[max]. */
+data class AudioLevel(val target: VolumeTarget, val level: Int, val max: Int, val muted: Boolean)
+
+/**
+ * The bar's level whenever a bar is configured, else the TV's; never the other
+ * device's in its place. The TV's remote link reports `0/0` while its sound goes
+ * to the bar, so a TV level with no range counts as unknown.
+ */
+fun audioLevelOf(barConfigured: Boolean, barVolume: Int?, barMax: Int, barMuted: Boolean, tvVolume: Int?, tvMax: Int?, tvMuted: Boolean): AudioLevel? =
+    if (barConfigured) {
+        barVolume?.let { AudioLevel(VolumeTarget.BAR, it, barMax, barMuted) }
+    } else {
+        if (tvVolume == null || tvMax == null || tvMax <= 0) null else AudioLevel(VolumeTarget.TV, tvVolume, tvMax, tvMuted)
+    }
+
+/** The TV's foreground app: its label from the app catalogue, and the icon tutti has cached for it. */
+data class QuickNowShowing(val packageName: String, val label: String?, val iconPath: String?)
