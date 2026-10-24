@@ -66,6 +66,7 @@ import io.kud.tutti.platform.data.asSteps
 import io.kud.tutti.platform.data.flattened
 import io.kud.tutti.ui.common.AppIcon
 import io.kud.tutti.ui.common.PinGlyphs
+import io.kud.tutti.ui.common.PinnedHeader
 import io.kud.tutti.ui.common.TuttiSheet
 import io.kud.tutti.ui.common.actionIcon
 import io.kud.tutti.ui.common.actionLabel
@@ -155,232 +156,240 @@ fun PinEditorContent(
         letters = letters.trim().takeIf { lettersOn && it.isNotEmpty() },
     )
 
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp)
-            .padding(bottom = 24.dp)
-            .navigationBarsPadding(),
+    val scroll = rememberScrollState()
+    // The title and Save are the pinned header: Save stays in reach however far the editor scrolls.
+    PinnedHeader(
+        scrolled = scroll.canScrollBackward,
+        modifier = Modifier.fillMaxWidth(),
+        header = {
+            Row(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    stringResource(R.string.pin_editor_title, index + 1),
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.weight(1f).semantics { heading() },
+                )
+                Button(onClick = { onSave(built()) }) { Text(stringResource(R.string.pin_save)) }
+            }
+        },
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                stringResource(R.string.pin_editor_title, index + 1),
-                style = MaterialTheme.typography.headlineSmall,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.weight(1f).semantics { heading() },
-            )
-            Button(onClick = { onSave(built()) }) { Text(stringResource(R.string.pin_save)) }
-        }
-        Spacer(Modifier.height(16.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            PinPreview(action, name.trim().ifBlank { auto.orEmpty() }, icon.takeUnless { lettersOn }, letters.takeIf { lettersOn }, state)
-            Spacer(Modifier.width(16.dp))
-            OutlinedTextField(
-                value = name,
-                onValueChange = { name = it.take(MAX_NAME) },
-                singleLine = true,
-                label = { Text(stringResource(R.string.pin_name)) },
-                placeholder = auto?.let { { Text(it, maxLines = 1, overflow = TextOverflow.Ellipsis) } },
-                supportingText = { Text(stringResource(R.string.pin_name_hint)) },
-                modifier = Modifier.weight(1f),
-            )
-        }
-
-        Spacer(Modifier.height(16.dp))
-        Text(stringResource(R.string.pin_icon), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
-        Spacer(Modifier.height(8.dp))
-        val autoDescription = stringResource(R.string.pin_icon_auto_desc)
-        val lettersDescription = stringResource(R.string.pin_letters_desc)
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 2.dp)) {
-            item(key = "auto") {
-                GlyphChoice(
-                    icon = action?.let { actionIcon(it, state) } ?: R.drawable.ic_add,
-                    description = autoDescription,
-                    selected = icon == null && !lettersOn,
-                    outlined = true,
-                ) {
-                    icon = null
-                    lettersOn = false
-                }
-            }
-            item(key = "letters") {
-                LettersChoice(description = lettersDescription, selected = lettersOn) { lettersOn = true }
-            }
-            items(PinGlyphs, key = { it }) { glyph ->
-                GlyphChoice(
-                    icon = pinGlyphRes(glyph),
-                    description = stringResource(R.string.pin_icon_desc, stringResource(pinGlyphLabel(glyph))),
-                    selected = icon == glyph && !lettersOn,
-                ) {
-                    icon = glyph
-                    lettersOn = false
-                }
-            }
-        }
-        when {
-            lettersOn -> {
-                Spacer(Modifier.height(8.dp))
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .verticalScroll(scroll)
+                .padding(horizontal = 16.dp)
+                .padding(top = 8.dp, bottom = 24.dp)
+                .navigationBarsPadding(),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                PinPreview(action, name.trim().ifBlank { auto.orEmpty() }, icon.takeUnless { lettersOn }, letters.takeIf { lettersOn }, state)
+                Spacer(Modifier.width(16.dp))
                 OutlinedTextField(
-                    value = letters,
-                    onValueChange = { letters = it.filterNot(Char::isWhitespace).take(MAX_LETTERS) },
+                    value = name,
+                    onValueChange = { name = it.take(MAX_NAME) },
                     singleLine = true,
-                    label = { Text(stringResource(R.string.pin_letters_field)) },
-                    supportingText = { Text(stringResource(R.string.pin_letters_hint)) },
-                    modifier = Modifier.width(200.dp),
+                    label = { Text(stringResource(R.string.pin_name)) },
+                    placeholder = auto?.let { { Text(it, maxLines = 1, overflow = TextOverflow.Ellipsis) } },
+                    supportingText = { Text(stringResource(R.string.pin_name_hint)) },
+                    modifier = Modifier.weight(1f),
                 )
             }
-            icon == null -> {
+
+            Spacer(Modifier.height(16.dp))
+            Text(stringResource(R.string.pin_icon), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
+            Spacer(Modifier.height(8.dp))
+            val autoDescription = stringResource(R.string.pin_icon_auto_desc)
+            val lettersDescription = stringResource(R.string.pin_letters_desc)
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 2.dp)) {
+                item(key = "auto") {
+                    GlyphChoice(
+                        icon = action?.let { actionIcon(it, state) } ?: R.drawable.ic_add,
+                        description = autoDescription,
+                        selected = icon == null && !lettersOn,
+                        outlined = true,
+                    ) {
+                        icon = null
+                        lettersOn = false
+                    }
+                }
+                item(key = "letters") {
+                    LettersChoice(description = lettersDescription, selected = lettersOn) { lettersOn = true }
+                }
+                items(PinGlyphs, key = { it }) { glyph ->
+                    GlyphChoice(
+                        icon = pinGlyphRes(glyph),
+                        description = stringResource(R.string.pin_icon_desc, stringResource(pinGlyphLabel(glyph))),
+                        selected = icon == glyph && !lettersOn,
+                    ) {
+                        icon = glyph
+                        lettersOn = false
+                    }
+                }
+            }
+            when {
+                lettersOn -> {
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = letters,
+                        onValueChange = { letters = it.filterNot(Char::isWhitespace).take(MAX_LETTERS) },
+                        singleLine = true,
+                        label = { Text(stringResource(R.string.pin_letters_field)) },
+                        supportingText = { Text(stringResource(R.string.pin_letters_hint)) },
+                        modifier = Modifier.width(200.dp),
+                    )
+                }
+                icon == null -> {
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        stringResource(R.string.pin_icon_auto),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(20.dp))
+            Text(stringResource(R.string.pin_on_tap), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
+            Spacer(Modifier.height(2.dp))
+            Text(
+                stringResource(R.string.pin_steps_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(8.dp))
+            if (steps.isEmpty()) {
+                ActionRow(null, state, onClick = { picking = Picking.AddStep }) {
+                    TextButton(onClick = { picking = Picking.AddStep }) { Text(stringResource(R.string.pin_choose)) }
+                }
+            } else {
+                Column(
+                    Modifier.clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surfaceContainerHigh),
+                ) {
+                    val moveStep: (Int, Int) -> Unit = { from, to ->
+                        if (from in steps.indices && to in steps.indices) steps.add(to, steps.removeAt(from))
+                    }
+                    steps.forEachIndexed { at, step ->
+                        if (at > 0) HorizontalDivider(color = MaterialTheme.colorScheme.surfaceContainerLow)
+                        StepRow(
+                            // Hold and drag inside the scrolling sheet; ↑ ↓ stay as the accessible path.
+                            modifier = Modifier
+                                .reorderable(reorder, at, vertical = true, onMove = moveStep, afterLongPress = true)
+                                .reorderActions(at, steps.size, up, down, moveStep),
+                            number = at + 1,
+                            step = step,
+                            state = state,
+                            first = at == 0,
+                            last = at == steps.lastIndex,
+                            alone = steps.size == 1,
+                            onChange = { picking = Picking.ReplaceStep(at) },
+                            onWait = { steps[at] = MacroStep.Wait(it) },
+                            onMove = { by -> steps.add(at + by, steps.removeAt(at)) },
+                            onRemove = { steps.removeAt(at) },
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                val addStep = stringResource(R.string.pin_add_step_desc)
+                val addWait = stringResource(R.string.pin_add_wait_desc)
+                val tryDescription = stringResource(R.string.pin_try_desc)
+                if (steps.isNotEmpty()) {
+                    OutlinedButton(onClick = { picking = Picking.AddStep }, modifier = Modifier.semantics { contentDescription = addStep }) {
+                        Icon(painterResource(R.drawable.ic_add), contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text(stringResource(R.string.pin_add_step))
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    OutlinedButton(
+                        onClick = { if (steps.size < MAX_STEPS) steps += MacroStep.Wait(DEFAULT_WAIT_MS) },
+                        enabled = steps.size < MAX_STEPS,
+                        modifier = Modifier.semantics { contentDescription = addWait },
+                    ) {
+                        Icon(painterResource(R.drawable.ic_timer), contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text(stringResource(R.string.pin_add_wait))
+                    }
+                }
+                Spacer(Modifier.weight(1f))
+                FilledTonalButton(
+                    onClick = { action?.let(onTry) },
+                    enabled = action != null,
+                    modifier = Modifier.semantics { contentDescription = tryDescription },
+                ) {
+                    Icon(painterResource(R.drawable.ic_play_pause), contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text(stringResource(R.string.pin_try))
+                }
+            }
+
+            Spacer(Modifier.height(20.dp))
+            Text(stringResource(R.string.pin_on_long_press), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
+            Spacer(Modifier.height(8.dp))
+            ActionRow(secondary, state, empty = stringResource(R.string.pin_long_none), onClick = { picking = Picking.LongPress }) {
+                if (secondary != null) {
+                    TextButton(onClick = { secondary = null }) { Text(stringResource(R.string.pin_long_clear)) }
+                } else {
+                    TextButton(onClick = { picking = Picking.LongPress }) { Text(stringResource(R.string.pin_choose)) }
+                }
+            }
+            if (secondary != null) {
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    stringResource(R.string.pin_icon_auto),
+                    stringResource(R.string.pin_long_note),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-        }
 
-        Spacer(Modifier.height(20.dp))
-        Text(stringResource(R.string.pin_on_tap), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
-        Spacer(Modifier.height(2.dp))
-        Text(
-            stringResource(R.string.pin_steps_hint),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(Modifier.height(8.dp))
-        if (steps.isEmpty()) {
-            ActionRow(null, state, onClick = { picking = Picking.AddStep }) {
-                TextButton(onClick = { picking = Picking.AddStep }) { Text(stringResource(R.string.pin_choose)) }
-            }
-        } else {
-            Column(
-                Modifier.clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surfaceContainerHigh),
-            ) {
-                val moveStep: (Int, Int) -> Unit = { from, to ->
-                    if (from in steps.indices && to in steps.indices) steps.add(to, steps.removeAt(from))
-                }
-                steps.forEachIndexed { at, step ->
-                    if (at > 0) HorizontalDivider(color = MaterialTheme.colorScheme.surfaceContainerLow)
-                    StepRow(
-                        // Hold and drag inside the scrolling sheet; ↑ ↓ stay as the accessible path.
-                        modifier = Modifier
-                            .reorderable(reorder, at, vertical = true, onMove = moveStep, afterLongPress = true)
-                            .reorderActions(at, steps.size, up, down, moveStep),
-                        number = at + 1,
-                        step = step,
-                        state = state,
-                        first = at == 0,
-                        last = at == steps.lastIndex,
-                        alone = steps.size == 1,
-                        onChange = { picking = Picking.ReplaceStep(at) },
-                        onWait = { steps[at] = MacroStep.Wait(it) },
-                        onMove = { by -> steps.add(at + by, steps.removeAt(at)) },
-                        onRemove = { steps.removeAt(at) },
-                    )
-                }
-            }
-        }
-        Spacer(Modifier.height(8.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            val addStep = stringResource(R.string.pin_add_step_desc)
-            val addWait = stringResource(R.string.pin_add_wait_desc)
-            val tryDescription = stringResource(R.string.pin_try_desc)
-            if (steps.isNotEmpty()) {
-                OutlinedButton(onClick = { picking = Picking.AddStep }, modifier = Modifier.semantics { contentDescription = addStep }) {
-                    Icon(painterResource(R.drawable.ic_add), contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text(stringResource(R.string.pin_add_step))
-                }
-                Spacer(Modifier.width(8.dp))
-                OutlinedButton(
-                    onClick = { if (steps.size < MAX_STEPS) steps += MacroStep.Wait(DEFAULT_WAIT_MS) },
-                    enabled = steps.size < MAX_STEPS,
-                    modifier = Modifier.semantics { contentDescription = addWait },
-                ) {
-                    Icon(painterResource(R.drawable.ic_timer), contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text(stringResource(R.string.pin_add_wait))
-                }
-            }
-            Spacer(Modifier.weight(1f))
-            FilledTonalButton(
-                onClick = { action?.let(onTry) },
-                enabled = action != null,
-                modifier = Modifier.semantics { contentDescription = tryDescription },
-            ) {
-                Icon(painterResource(R.drawable.ic_play_pause), contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(6.dp))
-                Text(stringResource(R.string.pin_try))
-            }
-        }
-
-        Spacer(Modifier.height(20.dp))
-        Text(stringResource(R.string.pin_on_long_press), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
-        Spacer(Modifier.height(8.dp))
-        ActionRow(secondary, state, empty = stringResource(R.string.pin_long_none), onClick = { picking = Picking.LongPress }) {
-            if (secondary != null) {
-                TextButton(onClick = { secondary = null }) { Text(stringResource(R.string.pin_long_clear)) }
-            } else {
-                TextButton(onClick = { picking = Picking.LongPress }) { Text(stringResource(R.string.pin_choose)) }
-            }
-        }
-        if (secondary != null) {
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(20.dp))
+            Text(stringResource(R.string.pin_pages), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
+            Spacer(Modifier.height(2.dp))
             Text(
-                stringResource(R.string.pin_long_note),
+                stringResource(R.string.pin_page_of, page + 1, pages) +
+                    if (pages >= DockConfig.MAX_PAGES) " · " + stringResource(R.string.pin_pages_full) else "",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-        }
-
-        Spacer(Modifier.height(20.dp))
-        Text(stringResource(R.string.pin_pages), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
-        Spacer(Modifier.height(2.dp))
-        Text(
-            stringResource(R.string.pin_page_of, page + 1, pages) +
-                if (pages >= DockConfig.MAX_PAGES) " · " + stringResource(R.string.pin_pages_full) else "",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Row {
-            if (pages < DockConfig.MAX_PAGES) {
-                TextButton(onClick = onAddPage) {
-                    Icon(painterResource(R.drawable.ic_add), contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text(stringResource(R.string.pin_page_add))
+            Row {
+                if (pages < DockConfig.MAX_PAGES) {
+                    TextButton(onClick = onAddPage) {
+                        Icon(painterResource(R.drawable.ic_add), contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text(stringResource(R.string.pin_page_add))
+                    }
+                }
+                if (pages > 1) {
+                    TextButton(onClick = { if (state.dock.pageIsEmpty(page)) onRemovePage(page) else confirmRemovePage = true }) {
+                        Icon(painterResource(R.drawable.ic_delete), contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text(stringResource(R.string.pin_page_remove))
+                    }
                 }
             }
             if (pages > 1) {
-                TextButton(onClick = { if (state.dock.pageIsEmpty(page)) onRemovePage(page) else confirmRemovePage = true }) {
+                Text(
+                    stringResource(R.string.pin_page_remove_note),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            if (slot.primary != null) {
+                Spacer(Modifier.height(12.dp))
+                TextButton(onClick = { onSave(DockSlot()) }) {
                     Icon(painterResource(R.drawable.ic_delete), contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
-                    Text(stringResource(R.string.pin_page_remove))
+                    Text(stringResource(R.string.pin_remove))
                 }
             }
-        }
-        if (pages > 1) {
-            Text(
-                stringResource(R.string.pin_page_remove_note),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-
-        if (slot.primary != null) {
-            Spacer(Modifier.height(12.dp))
-            TextButton(onClick = { onSave(DockSlot()) }) {
-                Icon(painterResource(R.drawable.ic_delete), contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(8.dp))
-                Text(stringResource(R.string.pin_remove))
-            }
-        }
-        if (onEditLayout != null) {
-            HorizontalDivider(Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.outlineVariant)
-            TextButton(onClick = onEditLayout) {
-                Icon(painterResource(R.drawable.ic_edit), contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(8.dp))
-                Text(stringResource(R.string.layout_edit_from_pin))
+            if (onEditLayout != null) {
+                HorizontalDivider(Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.outlineVariant)
+                TextButton(onClick = onEditLayout) {
+                    Icon(painterResource(R.drawable.ic_edit), contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(stringResource(R.string.layout_edit_from_pin))
+                }
             }
         }
     }

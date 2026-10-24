@@ -45,6 +45,7 @@ import io.kud.tutti.ui.common.pressScale
 import io.kud.tutti.ui.common.rememberFeedback
 import io.kud.tutti.ui.common.rememberPressSource
 import io.kud.tutti.ui.common.rememberTuttiIndication
+import io.kud.tutti.ui.common.PinnedHeader
 import io.kud.tutti.ui.common.TuttiSheet
 
 /**
@@ -60,7 +61,7 @@ fun MoreKeysSheet(
     onDismiss: () -> Unit,
 ) {
     TuttiSheet(onDismissRequest = onDismiss) {
-        MoreKeysContent(state, onKey, onLaunch, Modifier.verticalScroll(rememberScrollState()))
+        MoreKeysContent(state, onKey, onLaunch)
     }
 }
 
@@ -76,83 +77,91 @@ fun MoreKeysContent(
     onLaunch: (packageName: String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 24.dp)) {
-        Text(
-            stringResource(R.string.more_title),
-            style = MaterialTheme.typography.headlineSmall,
-            modifier = Modifier.semantics { heading() },
-        )
+    val scroll = rememberScrollState()
+    PinnedHeader(
+        scrolled = scroll.canScrollBackward,
+        modifier = modifier.fillMaxWidth(),
+        header = {
+            Text(
+                stringResource(R.string.more_title),
+                style = MaterialTheme.typography.headlineSmall,
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp).semantics { heading() },
+            )
+        },
+    ) {
+        Column(Modifier.fillMaxWidth().verticalScroll(scroll).padding(start = 16.dp, end = 16.dp, bottom = 24.dp)) {
 
-        Section(R.string.more_section_channels)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Column(Modifier.weight(3f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                for (row in listOf(listOf(1, 2, 3), listOf(4, 5, 6), listOf(7, 8, 9))) {
+            Section(R.string.more_section_channels)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(Modifier.weight(3f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    for (row in listOf(listOf(1, 2, 3), listOf(4, 5, 6), listOf(7, 8, 9))) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            row.forEach { digit -> Digit(digit, onKey) }
+                        }
+                    }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        row.forEach { digit -> Digit(digit, onKey) }
+                        Key(stringResource(R.string.more_jump), onClick = { onKey(V2Key.LAST_CHANNEL) })
+                        Digit(0, onKey)
+                        Key(stringResource(R.string.more_live_tv), onClick = { onKey(V2Key.TV) })
                     }
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Key(stringResource(R.string.more_jump), onClick = { onKey(V2Key.LAST_CHANNEL) })
-                    Digit(0, onKey)
-                    Key(stringResource(R.string.more_live_tv), onClick = { onKey(V2Key.TV) })
+                // The channel rocker, as tall as the keypad, like the remote's right-hand rocker.
+                Column(
+                    Modifier.weight(1f).height(KeyHeight * 4 + 24.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    KeyTile(
+                        "+",
+                        description = stringResource(R.string.more_channel_up),
+                        onClick = { onKey(V2Key.CHANNEL_UP) },
+                        height = KeyHeight * 2 + 4.dp,
+                        caption = stringResource(R.string.more_channel_short),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    KeyTile(
+                        "−",
+                        description = stringResource(R.string.more_channel_down),
+                        onClick = { onKey(V2Key.CHANNEL_DOWN) },
+                        height = KeyHeight * 2 + 4.dp,
+                        caption = stringResource(R.string.more_channel_short),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
                 }
             }
-            // The channel rocker, as tall as the keypad, like the remote's right-hand rocker.
-            Column(
-                Modifier.weight(1f).height(KeyHeight * 4 + 24.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                KeyTile(
-                    "+",
-                    description = stringResource(R.string.more_channel_up),
-                    onClick = { onKey(V2Key.CHANNEL_UP) },
-                    height = KeyHeight * 2 + 4.dp,
-                    caption = stringResource(R.string.more_channel_short),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                KeyTile(
-                    "−",
-                    description = stringResource(R.string.more_channel_down),
-                    onClick = { onKey(V2Key.CHANNEL_DOWN) },
-                    height = KeyHeight * 2 + 4.dp,
-                    caption = stringResource(R.string.more_channel_short),
-                    modifier = Modifier.fillMaxWidth(),
-                )
+
+            Section(R.string.more_section_colours)
+            // Named as well as coloured, in the remote's order: a colour is never the only cue.
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                ColourKey(R.string.more_red, Color(0xFFE5484D), V2Key.PROG_RED, onKey)
+                ColourKey(R.string.more_green, Color(0xFF30A46C), V2Key.PROG_GREEN, onKey)
+                ColourKey(R.string.more_yellow, Color(0xFFF5D90A), V2Key.PROG_YELLOW, onKey)
+                ColourKey(R.string.more_blue, Color(0xFF3E63DD), V2Key.PROG_BLUE, onKey)
             }
-        }
 
-        Section(R.string.more_section_colours)
-        // Named as well as coloured, in the remote's order: a colour is never the only cue.
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            ColourKey(R.string.more_red, Color(0xFFE5484D), V2Key.PROG_RED, onKey)
-            ColourKey(R.string.more_green, Color(0xFF30A46C), V2Key.PROG_GREEN, onKey)
-            ColourKey(R.string.more_yellow, Color(0xFFF5D90A), V2Key.PROG_YELLOW, onKey)
-            ColourKey(R.string.more_blue, Color(0xFF3E63DD), V2Key.PROG_BLUE, onKey)
-        }
+            Section(R.string.more_section_tv)
+            KeyRow {
+                Key(stringResource(R.string.key_guide), onClick = { onKey(V2Key.GUIDE) })
+                Key(stringResource(R.string.more_info), onClick = { onKey(V2Key.INFO) })
+                Key(stringResource(R.string.key_input), onClick = { onKey(V2Key.TV_INPUT) })
+            }
+            Spacer(Modifier.height(8.dp))
+            KeyRow {
+                Key(stringResource(R.string.more_subtitles), onClick = { onKey(V2Key.CAPTIONS) })
+                Key(stringResource(R.string.more_audio), onClick = { onKey(V2Key.MEDIA_AUDIO_TRACK) })
+                Key(stringResource(R.string.more_menu), onClick = { onKey(V2Key.MENU) })
+            }
+            Spacer(Modifier.height(8.dp))
+            KeyRow {
+                Key(stringResource(R.string.more_quick_settings), onClick = { onKey(V2Key.SETTINGS) })
+                Key(stringResource(R.string.more_all_apps), onClick = { onKey(V2Key.ALL_APPS) })
+            }
 
-        Section(R.string.more_section_tv)
-        KeyRow {
-            Key(stringResource(R.string.key_guide), onClick = { onKey(V2Key.GUIDE) })
-            Key(stringResource(R.string.more_info), onClick = { onKey(V2Key.INFO) })
-            Key(stringResource(R.string.key_input), onClick = { onKey(V2Key.TV_INPUT) })
-        }
-        Spacer(Modifier.height(8.dp))
-        KeyRow {
-            Key(stringResource(R.string.more_subtitles), onClick = { onKey(V2Key.CAPTIONS) })
-            Key(stringResource(R.string.more_audio), onClick = { onKey(V2Key.MEDIA_AUDIO_TRACK) })
-            Key(stringResource(R.string.more_menu), onClick = { onKey(V2Key.MENU) })
-        }
-        Spacer(Modifier.height(8.dp))
-        KeyRow {
-            Key(stringResource(R.string.more_quick_settings), onClick = { onKey(V2Key.SETTINGS) })
-            Key(stringResource(R.string.more_all_apps), onClick = { onKey(V2Key.ALL_APPS) })
-        }
-
-        Section(R.string.more_section_apps)
-        KeyRow {
-            AppKeys.forEach { pkg ->
-                val name = state.apps.firstOrNull { it.packageName == pkg }?.name ?: AppCatalog.byPackage(pkg)?.name ?: pkg
-                AppKey(name, pkg, state.appIcons[pkg]) { onLaunch(pkg) }
+            Section(R.string.more_section_apps)
+            KeyRow {
+                AppKeys.forEach { pkg ->
+                    val name = state.apps.firstOrNull { it.packageName == pkg }?.name ?: AppCatalog.byPackage(pkg)?.name ?: pkg
+                    AppKey(name, pkg, state.appIcons[pkg]) { onLaunch(pkg) }
+                }
             }
         }
     }

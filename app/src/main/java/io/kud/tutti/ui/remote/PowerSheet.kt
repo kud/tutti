@@ -2,6 +2,8 @@ package io.kud.tutti.ui.remote
 
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.background
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -28,6 +30,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import io.kud.tutti.R
 import io.kud.tutti.controller.PowerTarget
+import io.kud.tutti.ui.common.PinnedHeader
 import io.kud.tutti.ui.common.TuttiSheet
 
 /** One row of the Power sheet: who it is for, and whether a tap turns that on ([on]) or off. */
@@ -59,27 +62,38 @@ fun PowerSheet(
     onDismiss: () -> Unit,
 ) {
     TuttiSheet(onDismissRequest = onDismiss) {
-        Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(
-                stringResource(R.string.power_sheet_title),
-                style = MaterialTheme.typography.headlineSmall,
-                modifier = Modifier.semantics { heading() }.padding(bottom = 8.dp),
-            )
-            for (choice in choices) {
-                val (icon, name) = when (choice.target) {
-                    PowerTarget.TV -> R.drawable.ic_tv to stringResource(R.string.power_sheet_tv)
-                    PowerTarget.BAR -> R.drawable.ic_speaker to stringResource(R.string.power_sheet_bar)
-                    PowerTarget.BOTH -> R.drawable.ic_power to stringResource(R.string.power_sheet_both)
-                }
-                val action = stringResource(
-                    when {
-                        choice.target == PowerTarget.BOTH && choice.on -> R.string.power_sheet_turn_on_both
-                        choice.target == PowerTarget.BOTH -> R.string.power_sheet_turn_off_both
-                        choice.on -> R.string.power_sheet_turn_on
-                        else -> R.string.power_sheet_turn_off
-                    },
+        val scroll = rememberScrollState()
+        PinnedHeader(
+            scrolled = scroll.canScrollBackward,
+            modifier = Modifier.fillMaxWidth(),
+            header = {
+                Text(
+                    stringResource(R.string.power_sheet_title),
+                    style = MaterialTheme.typography.headlineSmall,
+                    modifier = Modifier.semantics { heading() }.padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
                 )
-                PowerRow(icon, name, action) { onChoose(choice) }
+            },
+        ) {
+            Column(
+                Modifier.fillMaxWidth().verticalScroll(scroll).padding(start = 16.dp, end = 16.dp, bottom = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                for (choice in choices) {
+                    val (icon, name) = when (choice.target) {
+                        PowerTarget.TV -> R.drawable.ic_tv to stringResource(R.string.power_sheet_tv)
+                        PowerTarget.BAR -> R.drawable.ic_speaker to stringResource(R.string.power_sheet_bar)
+                        PowerTarget.BOTH -> R.drawable.ic_power to stringResource(R.string.power_sheet_both)
+                    }
+                    val action = stringResource(
+                        when {
+                            choice.target == PowerTarget.BOTH && choice.on -> R.string.power_sheet_turn_on_both
+                            choice.target == PowerTarget.BOTH -> R.string.power_sheet_turn_off_both
+                            choice.on -> R.string.power_sheet_turn_on
+                            else -> R.string.power_sheet_turn_off
+                        },
+                    )
+                    PowerRow(icon, name, action) { onChoose(choice) }
+                }
             }
         }
     }

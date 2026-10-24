@@ -80,6 +80,7 @@ import io.kud.tutti.controller.TuttiController
 import io.kud.tutti.controller.TuttiUiState
 import io.kud.tutti.protocol.theatre.FeatureKind
 import io.kud.tutti.protocol.theatre.TheatreFeature
+import io.kud.tutti.ui.common.PinnedHeader
 import io.kud.tutti.ui.common.belowStatusBar
 import io.kud.tutti.ui.common.featureLabel
 import io.kud.tutti.ui.common.openBraviaConnect
@@ -131,33 +132,41 @@ fun SoundSheet(
     val context = LocalContext.current
     // The sheet may rise to the window's top; its handle stops below the status bar and the rest scrolls.
     val statusTop = WindowInsets.statusBars.getTop(LocalDensity.current)
-    Column(
-        modifier
-            .fillMaxWidth()
-            .belowStatusBar(statusTop)
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp)
-            .navigationBarsPadding()
-            .padding(bottom = 16.dp),
+    val scroll = rememberScrollState()
+    // The title line is the sheet's pinned header: folded, it is the whole peek; open, it stays put
+    // while the settings scroll under it (design.md, Sheets).
+    PinnedHeader(
+        scrolled = scroll.canScrollBackward,
+        modifier = modifier.fillMaxWidth().belowStatusBar(statusTop),
+        header = {
+            // Title and summary differ in size, so they share a baseline, centred as a pair in the row.
+            Row(Modifier.fillMaxWidth().heightIn(min = 40.dp).padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    stringResource(R.string.sound_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.alignByBaseline(),
+                )
+                Spacer(Modifier.width(12.dp))
+                Text(
+                    soundSummary(state),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.alignByBaseline().weight(1f, fill = false),
+                )
+            }
+        },
     ) {
-        // Title and summary differ in size, so they share a baseline, centred as a pair in the row.
-        Row(Modifier.fillMaxWidth().heightIn(min = 40.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                stringResource(R.string.sound_title),
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.alignByBaseline(),
-            )
-            Spacer(Modifier.width(12.dp))
-            Text(
-                soundSummary(state),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.alignByBaseline().weight(1f, fill = false),
-            )
-        }
-        Column(Modifier.graphicsLayer { alpha = rest }.then(if (peeking) Modifier.clearAndSetSemantics {} else Modifier)) {
+        Column(
+            Modifier
+                .verticalScroll(scroll)
+                .padding(horizontal = 16.dp)
+                .navigationBarsPadding()
+                .padding(bottom = 16.dp)
+                .graphicsLayer { alpha = rest }
+                .then(if (peeking) Modifier.clearAndSetSemantics {} else Modifier),
+        ) {
             if (state.devices.bar == null) {
                 // The way in for a bar added after the TV (Erwann, 2026-10-24): the bar step alone.
                 Spacer(Modifier.height(8.dp))

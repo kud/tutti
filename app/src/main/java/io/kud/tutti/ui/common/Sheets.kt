@@ -2,6 +2,7 @@ package io.kud.tutti.ui.common
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SheetState
@@ -28,11 +30,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import io.kud.tutti.ui.motion.Motion
 import io.kud.tutti.ui.motion.snappyOrFade
 import kotlin.math.abs
 
@@ -91,6 +96,44 @@ fun TuttiSheet(onDismissRequest: () -> Unit, content: @Composable ColumnScope.()
             MessageHost(Modifier.matchParentSize().padding(bottom = navigationBottom), insetNavigationBar = false)
         }
     }
+}
+
+/**
+ * A sheet's pinned header (design.md, Sheets: "the title, and a search where there is one, stays
+ * put; only the body scrolls"). [header] is drawn above [body], which takes the room left and
+ * scrolls on its own; once it has scrolled ([scrolled]), a hairline shows under the header.
+ * The body's own scroll still hands a downward drag at its top back to the sheet.
+ *
+ * A slot inside the sheet's content rather than a parameter of [TuttiSheet]: the header's state
+ * (the picker's search, its chips) belongs to the content, and the Son sheet, which is not a
+ * modal sheet, wears the same header.
+ */
+@Composable
+fun PinnedHeader(
+    scrolled: Boolean,
+    modifier: Modifier = Modifier,
+    header: @Composable ColumnScope.() -> Unit,
+    body: @Composable ColumnScope.() -> Unit,
+) {
+    Column(modifier) {
+        header()
+        SheetHeaderRule(scrolled)
+        Column(Modifier.weight(1f, fill = false), content = body)
+    }
+}
+
+/**
+ * The hairline under a pinned header, in `outlineVariant`, shown only once the body has scrolled.
+ * It fades by opacity, which is also its reduced-motion form.
+ */
+@Composable
+fun SheetHeaderRule(scrolled: Boolean, modifier: Modifier = Modifier) {
+    val alpha by animateFloatAsState(if (scrolled) 1f else 0f, Motion.fade(), label = "headerRule")
+    HorizontalDivider(
+        modifier.graphicsLayer { this.alpha = alpha },
+        thickness = Dp.Hairline,
+        color = MaterialTheme.colorScheme.outlineVariant,
+    )
 }
 
 /**

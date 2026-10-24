@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -61,6 +62,7 @@ import io.kud.tutti.ui.common.LocalDeveloperMode
 import io.kud.tutti.ui.common.LocalReducedMotion
 import io.kud.tutti.ui.common.PressStyle
 import io.kud.tutti.ui.common.ProblemNote
+import io.kud.tutti.ui.common.PinnedHeader
 import io.kud.tutti.ui.common.TuttiSheet
 import io.kud.tutti.ui.common.actionLabel
 import io.kud.tutti.ui.common.pressScale
@@ -114,15 +116,13 @@ fun AppsSheetContent(
     val developer = LocalDeveloperMode.current
     val clock: () -> Long = System::currentTimeMillis
     val pinLabel = stringResource(R.string.apps_pin_action)
-    LazyVerticalGrid(
-        columns = GridCells.Adaptive(minSize = 96.dp),
+    val grid = rememberLazyGridState()
+    // Title and subtitle are the pinned header: only the grid scrolls (design.md, Sheets).
+    PinnedHeader(
+        scrolled = grid.canScrollBackward,
         modifier = modifier.fillMaxWidth(),
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-        item(span = { GridItemSpan(maxLineSpan) }, key = "header") {
-            Column {
+        header = {
+            Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp)) {
                 Text(
                     stringResource(R.string.apps_title),
                     style = MaterialTheme.typography.headlineSmall,
@@ -134,82 +134,95 @@ fun AppsSheetContent(
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                if (!state.ipControl) {
-                    Spacer(Modifier.size(12.dp))
-                    Text(
-                        stringResource(R.string.apps_no_ip_hint),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
-                    )
-                }
-                Spacer(Modifier.size(12.dp))
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 56.dp)
-                        .clip(RoundedCornerShape(28.dp))
-                        .background(MaterialTheme.colorScheme.secondaryContainer)
-                        .clickable(onClick = onAllApps)
-                        .padding(horizontal = 20.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(
-                        painterResource(R.drawable.ic_tv),
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                        modifier = Modifier.size(20.dp),
-                    )
-                    Spacer(Modifier.width(12.dp))
-                    Text(
-                        stringResource(R.string.apps_open_tv_screen),
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer,
-                    )
-                }
             }
-        }
-        val failedApp = failure?.let { f -> state.visibleApps.firstOrNull { it.packageName == f.packageName } }
-        if (failedApp != null && developer) {
-            item(span = { GridItemSpan(maxLineSpan) }, key = "launch-failure") {
-                ProblemNote(stringResource(R.string.apps_launch_failed_note, failedApp.name), failure?.detail)
-            }
-        }
-        items(state.visibleApps, key = { it.packageName }) { app ->
-            AppTile(
-                app = app,
-                iconPath = state.appIcons[app.packageName],
-                pending = pending == app.packageName,
-                failed = failure?.packageName == app.packageName,
-                pinLabel = pinLabel,
-                onLongClick = { pinning = app },
-                onClick = {
-                    if (pending != null) return@AppTile
-                    failure = null
-                    pending = app.packageName
-                    val started = clock()
-                    scope.launch {
-                        val result = try {
-                            onLaunch(app).await()
-                        } finally {
-                            pending = null
-                        }
-                        // A spinner that showed stays its minimum time before the outcome lands.
-                        delay(SpinnerTiming.holdAfter(clock() - started))
-                        if (result.ok) {
-                            feedback.confirm()
-                            onLaunched()
-                        } else {
-                            feedback.reject()
-                            failure = TileFailure(app.packageName, Redact.text(result.trace()))
-                        }
+        },
+    ) {
+        LazyVerticalGrid(
+            columns = GridCells.Adaptive(minSize = 96.dp),
+            modifier = Modifier.fillMaxWidth(),
+            state = grid,
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 24.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            item(span = { GridItemSpan(maxLineSpan) }, key = "header") {
+                Column {
+                    if (!state.ipControl) {
+                        Text(
+                            stringResource(R.string.apps_no_ip_hint),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                        )
+                        Spacer(Modifier.size(12.dp))
                     }
-                },
-            )
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 56.dp)
+                            .clip(RoundedCornerShape(28.dp))
+                            .background(MaterialTheme.colorScheme.secondaryContainer)
+                            .clickable(onClick = onAllApps)
+                            .padding(horizontal = 20.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            painterResource(R.drawable.ic_tv),
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                            modifier = Modifier.size(20.dp),
+                        )
+                        Spacer(Modifier.width(12.dp))
+                        Text(
+                            stringResource(R.string.apps_open_tv_screen),
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        )
+                    }
+                }
+            }
+            val failedApp = failure?.let { f -> state.visibleApps.firstOrNull { it.packageName == f.packageName } }
+            if (failedApp != null && developer) {
+                item(span = { GridItemSpan(maxLineSpan) }, key = "launch-failure") {
+                    ProblemNote(stringResource(R.string.apps_launch_failed_note, failedApp.name), failure?.detail)
+                }
+            }
+            items(state.visibleApps, key = { it.packageName }) { app ->
+                AppTile(
+                    app = app,
+                    iconPath = state.appIcons[app.packageName],
+                    pending = pending == app.packageName,
+                    failed = failure?.packageName == app.packageName,
+                    pinLabel = pinLabel,
+                    onLongClick = { pinning = app },
+                    onClick = {
+                        if (pending != null) return@AppTile
+                        failure = null
+                        pending = app.packageName
+                        val started = clock()
+                        scope.launch {
+                            val result = try {
+                                onLaunch(app).await()
+                            } finally {
+                                pending = null
+                            }
+                            // A spinner that showed stays its minimum time before the outcome lands.
+                            delay(SpinnerTiming.holdAfter(clock() - started))
+                            if (result.ok) {
+                                feedback.confirm()
+                                onLaunched()
+                            } else {
+                                feedback.reject()
+                                failure = TileFailure(app.packageName, Redact.text(result.trace()))
+                            }
+                        }
+                    },
+                )
+            }
         }
     }
 
