@@ -182,9 +182,6 @@ class AtvRemote(
 
     suspend fun launch(link: String): Boolean = send(RemoteMessages.appLink(link))
 
-    fun dismissIme() {
-        mutableState.update { session.dismissIme(it) }
-    }
 
     private suspend fun send(message: RemoteMessage): Boolean {
         val conn = connection ?: return false

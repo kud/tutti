@@ -3,6 +3,18 @@
     <string name="keyboard_label_default">Typing on the TV</string>
     <string name="keyboard_paste">Paste</string>
     <string name="keyboard_dictate">Dictate</string>
-    <string name="keyboard_close">Close keyboard</string>
     <string name="keyboard_dictation_unavailable">Dictation is not available on this phone</string>
+    <string name="keyboard_live">Live on the TV</string>
+    <string name="keyboard_waiting">No text field on the TV yet</string>
+    <string name="keyboard_waiting_hint">Pick a text field on the TV</string>
+    <string name="keyboard_sent_closed">Sent · the TV closed the field</string>
+    <string name="keyboard_closed">The TV closed the field</string>
+    <string name="keyboard_enter">Enter</string>
+    <string name="keyboard_move">Move on the TV</string>
+    <string name="keyboard_show">Keyboard</string>
+    <string name="keyboard_back">Back to the remote</string>
+    <string name="keyboard_clear">Clear</string>
+    <string name="keyboard_undo">Undo</string>
+    <string name="keyboard_unreachable">%1$s unreachable</string>
+    <string name="keyboard_volume">Volume %1$d</string>
 </resources>

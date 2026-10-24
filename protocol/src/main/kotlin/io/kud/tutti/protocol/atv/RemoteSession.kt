@@ -88,9 +88,6 @@ class RemoteSession(private val deviceInfo: ClientDeviceInfo = ClientDeviceInfo(
         return RemoteStep(state)
     }
 
-    /** The user closed the keyboard (swipe down). The TV is not told; the field stays focused there. */
-    fun dismissIme(state: RemoteState): RemoteState = state.copy(ime = null)
-
     /** Optimistic local echo of what we just sent, so the mirror field never lags. */
     fun typed(state: RemoteState, text: String): RemoteState =
         state.copy(ime = state.ime?.copy(text = text, selectionStart = text.length, selectionEnd = text.length))

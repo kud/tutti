@@ -569,8 +569,6 @@ class TuttiController @Inject constructor(
         scope.launch { atv.sendText(text) }
     }
 
-    fun dismissKeyboard() = atv.dismissIme()
-
     // region voice
 
     private val mic = VoiceCapture(context)

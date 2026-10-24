@@ -3,6 +3,18 @@
     <string name="keyboard_label_default">Saisie sur la TV</string>
     <string name="keyboard_paste">Coller</string>
     <string name="keyboard_dictate">Dicter</string>
-    <string name="keyboard_close">Fermer le clavier</string>
     <string name="keyboard_dictation_unavailable">Dictée indisponible sur ce téléphone</string>
+    <string name="keyboard_live">En direct sur la TV</string>
+    <string name="keyboard_waiting">Aucun champ de texte sur la TV</string>
+    <string name="keyboard_waiting_hint">Choisissez un champ de texte sur la TV</string>
+    <string name="keyboard_sent_closed">Envoyé · la TV a fermé le champ</string>
+    <string name="keyboard_closed">La TV a fermé le champ</string>
+    <string name="keyboard_enter">Valider</string>
+    <string name="keyboard_move">Se déplacer sur la TV</string>
+    <string name="keyboard_show">Clavier</string>
+    <string name="keyboard_back">Retour à la télécommande</string>
+    <string name="keyboard_clear">Effacer</string>
+    <string name="keyboard_undo">Annuler</string>
+    <string name="keyboard_unreachable">%1$s injoignable</string>
+    <string name="keyboard_volume">Volume %1$d</string>
 </resources>

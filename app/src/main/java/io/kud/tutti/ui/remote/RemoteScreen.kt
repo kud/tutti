@@ -1,9 +1,15 @@
 package io.kud.tutti.ui.remote
 
 import io.kud.tutti.ui.common.FeedbackEvent
+import android.os.SystemClock
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -13,6 +19,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.WindowInsets
@@ -35,10 +42,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import io.kud.tutti.R
+import io.kud.tutti.controller.Link
 import io.kud.tutti.controller.TuttiController
 import io.kud.tutti.controller.TuttiUiState
 import io.kud.tutti.platform.data.DockAction
@@ -50,6 +59,7 @@ import io.kud.tutti.ui.common.TonalRoundButton
 import io.kud.tutti.ui.common.rememberHaptics
 import io.kud.tutti.ui.motion.Motion
 import io.kud.tutti.ui.motion.rememberWaiting
+import kotlinx.coroutines.delay
 
 private sealed interface PickerTarget {
     data class Slot(val index: Int) : PickerTarget
@@ -80,15 +90,23 @@ fun RemoteScreen(
     val layout = state.prefs.layout
     BackHandler(enabled = editing) { onEditingChange(false) }
     var picker by remember { mutableStateOf<PickerTarget?>(null) }
-    var keyboardRequested by remember { mutableStateOf(false) }
     var sheet2 by remember { mutableStateOf<RemoteSheet?>(null) }
-    val imeOpen = state.remote.ime != null
-    val keyboardOpen = imeOpen || keyboardRequested
-
-    // The TV field lost focus (or the app changed): close what it opened.
-    LaunchedEffect(imeOpen) {
-        if (!imeOpen) keyboardRequested = false
+    // The full input view is a state of the remote, not a screen: InputRules moves it.
+    var input by remember { mutableStateOf(InputMode()) }
+    val hasField = state.remote.ime != null
+    LaunchedEffect(hasField, state.remote.imeShows) {
+        input = InputRules.tv(input, hasField, state.remote.imeShows, SystemClock.uptimeMillis())
     }
+    // The TV closed the field: the closed frame holds, then the remote comes back, unless a new field took over.
+    LaunchedEffect(input.closedAt) {
+        if (input.closedAt == null) return@LaunchedEffect
+        delay(InputRules.GRACE_MS)
+        input = InputRules.tick(input, SystemClock.uptimeMillis())
+    }
+    val inputOpen = input.open
+    val tvReachable = !(state.devices.tv != null && state.links.tv == Link.UNREACHABLE)
+    val reduced = LocalReducedMotion.current
+    val rise = with(LocalDensity.current) { INPUT_RISE.roundToPx() }
 
     DisposableEffect(controller) {
         controller.remoteInFront = true
@@ -105,8 +123,8 @@ fun RemoteScreen(
     val navigationInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     BottomSheetScaffold(
         scaffoldState = sheet,
-        sheetPeekHeight = if (keyboardOpen || editing) 0.dp else SHEET_PEEK + navigationInset,
-        sheetSwipeEnabled = !editing,
+        sheetPeekHeight = if (inputOpen || editing) 0.dp else SHEET_PEEK + navigationInset,
+        sheetSwipeEnabled = !editing && !inputOpen,
         sheetContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
         containerColor = MaterialTheme.colorScheme.background,
         sheetContent = { SoundSheet(state, controller) },
@@ -124,157 +142,173 @@ fun RemoteScreen(
             )
             return@BottomSheetScaffold
         }
-        Column(
-            Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .statusBarsPadding()
-                .imePadding(),
-        ) {
-            Row(
-                Modifier.fillMaxWidth().padding(start = 16.dp, end = 12.dp, top = 8.dp, bottom = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
+        AnimatedContent(
+            targetState = inputOpen,
+            transitionSpec = {
+                when {
+                    reduced -> fadeIn(tween(Motion.SHORT)) togetherWith fadeOut(tween(Motion.SHORT))
+                    // Going home shouldn't perform: a plain cross-fade.
+                    !targetState -> fadeIn(tween(INPUT_BACK_MS)) togetherWith fadeOut(tween(INPUT_BACK_MS))
+                    // From the key: the view grows out of it (a stand-in for the shared-bounds morph).
+                    input.origin == InputOrigin.KEY ->
+                        (fadeIn(tween(Motion.MEDIUM)) + scaleIn(tween(Motion.MEDIUM, easing = Motion.Emphasized), initialScale = 0.92f)) togetherWith
+                            fadeOut(tween(Motion.FADE_OUT))
+                    // The TV opened it: no source key, so it rises.
+                    else -> (fadeIn(tween(Motion.MEDIUM)) + slideInVertically(tween(Motion.MEDIUM, easing = Motion.Emphasized)) { rise }) togetherWith
+                        fadeOut(tween(Motion.FADE_OUT))
+                }
+            },
+            label = "input view",
+            modifier = Modifier.fillMaxSize().padding(padding),
+        ) { open ->
+            if (open) {
+                InputView(
+                    field = state.remote.ime,
+                    mode = input,
+                    phase = InputRules.phase(input, tvReachable),
+                    tvName = state.devices.tv?.name.orEmpty(),
+                    volume = state.volume.takeIf { state.bar.connected },
+                    onText = controller::text,
+                    onEnter = {
+                        input = InputRules.enter(input, SystemClock.uptimeMillis())
+                        controller.key(V2Key.ENTER)
+                    },
+                    onKey = controller::key,
+                    onLongSelect = { controller.longPress(V2Key.DPAD_CENTER) },
+                    onLeave = { input = InputRules.leave(input) },
+                    onTypingChange = { controller.typing = it },
+                    modifier = Modifier.statusBarsPadding().navigationBarsPadding().imePadding(),
+                )
+                return@AnimatedContent
+            }
+            Column(
+                Modifier
+                    .fillMaxSize()
+                    .statusBarsPadding(),
             ) {
-                SystemChip(state, onClick = onOpenSettings, modifier = Modifier.weight(1f))
-                Spacer(Modifier.width(4.dp))
-                IconButton(onClick = onOpenScenes) {
-                    Icon(painterResource(R.drawable.ic_scene), contentDescription = stringResource(R.string.action_scenes))
-                }
-                IconButton(onClick = onOpenSettings) {
-                    Icon(painterResource(R.drawable.ic_settings), contentDescription = stringResource(R.string.action_settings))
-                }
-                // Waking a sleeping TV takes seconds: a turning ring says so (not a colour), and the label follows.
-                // The ring keeps the loading rules: not before 150 ms, then at least 400 ms; held still when motion is reduced.
-                val wakingRing = rememberWaiting(state.waking)
-                Box(contentAlignment = Alignment.Center) {
-                    TonalRoundButton(
-                        icon = R.drawable.ic_power,
-                        contentDescription = stringResource(if (state.waking) R.string.power_waking else R.string.action_power),
-                        onClick = { controller.power() },
-                        feedback = FeedbackEvent.SELECT,
-                        active = state.powered == true,
-                        size = 52.dp,
-                    )
-                    // Box scope inside a Row: the plain overload, named, so the Row's one isn't picked.
-                    androidx.compose.animation.AnimatedVisibility(
-                        visible = wakingRing.spinner,
-                        enter = fadeIn(Motion.fade()),
-                        exit = fadeOut(Motion.exit()),
-                        modifier = Modifier.matchParentSize(),
-                    ) {
-                        if (LocalReducedMotion.current) {
-                            CircularProgressIndicator(progress = { 0.75f }, modifier = Modifier.fillMaxSize(), strokeWidth = 3.dp)
-                        } else {
-                            CircularProgressIndicator(Modifier.fillMaxSize(), strokeWidth = 3.dp)
+                Row(
+                    Modifier.fillMaxWidth().padding(start = 16.dp, end = 12.dp, top = 8.dp, bottom = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    SystemChip(state, onClick = onOpenSettings, modifier = Modifier.weight(1f))
+                    Spacer(Modifier.width(4.dp))
+                    IconButton(onClick = onOpenScenes) {
+                        Icon(painterResource(R.drawable.ic_scene), contentDescription = stringResource(R.string.action_scenes))
+                    }
+                    IconButton(onClick = onOpenSettings) {
+                        Icon(painterResource(R.drawable.ic_settings), contentDescription = stringResource(R.string.action_settings))
+                    }
+                    // Waking a sleeping TV takes seconds: a turning ring says so (not a colour), and the label follows.
+                    // The ring keeps the loading rules: not before 150 ms, then at least 400 ms; held still when motion is reduced.
+                    val wakingRing = rememberWaiting(state.waking)
+                    Box(contentAlignment = Alignment.Center) {
+                        TonalRoundButton(
+                            icon = R.drawable.ic_power,
+                            contentDescription = stringResource(if (state.waking) R.string.power_waking else R.string.action_power),
+                            onClick = { controller.power() },
+                            feedback = FeedbackEvent.SELECT,
+                            active = state.powered == true,
+                            size = 52.dp,
+                        )
+                        // Box scope inside a Row: the plain overload, named, so the Row's one isn't picked.
+                        androidx.compose.animation.AnimatedVisibility(
+                            visible = wakingRing.spinner,
+                            enter = fadeIn(Motion.fade()),
+                            exit = fadeOut(Motion.exit()),
+                            modifier = Modifier.matchParentSize(),
+                        ) {
+                            if (LocalReducedMotion.current) {
+                                CircularProgressIndicator(progress = { 0.75f }, modifier = Modifier.fillMaxSize(), strokeWidth = 3.dp)
+                            } else {
+                                CircularProgressIndicator(Modifier.fillMaxSize(), strokeWidth = 3.dp)
+                            }
                         }
                     }
                 }
-            }
 
-            if (layout.scenes) {
-                SceneStrip(
-                    scenes = state.scenes,
-                    onApply = { controller.applyScene(it) },
-                    onEdit = onEditScene,
-                    modifier = Modifier.padding(vertical = 4.dp),
-                )
-            }
-
-            if (keyboardOpen) {
-                KeyboardPanel(
-                    field = state.remote.ime,
-                    onText = controller::text,
-                    onEnter = { controller.key(V2Key.ENTER) },
-                    onClose = {
-                        controller.dismissKeyboard()
-                        keyboardRequested = false
-                    },
-                    onTypingChange = { controller.typing = it },
-                )
-            }
-
-            // Normal is the pad as it shipped. Large takes the margins back; compact keeps the
-            // rail full height and stands a shorter pad at its foot, nearer the thumb.
-            val large = layout.padSize == PadSize.LARGE
-            val rowPadding = if (large) 4.dp else 12.dp
-            Row(
-                Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .padding(horizontal = if (large) 8.dp else 16.dp, vertical = rowPadding),
-            ) {
-                // The mode switch stands under the pad, outside its surface, with at least
-                // SWITCH_CLEARANCE above the button row so a thumb heading there lands on neither.
-                val belowSwitch = SWITCH_CLEARANCE - rowPadding
-                Column(
-                    Modifier.weight(1f).fillMaxHeight(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    if (layout.padSize == PadSize.COMPACT) {
-                        Spacer(Modifier.weight(1f - COMPACT_SHARE))
-                    } else if (!keyboardOpen) {
-                        // As much room above as the switch takes below, so the pad's middle stays
-                        // level with the rail's, where it always was.
-                        Spacer(Modifier.height(SWITCH_GAP + PAD_SWITCH_HEIGHT + belowSwitch))
-                    }
-                    Pad(
-                        mode = state.prefs.padMode,
-                        onKey = controller::key,
-                        onLongSelect = { controller.longPress(V2Key.DPAD_CENTER) },
-                        onPlayPause = { controller.key(V2Key.MEDIA_PLAY_PAUSE) },
-                        onVolumeStep = controller::volumeStep,
-                        volume = state.volume.takeIf { state.bar.connected },
-                        volumeCap = state.volumeCap,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(if (layout.padSize == PadSize.COMPACT) COMPACT_SHARE else 1f),
+                if (layout.scenes) {
+                    SceneStrip(
+                        scenes = state.scenes,
+                        onApply = { controller.applyScene(it) },
+                        onEdit = onEditScene,
+                        modifier = Modifier.padding(vertical = 4.dp),
                     )
-                    Spacer(Modifier.height(SWITCH_GAP))
-                    PadModeSwitch(
-                        mode = state.prefs.padMode,
-                        onModeChange = controller::setPadMode,
-                    )
-                    Spacer(Modifier.height(belowSwitch))
                 }
-                Spacer(Modifier.width(if (large) 8.dp else 12.dp))
-                VolumeRail(
-                    volume = state.volume,
-                    cap = state.volumeCap,
-                    muted = state.muted,
-                    enabled = state.bar.connected,
-                    onVolume = controller::setVolume,
-                )
-            }
 
-            val row = layout.shownRow
-            if (row.isNotEmpty()) {
+                // Normal is the pad as it shipped. Large takes the margins back; compact keeps the
+                // rail full height and stands a shorter pad at its foot, nearer the thumb.
+                val large = layout.padSize == PadSize.LARGE
+                val rowPadding = if (large) 4.dp else 12.dp
                 Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                    horizontalArrangement = rowArrangement(row.size),
+                    Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .padding(horizontal = if (large) 8.dp else 16.dp, vertical = rowPadding),
                 ) {
-                    row.forEach { button ->
-                        LiveRowButton(
-                            button = button,
-                            state = state,
-                            controller = controller,
-                            haptics = haptics,
-                            keyboardOpen = keyboardOpen,
-                            onKeyboard = {
-                                if (keyboardOpen) {
-                                    controller.dismissKeyboard()
-                                    keyboardRequested = false
-                                } else {
-                                    keyboardRequested = true
-                                }
-                            },
-                            onSecondary = ::secondary,
-                            size = ROW_BUTTON,
+                    // The mode switch stands under the pad, outside its surface, with at least
+                    // SWITCH_CLEARANCE above the button row so a thumb heading there lands on neither.
+                    val belowSwitch = SWITCH_CLEARANCE - rowPadding
+                    Column(
+                        Modifier.weight(1f).fillMaxHeight(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        if (layout.padSize == PadSize.COMPACT) {
+                            Spacer(Modifier.weight(1f - COMPACT_SHARE))
+                        } else {
+                            // As much room above as the switch takes below, so the pad's middle stays
+                            // level with the rail's, where it always was.
+                            Spacer(Modifier.height(SWITCH_GAP + PAD_SWITCH_HEIGHT + belowSwitch))
+                        }
+                        Pad(
+                            mode = state.prefs.padMode,
+                            onKey = controller::key,
+                            onLongSelect = { controller.longPress(V2Key.DPAD_CENTER) },
+                            onPlayPause = { controller.key(V2Key.MEDIA_PLAY_PAUSE) },
+                            onVolumeStep = controller::volumeStep,
+                            volume = state.volume.takeIf { state.bar.connected },
+                            volumeCap = state.volumeCap,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(if (layout.padSize == PadSize.COMPACT) COMPACT_SHARE else 1f),
                         )
+                        Spacer(Modifier.height(SWITCH_GAP))
+                        PadModeSwitch(
+                            mode = state.prefs.padMode,
+                            onModeChange = controller::setPadMode,
+                        )
+                        Spacer(Modifier.height(belowSwitch))
+                    }
+                    Spacer(Modifier.width(if (large) 8.dp else 12.dp))
+                    VolumeRail(
+                        volume = state.volume,
+                        cap = state.volumeCap,
+                        muted = state.muted,
+                        enabled = state.bar.connected,
+                        onVolume = controller::setVolume,
+                    )
+                }
+
+                val row = layout.shownRow
+                if (row.isNotEmpty()) {
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                        horizontalArrangement = rowArrangement(row.size),
+                    ) {
+                        row.forEach { button ->
+                            LiveRowButton(
+                                button = button,
+                                state = state,
+                                controller = controller,
+                                haptics = haptics,
+                                fieldWaiting = input.fieldWaiting,
+                                onKeyboard = { input = InputRules.keyboardKey(input) },
+                                onSecondary = ::secondary,
+                                size = ROW_BUTTON,
+                            )
+                        }
                     }
                 }
-            }
 
-            if (!keyboardOpen) {
                 Spacer(Modifier.height(12.dp))
                 Dock(
                     state = state,
@@ -298,8 +332,8 @@ fun RemoteScreen(
                         controller.run(action)
                     },
                 )
+                Spacer(Modifier.height(12.dp))
             }
-            Spacer(Modifier.height(12.dp))
         }
     }
 
@@ -408,6 +442,12 @@ private val SWITCH_GAP = 14.dp
 
 /** At least this much between the mode switch's bottom edge and the button row under it. */
 private val SWITCH_CLEARANCE = 32.dp
+
+/** How far the input view rises when the TV opens it. */
+private val INPUT_RISE = 24.dp
+
+/** Back to the remote: a plain cross-fade. */
+private const val INPUT_BACK_MS = 200
 
 /** The “Son” handle and its one-line summary. */
 private val SHEET_PEEK = 72.dp

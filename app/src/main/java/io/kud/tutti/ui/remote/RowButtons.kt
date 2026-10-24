@@ -86,7 +86,8 @@ fun LiveRowButton(
     state: TuttiUiState,
     controller: TuttiController,
     haptics: Haptics,
-    keyboardOpen: Boolean,
+    /** A TV field is open behind the input view he left: the Keyboard key wears its "on" look. */
+    fieldWaiting: Boolean,
     onKeyboard: () -> Unit,
     onSecondary: (SecondaryButton) -> Unit,
     size: Dp,
@@ -97,7 +98,7 @@ fun LiveRowButton(
             icon = R.drawable.ic_keyboard,
             contentDescription = rowButtonLabel(button),
             onClick = onKeyboard,
-            active = keyboardOpen,
+            active = fieldWaiting,
             size = size,
         )
         RowButton.MUTE -> TonalRoundButton(
