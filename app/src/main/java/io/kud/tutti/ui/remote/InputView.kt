@@ -22,6 +22,7 @@ import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -57,6 +58,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -93,7 +95,9 @@ import io.kud.tutti.ui.common.ValueTag
 import io.kud.tutti.ui.common.rememberHaptics
 import io.kud.tutti.ui.common.rememberPressSource
 import io.kud.tutti.ui.motion.Motion
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /**
  * The full input view: while the TV has a text field, tutti stops being a remote and becomes
@@ -478,7 +482,11 @@ private fun LandscapeLeft(modifier: Modifier, content: @Composable ColumnScope.(
     Column(modifier.fillMaxHeight(), content = content)
 }
 
-/** "Move on the TV": four segments, each its own key, a tick on down like every D-pad direction. */
+/**
+ * "Move on the TV": four segments, each its own key, a tick on down like every D-pad direction.
+ * A quick press sends its key on release; a held one repeats on the [KeyRepeat] schedule from
+ * the press and sends nothing more on release.
+ */
 @Composable
 private fun ArrowBar(enabled: Boolean, onKey: (Int) -> Unit) {
     val haptics = rememberHaptics()
@@ -498,6 +506,27 @@ private fun ArrowBar(enabled: Boolean, onKey: (Int) -> Unit) {
         ).forEach { (key, icon, name) ->
             val press = rememberPressSource(PressStyle.KEY) { haptics.tick() }
             val description = stringResource(name)
+            val held = remember { HeldKey() }
+            val send by rememberUpdatedState(onKey)
+            LaunchedEffect(press.interaction, enabled) {
+                if (!enabled) return@LaunchedEffect
+                press.interaction.interactions.collect { event ->
+                    when (event) {
+                        is PressInteraction.Press -> {
+                            held.stop()
+                            held.repeats = 0
+                            held.job = launch {
+                                KeyRepeat.run {
+                                    held.repeats++
+                                    haptics.tick()
+                                    send(key)
+                                }
+                            }
+                        }
+                        is PressInteraction.Release, is PressInteraction.Cancel -> held.stop()
+                    }
+                }
+            }
             Box(
                 Modifier
                     .weight(1f)
@@ -506,7 +535,12 @@ private fun ArrowBar(enabled: Boolean, onKey: (Int) -> Unit) {
                         interactionSource = press.interaction,
                         indication = LocalIndication.current,
                         enabled = enabled,
-                    ) { onKey(key) }
+                    ) {
+                        // The click lands on release: stop the repeat here too, before it can fire once more.
+                        val repeated = held.repeats > 0
+                        held.stop()
+                        if (!repeated) onKey(key)
+                    }
                     .semantics { contentDescription = description },
                 contentAlignment = Alignment.Center,
             ) {
@@ -517,6 +551,17 @@ private fun ArrowBar(enabled: Boolean, onKey: (Int) -> Unit) {
                 )
             }
         }
+    }
+}
+
+/** One arrow's hold: the running repeat and how many keys it has sent this press. */
+private class HeldKey {
+    var job: Job? = null
+    var repeats = 0
+
+    fun stop() {
+        job?.cancel()
+        job = null
     }
 }
 
