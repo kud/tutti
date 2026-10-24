@@ -422,6 +422,16 @@ class TuttiController @Inject constructor(
             tv.value = TvState()
             return
         }
+        if (psk == null) {
+            // IP control needs the PSK for everything past discovery, so without one there is
+            // nothing to poll: retrying only repeated the same failure (Erwann, 2026-10-24). TV
+            // settings explain how to set it up; setPsk restarts this loop.
+            bravia = null
+            braviaTransport = null
+            links.update { it.copy(rest = Link.ABSENT) }
+            linkNotes.update { it.copy(rest = null) }
+            return
+        }
         val transport = OkHttpBraviaTransport(device.host, secure.tvRestPin()) { secure.setTvRestPin(it) }
         val client = BraviaClient(transport, psk = { psk })
         braviaTransport = transport
