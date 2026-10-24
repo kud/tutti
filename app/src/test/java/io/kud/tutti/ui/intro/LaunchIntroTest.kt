@@ -84,22 +84,62 @@ class LaunchIntroTest {
 
     @Test
     fun `reduced motion is a 200 ms fade that rests on nothing`() {
-        assertSame(FadeIntro, choreographyFor(IntroKind.COLD, reduced = true, firstLaunch = true, padShown = true))
-        assertSame(FadeIntro, choreographyFor(IntroKind.WARM, reduced = true, firstLaunch = false, padShown = true))
+        assertSame(FadeIntro, choreographyFor(IntroKind.COLD, reduced = true, firstLaunch = true, pad = PadShown.DPAD))
+        assertSame(FadeIntro, choreographyFor(IntroKind.WARM, reduced = true, firstLaunch = false, pad = PadShown.DPAD))
         assertEquals(200f, FadeIntro.durationMs, 0f)
         assertEquals(0f, FadeIntro.alpha.at(200f), 0f)
     }
 
     @Test
     fun `the first cold launch hands over to the welcome screen, never a warm one`() {
-        assertSame(HandOffToWelcome, choreographyFor(IntroKind.COLD, reduced = false, firstLaunch = true, padShown = false))
-        assertTrue(choreographyFor(IntroKind.WARM, reduced = false, firstLaunch = true, padShown = true) is OkBecomesPad)
+        assertSame(HandOffToWelcome, choreographyFor(IntroKind.COLD, reduced = false, firstLaunch = true, pad = PadShown.NONE))
+        assertTrue(choreographyFor(IntroKind.WARM, reduced = false, firstLaunch = true, pad = PadShown.DPAD) is OkBecomesPad)
     }
 
     @Test
-    fun `without a D-pad on screen the intro fades`() {
-        assertSame(FadeIntro, choreographyFor(IntroKind.COLD, reduced = false, firstLaunch = false, padShown = false))
-        assertTrue(choreographyFor(IntroKind.COLD, reduced = false, firstLaunch = false, padShown = true) is OkBecomesPad)
+    fun `each pad mode gets its own landing, and no pad gets the fade`() {
+        assertSame(FadeIntro, choreographyFor(IntroKind.COLD, reduced = false, firstLaunch = false, pad = PadShown.NONE))
+        assertTrue(choreographyFor(IntroKind.COLD, reduced = false, firstLaunch = false, pad = PadShown.DPAD) is OkBecomesPad)
+        assertTrue(choreographyFor(IntroKind.COLD, reduced = false, firstLaunch = false, pad = PadShown.TOUCHPAD) is OkBecomesTouchpad)
+        assertTrue(choreographyFor(IntroKind.WARM, reduced = false, firstLaunch = false, pad = PadShown.TOUCHPAD) is OkBecomesTouchpad)
+        // Reduced motion and the first launch win over the touchpad too.
+        assertSame(FadeIntro, choreographyFor(IntroKind.COLD, reduced = true, firstLaunch = false, pad = PadShown.TOUCHPAD))
+        assertSame(HandOffToWelcome, choreographyFor(IntroKind.COLD, reduced = false, firstLaunch = true, pad = PadShown.TOUCHPAD))
+    }
+
+    @Test
+    fun `the touchpad landing keeps the D-pad's budget and beats`() {
+        for (warm in listOf(false, true)) {
+            val pad = OkBecomesPad(warm)
+            val touchpad = OkBecomesTouchpad(warm)
+            assertEquals(pad.durationMs, touchpad.durationMs, 0f)
+            assertEquals(pad.landingMs, touchpad.landingMs)
+            for (ms in 0..pad.durationMs.toInt() step 10) {
+                val at = ms.toFloat()
+                assertEquals(pad.travel.at(at), touchpad.travel.at(at), 0f)
+                assertEquals(pad.ring.at(at), touchpad.ring.at(at), 0f)
+                assertEquals(pad.bloom.at(at), touchpad.bloom.at(at), 0f)
+                assertEquals(pad.reveal.at(at), touchpad.reveal.at(at), 0f)
+            }
+        }
+        val cold = OkBecomesTouchpad(warm = false)
+        val warm = OkBecomesTouchpad(warm = true)
+        assertEquals(800f, cold.durationMs, 0f)
+        assertEquals(300f, warm.durationMs, 0f)
+        assertEquals(470f, cold.landingMs!!, 0f)
+        assertEquals(null, warm.landingMs)
+        // The ring has become the pad by the landing; the OK sinks into the surface after it.
+        assertEquals(1f, cold.ring.at(470f), 0f)
+        assertEquals(1f, cold.okFade.at(470f), 0f)
+        assertEquals(0f, cold.okFade.at(620f), 0f)
+        assertEquals(1f, warm.okFade.at(220f), 0f)
+        for (choreography in listOf(cold, warm)) {
+            val end = choreography.durationMs
+            assertEquals(0f, choreography.bloom.at(end), 0f)
+            assertEquals(0f, choreography.ringFade.at(end), 0f)
+            assertEquals(0f, choreography.okFade.at(end), 0f)
+            assertEquals(1f, choreography.reveal.at(end), 0f)
+        }
     }
 
     @Test

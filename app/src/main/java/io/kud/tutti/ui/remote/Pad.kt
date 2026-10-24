@@ -68,6 +68,7 @@ import io.kud.tutti.ui.common.RING_DELAY_MS
 import io.kud.tutti.ui.common.ValueTag
 import io.kud.tutti.ui.common.rememberHaptics
 import io.kud.tutti.ui.intro.LocalIntroAnchors
+import io.kud.tutti.ui.intro.TouchpadAnchor
 import io.kud.tutti.ui.motion.Motion
 import io.kud.tutti.ui.motion.snappyOrFade
 import kotlin.math.abs
@@ -314,6 +315,17 @@ fun Pad(
         label = "padSurface",
     )
 
+    // The launch intro's ring becomes this surface in touchpad mode: it reads its box and corner.
+    val introAnchors = LocalIntroAnchors.current
+    val touchpadShown = mode == PadMode.TOUCHPAD
+    val cornerPx = with(LocalDensity.current) { PAD_CORNER.toPx() }
+    DisposableEffect(introAnchors, touchpadShown) { onDispose { introAnchors.touchpad = null } }
+    val touchpadAnchor = if (touchpadShown) {
+        Modifier.onGloballyPositioned { introAnchors.touchpad = TouchpadAnchor(it.boundsInWindow(), cornerPx) }
+    } else {
+        Modifier
+    }
+
     // The mode switch sits on the surface (PadModeSwitch) but never reads a touch: touchpadGestures reads
     // every touch, consumed or not, so the pad hit-tests the corner itself and a tap there is only the switch.
     // The D-pad face fades in and out; it also scales unless motion is reduced.
@@ -325,7 +337,8 @@ fun Pad(
     )
     BoxWithConstraints(
         modifier = modifier
-            .clip(RoundedCornerShape(36.dp))
+            .then(touchpadAnchor)
+            .clip(RoundedCornerShape(PAD_CORNER))
             .background(surfaceColor)
             .then(semanticsModifier)
             .drawBehind {
@@ -519,6 +532,9 @@ internal fun dpadChevronArm(width: Float, height: Float): Float = (dpadEdgeRadiu
 
 /** A resting chevron's stroke width, as [DpadFace] draws it. */
 internal val DPAD_CHEVRON_STROKE = 3.5.dp
+
+/** The pad surface's corner (touchpad mode), which the launch intro's ring lands on. */
+internal val PAD_CORNER = 36.dp
 
 /** The directions clockwise from the top, for anything that plays the chevrons in turn. */
 internal val DPAD_CLOCKWISE = listOf(V2Key.DPAD_UP, V2Key.DPAD_RIGHT, V2Key.DPAD_DOWN, V2Key.DPAD_LEFT)
