@@ -55,8 +55,11 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import io.kud.tutti.R
+import androidx.compose.runtime.saveable.rememberSaveable
 import io.kud.tutti.controller.Link
+import io.kud.tutti.controller.PowerTarget
 import io.kud.tutti.controller.TuttiController
+import io.kud.tutti.ui.common.LocalMessages
 import io.kud.tutti.controller.TuttiUiState
 import io.kud.tutti.platform.data.DockAction
 import io.kud.tutti.platform.data.PadSize
@@ -100,6 +103,7 @@ fun RemoteScreen(
     BackHandler(enabled = editing) { onEditingChange(false) }
     var picker by remember { mutableStateOf<PickerTarget?>(null) }
     var sheet2 by remember { mutableStateOf<RemoteSheet?>(null) }
+    var powerSheet by remember { mutableStateOf(false) }
     // The full input view is a state of the remote, not a screen: InputRules moves it.
     var input by remember { mutableStateOf(InputMode()) }
     // Whether the now-showing card fits above the pad: the pad block measures, the chip reads it.
@@ -149,6 +153,36 @@ fun RemoteScreen(
     }
 
     val sheet = rememberBottomSheetScaffoldState()
+
+    // The bar on its own (Erwann, 2026-10-24): the TV keys have nothing to reach while the TV
+    // sleeps, so a pad press says so and sends nothing; the card's button or Power wakes it.
+    val alone = barAlone(state)
+    val messages = LocalMessages.current
+    val standbyWords = stringResource(R.string.key_tv_standby)
+    val wakeWords = stringResource(R.string.card_wake_tv_short)
+    fun tvAsleepAlone(): Boolean {
+        if (alone?.tvAsleep != true) return false
+        haptics.reject()
+        if (messages?.current?.text != standbyWords) {
+            messages?.show(standbyWords, actionLabel = wakeWords, onAction = { controller.power(PowerTarget.TV, on = true) })
+        }
+        return true
+    }
+
+    // « Et la feuille Son peut monter toute seule » (Erwann, 2026-10-24): when the bar starts
+    // playing on its own the sheet rises once, its controls being the ones that matter now. Folded
+    // again, it stays folded until the state ends; saved, so coming back to the remote doesn't
+    // raise it a second time.
+    var rose by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(alone != null) {
+        if (alone == null) {
+            rose = false
+        } else if (!rose && !inputOpen && !editing) {
+            rose = true
+            sheet.bottomSheetState.expand()
+        }
+    }
+
     val navigationInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     BottomSheetScaffold(
         scaffoldState = sheet,
@@ -238,6 +272,9 @@ fun RemoteScreen(
                             icon = R.drawable.ic_power,
                             contentDescription = stringResource(if (state.waking) R.string.power_waking else R.string.action_power),
                             onClick = { controller.power() },
+                            // TV only, soundbar only or both (Erwann, 2026-10-24); only with the two set up.
+                            onLongClick = { powerSheet = true }.takeIf { state.devices.tv != null && state.devices.bar != null },
+                            onLongClickLabel = stringResource(R.string.power_long_label),
                             feedback = FeedbackEvent.SELECT,
                             active = state.powered == true,
                             size = 52.dp,
@@ -299,6 +336,9 @@ fun RemoteScreen(
                                     fit = place.card,
                                     tvName = state.devices.tv?.name.orEmpty(),
                                     appIcons = state.appIcons,
+                                    // The TV alone; the bar plays on (CEC may still move it to the TV input).
+                                    onWakeTv = { controller.power(PowerTarget.TV, on = true) },
+                                    waking = state.waking,
                                 )
                             }
                         }
@@ -310,9 +350,9 @@ fun RemoteScreen(
                         val pad = @Composable { m: Modifier ->
                             Pad(
                                 mode = state.prefs.padMode,
-                                onKey = controller::key,
-                                onLongSelect = { controller.longPress(V2Key.DPAD_CENTER) },
-                                onPlayPause = { controller.key(V2Key.MEDIA_PLAY_PAUSE) },
+                                onKey = { if (!tvAsleepAlone()) controller.key(it) },
+                                onLongSelect = { if (!tvAsleepAlone()) controller.longPress(V2Key.DPAD_CENTER) },
+                                onPlayPause = { if (!tvAsleepAlone()) controller.key(V2Key.MEDIA_PLAY_PAUSE) },
                                 onVolumeStep = controller::volumeStep,
                                 onModeChange = controller::setPadMode,
                                 volume = state.volume.takeIf { state.bar.connected },
@@ -417,6 +457,24 @@ fun RemoteScreen(
                 Spacer(Modifier.height(12.dp))
             }
         }
+    }
+
+    if (powerSheet) {
+        PowerSheet(
+            choices = powerChoices(
+                hasTv = state.devices.tv != null,
+                tvPowered = tvPowered(state),
+                hasBar = state.devices.bar != null,
+                barPowered = barPowered(state),
+                powered = state.powered,
+            ),
+            onChoose = { choice ->
+                haptics.select()
+                controller.power(choice.target, choice.on)
+                powerSheet = false
+            },
+            onDismiss = { powerSheet = false },
+        )
     }
 
     when (sheet2) {

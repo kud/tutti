@@ -65,7 +65,14 @@ fun SystemChip(state: TuttiUiState, onClick: () -> Unit, modifier: Modifier = Mo
     val tv = state.devices.tv
     val bar = state.devices.bar
     // The shown link (TvLinkRule): a blip changes nothing here, a reconnect reads "Reconnecting…".
-    val tvLink = if (tv != null) state.links.tvShown.link else Link.ABSENT
+    // The bar on its own with the TV known asleep: a sleeping TV is not a fault, so its silent
+    // link reads neither "unreachable" nor "Connecting…"; the chip says "on standby" instead.
+    val tvAsleepAlone = barAlone(state)?.tvAsleep == true
+    val tvLink = when {
+        tv == null -> Link.ABSENT
+        tvAsleepAlone -> Link.ONLINE
+        else -> state.links.tvShown.link
+    }
     val barLink = if (bar != null) state.links.bar else Link.ABSENT
     val configured = listOfNotNull(tv?.let { it.name to tvLink }, bar?.let { it.name to barLink })
     val down = configured.filter { it.second.isDown() }
@@ -166,6 +173,13 @@ fun SystemChip(state: TuttiUiState, onClick: () -> Unit, modifier: Modifier = Mo
                             stringResource(
                                 if (tv != null && state.links.tvShown.reconnecting) R.string.system_reconnecting_tv else R.string.system_connecting,
                             ),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                        )
+                    } else if (tvAsleepAlone && tv != null) {
+                        Text(
+                            stringResource(R.string.system_tv_standby, tv.name),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,

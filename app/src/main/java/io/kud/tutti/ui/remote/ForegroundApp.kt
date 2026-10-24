@@ -88,6 +88,12 @@ sealed interface CardShowing {
     /** A channel, an input or a known app, from [nowShowing]. */
     data class Showing(val now: NowShowing) : CardShowing
 
+    /**
+     * The bar playing one of its own sources with the TV asleep or out of reach ([BarAlone]):
+     * "On the bar", the source large, "TV on standby" or the out-of-reach words under it.
+     */
+    data class OnTheBar(val bar: BarAlone) : CardShowing
+
     /** The TV asleep; [barOn] when the bar still plays ("the bar stays on"). */
     data class Standby(val barOn: Boolean) : CardShowing
 
@@ -115,8 +121,11 @@ fun cardShowing(
     tvPower: PowerStatus,
     barOn: Boolean,
     reconnecting: Boolean = false,
+    barAlone: BarAlone? = null,
 ): CardShowing? = when {
     !hasTv -> null
+    // The bar on its own outranks standby and out of reach: it says what is actually playing.
+    barAlone != null -> CardShowing.OnTheBar(barAlone)
     tvPower == PowerStatus.STANDBY -> CardShowing.Standby(barOn)
     reconnecting -> CardShowing.Reconnecting
     tvLink != Link.ONLINE -> CardShowing.Offline
@@ -131,4 +140,5 @@ fun cardShowing(state: TuttiUiState): CardShowing? = cardShowing(
     tvPower = state.tv.power,
     barOn = state.links.bar == Link.ONLINE && state.bar.isOn(TheatreFeature.POWER) != false,
     reconnecting = state.links.tvShown.reconnecting,
+    barAlone = barAlone(state),
 )

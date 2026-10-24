@@ -82,6 +82,7 @@ class MessageCopyTest {
             "key_dropped_down",
             "key_dropped_pairing",
             "key_expired",
+            "key_tv_standby",
             "voice_hold_hint",
             "voice_permission_denied",
             "voice_capped",

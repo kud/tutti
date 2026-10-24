@@ -72,4 +72,18 @@
     <string name="key_dropped_down">Non envoyé : la TV est injoignable</string>
     <string name="key_dropped_pairing">Non envoyé : associez à nouveau la TV</string>
     <string name="key_expired">Non envoyé : la TV n\'est pas revenue à temps</string>
+    <string name="card_on_the_bar">Sur la barre</string>
+    <string name="card_wake_tv">Allumer la TV</string>
+    <string name="card_wake_tv_short">Allumer</string>
+    <string name="system_tv_standby">%1$s en veille</string>
+    <string name="key_tv_standby">Non envoyé : la TV est en veille</string>
+    <string name="power_long_label">Choisir la TV, la barre ou les deux</string>
+    <string name="power_sheet_title">Allumer ou éteindre</string>
+    <string name="power_sheet_tv">La TV seule</string>
+    <string name="power_sheet_bar">La barre seule</string>
+    <string name="power_sheet_both">Les deux</string>
+    <string name="power_sheet_turn_on">Allumer</string>
+    <string name="power_sheet_turn_off">Éteindre</string>
+    <string name="power_sheet_turn_on_both">Allumer les deux</string>
+    <string name="power_sheet_turn_off_both">Éteindre les deux</string>
 </resources>

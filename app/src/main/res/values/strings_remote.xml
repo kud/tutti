@@ -74,4 +74,19 @@
     <string name="key_dropped_down">Not sent: the TV is out of reach</string>
     <string name="key_dropped_pairing">Not sent: pair the TV again</string>
     <string name="key_expired">Not sent: the TV didn\'t come back in time</string>
+    <!-- The bar on its own (BarAlone): the card, the chip, a pad press, and the long press on Power. -->
+    <string name="card_on_the_bar">On the bar</string>
+    <string name="card_wake_tv">Turn on the TV</string>
+    <string name="card_wake_tv_short">Turn on</string>
+    <string name="system_tv_standby">%1$s on standby</string>
+    <string name="key_tv_standby">Not sent: the TV is on standby</string>
+    <string name="power_long_label">Choose the TV, the soundbar or both</string>
+    <string name="power_sheet_title">Turn on or off</string>
+    <string name="power_sheet_tv">TV only</string>
+    <string name="power_sheet_bar">Soundbar only</string>
+    <string name="power_sheet_both">Both</string>
+    <string name="power_sheet_turn_on">Turn on</string>
+    <string name="power_sheet_turn_off">Turn off</string>
+    <string name="power_sheet_turn_on_both">Turn both on</string>
+    <string name="power_sheet_turn_off_both">Turn both off</string>
 </resources>

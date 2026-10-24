@@ -25,6 +25,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.ui.res.painterResource
 import io.kud.tutti.ui.common.LocalReducedMotion
 import io.kud.tutti.ui.common.PressStyle
+import io.kud.tutti.ui.common.barValueLabel
 import io.kud.tutti.ui.common.rememberFeedback
 import io.kud.tutti.ui.common.rememberPress
 import io.kud.tutti.ui.common.rememberTuttiIndication
@@ -101,6 +102,9 @@ fun soundSummary(state: TuttiUiState): String {
     val on = listOf(TheatreFeature.SOUND_FIELD, TheatreFeature.VOICE, TheatreFeature.NIGHT, TheatreFeature.SPATIAL_360, TheatreFeature.AUTO_VOLUME)
         .filter { state.bar.isOn(it) == true }
         .map { stringResource(featureLabel(it)) }
+    // The bar on its own names its source first ("Bluetooth · Night"): it is what's playing.
+    val source = barAlone(state)?.let { barValueLabel(TheatreFeature.INPUT, it.input) }
+    if (source != null) return (listOf(source) + on).joinToString(" · ")
     return if (on.isEmpty()) stringResource(R.string.sound_summary_plain) else on.joinToString(" · ")
 }
 
