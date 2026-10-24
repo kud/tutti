@@ -146,7 +146,6 @@ fun ProgressButton(
     val idleDisabled = !enabled && shown == ActionPhase.IDLE
     val container by animateColorAsState(
         when {
-            shown == ActionPhase.FAILURE -> colors.errorContainer
             idleDisabled -> colors.onSurface.copy(alpha = 0.12f)
             else -> colors.secondaryContainer
         },
@@ -155,7 +154,6 @@ fun ProgressButton(
     )
     val content by animateColorAsState(
         when {
-            shown == ActionPhase.FAILURE -> colors.onErrorContainer
             idleDisabled -> colors.onSurface.copy(alpha = 0.38f)
             else -> colors.onSecondaryContainer
         },
@@ -211,7 +209,9 @@ fun ProgressButton(
                         }
                         ActionPhase.SUCCESS -> DrawnTick(progress = { tick.value }, color = content)
                         ActionPhase.FAILURE -> Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(painterResource(R.drawable.ic_close), contentDescription = null, tint = content, modifier = Modifier.size(18.dp))
+                            // An offer to try again, dressed as an action: the failure is told by the
+                            // shake, the haptic and the warning line below, never by a red X button.
+                            Icon(painterResource(R.drawable.ic_refresh), contentDescription = null, tint = content, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(8.dp))
                             Text(stringResource(R.string.action_retry), style = MaterialTheme.typography.labelLarge, color = content, maxLines = 1)
                         }
@@ -238,7 +238,7 @@ fun ProgressButton(
         ) {
             Row(verticalAlignment = Alignment.Top) {
                 Icon(
-                    painterResource(R.drawable.ic_close),
+                    painterResource(R.drawable.ic_warning),
                     contentDescription = null,
                     tint = colors.error,
                     modifier = Modifier.padding(top = 2.dp).size(16.dp),

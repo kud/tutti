@@ -405,7 +405,7 @@ private fun TvCard(tv: DiscoveredTv, phase: ActionPhase, failure: String?, onPai
 private fun FailureLine(text: String) {
     Row(verticalAlignment = Alignment.Top) {
         Icon(
-            painterResource(R.drawable.ic_close),
+            painterResource(R.drawable.ic_warning),
             contentDescription = null,
             tint = MaterialTheme.colorScheme.error,
             modifier = Modifier.padding(top = 2.dp).size(16.dp),
