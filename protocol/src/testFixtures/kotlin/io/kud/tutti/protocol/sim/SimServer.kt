@@ -247,6 +247,9 @@ abstract class SimServer(private val name: String) : AutoCloseable {
         }
 
         fun drop() {
+            // An abort (RST), as a device losing power sends nothing: a graceful close would also
+            // leave this port in TIME_WAIT, which stops sleep() holding it without SO_REUSEADDR.
+            runCatching { raw.setSoLinger(true, 0) }
             runCatching { raw.close() }
         }
 
