@@ -24,9 +24,13 @@ import io.kud.tutti.platform.net.PinMismatchException
 import io.kud.tutti.platform.net.WakeOnLanSender
 import io.kud.tutti.platform.security.ClientIdentityStore
 import io.kud.tutti.platform.security.SecureStore
+import io.kud.tutti.protocol.apps.AppLauncher
 import io.kud.tutti.protocol.apps.AppLibrary
 import io.kud.tutti.protocol.apps.KnownApp
-import io.kud.tutti.protocol.atv.AppCatalog
+import io.kud.tutti.protocol.apps.LaunchPlan
+import io.kud.tutti.protocol.apps.LaunchResult
+import io.kud.tutti.protocol.apps.LaunchRoute
+import io.kud.tutti.protocol.net.Redact
 import io.kud.tutti.protocol.bravia.TvApp
 import java.io.File
 import io.kud.tutti.protocol.atv.AtvPairing
@@ -69,6 +73,7 @@ import io.kud.tutti.protocol.atv.VoiceState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -614,20 +619,45 @@ class TuttiController @Inject constructor(
 
     // endregion
 
-    fun launchApp(packageName: String) {
-        scope.launch { launchLink(packageName) }
-    }
+    /**
+     * Runs in the controller's scope, so leaving the sheet never cancels a launch half way; the
+     * caller awaits the [LaunchResult] to show it.
+     */
+    fun launchApp(packageName: String): Deferred<LaunchResult> = scope.async { launchWithResult(packageName) }
 
-    /** Through IP control when the TV ever listed the app, else (or on failure) over the remote link. */
-    private suspend fun launchLink(packageName: String): Boolean {
+    /** The last launch's redacted trace, for the developer diagnostic. */
+    @Volatile var lastLaunchTrace: String? = null
+        private set
+
+    private suspend fun launchLink(packageName: String): Boolean = launchWithResult(packageName).ok
+
+    /**
+     * Through IP control when it answers and the TV ever listed the app, then each app link the
+     * catalogue knows, watching the remote link's foreground app between them ([AppLauncher]).
+     */
+    private suspend fun launchWithResult(packageName: String): LaunchResult {
         val client = bravia
-        if (client != null && links.value.rest == Link.ONLINE) {
-            val uri = tv.value.apps.firstOrNull { AppLibrary.packageOf(it.uri) == packageName }?.uri
+        val restOnline = client != null && links.value.rest == Link.ONLINE
+        val restUri = if (!restOnline) {
+            null
+        } else {
+            tv.value.apps.firstOrNull { AppLibrary.packageOf(it.uri) == packageName }?.uri
                 ?: store.apps.first().firstOrNull { it.packageName == packageName }?.tvUri
-            if (uri != null && client.setActiveApp(uri) is BraviaResult.Ok) return true
         }
-        val link = AppCatalog.byPackage(packageName)?.launchLink ?: "market://launch?id=$packageName"
-        return atv.launch(link)
+        val launcher = AppLauncher(
+            send = { route ->
+                when (route) {
+                    is LaunchRoute.Rest -> client?.setActiveApp(route.uri) is BraviaResult.Ok
+                    is LaunchRoute.AppLink -> atv.launch(route.link)
+                }
+            },
+            foreground = atv.state.map { it.currentApp },
+            // app_info arrives over the remote link only; without it nothing can be confirmed.
+            canObserve = { atv.state.value.ready },
+        )
+        val result = launcher.launch(packageName, LaunchPlan.routes(packageName, restOnline, restUri))
+        lastLaunchTrace = Redact.text(result.trace())
+        return result
     }
 
     /** Keeps what the TV listed and fetches the icons not cached yet, one at a time. */

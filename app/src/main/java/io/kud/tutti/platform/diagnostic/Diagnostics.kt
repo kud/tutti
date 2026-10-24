@@ -146,6 +146,8 @@ class Diagnostics @Inject constructor(
             // The int5 probe: what the TV sends beside its field's text. The label goes by length only.
             "tv text field" to (ui.remote.imeProbe?.let { "int5 ${it.int5}, label ${Redact.secret(it.label)}" } ?: "none seen"),
             // Feature names only, never values: the model and firmware stay out of the report.
+            // Routes tried, link sent, foreground package seen; already through Redact.
+            "last app launch" to (controller.lastLaunchTrace ?: "none this session"),
             "bar settings" to "answered ${ui.bar.confirmed.size}, refused ${ui.bar.refused.sorted().joinToString().ifEmpty { "none" }}",
         )
     }
