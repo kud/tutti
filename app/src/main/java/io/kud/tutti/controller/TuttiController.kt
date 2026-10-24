@@ -332,11 +332,15 @@ class TuttiController @Inject constructor(
                         val probe = launch { voiceZoom.value = theatre.probe(TheatreFeature.VOICE_ZOOM) }
                         val poll = launch {
                             // DRC and Auto Volume never notify; polling also proves the link is alive.
+                            var polls = 0
                             while (isActive) {
                                 delay(POLL_BAR_MS)
                                 theatre.get(TheatreFeature.DRC)
                                 theatre.get(TheatreFeature.AUTO_VOLUME)
                                 theatre.get(TheatreFeature.POWER)
+                                // Every third poll, ask again (paced) for what the bar has neither
+                                // reported nor refused: a missed answer is not a missing feature.
+                                if (++polls % REASK_EVERY_POLLS == 0) theatre.refreshMissing()
                             }
                         }
                         theatre.state.first { !it.connected }
@@ -933,6 +937,9 @@ class TuttiController @Inject constructor(
         scope.launch { theatre.startBluetoothPairing() }
     }
 
+    /** The last exchanges on the bar's TCP 33336, scrubbed, for the diagnostic report. */
+    val barWire: List<String> get() = theatre.wire.lines()
+
     fun refreshBar() {
         scope.launch { theatre.refreshAll() }
     }
@@ -1481,6 +1488,7 @@ class TuttiController @Inject constructor(
         private const val MAX_BACKOFF_MS = 30_000L
         private const val READY_TIMEOUT_MS = 8_000L
         private const val POLL_BAR_MS = 20_000L
+        private const val REASK_EVERY_POLLS = 3
         private const val POLL_TV_MS = 10_000L
         private const val OVERRIDE_MS = 2_500L
         private const val PERSIST_VOLUME_MS = 1_000L

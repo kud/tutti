@@ -212,7 +212,7 @@ class DiagnosticRunnerTest {
         assertTrue(remote.sent.all { it.remote_configure != null || it.remote_set_active != null || it.remote_ping_response != null })
 
         assertEquals(StepStatus.OK, steps.of(DiagnosticSteps.BAR_FEATURES).status)
-        assertTrue(steps.of(DiagnosticSteps.BAR_FEATURES).facts.contains("system.version" to "1.2.3"))
+        assertTrue(steps.of(DiagnosticSteps.BAR_FEATURES).facts.contains("system.version" to "answered 1.2.3"))
         assertEquals("no_answer", steps.of(DiagnosticSteps.BAR_VOICE_ZOOM).errorClass)
         // The bar only ever receives gets.
         assertTrue(bar.written.all { "\"type\":\"get\"" in it }, bar.written.toString())

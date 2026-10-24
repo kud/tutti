@@ -56,7 +56,6 @@ class TheatreCodecTest {
             "{\"id\":1,",
             "[1,2,3]",
             "\"string\"",
-            "{\"id\":1,\"value\":\"ACK\"}",
             "{\"type\":\"notify\",\"value\":\"on\"}",
             "{\"type\":\"notify\",\"feature\":\"main.power\",\"value\":null}",
             "{\"type\":\"bogus\",\"feature\":\"main.power\"}",

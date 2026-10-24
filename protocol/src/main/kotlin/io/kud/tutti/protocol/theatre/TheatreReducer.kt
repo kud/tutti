@@ -10,7 +10,7 @@ object TheatreReducer {
     fun reduce(state: TheatreState, event: TheatreEvent): TheatreState = when (event) {
         is TheatreEvent.Connected ->
             if (event.connected) {
-                state.copy(connected = true, lastError = null)
+                state.copy(connected = true, lastError = null, silent = emptySet())
             } else {
                 state.copy(connected = false, pending = emptyMap(), outstanding = emptyMap())
             }
@@ -49,6 +49,7 @@ object TheatreReducer {
                 confirmed = state.confirmed + (message.feature to message.value),
                 pending = if (pending?.value == message.value) state.pending - message.feature else state.pending,
                 refused = state.refused - message.feature,
+                silent = state.silent - message.feature,
             )
         }
         is TheatreInbound.Result -> result(state, message)
@@ -62,7 +63,7 @@ object TheatreReducer {
             val feature = message.feature ?: return state
             val value = message.value ?: return state
             if (message.isAck || message.isRefusal) return state
-            return state.copy(confirmed = state.confirmed + (feature to value))
+            return state.copy(confirmed = state.confirmed + (feature to value), silent = state.silent - feature)
         }
         val outstanding = state.outstanding - id
         if (!request.isSet) {
@@ -72,12 +73,14 @@ object TheatreReducer {
                     outstanding = outstanding,
                     confirmed = state.confirmed - request.feature,
                     refused = state.refused + request.feature,
+                    silent = state.silent - request.feature,
                 )
                 value == null || message.isAck -> state.copy(outstanding = outstanding)
                 else -> state.copy(
                     outstanding = outstanding,
                     confirmed = state.confirmed + (request.feature to value),
                     refused = state.refused - request.feature,
+                    silent = state.silent - request.feature,
                 )
             }
         }
@@ -102,8 +105,10 @@ object TheatreReducer {
         val expired = state.outstanding.filterValues { it.deadline <= now }
         if (expired.isEmpty()) return state
         val expiredPending = state.pending.filterValues { it.requestId in expired.keys }
+        val unanswered = expired.values.filter { !it.isSet && it.feature !in state.confirmed }.map { it.feature }
         return state.copy(
             outstanding = state.outstanding - expired.keys,
+            silent = state.silent + unanswered,
             pending = state.pending - expiredPending.keys,
             lastError = if (expiredPending.isEmpty()) state.lastError else "timeout: ${expiredPending.keys.joinToString()}",
         )

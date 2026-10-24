@@ -6,6 +6,7 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -116,6 +117,8 @@ class TheatreAdvancedTest {
         val refreshed = connection.sentFeatures()
         assertTrue(refreshed.isNotEmpty())
         assertTrue((refreshed.toSet() intersect TheatreFeature.NEVER_ASKED).isEmpty())
+        advanceTimeBy(60_000)
+        runCurrent()
 
         connection.sent.clear()
         val pairing = launch { client.startBluetoothPairing() }
@@ -135,6 +138,7 @@ class TheatreAdvancedTest {
         val connection = FakeConnection()
         val client = TheatreClient(FakeConnector(connection), backgroundScope, clock = { testScheduler.currentTime })
         client.connect("192.0.2.10")
+        advanceTimeBy(60_000)
         runCurrent()
         connection.sent.clear()
         val answer = launch {

@@ -148,8 +148,19 @@ class Diagnostics @Inject constructor(
             // Feature names only, never values: the model and firmware stay out of the report.
             // Routes tried, link sent, foreground package seen; already through Redact.
             "last app launch" to (controller.lastLaunchTrace ?: "none this session"),
-            "bar settings" to "answered ${ui.bar.confirmed.size}, refused ${ui.bar.refused.sorted().joinToString().ifEmpty { "none" }}",
-        )
+            "bar settings" to "answered ${ui.bar.confirmed.size}, refused ${ui.bar.refused.sorted().joinToString().ifEmpty { "none" }}, " +
+                "silent ${ui.bar.silent.sorted().joinToString().ifEmpty { "none" }}",
+        ) + liveBarWire()
+    }
+
+    /**
+     * The live session's last raw exchanges on TCP 33336 (`>` sent, `<` read as it arrived,
+     * `.` a note), already scrubbed by the wire log and scrubbed again by the report.
+     */
+    private fun liveBarWire(): List<Pair<String, String>> {
+        val lines = controller.barWire
+        if (lines.isEmpty()) return listOf("live bar wire" to "nothing exchanged this session")
+        return lines.mapIndexed { i, line -> "live bar wire %02d".format(i + 1) to line }
     }
 
     private fun onWifi(): Boolean {
