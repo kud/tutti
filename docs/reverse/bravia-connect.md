@@ -113,9 +113,9 @@ Total for read-only Sony connection: **about 1.5 to 2 weeks** (L), most of it in
 | Sound field on/off | Bar | A | `audio.soundfield` | none | notify | yes | — |
 | Sound field **mode** (Dolby Speaker Virtualizer, Neural:X, 360SSM) | Bar | C | `sound_setting.sound_effect` (≠ TCP sound field) | Seeds | notify-only on Quad; cloud read | no | gRPC + Seeds read |
 | ARC vs eARC link | Bar | A | `hdmi.audioreturnchannel` (`off`/`arc`/`earc`) | none | notify | yes (setting) | S: show it as a readout too |
-| Internal temperature | Bar | A | `system.temperature` | none | poll | **no, never asked** | S |
+| Internal temperature | Bar | A | `system.temperature` | none | poll | yes, in Technical details (unverified on the Bar 9) | — |
 | Firmware, model | Bar | A / B | `system.version`, `system.modeltype`; B `system.version`, `system.modelname` | none | poll | yes (A) | — |
-| Network type, internet reachable, Wi-Fi strength | Bar | B | `network.connectiontype`, `network.internet`, `wlan.strength` | none | poll | no | S |
+| Network type, internet reachable, Wi-Fi strength | Bar | B | `network.connectiontype`, `network.internet`, `wlan.strength` | none | poll | yes, in Technical details (unverified on the Bar 9) | — |
 | Rear and sub link, versions, protection faults | Bar | C | `speaker_connection_setting.connection_status.{rl,rr,sw}`, `.version.*`, `error_status` | Seeds | notify | no | gRPC read |
 | Video signal: resolution, frame rate, HDR format | TV | D | `playback_control.signal_info.video`, JSON `{quality, width, height, frame_rate, hdr_type}` (`hdr_type` seen: sdr, hdr10, hlg, dolby/dolbyvision) | Seeds | notify | no | gRPC read |
 | TV audio signal: codec and channels, also when routed to the bar over eARC | TV | D | `playback_control.signal_info.audio`, JSON `{codec, channels}` (codecs seen: dolby_atmos*, dolby_truehd, dolby_digital(_plus), dts(_hd, _uhd), pcm/lpcm, aac, mpeg); empty while an app decodes, shown as PCM | Seeds | notify | no | gRPC read |
@@ -139,10 +139,10 @@ From the Quad integration's `const.py`; none is in tutti's `TheatreFeature`. All
 
 | Key | What | Risk | Proposal |
 | --- | --- | --- | --- |
-| `system.temperature` | internal temperature | R | add to the diagnostic `get` list; readout if answered (XS) |
-| `system.timezone`, `system.language`, `system.destination` (region), `system.manufacturer`, `system.devicename` | identity and locale | R | diagnostic `get` list (XS); `devicename` is the user's name for the bar, reported as answered/refused only, like today |
-| `tv.avsync` | AV sync on the TV path (distinct from `audio.avsync`) | S | diagnostic first; a stepper if answered (S) |
-| `network.mode`, `network.dhcp` | wired/wireless, DHCP on/off | R read, **L write** | read in the diagnostic only; never written (guardrail 6) |
+| `system.temperature` | internal temperature | R | **built**: diagnostic and Technical details readout |
+| `system.timezone`, `system.language`, `system.destination` (region), `system.manufacturer`, `system.devicename` | identity and locale | R | **built**: diagnostic and Technical details; `devicename` shows on the phone but only as answered/refused in the report, and is blanked in the wire log |
+| `tv.avsync` | AV sync on the TV path (distinct from `audio.avsync`) | S | **built read-only** (diagnostic, Technical details); a stepper once a report shows its range (S) |
+| `network.mode`, `network.dhcp` | wired/wireless, DHCP on/off | R read, **L write** | **built read-only** (diagnostic, Technical details); `FeatureKind.ReadOnly`, so `set` drops them (guardrail 6) |
 | `system.serialnumber`, `network.macaddress`, `network.ipaddress` | identifying | — | already `NEVER_ASKED`, unchanged |
 | `system.externalcontrol` | the switch tutti's own socket depends on | **L** | already `NEVER_ASKED`; add to a never-written list (guardrail 6) |
 
@@ -152,8 +152,9 @@ From the Quad integration's `const.py`; none is in tutti's `TheatreFeature`. All
 
 | Key | What | Risk | Proposal |
 | --- | --- | --- | --- |
-| `system.version`, `system.modelname`, `network.connectiontype`, `network.internet`, `wlan.strength`, `airplay.accessoryname` | identity and link health | R | readouts (S, one small HTTP client) |
-| `fw.check_update` | asks whether an update exists; the bar may call home | R (side effect: a cloud check) | readout on a tap only, never polled (S) |
+| `network.connectiontype`, `network.internet`, `wlan.strength`, `airplay.accessoryname` | link health, AirPlay name | R | **built**: `BarHttpClient` (`theatre/BarHttp.kt`), one `http_get` from the `BarHttpKey` enum when Technical details opens, and a diagnostic step; AirPlay name blanked in the report |
+| `system.version`, `system.modelname` | identity | R | not asked: TCP already reports model and firmware |
+| `fw.check_update` | asks whether an update exists; the bar may call home | R? (side effect: a cloud check, maybe more) | **left out** until a capture shows it only checks (§6); on `BarHttpKey.NEVER_ASKED` meanwhile |
 | `ssid.name`, `inet4.*`, `inet6.*`, `network.macaddress_*`, `system.publickey` | network identity | R but identifying | never asked, like `NEVER_ASKED` |
 | `wlan.scan`, `wlan.esslist` | nearby Wi-Fi networks | R but privacy | never asked |
 | `fw.upload`, `fw.request_update`, `fw.update` | firmware install | **L** (7) | no code path |
@@ -219,7 +220,7 @@ Whether the XR80 lists each one is exactly what `guide.getSupportedApiInfo` answ
 | Method | Service | Risk | Value |
 | --- | --- | --- | --- |
 | `getSettings` / `setSettings` / `getSettingsSchema` | system (pro BZ, documented localhost-only) | S…D | **If the XR80 lists them, the biggest hidden item on the TV**: a schema-driven settings tree. Probe `getSettingsSchema` read-only first |
-| `getSystemSupportedFunction`, `getCurrentTime`, `getRemoteDeviceSettings` | system | R | diagnostic (XS). `getRemoteDeviceSettings` shows "Control remotely"; its setter is **L** (6) |
+| `getSystemSupportedFunction`, `getCurrentTime`, `getRemoteDeviceSettings` | system | R | `getSystemSupportedFunction` **built** (diagnostic shape, Technical details with identifying values such as the `WOL` MAC hidden); the other two diagnostic (XS). `getRemoteDeviceSettings` shows "Control remotely"; its setter is **L** (6) |
 | `getLEDIndicatorStatus` / `setLEDIndicatorStatus` | system | S | illumination LED |
 | `getContentList`, `getContentCount`, `getSourceList`, `getSchemeList` | avContent | R | inputs with labels and icons, tuner channels |
 | `getApplicationStatusList`, `getWebAppStatus`, `getTextForm` / `setTextForm` (needs `encryption.getPublicKey`) | appControl | R / S | on-screen keyboard state; tutti already types through v2 |
@@ -377,7 +378,8 @@ Next step: **done** tutti does it · **now** buildable with what tutti already h
 | Model, generation, system info | REST | yes | done | |
 | Remote start (WoL) on | REST `setWolMode` | yes | done | restrict to "on" (§4) |
 | Network settings readout | REST | yes | done | |
-| Supported functions, clock (*hidden*) | REST `getSystemSupportedFunction`, `getCurrentTime` | no | now | Sony level `none`; diagnostic |
+| Supported functions (*hidden*) | REST `getSystemSupportedFunction` | yes | done | Technical details, when IP control is up; identifying values hidden |
+| Clock (*hidden*) | REST `getCurrentTime` | no | now | Sony level `none`; diagnostic |
 | Settings schema tree (*hidden*) | REST `getSettingsSchema` / `getSettings` | no | PSK | biggest TV unknown; only if the XR80 lists it |
 | Illumination LED (*hidden*) | REST `setLEDIndicatorStatus` | no | PSK | |
 | Every path the TV advertises (*hidden*) | gRPC `GetCapabilities` | no | now | zero-auth, needs the h2c transport |
@@ -407,12 +409,12 @@ Next step: **done** tutti does it · **now** buildable with what tutti already h
 | Auto standby, network/Bluetooth standby, auto update | TCP | yes | done | standby off says tutti can't wake the bar |
 | Model, firmware version | TCP | yes | done | |
 | Bluetooth mode, connection quality, pairing | TCP | yes | done | |
-| Internal temperature (*hidden*) | TCP `system.temperature` | no | now | |
-| Locale, region, device name (*hidden*) | TCP `system.*` | no | now | name reported answered/refused only |
-| AV sync on the TV path (*hidden*) | TCP `tv.avsync` | no | now | diagnostic first |
-| Wired/wireless, DHCP readout (*hidden*) | TCP `network.mode`, `network.dhcp` | no | now | read only; writes list-only |
-| Wi-Fi strength, network type, internet reachable, AirPlay name (*hidden*) | HTTP | no | now | one small client |
-| Firmware update available? (*hidden*) | HTTP `fw.check_update` | no | now | on a tap, never polled |
+| Internal temperature (*hidden*) | TCP `system.temperature` | yes | done | Technical details; unverified on the Bar 9 |
+| Locale, region, device name (*hidden*) | TCP `system.*` | yes | done | name answered/refused only in the report |
+| AV sync on the TV path (*hidden*) | TCP `tv.avsync` | yes | done | read-only; a stepper waits on a report |
+| Wired/wireless, DHCP readout (*hidden*) | TCP `network.mode`, `network.dhcp` | yes | done | read only; writes list-only |
+| Wi-Fi strength, network type, internet reachable, AirPlay name (*hidden*) | HTTP | yes | done | `BarHttpClient`, on opening Technical details |
+| Firmware update available? (*hidden*) | HTTP `fw.check_update` | no | now | left out of build 1: not known to be check-only (§6) |
 
 ### Bar, what BRAVIA Connect adds
 
@@ -456,19 +458,19 @@ Next step: **done** tutti does it · **now** buildable with what tutti already h
 
 | Next | Rows | of which *hidden* |
 | --- | --- | --- |
-| done | 29 | 0 |
-| now | 10 | 10 |
+| done | 35 | 6 |
+| now | 5 | 5 |
 | PSK | 5 | 4 |
 | sign-in | 29 (4 of them partly done today) | 2 |
 | handoff | 6 | 0 |
 | list-only | 14 | 0 |
-| **total** | **93** | **16** |
+| **total** | **94** | **17** |
 
 **Reading it.** The simple commands are done: every everyday TV and bar control BRAVIA Connect offers, tutti already does. What's left splits cleanly. The cheap, sign-in-free part is mostly *hidden* items (readouts, probes, a few REST setters). The complicated part BRAVIA Connect is known for (sound field mode, DSEE, DTS dialogue, height, fine levels, the signal readouts) sits almost entirely on gRPC, and gRPC writes need Seeds keys: there is no sign-in-free route for those, only the handoff.
 
 ### Next builds without Sony sign-in
 
-1. **Zero-auth readouts into Technical details** (S). TCP `system.temperature`, `tv.avsync`, the locale keys and `network.mode`/`dhcp`; a read-only HTTP 54545 client for Wi-Fi strength, network type, internet and AirPlay name, plus `fw.check_update` on a tap; REST `getSystemSupportedFunction`. Closes every "now" row except `GetCapabilities`, and the diagnostic proves which keys the Bar 9 answers.
+1. **Zero-auth readouts into Technical details** (S). **Built 2026-10-24**, except `fw.check_update` (left out, §6). Refresh cost: the nine TCP keys are `TheatreFeature.detail`, asked only when the screen opens (refused ones skipped), never on connect or in the periodic re-ask. TCP `system.temperature`, `tv.avsync`, the locale keys and `network.mode`/`dhcp`; a read-only HTTP 54545 client for Wi-Fi strength, network type, internet and AirPlay name, plus `fw.check_update` on a tap; REST `getSystemSupportedFunction`. Closes every "now" row except `GetCapabilities`, and the diagnostic proves which keys the Bar 9 answers.
 2. **h2c transport and `GetCapabilities` on both devices** (M). No keys, no writes. It turns every gRPC row from "neighbouring model" into fact for Erwann's bar and TV, and it is step d of the Sony-connection plan, so nothing is wasted whichever way 3.1 goes.
 3. **The PSK rows** (S to M): per-output volume, labelled inputs, the LED, and a read-only probe of `getSettingsSchema`. If the XR80 lists the schema, that tree is the largest TV gain available without sign-in and gets its own plan.
 
