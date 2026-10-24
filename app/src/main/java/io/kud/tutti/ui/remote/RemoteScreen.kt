@@ -89,6 +89,7 @@ fun RemoteScreen(
     onOpenScenes: () -> Unit,
     onOpenSettings: () -> Unit,
     onEditScene: (String) -> Unit,
+    onAddBar: () -> Unit = {},
     editing: Boolean = false,
     onEditingChange: (Boolean) -> Unit = {},
 ) {
@@ -135,7 +136,7 @@ fun RemoteScreen(
         sheetSwipeEnabled = !editing && !inputOpen,
         sheetContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
         containerColor = MaterialTheme.colorScheme.background,
-        sheetContent = { SoundSheet(state, controller) },
+        sheetContent = { SoundSheet(state, controller, onAddBar = onAddBar) },
     ) { padding ->
         if (editing) {
             LayoutEditor(

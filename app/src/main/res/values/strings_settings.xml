@@ -11,6 +11,10 @@
     <string name="settings_forget_tv_detail">The pairing, the PSK and the TV’s certificate pin will be erased from this phone.</string>
     <string name="settings_forget_bar_detail">The bar will be removed from the app.</string>
     <string name="settings_add_device">Add a device</string>
+    <string name="settings_add_bar">Add the soundbar</string>
+    <string name="settings_add_bar_detail">Just the bar: External control in BRAVIA Connect, then its address</string>
+    <string name="settings_setup_again">Run setup again</string>
+    <string name="settings_setup_again_detail">Pair the TV, then add the soundbar</string>
     <string name="settings_tv">TV</string>
     <string name="settings_tv_settings">TV settings</string>
     <string name="settings_tv_settings_detail">Picture, sound output, speakers, inputs, power saving</string>

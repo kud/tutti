@@ -11,6 +11,10 @@
     <string name="settings_forget_tv_detail">L’association, la clé PSK et l’empreinte du certificat de la TV seront effacées de ce téléphone.</string>
     <string name="settings_forget_bar_detail">La barre sera retirée de l’app.</string>
     <string name="settings_add_device">Ajouter un appareil</string>
+    <string name="settings_add_bar">Ajouter la barre de son</string>
+    <string name="settings_add_bar_detail">Seulement la barre : Contrôle externe dans BRAVIA Connect, puis son adresse</string>
+    <string name="settings_setup_again">Refaire la configuration</string>
+    <string name="settings_setup_again_detail">Associer la TV, puis ajouter la barre de son</string>
     <string name="settings_tv">Téléviseur</string>
     <string name="settings_tv_settings">Réglages du téléviseur</string>
     <string name="settings_tv_settings_detail">Image, sortie son, haut-parleurs, entrées, économie d’énergie</string>

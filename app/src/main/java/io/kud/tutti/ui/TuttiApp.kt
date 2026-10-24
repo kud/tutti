@@ -67,7 +67,8 @@ sealed interface Screen {
 
     data object Diagnostic : Screen
 
-    data object Onboarding : Screen
+    /** The onboarding; [barOnly] opens it on the bar step alone, for a bar added after the TV. */
+    data class Onboarding(val barOnly: Boolean = false) : Screen
 
     data object About : Screen
 }
@@ -86,6 +87,12 @@ fun TuttiApp(controller: TuttiController, discovery: TvDiscovery, diagnostics: D
     fun push(screen: Screen) {
         forward = true
         stack.add(screen)
+    }
+
+    /** Back to the remote, whatever is open. */
+    fun home() {
+        forward = false
+        while (stack.size > 1) stack.removeAt(stack.lastIndex)
     }
 
     fun pop() {
@@ -126,7 +133,7 @@ fun TuttiApp(controller: TuttiController, discovery: TvDiscovery, diagnostics: D
     BackHandler(enabled = stack.size > 1) { pop() }
 
     LaunchedEffect(state.loaded) {
-        if (state.loaded && state.devices.isEmpty && !state.prefs.onboarded && Screen.Onboarding !in stack) push(Screen.Onboarding)
+        if (state.loaded && state.devices.isEmpty && !state.prefs.onboarded && stack.none { it is Screen.Onboarding }) push(Screen.Onboarding())
     }
 
     if (!state.loaded) {
@@ -151,6 +158,7 @@ fun TuttiApp(controller: TuttiController, discovery: TvDiscovery, diagnostics: D
                             onOpenScenes = { push(Screen.Scenes) },
                             onOpenSettings = { push(Screen.Settings) },
                             onEditScene = { push(Screen.SceneEditor(it)) },
+                            onAddBar = { push(Screen.Onboarding(barOnly = true)) },
                             editing = editingLayout,
                             onEditingChange = { editingLayout = it },
                         )
@@ -180,17 +188,20 @@ fun TuttiApp(controller: TuttiController, discovery: TvDiscovery, diagnostics: D
                             },
                             onPair = {
                                 controller.resetPairing()
-                                push(Screen.Onboarding)
+                                push(Screen.Onboarding())
                             },
+                            onAddBar = { push(Screen.Onboarding(barOnly = true)) },
                         )
                         Screen.TvSettings -> TvSettingsScreen(state = state, controller = controller, onBack = ::pop)
                         Screen.BarSettings -> BarSettingsScreen(state = state, controller = controller, onBack = ::pop)
                         Screen.Diagnostic -> DiagnosticScreen(diagnostics = diagnostics, onBack = ::pop)
-                        Screen.Onboarding -> OnboardingScreen(
+                        is Screen.Onboarding -> OnboardingScreen(
                             state = state,
                             controller = controller,
                             discovery = discovery,
-                            onDone = ::pop,
+                            barOnly = screen.barOnly,
+                            // The bar alone lands back on the remote, where it now plays (Erwann, 2026-10-24).
+                            onDone = if (screen.barOnly) ::home else ::pop,
                         )
                         Screen.About -> AboutScreen(onBack = ::pop)
                     }

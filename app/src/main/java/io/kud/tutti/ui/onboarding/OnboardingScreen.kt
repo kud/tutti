@@ -95,7 +95,8 @@ import kotlinx.coroutines.withTimeoutOrNull
  * TV (search), Code, Bar, Ready. The TV's PSK is no longer asked here: Ready points to Settings.
  * The flow follows the controller's pairing state; the step bar and the screen slide 24 dp with a
  * crossfade on each change (a [Motion.SHORT] fade with reduced motion). Welcome shows only on a
- * first setup; from Settings' "Pair" it opens on the search.
+ * first setup; from Settings' "Pair" it opens on the search. [barOnly] (Settings' "Add the
+ * soundbar", the Son sheet's) is the Bar step alone, no step bar: done or "Later", it leaves.
  */
 @Composable
 fun OnboardingScreen(
@@ -103,10 +104,15 @@ fun OnboardingScreen(
     controller: TuttiController,
     discovery: TvDiscovery,
     onDone: () -> Unit,
+    barOnly: Boolean = false,
 ) {
     val reduced = LocalReducedMotion.current
     val discovered by remember(discovery) { discovery.discover() }.collectAsStateWithLifecycle(initialValue = emptyList())
-    val first = if (state.prefs.onboarded || !state.devices.isEmpty) IntroStep.TV else IntroStep.WELCOME
+    val first = when {
+        barOnly -> IntroStep.BAR
+        state.prefs.onboarded || !state.devices.isEmpty -> IntroStep.TV
+        else -> IntroStep.WELCOME
+    }
     var step by rememberSaveable { mutableStateOf(first) }
     var tvHost by rememberSaveable { mutableStateOf(state.devices.tv?.host.orEmpty()) }
     var pairPressed by remember { mutableStateOf(false) }
@@ -156,7 +162,7 @@ fun OnboardingScreen(
                 .imePadding()
                 .padding(horizontal = 24.dp, vertical = 16.dp),
         ) {
-            AnimatedVisibility(step.segment >= 0, enter = fadeIn(Motion.fade()), exit = fadeOut(Motion.exit())) {
+            AnimatedVisibility(step.segment >= 0 && !barOnly, enter = fadeIn(Motion.fade()), exit = fadeOut(Motion.exit())) {
                 StepBar(current = step.segment.coerceAtLeast(0), labels = segments, modifier = Modifier.padding(bottom = 24.dp))
             }
             AnimatedContent(
@@ -202,7 +208,7 @@ fun OnboardingScreen(
                         },
                         onRetry = { pair(tvHost) },
                     )
-                    IntroStep.BAR -> BarStep(state = state, controller = controller, onNext = { step = IntroStep.READY })
+                    IntroStep.BAR -> BarStep(state = state, controller = controller, onNext = { if (barOnly) onDone() else step = IntroStep.READY })
                     IntroStep.READY -> ReadyStep(
                         state = state,
                         tvName = discovered.firstOrNull { it.host == tvHost }?.name ?: stringResource(R.string.onboarding_tv_title),

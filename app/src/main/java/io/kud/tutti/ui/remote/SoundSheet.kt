@@ -97,10 +97,11 @@ fun soundSummary(state: TuttiUiState): String {
 /**
  * The "Son" sheet: large toggles (sound field, voice, night, DRC, auto volume, IMAX,
  * 360 Spatial), bass and rear sliders, Voice Zoom 3 only if the bar answered the probe,
- * and the BRAVIA Connect deep link for calibration.
+ * and the BRAVIA Connect deep link for calibration. With no bar added yet, "Add the soundbar"
+ * leads straight to the onboarding's bar step ([onAddBar]), never back through the TV's.
  */
 @Composable
-fun SoundSheet(state: TuttiUiState, controller: TuttiController, modifier: Modifier = Modifier) {
+fun SoundSheet(state: TuttiUiState, controller: TuttiController, modifier: Modifier = Modifier, onAddBar: () -> Unit = {}) {
     val haptics = rememberHaptics()
     val context = LocalContext.current
     // The sheet may rise to the window's top; its handle stops below the status bar and the rest scrolls.
@@ -130,6 +131,15 @@ fun SoundSheet(state: TuttiUiState, controller: TuttiController, modifier: Modif
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.alignByBaseline().weight(1f, fill = false),
             )
+        }
+        if (state.devices.bar == null) {
+            // The way in for a bar added after the TV (Erwann, 2026-10-24): the bar step alone.
+            Spacer(Modifier.height(8.dp))
+            FilledTonalButton(onClick = onAddBar, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+                Icon(painterResource(R.drawable.ic_add), contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(stringResource(R.string.sound_add_bar))
+            }
         }
         Spacer(Modifier.height(4.dp))
         BarInputRow(state, controller)

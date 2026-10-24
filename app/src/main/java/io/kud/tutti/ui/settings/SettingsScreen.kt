@@ -102,6 +102,7 @@ fun SettingsScreen(
     onEditLayout: () -> Unit = {},
     onPair: () -> Unit,
     onOpenAbout: () -> Unit = {},
+    onAddBar: () -> Unit = {},
 ) {
     val context = LocalContext.current
     var picker by remember { mutableStateOf<SecondaryButton?>(null) }
@@ -163,10 +164,28 @@ fun SettingsScreen(
                         },
                     )
                 }
-                if (tv == null || bar == null) {
-                    SettingsRow(
+                // No TV: the whole setup. A TV but no bar: the bar step alone (Erwann, 2026-10-24:
+                // "c'est dur de revenir sur le onboarding"). Both: the whole setup again, on request.
+                when {
+                    tv == null -> SettingsRow(
                         title = stringResource(R.string.settings_add_device),
                         icon = R.drawable.ic_add,
+                        onClick = onPair,
+                        trailing = { OpensChevron() },
+                    )
+                    bar == null -> SettingsRow(
+                        title = stringResource(R.string.settings_add_bar),
+                        icon = R.drawable.ic_add,
+                        detail = stringResource(R.string.settings_add_bar_detail),
+                        onClick = onAddBar,
+                        trailing = { OpensChevron() },
+                    )
+                }
+                if (tv != null) {
+                    SettingsRow(
+                        title = stringResource(R.string.settings_setup_again),
+                        icon = R.drawable.ic_refresh,
+                        detail = stringResource(R.string.settings_setup_again_detail),
                         onClick = onPair,
                         trailing = { OpensChevron() },
                     )
