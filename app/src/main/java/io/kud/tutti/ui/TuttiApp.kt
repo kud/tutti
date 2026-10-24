@@ -19,6 +19,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -82,9 +85,56 @@ sealed interface Screen {
     data object Technical : Screen
 }
 
+/**
+ * A [Screen] as a string, so the stack outlives the activity being recreated: choosing a theme
+ * recreates it, and a plain `remember` sent Erwann back to the remote from Settings.
+ */
+internal object ScreenKey {
+    fun of(screen: Screen): String = when (screen) {
+        Screen.Remote -> "remote"
+        Screen.Scenes -> "scenes"
+        is Screen.SceneEditor -> "scene:" + screen.sceneId.orEmpty()
+        Screen.Settings -> "settings"
+        Screen.TvSettings -> "tv-settings"
+        Screen.BarSettings -> "bar-settings"
+        Screen.Diagnostic -> "diagnostic"
+        is Screen.Onboarding -> "onboarding:${screen.barOnly}:${screen.cancellable}"
+        Screen.About -> "about"
+        is Screen.Unlock -> "unlock:" + screen.focus?.name.orEmpty()
+        Screen.Technical -> "technical"
+    }
+
+    /** Null for a key this version does not know. */
+    fun screen(key: String): Screen? = when {
+        key == "remote" -> Screen.Remote
+        key == "scenes" -> Screen.Scenes
+        key.startsWith("scene:") -> Screen.SceneEditor(key.removePrefix("scene:").ifEmpty { null })
+        key == "settings" -> Screen.Settings
+        key == "tv-settings" -> Screen.TvSettings
+        key == "bar-settings" -> Screen.BarSettings
+        key == "diagnostic" -> Screen.Diagnostic
+        key.startsWith("onboarding:") -> key.split(':').let { Screen.Onboarding(it.getOrNull(1) == "true", it.getOrNull(2) == "true") }
+        key == "about" -> Screen.About
+        key.startsWith("unlock:") -> Screen.Unlock(io.kud.tutti.ui.settings.Unlock.entries.firstOrNull { it.name == key.removePrefix("unlock:") })
+        key == "technical" -> Screen.Technical
+        else -> null
+    }
+
+    /** The stack back from its keys; always starts on the remote. */
+    fun stack(keys: List<String>): List<Screen> {
+        val screens = keys.mapNotNull(::screen)
+        return if (screens.firstOrNull() == Screen.Remote) screens else listOf(Screen.Remote) + screens.filter { it != Screen.Remote }
+    }
+}
+
+private val StackSaver = listSaver<SnapshotStateList<Screen>, String>(
+    save = { stack -> stack.map(ScreenKey::of) },
+    restore = { keys -> mutableStateListOf(*ScreenKey.stack(keys).toTypedArray()) },
+)
+
 @Composable
 fun TuttiApp(controller: TuttiController, discovery: TvDiscovery, diagnostics: Diagnostics, state: TuttiUiState) {
-    val stack = remember { mutableStateListOf<Screen>(Screen.Remote) }
+    val stack = rememberSaveable(saver = StackSaver) { mutableStateListOf<Screen>(Screen.Remote) }
     // The remote's edit mode is a state of the remote screen, not a screen of its own.
     var editingLayout by remember { mutableStateOf(false) }
     val haptics = rememberHaptics()
