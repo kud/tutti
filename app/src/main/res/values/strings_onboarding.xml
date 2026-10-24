@@ -15,6 +15,7 @@
     <string name="pairing_look_at_tv">Look at the TV: it shows a code.</string>
     <string name="pairing_done">TV paired</string>
     <string name="pairing_unreachable">TV unreachable: check the address and that the TV is on.</string>
+    <string name="pairing_unreachable_found">The TV is on this network but not answering: switch it on, then pair.</string>
     <string name="pairing_bad_code">Wrong code. Start pairing again.</string>
     <string name="pairing_refused">The TV refused pairing.</string>
     <string name="pairing_code_title">Code shown on the TV</string>

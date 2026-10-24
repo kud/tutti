@@ -181,7 +181,15 @@ fun OnboardingScreen(
                         phaseFor = { host ->
                             if (pairPressed && host == tvHost) pairStep(pairing, codeSent = codeSent, pressed = true).phase else ActionPhase.IDLE
                         },
-                        failure = (pairing as? PairingUi.Failed)?.let { pairingStatus(it)?.first },
+                        // Found by mDNS yet silent: the TV is advertised (by its Wi-Fi chip in standby, or a cache)
+                        // while it sleeps, so the address is right and the fix is to switch it on.
+                        failure = (pairing as? PairingUi.Failed)?.let { failed ->
+                            if (failed.reason == PairingError.UNREACHABLE && discovered.any { it.host == tvHost }) {
+                                stringResource(R.string.pairing_unreachable_found)
+                            } else {
+                                pairingStatus(failed)?.first
+                            }
+                        },
                         failedHost = tvHost.takeIf { pairing is PairingUi.Failed && pairPressed },
                         onPair = pair,
                     )

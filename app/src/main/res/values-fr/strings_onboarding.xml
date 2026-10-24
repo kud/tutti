@@ -15,6 +15,7 @@
     <string name="pairing_look_at_tv">Regardez la TV : elle affiche un code.</string>
     <string name="pairing_done">Téléviseur associé</string>
     <string name="pairing_unreachable">TV injoignable : vérifiez l’adresse et que la TV est allumée.</string>
+    <string name="pairing_unreachable_found">La TV est sur ce réseau mais ne répond pas : allumez-la, puis associez-la.</string>
     <string name="pairing_bad_code">Code incorrect. Relancez l’association.</string>
     <string name="pairing_refused">La TV a refusé l’association.</string>
     <string name="pairing_code_title">Code affiché sur la TV</string>
