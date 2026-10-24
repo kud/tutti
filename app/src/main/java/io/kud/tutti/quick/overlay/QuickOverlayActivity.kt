@@ -33,6 +33,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -52,6 +53,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -61,6 +63,7 @@ import io.kud.tutti.quick.QuickControls
 import io.kud.tutti.quick.QuickRuntime
 import io.kud.tutti.quick.QuickScene
 import io.kud.tutti.quick.QuickState
+import io.kud.tutti.quick.overlayRail
 import io.kud.tutti.quick.quickControls
 import io.kud.tutti.ui.common.FeedbackPrefs
 import io.kud.tutti.ui.common.LocalFeedbackPrefs
@@ -179,8 +182,7 @@ private fun QuickOverlay(
                     state = state,
                     enabled = enabled,
                     onStep = { up ->
-                        val atLimit = if (up) state.volume >= state.volumeLimit else state.volume <= 0
-                        if (atLimit) feedback.bump() else feedback.tick()
+                        if (overlayRail(state).atLimit(up)) feedback.bump() else feedback.tick()
                         act { if (up) volumeUp() else volumeDown() }
                     },
                     onSet = { level -> act { setVolume(level) } },
@@ -296,8 +298,10 @@ private fun VolumeRow(
     val feedback = rememberFeedback()
     // While dragging, the thumb follows the finger; the controller only hears the release.
     var dragging by remember { mutableStateOf<Float?>(null) }
-    val shown = dragging ?: state.volume.toFloat()
-    val limit = state.volumeLimit.toFloat()
+    val rail = overlayRail(state)
+    // Null until the level is reported (and nobody is dragging): an empty rail and a dash, never 0.
+    val shown = dragging ?: rail.level?.toFloat()
+    val limit = rail.limit.toFloat()
 
     Row(
         modifier = Modifier
@@ -312,11 +316,13 @@ private fun VolumeRow(
             )
         }
         val sliderLabel = stringResource(R.string.quick_volume_slider)
+        val unknownLabel = stringResource(R.string.quick_volume_unknown)
+        val scheme = MaterialTheme.colorScheme
         Slider(
-            value = shown,
+            value = shown ?: 0f,
             onValueChange = { raw ->
                 val next = raw.coerceAtMost(limit)
-                if (next.roundToInt() != shown.roundToInt()) {
+                if (next.roundToInt() != shown?.roundToInt()) {
                     if (raw > limit) feedback.bump() else feedback.tick()
                 }
                 dragging = next
@@ -325,12 +331,25 @@ private fun VolumeRow(
                 dragging?.let { onSet(it.roundToInt()) }
                 dragging = null
             },
-            valueRange = 0f..100f,
+            valueRange = 0f..rail.range.toFloat(),
             enabled = enabled,
+            // Unknown: no thumb and no filled part, the bare track. A drag still sets a level.
+            colors = if (shown == null) {
+                SliderDefaults.colors(
+                    thumbColor = Color.Transparent,
+                    activeTrackColor = scheme.surfaceContainerHighest,
+                    inactiveTrackColor = scheme.surfaceContainerHighest,
+                )
+            } else {
+                SliderDefaults.colors()
+            },
             modifier = Modifier
                 .weight(1f)
                 .padding(horizontal = 4.dp)
-                .semantics { contentDescription = sliderLabel },
+                .semantics {
+                    contentDescription = sliderLabel
+                    if (shown == null) stateDescription = unknownLabel
+                },
         )
         IconButton(onClick = { onStep(true) }, enabled = enabled) {
             Icon(
@@ -339,7 +358,7 @@ private fun VolumeRow(
             )
         }
         Text(
-            text = shown.roundToInt().toString(),
+            text = shown?.roundToInt()?.toString() ?: "–",
             style = MaterialTheme.typography.titleMedium,
             modifier = Modifier.width(32.dp),
         )

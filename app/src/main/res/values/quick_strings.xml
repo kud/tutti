@@ -19,6 +19,8 @@
     <string name="quick_action_power">Power</string>
     <string name="quick_action_open_app">Open the remote</string>
     <string name="quick_volume_slider">Bar volume</string>
+    <!-- The overlay rail before the level is reported: empty, never a made-up 0. -->
+    <string name="quick_volume_unknown">Level not reported</string>
 
     <string name="quick_notification_channel">Quick remote</string>
     <string name="quick_notification_channel_description">What the TV is showing, play/pause, volume and mute while the TV is on.</string>

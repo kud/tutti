@@ -20,6 +20,7 @@
     <string name="quick_action_power">Allumer ou éteindre</string>
     <string name="quick_action_open_app">Ouvrir la télécommande</string>
     <string name="quick_volume_slider">Volume de la barre</string>
+    <string name="quick_volume_unknown">Niveau non signalé</string>
 
     <string name="quick_notification_channel">Télécommande rapide</string>
     <string name="quick_notification_channel_description">Ce qui passe à la télé, lecture/pause, volume et sourdine tant que la télé est allumée.</string>

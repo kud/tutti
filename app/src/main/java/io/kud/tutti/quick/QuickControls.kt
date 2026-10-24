@@ -101,3 +101,26 @@ fun audioLevelOf(barConfigured: Boolean, barVolume: Int?, barMax: Int, barMuted:
 
 /** The TV's foreground app: its label from the app catalogue, and the icon tutti has cached for it. */
 data class QuickNowShowing(val packageName: String, val label: String?, val iconPath: String?)
+
+/**
+ * The quick overlay's rail: [level] on 0..[range], drags capped at [limit]; null while the level
+ * has not been reported, so the rail shows empty rather than a made-up 0. Reads [QuickState.level],
+ * the same reported level as the notification: the bar's on 0..100 under the scene's cap, else
+ * the TV's on its own scale.
+ */
+data class OverlayRail(val level: Int?, val range: Int, val limit: Int) {
+    /** A step towards [up] would go past the end: bump instead of tick. Unknown is never at a limit. */
+    fun atLimit(up: Boolean): Boolean = level != null && if (up) level >= limit else level <= 0
+}
+
+fun overlayRail(state: QuickState): OverlayRail {
+    val reported = state.level
+    return when (reported?.target) {
+        VolumeTarget.TV -> OverlayRail(reported.level.coerceIn(0, reported.max), reported.max, reported.max)
+        VolumeTarget.BAR -> OverlayRail(reported.level.coerceIn(0, BAR_RANGE), BAR_RANGE, state.volumeLimit.coerceIn(0, BAR_RANGE))
+        null -> OverlayRail(null, BAR_RANGE, state.volumeLimit.coerceIn(0, BAR_RANGE))
+    }
+}
+
+/** The bar's scale (TuttiController.MAX_VOLUME). */
+private const val BAR_RANGE = 100
