@@ -55,6 +55,27 @@ data class TheatreState(
     }
 
     fun level(feature: TheatreFeature): Int? = value(feature)?.toIntOrNull()
+
+    /**
+     * [isOn], but only while the bar is connected. [confirmed] outlives a drop on purpose (it is
+     * the probe gate, and what a reconnect re-asks against), so a remembered value is not a
+     * current one: anything that says what the bar is doing now (mute, power) reads this.
+     */
+    fun liveOn(feature: TheatreFeature): Boolean? = if (connected) isOn(feature) else null
+
+    /** [level], but only while the bar is connected (see [liveOn]). */
+    fun liveLevel(feature: TheatreFeature): Int? = if (connected) level(feature) else null
+
+    /**
+     * What a toggle press asks for: the opposite of the reported value, on when the bar is
+     * connected but has not reported it (a pin for Night is pressed to turn Night on, and a
+     * refusal rolls the optimistic value back). Null while the bar is not connected: there is
+     * nothing to send to, so the press is refused rather than guessed.
+     */
+    fun toggleTarget(feature: TheatreFeature): Boolean? {
+        if (!connected || feature.kind !is FeatureKind.Toggle) return null
+        return isOn(feature) != true
+    }
 }
 
 sealed interface TheatreEvent {

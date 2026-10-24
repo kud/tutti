@@ -443,7 +443,12 @@ fun RemoteScreen(
                         sheet2 = RemoteSheet.KEYS
                     },
                     onRun = { _, slot ->
-                        slot.primary?.let(controller::run)
+                        // A bar toggle with no bar to answer is refused, not guessed: the Sound
+                        // tile's bump, and the pin's dashed badge already says why.
+                        when (pinToggle(slot.primary, state.bar, state.devices.bar != null)) {
+                            PinToggle.Unreachable, PinToggle.NoBar -> haptics.bump()
+                            else -> slot.primary?.let(controller::run)
+                        }
                     },
                     onAssign = { index ->
                         picker = PickerTarget.Slot(index)

@@ -597,7 +597,8 @@ class TuttiController @Inject constructor(
             PowerStatus.STANDBY -> false
             PowerStatus.UNKNOWN -> null
         }
-        val barPowered = l.bar.isOn(TheatreFeature.POWER)
+        // Live only: a bar that dropped has no power to report, whatever it said before.
+        val barPowered = l.bar.liveOn(TheatreFeature.POWER)
         val powered = e.overrides.powered ?: when {
             tvPowered == true || barPowered == true -> true
             tvPowered == false || barPowered == false -> false
@@ -615,7 +616,7 @@ class TuttiController @Inject constructor(
             voiceZoomAvailable = l.voiceZoom,
             scenes = scenes,
             profiles = s.profiles,
-            volume = volumeShown(e.overrides.volume, l.bar.level(TheatreFeature.VOLUME), s.prefs.lastBarVolume, l.bar.connected),
+            volume = volumeShown(e.overrides.volume, l.bar.liveLevel(TheatreFeature.VOLUME), s.prefs.lastBarVolume, l.bar.connected),
             volumeCap = cap,
             powered = powered,
             waking = e.waking,
@@ -1073,9 +1074,14 @@ class TuttiController @Inject constructor(
         scope.launch { theatre.setToggle(TheatreFeature.MUTE, !state.value.muted) }
     }
 
-    fun toggleBar(feature: TheatreFeature) {
-        val on = theatre.state.value.isOn(feature) ?: false
-        scope.launch { theatre.setToggle(feature, !on) }
+    /**
+     * Flips a bar toggle ([TheatreState.toggleTarget]): unreported but connected turns it on; an
+     * unreachable bar sends nothing and returns false, so the caller bumps as the Sound tile does.
+     */
+    fun toggleBar(feature: TheatreFeature): Boolean {
+        val on = theatre.state.value.toggleTarget(feature) ?: return false
+        scope.launch { theatre.setToggle(feature, on) }
+        return true
     }
 
     fun setBarToggle(feature: TheatreFeature, on: Boolean) {
@@ -1242,7 +1248,7 @@ class TuttiController @Inject constructor(
         when (action) {
             is DockAction.LaunchApp -> launchLink(action.packageName)
             is DockAction.Input -> switchInput(action.uri)
-            is DockAction.ToggleBar -> TheatreFeature.fromKey(action.featureKey)?.let(::toggleBar)
+            is DockAction.ToggleBar -> TheatreFeature.fromKey(action.featureKey)?.let { toggleBar(it) }
             is DockAction.RunScene -> applyScene(action.sceneId)
             is DockAction.SetBar -> setBarValue(action.featureKey, action.value)
             is DockAction.Key -> sendTvKey(action.keyCode, action.long)

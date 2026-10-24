@@ -189,7 +189,11 @@ data class TuttiUiState(
     /** IP control answers: the TV's own app list, its icons and `setActiveApp` are live. */
     val ipControl: Boolean get() = links.rest == Link.ONLINE
 
-    val muted: Boolean get() = bar.isOn(TheatreFeature.MUTE) == true
+    /**
+     * Muted as the bar says now: false once it drops, never the remembered value (the reducer keeps
+     * `confirmed` across a drop). The tile, widget, notification and overlay all read this one.
+     */
+    val muted: Boolean get() = bar.liveOn(TheatreFeature.MUTE) == true
 
     val activeScene: SceneUi? get() = scenes.firstOrNull { it.status != SceneStatus.IDLE }
 

@@ -138,4 +138,37 @@ class TheatreReducerTest {
         val state = start.on(set(1, "30"))
         assertEquals(state, state.on(TheatreEvent.Received(TheatreInbound.Malformed("x", "not JSON"))))
     }
+
+    @Test
+    fun `a dropped bar keeps what it reported but says nothing live`() {
+        val mute = TheatreFeature.MUTE.key
+        val power = TheatreFeature.POWER.key
+        val up = TheatreState(connected = true, confirmed = mapOf(mute to "on", power to "on", volume to "20"))
+        assertEquals(true, up.liveOn(TheatreFeature.MUTE))
+        assertEquals(20, up.liveLevel(TheatreFeature.VOLUME))
+
+        val dropped = up.on(TheatreEvent.Connected(false))
+        assertEquals("on", dropped.confirmed[mute])
+        assertTrue(dropped.supports(TheatreFeature.MUTE))
+        assertNull(dropped.liveOn(TheatreFeature.MUTE))
+        assertNull(dropped.liveOn(TheatreFeature.POWER))
+        assertNull(dropped.liveLevel(TheatreFeature.VOLUME))
+
+        val back = dropped.on(TheatreEvent.Connected(true))
+        assertEquals(true, back.liveOn(TheatreFeature.MUTE))
+    }
+
+    @Test
+    fun `a toggle press flips what the bar reported, turns on what it did not, and refuses while unreachable`() {
+        val night = TheatreFeature.NIGHT
+        val on = TheatreState(connected = true, confirmed = mapOf(night.key to "on"))
+        val off = TheatreState(connected = true, confirmed = mapOf(night.key to "off"))
+        val unreported = TheatreState(connected = true)
+        assertEquals(false, on.toggleTarget(night))
+        assertEquals(true, off.toggleTarget(night))
+        assertEquals(true, unreported.toggleTarget(night))
+        assertNull(on.on(TheatreEvent.Connected(false)).toggleTarget(night))
+        assertNull(TheatreState().toggleTarget(night))
+        assertNull(unreported.toggleTarget(TheatreFeature.VOLUME))
+    }
 }
