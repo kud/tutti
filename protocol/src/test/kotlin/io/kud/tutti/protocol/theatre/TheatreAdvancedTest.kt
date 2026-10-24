@@ -117,13 +117,14 @@ class TheatreAdvancedTest {
         val refreshed = connection.sentFeatures()
         assertTrue(refreshed.isNotEmpty())
         assertTrue((refreshed.toSet() intersect TheatreFeature.NEVER_ASKED).isEmpty())
-        advanceTimeBy(60_000)
+        advanceTimeBy(600_000)
         runCurrent()
 
         connection.sent.clear()
         val pairing = launch { client.startBluetoothPairing() }
         runCurrent()
-        assertEquals(listOf("main.input", "bluetooth.mode"), connection.sentFeatures())
+        // One request at a time: the next waits for an answer (none here) before it goes.
+        assertEquals(listOf("main.input"), connection.sentFeatures())
         advanceUntilIdle()
         pairing.join()
         val lines = connection.sent.map { Json.parseToJsonElement(it).jsonObject }
@@ -138,7 +139,7 @@ class TheatreAdvancedTest {
         val connection = FakeConnection()
         val client = TheatreClient(FakeConnector(connection), backgroundScope, clock = { testScheduler.currentTime })
         client.connect("192.0.2.10")
-        advanceTimeBy(60_000)
+        advanceTimeBy(600_000)
         runCurrent()
         connection.sent.clear()
         val answer = launch {

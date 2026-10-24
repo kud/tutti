@@ -115,7 +115,7 @@ class TheatreWireTest {
         connection.answer = { id, feature -> """{"feature":"$feature","id":$id,"type":"result","value":"on"}""" }
         connection.delimiter = ""
         client.connect("192.0.2.10")
-        advanceTimeBy(60_000)
+        advanceTimeBy(600_000)
         runCurrent()
         assertEquals("on", client.state.value.value(TheatreFeature.NIGHT))
         assertEquals(TheatreFeature.entries.size, connection.sent.size)
@@ -130,7 +130,7 @@ class TheatreWireTest {
         connection.answerAfterMillis = 200
         val client = TheatreClient(FakeConnector(connection), backgroundScope, clock = { testScheduler.currentTime })
         client.connect("192.0.2.10")
-        advanceTimeBy(60_000)
+        advanceTimeBy(600_000)
         runCurrent()
         assertTrue(connection.maxWaiting <= 3, "at most three in flight, saw ${connection.maxWaiting}")
         val asked = connection.sentFeatures()
@@ -147,14 +147,14 @@ class TheatreWireTest {
         val connection = FakeConnection()
         val client = TheatreClient(FakeConnector(connection), backgroundScope, clock = { testScheduler.currentTime })
         client.connect("192.0.2.10")
-        advanceTimeBy(60_000)
+        advanceTimeBy(600_000)
         runCurrent()
         connection.sent.clear()
         connection.answer = { id, feature ->
             if (feature == TheatreFeature.IMAX.key) """{"id":$id,"type":"result","feature":"$feature","value":"ERR"}""" else """{"id":$id,"type":"result","feature":"$feature","value":"off"}"""
         }
         val job = launch { client.refreshMissing() }
-        advanceTimeBy(60_000)
+        advanceTimeBy(600_000)
         job.join()
         connection.sent.clear()
         launch { client.refreshMissing() }.join()

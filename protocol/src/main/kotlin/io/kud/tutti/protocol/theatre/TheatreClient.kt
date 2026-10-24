@@ -11,6 +11,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -192,8 +193,15 @@ class TheatreClient(
         return result != null && result.value != null && !result.isAck && !result.isRefusal
     }
 
-    private suspend fun send(request: TheatreOutbound) {
-        val conn = connection ?: return
+    /**
+     * One request on the wire at a time: the Bar 9 drops a request sent before it has answered
+     * the last (Erwann's wire log, 2026-10-24: of three `get`s in a row only the first answered,
+     * and a 360 Spatial `set` "didn't take"). The reference client holds a lock the same way.
+     */
+    private val oneAtATime = Mutex()
+
+    private suspend fun send(request: TheatreOutbound) = oneAtATime.withLock {
+        val conn = connection ?: return@withLock
         dispatch(TheatreEvent.Sent(request, clock(), timeoutMillis))
         val text = TheatreCodec.encode(request)
         wire.sent(text)
@@ -204,6 +212,11 @@ class TheatreClient(
         } catch (e: Exception) {
             wire.note("write failed: ${e.javaClass.simpleName}")
             dispatch(TheatreEvent.SendFailed(request.id, e.message ?: "send failed"))
+            return@withLock
+        }
+        // Hold the line until this one is answered (or given up on), then let the next go.
+        withTimeoutOrNull(pacing.answerMillis) {
+            state.first { request.id !in it.outstanding || !it.connected }
         }
     }
 
@@ -238,11 +251,11 @@ class TheatreClient(
 }
 
 /**
- * Refresh pacing. Defaults: three `get`s in flight, 60 ms between writes, 1.5 s for an answer,
+ * Refresh pacing. Defaults: one `get` in flight (the bar drops overlapping requests), 60 ms between writes, 1.5 s for an answer,
  * and one slower second pass for the silent ones after 1.5 s.
  */
 data class RefreshPacing(
-    val inFlight: Int = 3,
+    val inFlight: Int = 1,
     val gapMillis: Long = 60,
     val answerMillis: Long = 1_500,
     val retryAfterMillis: Long = 1_500,

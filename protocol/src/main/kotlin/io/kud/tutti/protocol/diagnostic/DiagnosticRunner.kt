@@ -497,7 +497,7 @@ class DiagnosticRunner(
     private companion object {
         const val PAIRING_PORT = 6467
         const val MAX_SAMPLES = 4
-        const val BAR_IN_FLIGHT = 3
+        const val BAR_IN_FLIGHT = 1
         const val BAR_GAP_MS = 60L
         const val BAR_WIRE_LINES = 50
         const val RAW_MAX = 2_000
