@@ -37,10 +37,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.kud.tutti.R
-import io.kud.tutti.controller.TuttiUiState
-import io.kud.tutti.protocol.atv.AppCatalog
 import io.kud.tutti.protocol.atv.V2Key
-import io.kud.tutti.ui.common.AppIcon
 import io.kud.tutti.ui.common.pressScale
 import io.kud.tutti.ui.common.rememberFeedback
 import io.kud.tutti.ui.common.rememberPressSource
@@ -50,31 +47,25 @@ import io.kud.tutti.ui.common.TuttiSheet
 
 /**
  * The rest of a BRAVIA remote, out of the way of the pad: numbers and channels, the colour
- * keys, the TV keys, settings and the app keys. All over the remote link; no IP control.
+ * keys, the TV keys and quick settings. All over the remote link; no IP control. No apps: they
+ * have one door, the Dock's Apps (design.md, Information architecture).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MoreKeysSheet(
-    state: TuttiUiState,
     onKey: (Int) -> Unit,
-    onLaunch: (packageName: String) -> Unit,
     onDismiss: () -> Unit,
 ) {
     TuttiSheet(onDismissRequest = onDismiss) {
-        MoreKeysContent(state, onKey, onLaunch)
+        MoreKeysContent(onKey)
     }
 }
-
-/** The app keys of the real remote, by package; launched like any app. */
-private val AppKeys = listOf("com.netflix.ninja", "com.google.android.youtube.tv", "com.amazon.amazonvideo.livingroom")
 
 private val KeyHeight = 56.dp
 
 @Composable
 fun MoreKeysContent(
-    state: TuttiUiState,
     onKey: (Int) -> Unit,
-    onLaunch: (packageName: String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val scroll = rememberScrollState()
@@ -153,16 +144,8 @@ fun MoreKeysContent(
             Spacer(Modifier.height(8.dp))
             KeyRow {
                 Key(stringResource(R.string.more_quick_settings), onClick = { onKey(V2Key.SETTINGS) })
-                Key(stringResource(R.string.more_all_apps), onClick = { onKey(V2Key.ALL_APPS) })
             }
 
-            Section(R.string.more_section_apps)
-            KeyRow {
-                AppKeys.forEach { pkg ->
-                    val name = state.apps.firstOrNull { it.packageName == pkg }?.name ?: AppCatalog.byPackage(pkg)?.name ?: pkg
-                    AppKey(name, pkg, state.appIcons[pkg]) { onLaunch(pkg) }
-                }
-            }
         }
     }
 }
@@ -245,22 +228,6 @@ private fun RowScope.ColourKey(@StringRes name: Int, colour: Color, keyCode: Int
         )
         Spacer(Modifier.height(6.dp))
         Text(stringResource(name), style = MaterialTheme.typography.labelMedium)
-    }
-}
-
-@Composable
-private fun RowScope.AppKey(name: String, packageName: String, iconPath: String?, onClick: () -> Unit) {
-    Row(
-        Modifier
-            .weight(1f)
-            .height(KeyHeight)
-            .keyPress(onClick)
-            .padding(horizontal = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        AppIcon(name, iconPath, size = 28.dp, packageName = packageName)
-        Spacer(Modifier.width(8.dp))
-        Text(name, style = MaterialTheme.typography.labelMedium, maxLines = 2)
     }
 }
 

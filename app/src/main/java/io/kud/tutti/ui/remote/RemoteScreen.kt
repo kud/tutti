@@ -502,12 +502,8 @@ fun RemoteScreen(
             onDismiss = { sheet2 = null },
         )
         RemoteSheet.KEYS -> MoreKeysSheet(
-            state = state,
             onKey = {
                 controller.key(it)
-            },
-            onLaunch = {
-                controller.launchApp(it)
             },
             onDismiss = { sheet2 = null },
         )

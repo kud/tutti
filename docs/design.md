@@ -51,6 +51,8 @@ Settings' last technical group is "Advanced": the developer-mode switch, and wit
 Opened from an app already set up (Settings' "Run setup again", "Add a device", "Add the soundbar", the Son sheet's or a checklist button), setup has a Back at the top left (48 dp, "Leave setup" to TalkBack), and the system back does the same: any pairing in progress is dropped and you land where you came from, nothing changed. Inside the flow, back from the code still steps back to the search first. The very first launch has no such exit: there is nowhere to go back to (Erwann, 2026-10-24: "il faudrait pas un bouton annuler ou retour ici ?").
 
 One tap from the remote: power, volume, mute, input, keyboard, any scene, any shortcut, Night, Voice.
+Apps have one door: the Dock's Apps; the TV's own apps screen is the first line of its sheet (Iris, 2026-10-24). All keys carries no apps and no "All apps" key: numbers and channels, colour keys, the TV keys, and Quick settings on the last row.
+
 Two levels deep at most.
 
 ### "Son" sheet
