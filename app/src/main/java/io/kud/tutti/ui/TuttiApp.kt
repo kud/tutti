@@ -37,6 +37,7 @@ import io.kud.tutti.controller.TuttiEvent
 import io.kud.tutti.controller.TuttiUiState
 import io.kud.tutti.platform.diagnostic.Diagnostics
 import io.kud.tutti.platform.discovery.TvDiscovery
+import io.kud.tutti.protocol.net.WakeAttempt
 import io.kud.tutti.ui.common.LocalDeveloperMode
 import io.kud.tutti.ui.common.LocalProblems
 import io.kud.tutti.ui.common.LocalReducedMotion
@@ -114,7 +115,14 @@ fun TuttiApp(controller: TuttiController, discovery: TvDiscovery, diagnostics: D
                 is TuttiEvent.ActionFailed -> problems.report(context.getString(R.string.error_action_failed), event.detail)
                 is TuttiEvent.MicUnavailable -> problems.report(context.getString(R.string.voice_mic_unavailable), event.detail)
                 is TuttiEvent.WakeFailed -> problems.report(
-                    context.getString(if (event.tv) R.string.power_wake_failed_tv else R.string.power_wake_failed_bar),
+                    context.getString(
+                        when (event.cause) {
+                            WakeAttempt.Cause.TV_NO_MAC -> R.string.power_wake_failed_tv_no_mac
+                            WakeAttempt.Cause.TV_NOT_FOUND -> R.string.power_wake_failed_tv_not_found
+                            WakeAttempt.Cause.TV_ASLEEP -> R.string.power_wake_failed_tv
+                            WakeAttempt.Cause.BAR_SILENT -> R.string.power_wake_failed_bar
+                        },
+                    ),
                     event.detail,
                 )
             }

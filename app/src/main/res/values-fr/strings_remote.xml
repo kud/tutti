@@ -10,6 +10,8 @@
     <string name="action_power">Allumer ou éteindre</string>
     <string name="power_waking">Réveil de la TV et de la barre</string>
     <string name="power_wake_failed_tv">La TV ne s’est pas réveillée. Sur la TV, activez Paramètres → Réseau et Internet → Démarrage à distance.</string>
+    <string name="power_wake_failed_tv_no_mac">La TV ne s’est pas réveillée. Sur la TV, activez Paramètres → Réseau et Internet → Démarrage à distance. Pour la réveiller même éteinte, ajoutez la PSK de la TV dans les Réglages de tutti : tutti apprendra l’adresse de son paquet de réveil la prochaine fois que la TV sera allumée.</string>
+    <string name="power_wake_failed_tv_not_found">La TV n’a pas répondu, même au paquet de réveil. Sur la TV, vérifiez Paramètres → Réseau et Internet → Démarrage à distance, et que ce téléphone est sur le Wi-Fi de la TV.</string>
     <string name="power_wake_failed_bar">La barre de son n’a pas répondu</string>
     <string name="action_back">Retour</string>
     <string name="action_home">Accueil</string>

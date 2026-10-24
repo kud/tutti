@@ -50,7 +50,9 @@ import io.kud.tutti.protocol.bravia.getOrNull
 import io.kud.tutti.protocol.grpc.SonyCloudPlane
 import io.kud.tutti.protocol.net.LanAddress
 import io.kud.tutti.protocol.net.ClientIdentity
+import io.kud.tutti.protocol.diagnostic.ErrorClass
 import io.kud.tutti.protocol.diagnostic.FailureReport
+import io.kud.tutti.protocol.net.WakeAttempt
 import io.kud.tutti.protocol.net.WakeOnLan
 import io.kud.tutti.protocol.scenes.AppProfile
 import io.kud.tutti.protocol.scenes.AppProfiles
@@ -102,6 +104,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 import java.net.ConnectException
 import java.net.NoRouteToHostException
 import java.net.SocketTimeoutException
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -156,6 +159,10 @@ class TuttiController @Inject constructor(
     private val volumeTarget = MutableStateFlow<Int?>(null)
     private val waking = MutableStateFlow(false)
     private val wakeOnLan = WakeOnLanSender(context)
+
+    /** How the remote's last connect failed (`ErrorClass`), so a failed wake can tell "nothing there" from "refused". */
+    @Volatile
+    private var tvLastConnect: String? = null
 
     private val mutableEvents = MutableSharedFlow<TuttiEvent>(extraBufferCapacity = 16)
     val events: SharedFlow<TuttiEvent> = mutableEvents.asSharedFlow()
@@ -375,6 +382,7 @@ class TuttiController @Inject constructor(
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
+                    tvLastConnect = ErrorClass.of(e)
                     linkNotes.update { it.copy(tv = failureDetail("tv remote: connect (TLS 6466)", outcome = "handshake failures in a row: $handshakeFailures", error = e)) }
                     when {
                         e.hasCause<PinMismatchException>() -> Link.NEEDS_PAIRING
@@ -390,6 +398,7 @@ class TuttiController @Inject constructor(
                 }
                 if (outcome == Link.ONLINE) {
                     handshakeFailures = 0
+                    tvLastConnect = null
                     wait = MIN_BACKOFF_MS
                     links.update { it.copy(tv = Link.ONLINE) }
                     linkNotes.update { it.copy(tv = null) }
@@ -730,7 +739,8 @@ class TuttiController @Inject constructor(
 
     private suspend fun wakeAndPower(tvDevice: TvDevice?, bar: Boolean) {
         val mac = tvDevice?.mac
-        val (tvAnswered, barAnswered) = coroutineScope {
+        val sent = AtomicInteger(0)
+        val (tvReach, barReach) = coroutineScope {
             val kick = launch {
                 // The sessions may sit in backoff for up to MAX_BACKOFF_MS: retry now, and again while waiting.
                 while (isActive) {
@@ -742,14 +752,14 @@ class TuttiController @Inject constructor(
                 launch {
                     repeat(WOL_SENDS) { i ->
                         if (i > 0) delay(WOL_RESEND_MS)
-                        wakeOnLan.send(tvDevice.host, mac)
+                        if (wakeOnLan.send(tvDevice.host, mac)) sent.incrementAndGet()
                     }
                 }
             } else {
                 null
             }
             val tvJob = async {
-                if (tvDevice == null) return@async true
+                if (tvDevice == null) return@async WakeAttempt.Reach.NOT_CONFIGURED
                 val reached = withTimeoutOrNull(WAKE_TIMEOUT_MS) {
                     combine(atv.state, links) { _, _ -> tvReachable() }.first { it }
                 } != null
@@ -757,27 +767,33 @@ class TuttiController @Inject constructor(
                     setOverride { it.copy(powered = true) }
                     if (!tvPowerAfterWake(packetsSent = packets != null)) actionFailed("power: switch the tv on after waking it", "tv answered, power-on not confirmed")
                 }
-                reached
+                if (reached) WakeAttempt.Reach.ANSWERED else WakeAttempt.Reach.SILENT
             }
             val barJob = async {
-                if (!bar) return@async true
+                if (!bar) return@async WakeAttempt.Reach.NOT_CONFIGURED
                 // The bar often wakes with the TV over HDMI-CEC; it gets the command either way.
                 val reached = withTimeoutOrNull(WAKE_TIMEOUT_MS) { theatre.state.first { it.connected } } != null
                 if (reached) {
                     setOverride { it.copy(powered = true) }
                     theatre.setToggle(TheatreFeature.POWER, true)
                 }
-                reached
+                if (reached) WakeAttempt.Reach.ANSWERED else WakeAttempt.Reach.SILENT
             }
             val result = tvJob.await() to barJob.await()
             kick.cancel()
             packets?.cancel()
             result
         }
-        if (!tvAnswered || !barAnswered) {
-            val detail = failureDetail("power: wake the devices", outcome = "tv answered $tvAnswered, bar answered $barAnswered within $WAKE_TIMEOUT_MS ms")
-            mutableEvents.tryEmit(TuttiEvent.WakeFailed(tv = !tvAnswered, detail = detail))
-        }
+        val attempt = WakeAttempt(
+            tv = tvReach,
+            bar = barReach,
+            macKnown = mac != null,
+            packetsSent = sent.get(),
+            timeoutMs = WAKE_TIMEOUT_MS,
+            tvLastConnect = tvLastConnect,
+        )
+        val cause = attempt.cause ?: return
+        mutableEvents.tryEmit(TuttiEvent.WakeFailed(cause, failureDetail("power: wake the devices", outcome = attempt.outcome())))
     }
 
     /**

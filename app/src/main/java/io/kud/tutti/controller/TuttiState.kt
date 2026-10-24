@@ -11,6 +11,7 @@ import io.kud.tutti.protocol.bravia.SystemInfo
 import io.kud.tutti.protocol.bravia.TvApp
 import io.kud.tutti.protocol.bravia.TvSetting
 import io.kud.tutti.protocol.grpc.CloudPlaneState
+import io.kud.tutti.protocol.net.WakeAttempt
 import io.kud.tutti.protocol.scenes.AppProfile
 import io.kud.tutti.protocol.scenes.Scene
 import io.kud.tutti.protocol.scenes.SceneKey
@@ -129,9 +130,9 @@ sealed interface TuttiEvent {
 
     /**
      * Power was pressed while a device was out of reach, and it never came back.
-     * [tv] is true when the TV was one of them: the fix is its "Remote start" setting.
+     * [cause] picks the user message: a TV whose MAC was never learnt needs the PSK, not only Remote start.
      */
-    data class WakeFailed(val tv: Boolean, val detail: String) : TuttiEvent
+    data class WakeFailed(val cause: WakeAttempt.Cause, val detail: String) : TuttiEvent
 }
 
 data class TuttiUiState(
