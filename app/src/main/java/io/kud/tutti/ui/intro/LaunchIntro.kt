@@ -1,5 +1,8 @@
 package io.kud.tutti.ui.intro
 
+import android.os.Build
+import android.os.Process
+import android.os.SystemClock
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.Easing
 import androidx.compose.animation.core.LinearEasing
@@ -82,15 +85,16 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 
 /*
- * The launch intro, in three beats (Iris's splash notes). The system splash shows the launcher
- * mark still (res/drawable/splash_icon.xml): it is only the bridge, since the system plays
- * animated icons in its own process. Once the app has drawn its first frame, this overlay draws
- * the very same mark at the very same place, removes the system splash under it, and plays on the
- * app's own frame clock. Then the remote, already composed underneath and never held back.
+ * The launch intro, in three beats (Iris's splash notes). The system splash shows the lockup
+ * still, the launcher mark over the wordmark (res/drawable/splash_icon.xml): it is only the bridge,
+ * since the system plays animated icons in its own process. Once the app has drawn its first frame,
+ * this overlay draws the very same lockup at the very same place, removes the system splash under
+ * it, and plays on the app's own frame clock. Then the remote, already composed underneath and
+ * never held back.
  *
- * On a cold start it first opens on PR #11's splash composition ([SplashOpening]): the wordmark
- * arrives under the mark and, on a dark splash, a soft halo behind it, while the intro decides;
- * both leave as the choreography starts.
+ * On a cold start it first holds PR #11's splash composition ([SplashOpening]): the lockup stays,
+ * on a dark splash a soft halo breathes in behind it, while the intro decides; both leave as the
+ * choreography starts.
  *
  * "The OK becomes the pad" (Iris, 2026-10-23), richer (variant A of her second pass, plus B's
  * shimmering ring; Erwann, 2026-10-24): a sheen, the OK warms and slides onto the live D-pad's OK
@@ -695,32 +699,49 @@ object FadeIntro : IntroChoreography {
 }
 
 /*
- * The opening: PR #11's splash composition, in the app (Erwann, 2026-10-24: "oui, fais-le avec le
- * mot et le halo"). The system splash takes an icon only, so the mark is all it shows; the intro's
- * first frame is that same picture, and from there the lowercase wordmark (its i dotted in amber)
- * arrives under the mark and, on a dark splash, a soft halo in the theme's accent rises behind it,
- * [SplashOpening.MS]. The mark never moves for it (the MarkGeometry contract). Once the choreography
- * starts, both leave over its first beat ([OpeningExit]) while the OK warms, and the rest plays as
- * before. The opening runs while the intro waits for the stores and the remote's layout, so it adds
- * at most its own 200 ms to a cold start, usually less; a warm start (after Back) has none.
+ * The opening: PR #11's splash composition (Erwann, 2026-10-24: "oui, fais-le avec le mot et le
+ * halo"), held since his "le splashscreen est trop rapide". The lockup (the mark over the lowercase
+ * wordmark, its i dotted in amber) is baked into the system splash's icon, so the word is there from
+ * the very first frame and the intro's first frame is the same picture ([lockupMarkBox]). On a cold
+ * start the intro then holds it: on a dark splash a soft halo in the theme's accent breathes in
+ * behind it over [SplashOpening.ARRIVAL_MS] (opacity only, so reduced motion is the same), and the
+ * lockup stays still until it has read for about [SplashOpening.LOCKUP_MS] since the launch, the
+ * system splash's own time included ([SplashOpening.lengthFor]). The hold runs while the intro waits
+ * for the stores and the remote's layout, so a slow load eats into it rather than adding to it.
+ * Once the choreography starts, wordmark and halo leave over its first beat ([OpeningExit]) while the
+ * OK warms. A warm start (after Back) has no hold and no halo: its wordmark, on its system splash
+ * too, simply leaves with the first beat.
  */
 
-/** The opening's tracks, on the overlay's clock from its first frame. [reduced]: opacity only. */
-class SplashOpening(reduced: Boolean) {
-    val word = Track(Key(0f, 0f), Key(MS, 1f, Motion.Emphasized))
-    val rise = if (reduced) Track(Key(0f, 0f)) else Track(Key(0f, MarkGeometry.WORDMARK_RISE), Key(MS, 0f, Motion.Emphasized))
-    val halo = Track(Key(0f, 0f), Key(MS, 1f, Breath))
+/** The opening's tracks, on the overlay's clock from its first frame: the wordmark whole from 0, the halo breathing in. */
+class SplashOpening {
+    val halo = Track(Key(0f, 0f), Key(ARRIVAL_MS, 1f, Breath))
 
     fun pose(ms: Float, into: OpeningFrame) {
-        into.word = word.at(ms)
-        into.rise = rise.at(ms)
+        into.word = 1f
         into.halo = halo.at(ms)
     }
 
     companion object {
-        const val MS = 200f
+        /** The halo's arrival. */
+        const val ARRIVAL_MS = 300f
 
-        /** Which launches open on the composition: cold ones only; a warm start stays short. */
+        /** How long the lockup reads before the choreography starts, counted from the launch. */
+        const val LOCKUP_MS = 1200f
+
+        /** The in-app opening's floor and ceiling: a real hold even after a slow launch, never a long wait. */
+        const val MIN_MS = 600f
+        const val MAX_MS = 1000f
+
+        /**
+         * The in-app opening's length when the lockup has already been on screen for [shownMs] (the
+         * system splash, since the process started): what is left of [LOCKUP_MS], within
+         * [MIN_MS]..[MAX_MS]. A process started earlier for something else (the tile, the widget, the
+         * media notification) reads as a long [shownMs], so it gets the floor.
+         */
+        fun lengthFor(shownMs: Float): Float = (LOCKUP_MS - shownMs).coerceIn(MIN_MS, MAX_MS)
+
+        /** Which launches hold the composition: cold ones only; a warm start stays short. */
         fun runsFor(kind: IntroKind): Boolean = kind == IntroKind.COLD
     }
 }
@@ -728,10 +749,9 @@ class SplashOpening(reduced: Boolean) {
 /** The opening as the choreographies leave it: 160 ms, while the OK warms and before the body steps back. */
 val OpeningExit = Track(Key(0f, 1f), Key(160f, 0f, Motion.Exit))
 
-/** The opening at one frame: the wordmark's alpha and rise (mark units), the halo's alpha. */
+/** The opening at one frame: the wordmark's alpha (whole on any splash: it is in the splash icon), the halo's alpha. */
 class OpeningFrame {
-    var word = 0f
-    var rise = 0f
+    var word = 1f
     var halo = 0f
 
     // The wordmark's outline and the halo's paint, made once (the halo's again only for a new accent).
@@ -784,18 +804,15 @@ internal fun DrawScope.drawOpeningHalo(scene: IntroScene, level: Float) {
 
 /**
  * The wordmark under the mark, in the mark's ink (its body colour: ivory on a dark splash, ink on a
- * light one) with the i's dot in the pill's amber, at [level] of its arrival. Left out when it would
- * not clear the bottom of the window (a phone held sideways): the mark alone is the splash there.
+ * light one) with the i's dot in the pill's amber, at [level], exactly where splash_icon.xml puts it:
+ * inside the splash icon, so it is on screen wherever the system splash was.
  */
 internal fun DrawScope.drawWordmark(scene: IntroScene, level: Float) {
     val a = scene.opening.word * level
     if (a <= 0f) return
     val u = scene.icon.width / MarkGeometry.VIEWPORT
     val s = Wordmark.SCALE * u
-    val baseline = scene.icon.top + (MarkGeometry.WORDMARK_BASELINE + scene.opening.rise) * u
-    if (baseline + Wordmark.BOTTOM * s > size.height - WORDMARK_CLEARANCE.toPx()) return
-    val left = scene.icon.left + MarkGeometry.CENTRE * u - (Wordmark.LEFT + Wordmark.RIGHT) / 2f * s
-    translate(left, baseline) {
+    translate(scene.icon.left + Wordmark.ORIGIN_X * u, scene.icon.top + MarkGeometry.WORDMARK_BASELINE * u) {
         scale(s, s, pivot = Offset.Zero) {
             drawPath(scene.opening.ink, scene.colours.body, alpha = a)
             drawCircle(scene.colours.line, Wordmark.DOT_RADIUS, Offset(Wordmark.DOT_X, Wordmark.DOT_Y), alpha = a)
@@ -813,9 +830,6 @@ internal val OPENING_HALO_STOPS = listOf(
     0.8f to 0.012f,
     1f to 0f,
 )
-
-/** Room kept under the wordmark for the navigation bar. */
-private val WORDMARK_CLEARANCE = 56.dp
 
 private fun lerpRect(from: Rect, to: Rect, t: Float) = Rect(
     from.left + (to.left - from.left) * t,
@@ -914,8 +928,18 @@ class LaunchIntro(val kind: IntroKind) {
         val view = splash.iconView
         val at = IntArray(2).also(view::getLocationInWindow)
         provider = splash
-        icon = Rect(at[0].toFloat(), at[1].toFloat(), (at[0] + view.width).toFloat(), (at[1] + view.height).toFloat())
+        // The icon's 108 units span 288 dp centred on the icon view, whatever the view's own size:
+        // core-splashscreen's compat view is 288 dp, Android 12+'s is the 192 dp circle the system
+        // draws the 1.5x foreground into.
+        val half = MarkGeometry.SPLASH_ICON_DP * view.resources.displayMetrics.density / 2f
+        val centre = Offset(at[0] + view.width / 2f, at[1] + view.height / 2f)
+        icon = lockupMarkBox(Rect(centre.x - half, centre.y - half, centre.x + half, centre.y + half))
+        shownMs = sinceLaunchMs()
     }
+
+    /** How long the lockup had been on screen (the system splash, since the launch) when the intro took over. */
+    internal var shownMs = 0f
+        private set
 
     /** Called once the overlay has drawn the mark over the system splash: the swap is invisible. */
     internal fun covered() {
@@ -943,6 +967,29 @@ class LaunchIntro(val kind: IntroKind) {
             }
         }
     }
+}
+
+/**
+ * The mark's own 108-unit box inside the splash icon's [splash] box: the lockup draws the mark at
+ * [MarkGeometry.LOCKUP_SCALE], offset by [MarkGeometry.LOCKUP_DX] and [MarkGeometry.LOCKUP_DY], as
+ * splash_icon.xml's group does. Everything the intro draws is placed in this box.
+ */
+internal fun lockupMarkBox(splash: Rect): Rect {
+    val u = splash.width / MarkGeometry.VIEWPORT
+    val left = splash.left + MarkGeometry.LOCKUP_DX * u
+    val top = splash.top + MarkGeometry.LOCKUP_DY * u
+    val side = MarkGeometry.VIEWPORT * MarkGeometry.LOCKUP_SCALE * u
+    return Rect(left, top, left + side, top + side)
+}
+
+/** Milliseconds since this process was asked to start (API 33+) or started: the launch, near enough. */
+private fun sinceLaunchMs(): Float {
+    val start = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        Process.getStartRequestedUptimeMillis()
+    } else {
+        Process.getStartUptimeMillis()
+    }
+    return (SystemClock.uptimeMillis() - start).toFloat().coerceAtLeast(0f)
 }
 
 /** Which face of the pad is on screen for the intro to land on. */
@@ -982,19 +1029,20 @@ fun LaunchIntroOverlay(intro: LaunchIntro, firstLaunch: Boolean?) {
     var script by remember { mutableStateOf<IntroChoreography?>(null) }
     var origin by remember { mutableStateOf(Offset.Zero) }
     val scenes = remember { SceneCache() }
-    val opening = remember(intro, reduced) { if (SplashOpening.runsFor(intro.kind)) SplashOpening(reduced) else null }
+    val opening = remember(intro) { if (SplashOpening.runsFor(intro.kind)) SplashOpening() else null }
     val frame = remember { OpeningFrame() }
     var openMs by remember { mutableFloatStateOf(0f) }
     LaunchedEffect(intro) {
-        // The opening's clock, from the first frame: it runs while the intro decides.
+        // The opening's clock, from the first frame: the hold runs while the intro decides.
         val clock = opening?.let {
+            val length = SplashOpening.lengthFor(intro.shownMs)
             launch {
                 val zero = withFrameNanos { it }
-                while (openMs < SplashOpening.MS) withFrameNanos { now -> openMs = (now - zero) / 1_000_000f }
+                while (openMs < length) withFrameNanos { now -> openMs = (now - zero) / 1_000_000f }
             }
         }
-        // The first frame draws the resting pose (the system splash's own picture, no wordmark yet);
-        // once it is on screen, the system splash goes.
+        // The first frame draws the resting lockup (the system splash's own picture, the halo not
+        // yet risen); once it is on screen, the system splash goes.
         withFrameNanos { }
         withFrameNanos { }
         intro.covered()

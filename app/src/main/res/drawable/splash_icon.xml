@@ -1,25 +1,50 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Launch screen: the shipped launcher mark (ic_launcher_foreground), still, in the theme's colours.
-  The system splash is only the bridge; the in-app intro (ui/intro/LaunchIntro.kt) draws this same
-  picture at the same place from ui/intro/MarkGeometry.kt, then plays the animation on the app's
-  own frame clock.
+  Launch screen: the splash lockup, the launcher mark (ic_launcher_foreground) over the lowercase
+  "tutti", still, in the theme's colours, so the first frame already reads the name (Erwann,
+  2026-10-24). The lockup is the mark scaled by MarkGeometry.LOCKUP_SCALE with its middle on the
+  icon's centre, inside the splash's visible 192 dp circle (MarkGeometry.SPLASH_RADIUS) on Android
+  12+ and on core-splashscreen's compat splash alike. The in-app intro (ui/intro/LaunchIntro.kt)
+  draws this same picture at the same place from ui/intro/MarkGeometry.kt; MarkGeometryTest checks
+  every number here against it.
 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <path
-        android:fillColor="@color/splash_body"
-        android:pathData="M50,25h8a13,13 0,0 1,13 13v32a13,13 0,0 1,-13 13h-8a13,13 0,0 1,-13 -13v-32a13,13 0,0 1,13 -13z" />
-    <path
-        android:fillColor="@color/splash_button"
-        android:pathData="M54,29.5a2.5,2.5 0,1 1,0 5a2.5,2.5 0,1 1,0 -5z" />
-    <path
-        android:fillColor="@color/splash_button"
-        android:pathData="M54,40a10,10 0,1 1,0 20a10,10 0,1 1,0 -20z" />
-    <path
-        android:fillColor="@color/splash_line"
-        android:pathData="M48,69h12a3,3 0,0 1,0 6h-12a3,3 0,0 1,0 -6z" />
+    <!-- LOCKUP_SCALE 0.65; LOCKUP_DX = 54 - 54 x 0.65; LOCKUP_DY = 54 - 70.4 x 0.65. -->
+    <group
+        android:name="lockup"
+        android:scaleX="0.65"
+        android:scaleY="0.65"
+        android:translateX="18.9"
+        android:translateY="8.24">
+        <path
+            android:fillColor="@color/splash_body"
+            android:pathData="M50,25h8a13,13 0,0 1,13 13v32a13,13 0,0 1,-13 13h-8a13,13 0,0 1,-13 -13v-32a13,13 0,0 1,13 -13z" />
+        <path
+            android:fillColor="@color/splash_button"
+            android:pathData="M54,29.5a2.5,2.5 0,1 1,0 5a2.5,2.5 0,1 1,0 -5z" />
+        <path
+            android:fillColor="@color/splash_button"
+            android:pathData="M54,40a10,10 0,1 1,0 20a10,10 0,1 1,0 -20z" />
+        <path
+            android:fillColor="@color/splash_line"
+            android:pathData="M48,69h12a3,3 0,0 1,0 6h-12a3,3 0,0 1,0 -6z" />
+        <!-- The wordmark: Wordmark.PATH at Wordmark.SCALE, origin (Wordmark.ORIGIN_X, WORDMARK_BASELINE); the i's dot in amber. -->
+        <group
+            android:name="wordmark"
+            android:scaleX="0.138671"
+            android:scaleY="0.138671"
+            android:translateX="24.7306"
+            android:translateY="115.5">
+            <path
+                android:fillColor="@color/splash_body"
+                android:pathData="M77.076,-114.469L53.662,-114.469L53.662,-145.688L21.68,-145.688L21.68,-114.469L1.943,-114.469L1.943,-89.424L21.68,-89.424L21.68,-30.352C21.68,-9.539 33.265,0 58.414,0L77.076,0L77.076,-25.044L64.831,-25.044C56.159,-25.044 53.662,-27.542 53.662,-35.347L53.662,-89.424L77.076,-89.424ZM133.317,2.393C149.794,2.393 161.414,-4.995 169.115,-18.003L169.115,0L200.437,0L200.437,-114.469L168.56,-114.469L168.56,-50.852C168.56,-33.057 159.333,-25.148 146.117,-25.148C132.797,-25.148 125.096,-33.265 125.096,-48.667L125.096,-114.469L93.114,-114.469L93.114,-42.804C93.114,-13.875 108.932,2.393 133.317,2.393ZM288.886,-114.469L265.472,-114.469L265.472,-145.688L233.49,-145.688L233.49,-114.469L213.753,-114.469L213.753,-89.424L233.49,-89.424L233.49,-30.352C233.49,-9.539 245.076,0 270.224,0L288.886,0L288.886,-25.044L276.641,-25.044C267.97,-25.044 265.472,-27.542 265.472,-35.347L265.472,-89.424L288.886,-89.424ZM370.727,-114.469L347.313,-114.469L347.313,-145.688L315.331,-145.688L315.331,-114.469L295.594,-114.469L295.594,-89.424L315.331,-89.424L315.331,-30.352C315.331,-9.539 326.917,0 352.065,0L370.727,0L370.727,-25.044L358.482,-25.044C349.81,-25.044 347.313,-27.542 347.313,-35.347L347.313,-89.424L370.727,-89.424ZM386.766,0L418.748,0L418.748,-114.469L386.766,-114.469Z" />
+            <path
+                android:fillColor="@color/splash_line"
+                android:pathData="M402.7,-163.4a17.5,17.5 0,1 1,0 35a17.5,17.5 0,1 1,0 -35z" />
+        </group>
+    </group>
 </vector>

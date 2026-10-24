@@ -37,25 +37,45 @@ internal object MarkGeometry {
     const val SAFE_RADIUS = 33f
 
     /*
-     * The intro's opening (PR #11's splash, Iris, 2026-10-24): the lowercase wordmark under the
-     * handset and, in dark, a soft halo behind it. Neither is part of the icon (the system splash
-     * takes an icon only), so they sit outside the viewport, in the same units, centred on the mark.
+     * The splash lockup (Erwann, 2026-10-24: "pourquoi tutti est pas affiché au début aussi"): the
+     * handset over the lowercase wordmark, baked into the system splash's icon (splash_icon.xml) so
+     * the very first frame already reads "tutti", on Android 11's compat splash and 12+ alike. The
+     * wordmark is in the mark's units, under the handset; the whole lockup is the mark scaled by
+     * [LOCKUP_SCALE] with its middle ([LOCKUP_CENTRE_Y]) on the icon's centre, so it fits the splash's
+     * visible circle ([SPLASH_RADIUS]). The intro draws the same lockup at the same place.
      */
 
-    // The wordmark: 64 units wide (about 1.9 handsets, the v2 lockup's own ratio is 2.4, trimmed
-    // because the system splash draws the mark larger than the study did), its baseline 55 units
-    // below the handset (the study's 1.56 handsets would leave a phone's screen).
-    const val WORDMARK_WIDTH = 64f
-    const val WORDMARK_BASELINE = 138f
+    // The wordmark: 58 units wide (1.7 handsets; as wide as the handset is tall, so the lockup is
+    // a square-ish block that fills the circle; the v2 study's 2.4 would shrink the mark below
+    // 90 dp), its top 10 units under the handset.
+    const val WORDMARK_WIDTH = 58f
+    const val WORDMARK_BASELINE = 115.5f
 
-    // How far the wordmark rises as it arrives.
-    const val WORDMARK_RISE = 4f
+    /** The lockup's vertical middle, handset top (25) to the u's overshoot under the baseline. */
+    const val LOCKUP_CENTRE_Y = 70.4f
 
-    // The halo: an ellipse round the mark, a touch below its centre, as in the study (rx 200, ry 235
-    // round a 73 x 138 handset).
-    const val HALO_Y = 57f
-    const val HALO_RX = 94f
-    const val HALO_RY = 100f
+    /** The mark's scale in the splash icon: the largest that keeps the lockup in [SPLASH_RADIUS]. */
+    const val LOCKUP_SCALE = 0.65f
+
+    /**
+     * The splash's visible circle, in the icon's 108 units: a 192 dp circle in the 288 dp icon,
+     * both for windowSplashScreenAnimatedIcon without an icon background on Android 12+ and for
+     * core-splashscreen's compat mask below it (a 410 dp ring with a 109 dp stroke).
+     */
+    const val SPLASH_RADIUS = 36f
+
+    /** The splash icon's box on screen (no icon background), in dp: 108 units at 288/108 dp each. */
+    const val SPLASH_ICON_DP = 288f
+
+    // The halo: an ellipse round the lockup, on its middle, as in the study (rx 200, ry 235 round
+    // the lockup), in the mark's units.
+    const val HALO_Y = LOCKUP_CENTRE_Y
+    const val HALO_RX = 100f
+    const val HALO_RY = 112f
+
+    /** The splash icon's group transform: viewport = mark × [LOCKUP_SCALE] + this offset. */
+    const val LOCKUP_DX = CENTRE - CENTRE * LOCKUP_SCALE
+    const val LOCKUP_DY = CENTRE - LOCKUP_CENTRE_Y * LOCKUP_SCALE
 }
 
 /**
@@ -91,4 +111,7 @@ internal object Wordmark {
 
     /** Outline units to the mark's units. */
     const val SCALE = MarkGeometry.WORDMARK_WIDTH / (RIGHT - LEFT)
+
+    /** Where the outline's origin (left of the baseline) sits, in the mark's units: centred under the handset. */
+    const val ORIGIN_X = MarkGeometry.CENTRE - (LEFT + RIGHT) / 2f * SCALE
 }
