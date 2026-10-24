@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Dark: ink window, as the splash (true black, once chosen, is restored by WindowBackground); amber below Android 12. -->
+<!-- Dark: Material 3's baseline below Android 12 (true black, once chosen, is restored by WindowBackground). -->
 <resources>
-    <color name="window_background">#FF1C1B22</color>
-    <color name="theme_accent">#FFE3A35B</color>
+    <color name="window_background">#FF141218</color>
+    <color name="theme_accent">#FFD0BCFF</color>
 </resources>

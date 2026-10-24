@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- The XML theme's colours, matching what Compose draws (Theme.kt): tutti's brand scheme below Android 12. -->
+<!-- The XML theme's colours, matching what Compose draws (Theme.kt): Material 3's baseline below Android 12. -->
 <resources>
-    <color name="window_background">#FFFBF8F3</color>
-    <color name="theme_accent">#FF85561C</color>
+    <color name="window_background">#FFFEF7FF</color>
+    <color name="theme_accent">#FF6750A4</color>
 </resources>
