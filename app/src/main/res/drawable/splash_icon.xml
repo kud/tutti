@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Launch screen: the shipped launcher mark (ic_launcher_foreground), still. The system splash is
-  only the bridge; the in-app intro (ui/intro/LaunchIntro.kt) draws this same picture at the same
-  place, then plays the animation on the app's own frame clock.
+  Launch screen: the shipped launcher mark (ic_launcher_foreground), still, in the theme's colours.
+  The system splash is only the bridge; the in-app intro (ui/intro/LaunchIntro.kt) draws this same
+  picture at the same place from ui/intro/MarkGeometry.kt, then plays the animation on the app's
+  own frame clock.
 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
@@ -11,13 +12,14 @@
     android:viewportHeight="108">
     <path
         android:fillColor="@color/splash_body"
-        android:pathData="M50,28h8a14,14 0,0 1,14 14v24a14,14 0,0 1,-14 14h-8a14,14 0,0 1,-14 -14v-24a14,14 0,0 1,14 -14z" />
+        android:pathData="M50,25h8a13,13 0,0 1,13 13v32a13,13 0,0 1,-13 13h-8a13,13 0,0 1,-13 -13v-32a13,13 0,0 1,13 -13z" />
     <path
         android:fillColor="@color/splash_button"
-        android:pathData="M54,39a9,9 0,1 1,0 18a9,9 0,1 1,0 -18z" />
+        android:pathData="M54,29.5a2.5,2.5 0,1 1,0 5a2.5,2.5 0,1 1,0 -5z" />
     <path
-        android:pathData="M48,68H60"
-        android:strokeWidth="4"
-        android:strokeColor="@color/splash_line"
-        android:strokeLineCap="round" />
+        android:fillColor="@color/splash_button"
+        android:pathData="M54,40a10,10 0,1 1,0 20a10,10 0,1 1,0 -20z" />
+    <path
+        android:fillColor="@color/splash_line"
+        android:pathData="M48,69h12a3,3 0,0 1,0 6h-12a3,3 0,0 1,0 -6z" />
 </vector>

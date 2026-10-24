@@ -278,12 +278,12 @@ internal abstract class OkLanding(warm: Boolean) : IntroChoreography {
     /** Where the OK is: from the mark's OK to [landing] along [travel]. */
     protected fun okCentre(ms: Float, scene: IntroScene, landing: Offset): Offset {
         val u = scene.icon.width / 108f
-        return lerp(scene.icon.topLeft + Offset(54f * u, 48f * u), landing, travel.at(ms))
+        return lerp(scene.icon.topLeft + Offset(MarkGeometry.CENTRE * u, MarkGeometry.OK_Y * u), landing, travel.at(ms))
     }
 
     /** The OK's radius: the mark's OK, swelling, then [landing]'s. */
     protected fun okRadius(ms: Float, scene: IntroScene, landing: Float): Float {
-        val start = 9f * scene.icon.width / 108f * swell.at(ms)
+        val start = MarkGeometry.OK_RADIUS * scene.icon.width / 108f * swell.at(ms)
         return start + (landing - start) * travel.at(ms)
     }
 
@@ -555,7 +555,11 @@ internal class IntroPaints(scope: DrawScope, private val okRadius: Float, val bl
         okRadius == this.okRadius && bloomRadius == this.bloomRadius && colours.ivory == ivory && theme == this.theme
 
     val backdrop = Path()
-    val bodyClip = Path().apply { addRoundRect(RoundRect(36f, 28f, 72f, 80f, CornerRadius(14f))) }
+    val bodyClip = Path().apply {
+        addRoundRect(
+            RoundRect(MarkGeometry.BODY_LEFT, MarkGeometry.BODY_TOP, MarkGeometry.BODY_RIGHT, MarkGeometry.BODY_BOTTOM, CornerRadius(MarkGeometry.BODY_CORNER)),
+        )
+    }
     val okClip = Path().apply { addOval(Rect(Offset.Zero, okRadius)) }
 
     // A soft sheen, not a glint: wide, no core, a low peak that eases in and out.
@@ -701,9 +705,20 @@ fun DrawScope.drawLaunchMark(pose: MarkPose, colours: MarkColours, icon: Rect, w
     translate(icon.left, icon.top) {
         scale(u, u, pivot = Offset.Zero) {
             scale(pose.markScale, pivot = Offset(54f, 54f)) {
-                drawRoundRect(colours.body, Offset(36f, 28f), Size(36f, 52f), CornerRadius(14f), alpha = a)
-                if (withOk) drawCircle(lerp(colours.button, colours.buttonWarm, pose.okWarmth), 9f * pose.okScale, Offset(54f, 48f), alpha = a)
-                drawLine(colours.line, Offset(48f, 68f), Offset(60f, 68f), strokeWidth = 4f, cap = StrokeCap.Round, alpha = a)
+                with(MarkGeometry) {
+                    drawRoundRect(
+                        colours.body,
+                        Offset(BODY_LEFT, BODY_TOP),
+                        Size(BODY_RIGHT - BODY_LEFT, BODY_BOTTOM - BODY_TOP),
+                        CornerRadius(BODY_CORNER),
+                        alpha = a,
+                    )
+                    // The top button is the OK's colour, still: it never warms or travels.
+                    drawCircle(colours.button, TOP_RADIUS, Offset(CENTRE, TOP_Y), alpha = a)
+                    if (withOk) drawCircle(lerp(colours.button, colours.buttonWarm, pose.okWarmth), OK_RADIUS * pose.okScale, Offset(CENTRE, OK_Y), alpha = a)
+                    val pill = (PILL_BOTTOM - PILL_TOP) / 2f
+                    drawRoundRect(colours.line, Offset(PILL_LEFT, PILL_TOP), Size(PILL_RIGHT - PILL_LEFT, PILL_BOTTOM - PILL_TOP), CornerRadius(pill), alpha = a)
+                }
             }
         }
     }
