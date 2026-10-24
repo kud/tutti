@@ -329,7 +329,7 @@ fun RemoteScreen(
                                 padSize.height.toFloat(),
                                 PAD_SWITCH_ZONE.dp.toPx(),
                                 layout.hand.switchOnLeft,
-                            ).toDp()
+                            ).toDp().coerceAtLeast(0.dp)
                         }
                         val railInset by animateDpAsState(
                             if (state.prefs.padMode == PadMode.DPAD) discInset else 0.dp,
@@ -345,7 +345,9 @@ fun RemoteScreen(
                                 onVolume = controller::setVolume,
                                 onStep = controller::volumeStep,
                                 onMute = controller::toggleMute,
-                                modifier = Modifier.padding(vertical = railInset).semantics { traversalIndex = 1f },
+                                // A spring can overshoot below zero, and before the pad is measured the inset can be
+                                // negative: padding must never be (crash on dev.56).
+                                modifier = Modifier.padding(vertical = railInset.coerceAtLeast(0.dp)).semantics { traversalIndex = 1f },
                             )
                         }
                         Row(
