@@ -70,6 +70,19 @@ Every sheet (Son, All keys, Apps, a pin's editor, the action picker) can rise to
 - Anchors never move or hide: Power, the volume rail, the pad's place and the Son sheet. The pad's side is chosen once, by the hand, never dragged; the rail takes the other side. "Reset the layout" asks first and puts the row, the scenes, the pad and the hand (right) back; pins stay.
 - Stored with every field defaulted to today's screen, so a phone that never opens edit mode sees no change.
 
+## The TV's link: calm, then honest
+
+Iris, 2026-10-24, from Erwann's "si les touches ne marchent pas à ce moment-là, peut-être que c'est mieux". The rule is `TvLinkRule` (`controller/TvLinkRule.kt`, tested); the remote reads its result, `Links.tvShown`, and Technical details keep the raw link.
+
+- Before: every drop of the remote v2 link showed at once (chip "BRAVIA 8 unreachable" in red, then "Connecting…", the card on "TV out of reach"), even for a one-second blip; and a key pressed meanwhile was dropped by `AtvRemote.send` with nothing said and nothing felt beyond the press's own click.
+- A blip shows nothing. For 3 s after a link that was up drops, the remote stays as it was, the last app included. A reconnect is a 1 s backoff, then TLS and the configure exchange: about 1.5 to 2.5 s on a home LAN, so 3 s covers the first retry with margin.
+- Past 3 s, quietly: the chip's dot becomes the open ring with "Reconnecting to the TV…" (onSurfaceVariant, never the error colour), and the card says "Reconnecting…" over "Keys work again once the TV answers", with the turning-arrow glyph, not the warning triangle.
+- Past 20 s (the 1, 2, 4 and 8 s backoffs and their attempts), the stronger state comes back: "BRAVIA 8 unreachable" in the chip, "TV out of reach" on the card, the out-of-reach row buttons. A retry after that never flickers back to "Connecting…". A link never up this session (the first connect), Needs pairing and no TV show as they are, with their own messages and actions.
+- A link that is down wins on the card over a channel or input that REST still reports: the card vouches for the keys. Standby still wins over everything.
+- A TV key pressed while the link isn't up never vanishes. One-shot keys whose effect doesn't depend on focus (Home, Back, play/pause, play, pause, stop, Guide, Settings, All apps, TV) wait up to 2 s and go the moment the link is back, newest wins: a soft bump and "Sending when the TV is back…". Everything else is dropped with the reject haptic and "Not sent: waiting for the TV": D-pad and OK (a burst of arrows landing late, or OK on whatever took focus), digits and channel steps, colour keys, skips, long presses, and power, which has its own wake path. A held key that doesn't make it says "Not sent: the TV didn't come back in time". Past give-up it is "Not sent: the TV is out of reach", and with pairing lost "Not sent: pair the TV again". The same words don't repeat while they still show, so a burst of arrows is one message and a reject per press.
+- The bar's keys (volume, mute) are their own link and never wait on the TV's.
+- TalkBack hears the change once, when the shown state moves: "Reconnecting to the TV…", "BRAVIA 8 unreachable", then "Connected to the TV again"; never on a blip, never at the first connect. The card's change is its usual opacity cross-fade, which is also the reduced-motion form; the ring stops turning under reduced motion, as before.
+
 ## Scenes (templates)
 - A scene holds any subset of TV settings (input or app, picture mode), bar settings (sound field, voice, night, bass, volume, optional volume cap) and a final action (launch an app).
 - Main creation path: "Capturer l'état actuel" — every captured value becomes a removable chip; name, colour and glyph. Blank form is the fallback.
