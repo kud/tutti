@@ -73,6 +73,10 @@ class OkHttpBraviaTransport internal constructor(
             .readTimeout(readTimeoutMs, TimeUnit.MILLISECONDS)
             .writeTimeout(8, TimeUnit.SECONDS)
             .retryOnConnectionFailure(false)
+            // Never follow a redirect: OkHttp keeps custom headers on one, so the PSK could
+            // reach a host that is not the TV. A 3xx is an answer, reported as such.
+            .followRedirects(false)
+            .followSslRedirects(false)
             .eventListener(FreshConnectionListener)
             .build()
     }
