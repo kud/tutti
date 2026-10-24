@@ -83,7 +83,8 @@ class QuickTileService : TileService() {
             !state.connected -> getString(R.string.quick_status_disconnected)
             !state.power -> getString(R.string.quick_status_off)
             state.muted -> getString(R.string.quick_status_muted)
-            else -> getString(R.string.quick_volume_value, state.volume)
+            // A level not yet reported is unknown, never "Volume 0" (design.md, Quick access).
+            else -> state.level?.let { getString(R.string.quick_volume_value, it.level) } ?: getString(R.string.quick_status_connected)
         }
         tile.icon = Icon.createWithResource(
             this,

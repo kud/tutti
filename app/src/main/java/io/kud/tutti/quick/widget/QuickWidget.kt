@@ -38,6 +38,8 @@ import androidx.glance.layout.height
 import androidx.glance.layout.padding
 import androidx.glance.layout.size
 import androidx.glance.layout.width
+import androidx.glance.semantics.contentDescription
+import androidx.glance.semantics.semantics
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextAlign
@@ -169,16 +171,19 @@ private fun SceneRow(state: QuickState, maxPills: Int) {
 private fun ScenePill(scene: QuickScene, active: Boolean, modifier: GlanceModifier) {
     val seed = Color(scene.color)
     val fill = if (active) seed else seed.copy(alpha = 0.28f)
+    val context = LocalContext.current
     val text = when {
         active && seed.luminance() > 0.5f -> ColorProvider(Color.Black)
         active -> ColorProvider(Color.White)
         else -> GlanceTheme.colors.onSurface
     }
+    val described = if (active) context.getString(R.string.quick_scene_active, scene.name) else scene.name
     Box(
         modifier = modifier
             .height(36.dp)
             .cornerRadius(18.dp)
             .background(fill)
+            .semantics { contentDescription = described }
             .clickable(
                 actionRunCallback<QuickWidgetAction>(
                     actionParametersOf(
@@ -191,8 +196,9 @@ private fun ScenePill(scene: QuickScene, active: Boolean, modifier: GlanceModifi
         contentAlignment = Alignment.Center,
     ) {
         Text(
-            text = scene.name,
-            style = TextStyle(color = text, fontSize = 13.sp, fontWeight = FontWeight.Medium),
+            // Active wears a tick as well as the full fill: never told by colour alone.
+            text = if (active) "\u2713 ${scene.name}" else scene.name,
+            style = TextStyle(color = text, fontSize = 13.sp, fontWeight = if (active) FontWeight.Bold else FontWeight.Medium),
             maxLines = 1,
         )
     }
@@ -213,7 +219,8 @@ private fun VolumeRow(state: QuickState) {
             enabled = enabled,
         )
         Text(
-            text = if (state.connected) state.volume.toString() else "–",
+            // Unknown until reported, never a made-up 0 (design.md, Quick access).
+            text = state.level?.takeIf { state.connected }?.level?.toString() ?: "–",
             modifier = GlanceModifier.defaultWeight(),
             style = TextStyle(
                 color = GlanceTheme.colors.onSurface,

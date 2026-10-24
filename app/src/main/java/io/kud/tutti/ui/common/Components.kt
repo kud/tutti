@@ -34,6 +34,8 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntRect
@@ -79,6 +81,7 @@ fun TonalRoundButton(
     unreachable: Boolean = false,
     feedback: FeedbackEvent = FeedbackEvent.KEY,
     size: Dp = 56.dp,
+    stateDescription: String? = null,
 ) {
     val interaction = remember { MutableInteractionSource() }
     val haptics = rememberFeedback()
@@ -152,7 +155,8 @@ fun TonalRoundButton(
                 onLongClickLabel = onLongClickLabel,
                 onLongClick = if (longPress) onLongClick else null,
                 onClick = if (unreachable) nudge::poke else onClick,
-            ),
+            )
+            .then(if (stateDescription != null) Modifier.semantics { this.stateDescription = stateDescription } else Modifier),
         contentAlignment = Alignment.Center,
     ) {
         Icon(painterResource(icon), contentDescription = contentDescription, tint = content)

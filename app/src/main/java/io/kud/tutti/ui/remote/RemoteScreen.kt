@@ -278,6 +278,8 @@ fun RemoteScreen(
                             feedback = FeedbackEvent.SELECT,
                             active = state.powered == true,
                             size = 52.dp,
+                            // Unknown power says nothing rather than "Off".
+                            stateDescription = state.powered?.let { stringResource(if (it) R.string.state_on else R.string.state_off) },
                         )
                         // Box scope inside a Row: the plain overload, named, so the Row's one isn't picked.
                         androidx.compose.animation.AnimatedVisibility(

@@ -10,6 +10,7 @@
     <string name="quick_status_off">Éteint</string>
     <string name="quick_status_muted">Muet</string>
     <string name="quick_volume_value">Volume %1$d</string>
+    <string name="quick_scene_active">%1$s, active</string>
     <string name="quick_scene_modified">%1$s · modifiée</string>
 
     <string name="quick_action_volume_down">Baisser le volume</string>

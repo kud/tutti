@@ -112,6 +112,7 @@ Iris, 2026-10-24, from Erwann's "si les touches ne marchent pas à ce moment-là
 
 ## Quick access (v1)
 Quick Settings tile (opens a compact remote overlay), phone volume buttons drive the bar while the app is in front (and while the notification shows, below), home-screen widget (scenes + volume), media-style notification.
+- State on the quick surfaces follows the remote's rules (Iris, 2026-10-24): the tile's subtitle and the widget's number show the volume rule's level only once it is reported ("Connected" or "–" until then, never "Volume 0"); the widget's active scene pill wears a tick and bold type as well as its full fill, and TalkBack reads it as "Cinema, active".
 
 ### Notification
 - Media style, backed by a MediaSession (`quick/notification/`; rules in `MediaCard.kt`, unit-tested). Shown while the TV is on, the room's link is up and the setting is on; Android 13+ also needs POST_NOTIFICATIONS. No foreground service: it mirrors the controller, it does not keep it alive.

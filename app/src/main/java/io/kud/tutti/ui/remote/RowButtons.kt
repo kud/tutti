@@ -101,14 +101,20 @@ fun LiveRowButton(
             active = fieldWaiting,
             size = size,
         )
-        RowButton.MUTE -> TonalRoundButton(
-            icon = rowButtonIcon(button, state.muted),
-            contentDescription = rowButtonLabel(button),
-            onClick = { controller.toggleMute() },
-            active = state.muted,
-            unreachable = !state.bar.connected,
-            size = size,
-        )
+        RowButton.MUTE -> {
+            // A remembered mute is not shown once the bar has gone: the reducer keeps the last value.
+            val muted = state.muted && state.bar.connected
+            TonalRoundButton(
+                icon = rowButtonIcon(button, muted),
+                // Like the rail's speaker: the label says what a tap does, the state what is true now.
+                contentDescription = stringResource(if (muted) R.string.volume_unmute else R.string.volume_mute),
+                onClick = { controller.toggleMute() },
+                active = muted,
+                unreachable = !state.bar.connected,
+                size = size,
+                stateDescription = if (muted) stringResource(R.string.volume_muted) else null,
+            )
+        }
         else -> {
             val key = button.key() ?: return
             val secondary = button.secondary()
