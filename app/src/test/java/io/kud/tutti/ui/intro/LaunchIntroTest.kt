@@ -143,6 +143,64 @@ class LaunchIntroTest {
     }
 
     @Test
+    fun `the opening starts on the system splash's picture and is whole by 200 ms`() {
+        for (reduced in listOf(false, true)) {
+            val opening = SplashOpening(reduced)
+            val frame = OpeningFrame()
+            opening.pose(0f, frame)
+            // The first frame is the system splash: the mark alone.
+            assertEquals(0f, frame.word, 0f)
+            assertEquals(0f, frame.halo, 0f)
+            opening.pose(SplashOpening.MS, frame)
+            assertEquals(1f, frame.word, 0f)
+            assertEquals(1f, frame.halo, 0f)
+            assertEquals(0f, frame.rise, 0f)
+        }
+        assertEquals(200f, SplashOpening.MS, 0f)
+        // The wordmark rises into place; under reduced motion it only fades in.
+        assertEquals(MarkGeometry.WORDMARK_RISE, SplashOpening(reduced = false).rise.at(0f), 0f)
+        for (ms in 0..200 step 10) assertEquals(0f, SplashOpening(reduced = true).rise.at(ms.toFloat()), 0f)
+    }
+
+    @Test
+    fun `only a cold start opens on the composition`() {
+        assertTrue(SplashOpening.runsFor(IntroKind.COLD))
+        assertTrue(!SplashOpening.runsFor(IntroKind.WARM))
+        assertTrue(!SplashOpening.runsFor(IntroKind.NONE))
+    }
+
+    @Test
+    fun `the wordmark and halo leave as the choreography starts, before the body steps back`() {
+        for (choreography in listOf(OkBecomesPad(warm = false), OkBecomesTouchpad(warm = false), HandOffToWelcome)) {
+            val exit = choreography.openingExit
+            assertEquals(1f, exit.at(0f), 0f)
+            assertEquals(0f, exit.at(160f), 0f)
+        }
+        val cold = OkBecomesPad(warm = false)
+        // Gone by the time the body starts to step back and long before the backdrop opens.
+        assertEquals(1f, cold.body.at(160f), 0f)
+        assertEquals(0f, cold.reveal.at(160f), 0f)
+        // The cold budget stays 800 ms: the opening overlaps the wait, it does not stretch the landing.
+        assertEquals(800f, cold.durationMs, 0f)
+        // Reduced motion: they fade with the mark, on the same track.
+        assertSame(FadeIntro.alpha, FadeIntro.openingExit)
+        assertEquals(0f, FadeIntro.openingExit.at(200f), 0f)
+    }
+
+    @Test
+    fun `the opening halo is low, falls away smoothly and ends clear`() {
+        val stops = OPENING_HALO_STOPS
+        assertEquals(0f, stops.first().first, 0f)
+        assertEquals(1f, stops.last().first, 0f)
+        assertEquals(0f, stops.last().second, 0f)
+        assertTrue("a low peak", stops.maxOf { it.second } <= HALO_PEAK)
+        stops.zipWithNext().forEach { (a, b) ->
+            assertTrue("in order", b.first > a.first)
+            assertTrue("falls away", b.second < a.second)
+        }
+    }
+
+    @Test
     fun `the first activity of a process is cold, later ones warm, restored ones none`() {
         // The only test touching the process flag: the JVM runs this class once.
         assertEquals(IntroKind.COLD, LaunchIntro.kindFor(restored = false))

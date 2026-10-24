@@ -17,6 +17,7 @@ import io.kud.tutti.ui.intro.MarkGeometry.TOP_RADIUS
 import io.kud.tutti.ui.intro.MarkGeometry.TOP_Y
 import java.io.File
 import kotlin.math.hypot
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -57,5 +58,31 @@ class MarkGeometryTest {
             val xml = File("src/main/res/drawable/$name.xml").readText()
             for (part in listOf(body, ok, top, pill)) assertTrue("$name lacks $part", part in xml)
         }
+    }
+    @Test
+    fun `the wordmark sits centred under the handset, clear of it, as wide as the lockup allows`() {
+        val s = Wordmark.SCALE
+        val top = MarkGeometry.WORDMARK_BASELINE + Wordmark.TOP * s
+        val gap = top - BODY_BOTTOM
+        assertTrue("clear of the handset: $gap", gap >= (BODY_RIGHT - BODY_LEFT) / 2f)
+        assertTrue("near enough to read as one lockup: $gap", gap <= BODY_BOTTOM - BODY_TOP)
+        val width = (Wordmark.RIGHT - Wordmark.LEFT) * s
+        assertEquals(MarkGeometry.WORDMARK_WIDTH, width, 1e-3f)
+        assertTrue("wider than the handset, narrower than the icon", width > BODY_RIGHT - BODY_LEFT && width < MarkGeometry.VIEWPORT)
+        // The halo wraps the whole handset.
+        assertTrue(MarkGeometry.HALO_RX > (BODY_RIGHT - BODY_LEFT) && MarkGeometry.HALO_RY > (BODY_BOTTOM - BODY_TOP))
+    }
+
+    @Test
+    fun `the wordmark's outline stays inside its declared extent and leaves the dot to amber`() {
+        val numbers = Regex("-?[0-9]+(?:\\.[0-9]+)?").findAll(Wordmark.PATH).map { it.value.toFloat() }.toList()
+        assertTrue(numbers.size > 100 && numbers.size % 2 == 0)
+        numbers.chunked(2).forEach { (x, y) ->
+            assertTrue("x $x", x >= Wordmark.LEFT && x <= Wordmark.RIGHT)
+            assertTrue("y $y", y >= Wordmark.TOP && y <= Wordmark.BOTTOM)
+            // Nothing of the ink inside the dot's circle: the i's dot is a separate shape.
+            assertTrue("($x, $y) in the dot", hypot(x - Wordmark.DOT_X, y - Wordmark.DOT_Y) > Wordmark.DOT_RADIUS)
+        }
+        assertEquals(5, Wordmark.PATH.count { it == 'M' })
     }
 }
