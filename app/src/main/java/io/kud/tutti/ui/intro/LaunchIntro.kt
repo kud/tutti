@@ -79,9 +79,10 @@ import kotlinx.coroutines.withTimeoutOrNull
  * app's own frame clock. Then the remote, already composed underneath and never held back.
  *
  * "The OK becomes the pad" (Iris, 2026-10-23), richer (variant A of her second pass, plus B's
- * shimmering ring; Erwann, 2026-10-24): a glint, the OK warms and slides onto the live D-pad's OK
- * while a ring runs out and becomes the disc; a click and an amber bloom on landing, the chevrons
- * pop, a last glint signs the OK, then the backdrop opens from the pad outwards. 800 ms on a cold
+ * shimmering ring; Erwann, 2026-10-24): a sheen, the OK warms and slides onto the live D-pad's OK
+ * while a ring runs out and becomes the disc; a click and a bloom on landing, the chevrons pop, a
+ * last sheen signs the OK, then the backdrop opens from the pad outwards. The light is the theme's,
+ * soft and low (Erwann, 2026-10-24: no bling: no white core, no fixed amber). 800 ms on a cold
  * start, 300 ms on a warm one, nothing on a hot resume. The first launch ever
  * hands the mark to the welcome screen instead. Reduced motion, or no D-pad on screen (touchpad
  * mode, not drawn yet), is a 200 ms fade. A tap skips any of them.
@@ -168,7 +169,17 @@ class IntroScene(
     val padOk: Color,
     val padDisc: Color,
     val padChevron: Color = padDisc,
+    /** The app theme's light for the halo, the rings, the sheen on the OK and the bloom. */
+    val theme: IntroTheme = IntroTheme(padOk, padOk, padOk, dark = false),
 )
+
+/**
+ * The intro's light, from the app theme (MaterialTheme.colorScheme), so it follows dynamic colour
+ * and light/dark: [accent] is the touchpad's own glow (primary), [dim] the same at lower contrast
+ * against the pad's surface, [sheen] a soft lift that reads on the OK in this theme. Never white,
+ * never a fixed amber (Erwann, 2026-10-24: "plus subtil, ou avec les couleurs du thème").
+ */
+data class IntroTheme(val accent: Color, val dim: Color, val sheen: Color, val dark: Boolean)
 
 /**
  * A choreography: everything the intro draws, as a function of time. At 0 ms it must draw exactly
@@ -197,12 +208,12 @@ val RestingPose = MarkPose(markScale = 1f, markAlpha = 1f, okWarmth = 0f, okScal
 /**
  * A, "classy, richer" (Iris's second pass, chosen by Erwann 2026-10-24), with B's shimmering ring.
  * Cold start, 800 ms:
- * - 0-240 a glint crosses the mark; the OK warms and swells (x1.18) with an amber halo and rim.
+ * - 0-240 a soft sheen crosses the mark; the OK warms and swells (x1.18) with a halo and rim in the theme's accent.
  * - 160-300 the body and the line step back; 160-470 the OK slides onto the pad's OK ([Motion.snappy]).
- * - 220-470 ring 1 (amber, shimmering) runs out to the disc's edge and the disc fills behind it;
- *   290-530 a thin ivory ring echoes it.
- * - 470 the landing: the click and an amber bloom (never white), gone by 740.
- * - 470-655 the chevrons pop clockwise from the top, 35 ms apart; 560-760 the glint signs the pad's OK.
+ * - 220-470 ring 1 (accent, shimmering at low contrast) runs out to the disc's edge and the disc
+ *   fills behind it; 290-530 a thin accent ring echoes it.
+ * - 470 the landing: the click and a low bloom in the accent (never white), gone by 740.
+ * - 470-655 the chevrons pop clockwise from the top, 35 ms apart; 560-760 the sheen signs the pad's OK.
  * - 500-800 the backdrop opens from the disc's edge.
  * Warm start ([warm]), 300 ms: the slide with ring 1 and half a bloom; no glint, no echo, the
  * chevrons together, no click.
@@ -244,7 +255,8 @@ class OkBecomesPad(warm: Boolean) : IntroChoreography {
     override fun DrawScope.draw(ms: Float, scene: IntroScene) {
         val pad = scene.pad ?: return drawLaunchMark(RestingPose, scene.colours, scene.icon)
         val colours = scene.colours
-        val paint = paints?.takeIf { it.fits(pad, colours) } ?: IntroPaints(this, pad, colours).also { paints = it }
+        val theme = scene.theme
+        val paint = paints?.takeIf { it.fits(pad, colours, theme) } ?: IntroPaints(this, pad, colours, theme).also { paints = it }
         val u = scene.icon.width / 108f
         val open = reveal.at(ms)
 
@@ -334,21 +346,21 @@ class OkBecomesPad(warm: Boolean) : IntroChoreography {
         // Ring 2, thin ivory, a beat behind; then ring 1 on top, shimmering (a turning sweep).
         val e = echo?.at(ms) ?: 0f
         if (e > 0f && e < 1f) {
-            drawCircle(colours.ivory, radius + (pad.edgeRadius - radius) * e, centre, style = paint.echo, alpha = 0.8f * (1f - e))
+            drawCircle(theme.accent, radius + (pad.edgeRadius - radius) * e, centre, style = paint.echo, alpha = ECHO_ALPHA * (1f - e))
         }
         val ringAlpha = ringFade.at(ms)
         if (reach > 0f && ringAlpha > 0f) {
             translate(centre.x, centre.y) {
                 rotate(ms * SHIMMER_DEGREES_PER_MS, pivot = Offset.Zero) {
-                    drawCircle(paint.shimmer, ringRadius, Offset.Zero, style = paint.ring, alpha = ringAlpha)
+                    drawCircle(paint.shimmer, ringRadius, Offset.Zero, style = paint.ring, alpha = RING_ALPHA * ringAlpha)
                 }
             }
         }
 
         drawCircle(okColour, radius, centre)
-        if (glow > 0f) drawCircle(colours.line, radius, centre, style = paint.rim, alpha = glow)
+        if (glow > 0f) drawCircle(theme.accent, radius, centre, style = paint.rim, alpha = RIM_ALPHA * glow)
 
-        // The glint signs the pad's OK, once.
+        // The sheen signs the pad's OK, once.
         val sign = okGlint?.at(ms) ?: 0f
         if (sign > 0f && sign < 1f) {
             val r = pad.okRadius
@@ -356,18 +368,18 @@ class OkBecomesPad(warm: Boolean) : IntroChoreography {
                 clipPath(paint.okClip) {
                     rotate(GLINT_TILT, pivot = Offset.Zero) {
                         translate(-1.8f * r + 3.6f * r * sign - paint.okBand / 2f, -2f * r) {
-                            drawRect(paint.okGlint, Offset.Zero, Size(paint.okBand, 4f * r), alpha = 0.8f)
+                            drawRect(paint.okGlint, Offset.Zero, Size(paint.okBand, 4f * r))
                         }
                     }
                 }
             }
         }
 
-        // The landing's bloom: amber, additive on dark, plain over light (to be judged on a phone).
+        // The landing's bloom: the theme's accent, low; additive on a dark theme, plain over light.
         val b = bloom.at(ms)
         if (b > 0f) {
             translate(pad.centre.x, pad.centre.y) {
-                drawCircle(paint.bloom, paint.bloomRadius, Offset.Zero, alpha = b, blendMode = if (colours.dark) BlendMode.Plus else BlendMode.SrcOver)
+                drawCircle(paint.bloom, paint.bloomRadius, Offset.Zero, alpha = b, blendMode = if (theme.dark) BlendMode.Plus else BlendMode.SrcOver)
             }
         }
     }
@@ -385,45 +397,26 @@ private fun direction(code: Int): Offset = when (code) {
  * out in fixed local coordinates and moved by translate, rotate or scale, so its shader (cached by
  * the brush for the scope's size) is made once, not per frame.
  */
-private class IntroPaints(scope: DrawScope, pad: PadTarget, colours: MarkColours) {
+private class IntroPaints(scope: DrawScope, pad: PadTarget, colours: MarkColours, private val theme: IntroTheme) {
     private val okRadius = pad.okRadius
     private val edgeRadius = pad.edgeRadius
-    private val dark = colours.dark
-    private val amber = colours.line
     private val ivory = colours.ivory
 
-    fun fits(pad: PadTarget, colours: MarkColours) =
-        pad.okRadius == okRadius && pad.edgeRadius == edgeRadius && colours.dark == dark && colours.line == amber && colours.ivory == ivory
+    fun fits(pad: PadTarget, colours: MarkColours, theme: IntroTheme) =
+        pad.okRadius == okRadius && pad.edgeRadius == edgeRadius && colours.ivory == ivory && theme == this.theme
 
     val backdrop = Path()
     val bodyClip = Path().apply { addRoundRect(RoundRect(36f, 28f, 72f, 80f, CornerRadius(14f))) }
     val okClip = Path().apply { addOval(Rect(Offset.Zero, okRadius)) }
 
-    private val band = arrayOf(
-        0f to amber.copy(alpha = 0f),
-        0.22f to amber.copy(alpha = 0.45f),
-        0.4f to ivory.copy(alpha = 0.85f),
-        0.5f to Color.White.copy(alpha = 0.95f),
-        0.6f to ivory.copy(alpha = 0.85f),
-        0.78f to amber.copy(alpha = 0.45f),
-        1f to amber.copy(alpha = 0f),
-    )
-    val markGlint = Brush.horizontalGradient(*band, startX = 0f, endX = MARK_BAND)
-    val okBand = okRadius * 0.7f
-    val okGlint = Brush.horizontalGradient(*band, startX = 0f, endX = okBand)
-    val halo = Brush.radialGradient(0f to amber.copy(alpha = 0.55f), 0.5f to amber.copy(alpha = 0.22f), 1f to amber.copy(alpha = 0f), center = Offset.Zero, radius = UNIT)
-    val bloomRadius = edgeRadius * if (dark) 1.15f else 1f
-    val bloom = Brush.radialGradient(0f to amber.copy(alpha = 0.6f), 0.45f to amber.copy(alpha = 0.28f), 1f to amber.copy(alpha = 0f), center = Offset.Zero, radius = bloomRadius)
-    val shimmer = Brush.sweepGradient(
-        0f to amber,
-        0.14f to ivory,
-        0.3f to amber,
-        0.64f to amber,
-        0.78f to ivory,
-        0.94f to amber,
-        1f to amber,
-        center = Offset.Zero,
-    )
+    // A soft sheen, not a glint: wide, no core, a low peak that eases in and out.
+    val markGlint = Brush.horizontalGradient(*sheenStops(ivory, MARK_SHEEN_PEAK), startX = 0f, endX = MARK_BAND)
+    val okBand = okRadius * OK_BAND
+    val okGlint = Brush.horizontalGradient(*sheenStops(theme.sheen, OK_SHEEN_PEAK), startX = 0f, endX = okBand)
+    val halo = haloBrush(theme.accent, HALO_PEAK, UNIT)
+    val bloomRadius = edgeRadius * if (theme.dark) 1.15f else 1f
+    val bloom = haloBrush(theme.accent, BLOOM_PEAK, bloomRadius)
+    val shimmer = Brush.sweepGradient(*shimmerStops(theme), center = Offset.Zero)
 
     val ring = with(scope) { Stroke(2.5.dp.toPx()) }
     val echo = with(scope) { Stroke(1.dp.toPx()) }
@@ -431,11 +424,52 @@ private class IntroPaints(scope: DrawScope, pad: PadTarget, colours: MarkColours
     val chevron = with(scope) { Stroke(DPAD_CHEVRON_STROKE.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round) }
 }
 
+/** A band that rises to [peak] and falls away smoothly, transparent at both ends. */
+internal fun sheenStops(colour: Color, peak: Float): Array<Pair<Float, Color>> = arrayOf(
+    0f to colour.copy(alpha = 0f),
+    0.2f to colour.copy(alpha = peak * 0.2f),
+    0.38f to colour.copy(alpha = peak * 0.7f),
+    0.5f to colour.copy(alpha = peak),
+    0.62f to colour.copy(alpha = peak * 0.7f),
+    0.8f to colour.copy(alpha = peak * 0.2f),
+    1f to colour.copy(alpha = 0f),
+)
+
+/** A radial halo centred on the origin: [peak] at the middle, gone at [radius]. */
+private fun haloBrush(colour: Color, peak: Float, radius: Float) = Brush.radialGradient(
+    0f to colour.copy(alpha = peak),
+    0.45f to colour.copy(alpha = peak * 0.45f),
+    1f to colour.copy(alpha = 0f),
+    center = Offset.Zero,
+    radius = radius,
+)
+
+/** The shimmering ring's turning sweep: accent and its dimmer self, two soft crests a turn. */
+private fun shimmerStops(theme: IntroTheme): Array<Pair<Float, Color>> = arrayOf(
+    0f to theme.dim,
+    0.14f to theme.accent,
+    0.3f to theme.dim,
+    0.64f to theme.dim,
+    0.78f to theme.accent,
+    0.94f to theme.dim,
+    1f to theme.dim,
+)
+
 private const val GLINT_TILT = 25f
-private const val MARK_BAND = 14f
+private const val MARK_BAND = 26f
+private const val OK_BAND = 1.3f
 private const val UNIT = 100f
 private const val HALO_REACH = 2.2f
 private const val SHIMMER_DEGREES_PER_MS = 0.6f
+
+/** Peak alphas: the glint's core was 0.95 white, the bloom 0.6 and the halo 0.55 amber. */
+internal const val MARK_SHEEN_PEAK = 0.3f
+internal const val OK_SHEEN_PEAK = 0.28f
+internal const val HALO_PEAK = 0.3f
+internal const val BLOOM_PEAK = 0.3f
+private const val RING_ALPHA = 0.8f
+private const val ECHO_ALPHA = 0.4f
+private const val RIM_ALPHA = 0.6f
 
 /**
  * The very first launch: the OK breathes while the mark rises and grows onto the welcome screen's
@@ -620,6 +654,7 @@ fun LaunchIntroOverlay(intro: LaunchIntro, firstLaunch: Boolean?) {
     val padOk = MaterialTheme.colorScheme.secondaryContainer
     val padDisc = MaterialTheme.colorScheme.surfaceContainerHigh
     val padChevron = MaterialTheme.colorScheme.onSurfaceVariant
+    val theme = introTheme()
     val first by rememberUpdatedState(firstLaunch)
     var elapsed by remember { mutableFloatStateOf(0f) }
     var script by remember { mutableStateOf<IntroChoreography?>(null) }
@@ -669,7 +704,7 @@ fun LaunchIntroOverlay(intro: LaunchIntro, firstLaunch: Boolean?) {
                 chevronArm = dpadChevronArm(box.width, box.height),
             )
         }
-        val scene = IntroScene(colours, icon.translate(-origin), pad, anchors.welcome?.translate(-origin), padOk, padDisc, padChevron)
+        val scene = IntroScene(colours, icon.translate(-origin), pad, anchors.welcome?.translate(-origin), padOk, padDisc, padChevron, theme)
         val now = script
         if (now == null) {
             drawLaunchMark(RestingPose, colours, scene.icon)
@@ -680,3 +715,19 @@ fun LaunchIntroOverlay(intro: LaunchIntro, firstLaunch: Boolean?) {
 }
 
 private const val DECIDE_WAIT_MS = 300L
+
+/** The intro's light from the live theme: what the pad itself is drawn in, nothing fixed. */
+@Composable
+private fun introTheme(): IntroTheme {
+    val scheme = MaterialTheme.colorScheme
+    val dark = scheme.surface.luminance() < 0.5f
+    return remember(scheme.primary, scheme.surfaceContainerHigh, scheme.surfaceBright, dark) {
+        IntroTheme(
+            accent = scheme.primary,
+            dim = lerp(scheme.primary, scheme.surfaceContainerHigh, 0.5f),
+            // A lift: the accent on a dark theme, the brightest surface on a light one, so it never darkens the OK.
+            sheen = if (dark) scheme.primary else scheme.surfaceBright,
+            dark = dark,
+        )
+    }
+}

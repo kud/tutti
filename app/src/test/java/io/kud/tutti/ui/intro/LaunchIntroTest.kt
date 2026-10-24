@@ -1,5 +1,6 @@
 package io.kud.tutti.ui.intro
 
+import androidx.compose.ui.graphics.Color
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
@@ -66,6 +67,19 @@ class LaunchIntroTest {
         assertEquals(null, warm.glint)
         assertEquals(null, warm.okGlint)
         assertEquals(null, warm.echo)
+    }
+
+    @Test
+    fun `the shine is a soft sheen, no core, a low peak, clear at both ends`() {
+        for (peak in listOf(MARK_SHEEN_PEAK, OK_SHEEN_PEAK, HALO_PEAK, BLOOM_PEAK)) {
+            assertTrue("a low peak: $peak", peak <= 0.3f)
+        }
+        val stops = sheenStops(Color(0xFF3366CC), MARK_SHEEN_PEAK)
+        assertEquals(0f, stops.first().second.alpha, 0f)
+        assertEquals(0f, stops.last().second.alpha, 0f)
+        assertEquals(MARK_SHEEN_PEAK, stops.maxOf { it.second.alpha }, 0.01f)
+        // Only the colour it was given, never a white core.
+        assertTrue(stops.all { it.second.copy(alpha = 1f) == Color(0xFF3366CC) })
     }
 
     @Test
