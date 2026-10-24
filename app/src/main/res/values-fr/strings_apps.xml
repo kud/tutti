@@ -10,6 +10,8 @@
     <string name="apps_launch_failed">Pas ouverte</string>
     <string name="apps_launch_failed_note">Le téléviseur n’a pas ouvert %1$s. Réessayez, ou ouvrez-la depuis l’écran des applis du téléviseur.</string>
     <string name="apps_open_tv_screen">Ouvrir l’écran Applis du téléviseur</string>
+    <string name="apps_screen_failed">La TV n’a pas ouvert son écran Applis</string>
+    <string name="apps_screen_unconfirmed">Envoyé. La TV ne confirme pas l’ouverture de l’écran Applis</string>
     <string name="apps_pin_action">Épingler au dock</string>
     <string name="apps_pin_title">Épingler %1$s</string>
     <string name="apps_slot">Emplacement %1$d · %2$s</string>

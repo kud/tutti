@@ -144,6 +144,9 @@ sealed interface TuttiEvent {
 
     /** A TV key met a link that wasn't up: held for a moment, or not sent ([TvLinkRule]). */
     data class KeyNotSent(val outcome: KeyOutcome) : TuttiEvent
+
+    /** "Open the TV's own apps screen" finished: what the remote link saw ([AppsScreenOpener]). */
+    data class AppsScreen(val verdict: io.kud.tutti.protocol.apps.AppsScreenVerdict) : TuttiEvent
 }
 
 data class TuttiUiState(

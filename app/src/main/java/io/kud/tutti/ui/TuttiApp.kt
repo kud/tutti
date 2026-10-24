@@ -32,6 +32,7 @@ import io.kud.tutti.controller.TuttiEvent
 import io.kud.tutti.controller.TuttiUiState
 import io.kud.tutti.platform.diagnostic.Diagnostics
 import io.kud.tutti.platform.discovery.TvDiscovery
+import io.kud.tutti.protocol.apps.AppsScreenVerdict
 import io.kud.tutti.protocol.net.WakeAttempt
 import io.kud.tutti.ui.common.LocalDeveloperMode
 import io.kud.tutti.ui.common.LocalMessages
@@ -137,6 +138,18 @@ fun TuttiApp(controller: TuttiController, discovery: TvDiscovery, diagnostics: D
                         },
                     )
                     if (messages.current?.text != text) messages.show(text)
+                }
+                is TuttiEvent.AppsScreen -> {
+                    // The tap's own click already played. Opened shows on the TV and needs no words;
+                    // anything else says what the remote link could, and could not, see.
+                    val text = when (event.verdict) {
+                        AppsScreenVerdict.OPENED -> null
+                        AppsScreenVerdict.SENT -> R.string.apps_screen_unconfirmed
+                        AppsScreenVerdict.FAILED -> R.string.apps_screen_failed
+                        AppsScreenVerdict.NOT_SENT -> R.string.key_dropped_waiting
+                    }?.let(context::getString)
+                    if (event.verdict == AppsScreenVerdict.FAILED || event.verdict == AppsScreenVerdict.NOT_SENT) haptics.reject()
+                    if (text != null && messages.current?.text != text) messages.show(text)
                 }
                 is TuttiEvent.MicUnavailable -> problems.report(context.getString(R.string.voice_mic_unavailable), event.detail)
                 is TuttiEvent.WakeFailed -> problems.report(

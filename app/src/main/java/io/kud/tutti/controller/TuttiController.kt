@@ -28,6 +28,8 @@ import io.kud.tutti.platform.security.ClientIdentityStore
 import io.kud.tutti.platform.security.SecureStore
 import io.kud.tutti.protocol.apps.AppLauncher
 import io.kud.tutti.protocol.apps.AppLibrary
+import io.kud.tutti.protocol.apps.AppsScreenOpener
+import io.kud.tutti.protocol.apps.AppsScreenRoute
 import io.kud.tutti.protocol.apps.KnownApp
 import io.kud.tutti.protocol.apps.LaunchPlan
 import io.kud.tutti.protocol.apps.LaunchResult
@@ -767,8 +769,42 @@ class TuttiController @Inject constructor(
 
     private suspend fun <T> withContextIO(block: () -> T): T = kotlinx.coroutines.withContext(Dispatchers.IO) { block() }
 
-    /** The TV's own apps screen, over the remote link (no IP control needed). */
-    fun openAllApps() = key(V2Key.ALL_APPS)
+    /**
+     * The TV's own apps screen, over the remote link (no IP control needed). KEYCODE_ALL_APPS
+     * alone did nothing on the XR80 (dev.71), so [AppsScreenOpener] tries an intent link first
+     * and watches the foreground app; [TuttiEvent.AppsScreen] says what it saw. With the link
+     * down it waits like a one-shot key ([TvLinkRule]) and says so.
+     */
+    fun openAllApps() {
+        scope.launch {
+            if (!atv.state.value.ready) {
+                val current = links.value
+                val outcome = TvLinkRule.whileDown(V2Key.ALL_APPS, false, current.tv, current.tvShown)
+                mutableEvents.tryEmit(TuttiEvent.KeyNotSent(outcome))
+                if (outcome != KeyOutcome.HELD) return@launch
+                val mine = heldKey.incrementAndGet()
+                val back = withTimeoutOrNull(TvLinkRule.HOLD_MS) { atv.state.first { it.ready } } != null
+                if (mine != heldKey.get()) return@launch
+                if (!back) {
+                    mutableEvents.tryEmit(TuttiEvent.KeyNotSent(KeyOutcome.EXPIRED))
+                    return@launch
+                }
+            }
+            val opener = AppsScreenOpener(
+                send = { route ->
+                    when (route) {
+                        is AppsScreenRoute.Link -> atv.launch(route.link)
+                        is AppsScreenRoute.Key -> atv.sendKey(route.keyCode)
+                    }
+                },
+                foreground = atv.state.map { it.currentApp },
+                current = { atv.state.value.currentApp },
+            )
+            val result = opener.open()
+            lastLaunchTrace = Redact.text(result.trace())
+            mutableEvents.tryEmit(TuttiEvent.AppsScreen(result.verdict))
+        }
+    }
 
     fun switchInput(uri: String) {
         scope.launch {

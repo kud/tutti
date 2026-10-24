@@ -10,6 +10,8 @@
     <string name="apps_launch_failed">Didn’t open</string>
     <string name="apps_launch_failed_note">The TV didn’t open %1$s. Try again, or open it from the TV’s own apps screen.</string>
     <string name="apps_open_tv_screen">Open the TV’s own apps screen</string>
+    <string name="apps_screen_failed">The TV didn’t open its apps screen</string>
+    <string name="apps_screen_unconfirmed">Sent. The TV can’t confirm its apps screen opened</string>
     <string name="apps_pin_action">Pin to the dock</string>
     <string name="apps_pin_title">Pin %1$s</string>
     <string name="apps_slot">Slot %1$d · %2$s</string>
