@@ -539,7 +539,7 @@ class TuttiController @Inject constructor(
             voiceZoomAvailable = l.voiceZoom,
             scenes = scenes,
             profiles = s.profiles,
-            volume = e.overrides.volume ?: l.bar.level(TheatreFeature.VOLUME),
+            volume = volumeShown(e.overrides.volume ?: l.bar.level(TheatreFeature.VOLUME), l.bar.connected),
             volumeCap = cap,
             powered = powered,
             waking = e.waking,
@@ -819,6 +819,21 @@ class TuttiController @Inject constructor(
         return if (remote.ready) atv.sendKey(V2Key.POWER) else false
     }
 
+    /** The last level the bar reported or was asked for, so the rail keeps it (see [volumeShown]). */
+    @Volatile
+    private var lastVolume: Int? = null
+
+    /**
+     * The volume the UI shows (Erwann, 2026-10-24: "je veux que le niveau de volume reste affiché"):
+     * the fresh level ([current], an override or the bar's report) when there is one, else, while the
+     * bar is connected, the last one, so the rail's level and number never drop to nothing when an
+     * override expires before the bar has echoed the level. Unreachable: null.
+     */
+    private fun volumeShown(current: Int?, connected: Boolean): Int? {
+        if (current != null) lastVolume = current
+        return current ?: lastVolume.takeIf { connected }
+    }
+
     private fun setOverride(transform: (Overrides) -> Overrides) {
         overrides.update(transform)
         overrideJob?.cancel()
@@ -858,7 +873,11 @@ class TuttiController @Inject constructor(
     }
 
     fun volumeStep(delta: Int) {
-        val current = state.value.volume ?: return
+        // Level not known yet (the bar has not reported it): ask for it rather than guess a level to set.
+        val current = state.value.volume ?: run {
+            scope.launch { theatre.get(TheatreFeature.VOLUME) }
+            return
+        }
         setVolume(current + delta)
     }
 
