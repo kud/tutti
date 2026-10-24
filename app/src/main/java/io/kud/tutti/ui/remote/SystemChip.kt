@@ -61,7 +61,7 @@ private fun Link.isDown() = this == Link.UNREACHABLE || this == Link.NEEDS_PAIRI
  * one device drops ("Bar 9 injoignable").
  */
 @Composable
-fun SystemChip(state: TuttiUiState, onClick: () -> Unit, modifier: Modifier = Modifier) {
+fun SystemChip(state: TuttiUiState, onClick: () -> Unit, modifier: Modifier = Modifier, showNow: Boolean = true) {
     val tv = state.devices.tv
     val bar = state.devices.bar
     val tvLink = if (tv != null) state.links.tv else Link.ABSENT
@@ -170,8 +170,9 @@ fun SystemChip(state: TuttiUiState, onClick: () -> Unit, modifier: Modifier = Mo
                     } else {
                         // What is on screen: the tuner's channel and programme, an input, or the
                         // app the catalogue knows (daily-state: now playing). Text says it all;
-                        // the app's icon is decoration beside its name.
-                        nowShowing(state)?.let { now ->
+                        // the app's icon is decoration beside its name. While the now-showing
+                        // card says it ([showNow] off), the chip keeps to one line.
+                        nowShowing(state)?.takeIf { showNow }?.let { now ->
                             val what = when (now) {
                                 is NowShowing.Channel -> now.text ?: stringResource(R.string.system_tv_channel)
                                 is NowShowing.Input -> now.title

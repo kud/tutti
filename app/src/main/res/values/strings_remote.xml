@@ -47,4 +47,13 @@
     <string name="system_current_app">On the TV: %1$s</string>
     <!-- The tuner is on but the TV named neither channel nor programme. -->
     <string name="system_tv_channel">TV channel</string>
+    <!-- The now-showing card above the pad: an overline, then each state's name and detail line. -->
+    <string name="card_on_the_tv">On the TV</string>
+    <string name="card_input">External input</string>
+    <string name="card_standby">TV on standby</string>
+    <string name="card_bar_stays_on">The bar stays on</string>
+    <string name="card_home">Home screen</string>
+    <string name="card_home_detail">No app playing</string>
+    <string name="card_offline">TV out of reach</string>
+    <string name="card_offline_detail">Check it\'s on and on the same Wi-Fi</string>
 </resources>

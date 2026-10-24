@@ -46,4 +46,12 @@
     <string name="pad_volume_tag">Vol. %1$d</string>
     <string name="system_current_app">Sur la TV : %1$s</string>
     <string name="system_tv_channel">Chaîne TV</string>
+    <string name="card_on_the_tv">Sur la TV</string>
+    <string name="card_input">Entrée externe</string>
+    <string name="card_standby">TV en veille</string>
+    <string name="card_bar_stays_on">La barre reste allumée</string>
+    <string name="card_home">Écran d\'accueil</string>
+    <string name="card_home_detail">Aucune appli en cours</string>
+    <string name="card_offline">TV injoignable</string>
+    <string name="card_offline_detail">Vérifiez qu\'elle est allumée et sur le même Wi-Fi</string>
 </resources>

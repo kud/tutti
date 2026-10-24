@@ -6,6 +6,7 @@ import io.kud.tutti.protocol.atv.AppCatalog
 import io.kud.tutti.protocol.bravia.ExternalInput
 import io.kud.tutti.protocol.bravia.PlayingContent
 import io.kud.tutti.protocol.bravia.PowerStatus
+import io.kud.tutti.protocol.theatre.TheatreFeature
 
 /**
  * The app on the TV's screen, by name, for the system chip; null when there is nothing worth
@@ -81,3 +82,45 @@ fun nowShowing(state: TuttiUiState): NowShowing? =
     }
 
 private fun String.clean(): String? = trim().ifEmpty { null }
+
+/** What the now-showing card says: always something, so it never stands empty. */
+sealed interface CardShowing {
+    /** A channel, an input or a known app, from [nowShowing]. */
+    data class Showing(val now: NowShowing) : CardShowing
+
+    /** The TV asleep; [barOn] when the bar still plays ("the bar stays on"). */
+    data class Standby(val barOn: Boolean) : CardShowing
+
+    /** The TV awake with nothing the catalogue knows: the home screen, or an app we can't name. */
+    data object Home : CardShowing
+
+    /** The TV's link is down or still connecting. */
+    data object Offline : CardShowing
+}
+
+/**
+ * Standby first (the power answer outlives the app's package), then what [nowShowing] finds,
+ * then Offline while the TV's link isn't up, else Home. Null without a TV configured: then there
+ * is nothing to show and the card stands aside.
+ */
+fun cardShowing(
+    hasTv: Boolean,
+    now: NowShowing?,
+    tvLink: Link,
+    tvPower: PowerStatus,
+    barOn: Boolean,
+): CardShowing? = when {
+    !hasTv -> null
+    tvPower == PowerStatus.STANDBY -> CardShowing.Standby(barOn)
+    now != null -> CardShowing.Showing(now)
+    tvLink != Link.ONLINE -> CardShowing.Offline
+    else -> CardShowing.Home
+}
+
+fun cardShowing(state: TuttiUiState): CardShowing? = cardShowing(
+    hasTv = state.devices.tv != null,
+    now = nowShowing(state),
+    tvLink = state.links.tv,
+    tvPower = state.tv.power,
+    barOn = state.links.bar == Link.ONLINE && state.bar.isOn(TheatreFeature.POWER) != false,
+)

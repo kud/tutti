@@ -50,9 +50,9 @@ import io.kud.tutti.ui.common.rememberHaptics
 import kotlin.math.roundToInt
 
 /**
- * The pad's mode switch (K1, Iris with Erwann): a track at the top of the pad's area, under the
- * scene pills and centred on the pad's axis, never on the pad (Iris, 2026-10-24: it is rarely
- * used, so it leaves the thumb's half). A cell per mode and a thumb under the current one. A tap on
+ * The pad's mode switch (K1, Iris with Erwann): the pad's corner tab, on its start edge with the
+ * track 12 dp above the pad's top, moving with the pad and never on it (Iris's option A, chosen by
+ * Erwann, 2026-10-24; [placePad] keeps its room). A cell per mode and a thumb under the current one. A tap on
  * the other cell switches; a tap on the current one does nothing. The track is drawn
  * [TRACK_HEIGHT] tall and answers over [PAD_SWITCH_HEIGHT]: nothing tappable sits round it.
  *

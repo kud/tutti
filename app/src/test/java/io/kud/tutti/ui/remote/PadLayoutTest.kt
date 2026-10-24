@@ -6,10 +6,11 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PadLayoutTest {
-    // What a portrait phone leaves the pad block, from the remote's fixed parts in dp: status bar
-    // 24, header 68, scene pills 48, switch 6 + 48, round keys 52, 12, dock 84, 12, Son peek 72,
-    // gesture bar 24. The pad's width is the screen less 2 × 16 margin, the 12 gap and the 64 rail.
-    private val chrome = 24f + 68f + 48f + 54f + 52f + 12f + 84f + 12f + 72f + 24f
+    // What a portrait phone leaves the pad block (card room, tab, pad), from the remote's fixed
+    // parts in dp: status bar 24, header 68, scene pills 48, round keys 52, 12, dock 84, 12, Son
+    // peek 72, gesture bar 24. The pad's width is the screen less 2 × 16 margin, the 12 gap and
+    // the 64 rail.
+    private val chrome = 24f + 68f + 48f + 52f + 12f + 84f + 12f + 72f + 24f
 
     private fun phone(width: Float, height: Float, size: PadSize = PadSize.NORMAL): Triple<PadPlacement, Float, Float> {
         val available = height - chrome
@@ -18,36 +19,64 @@ class PadLayoutTest {
     }
 
     private fun assertFits(place: PadPlacement, available: Float) {
-        assertEquals(available, place.above + place.height + place.below, 0.01f)
-        assertTrue(place.above >= PAD_MIN_ABOVE - 0.01f)
+        assertEquals(available, place.cardRoom + place.tab + place.height + place.below, 0.01f)
+        assertTrue(place.cardRoom >= 0f)
         assertTrue(place.height >= 0f)
+        // The card, when shown, keeps its margins inside its room.
+        assertTrue(place.card.height + 2 * CARD_MARGIN <= place.cardRoom + 0.01f || place.card.size == CardSize.HIDDEN)
     }
 
     @Test
-    fun `a short phone gives the pad all it can, nothing overlapping`() {
+    fun `a short phone gives the pad all it can and hides the card, never the tab`() {
         val (place, available, padWidth) = phone(360f, 640f)
         assertFits(place, available)
         assertEquals(PAD_BELOW, place.below, 0.01f)
-        assertEquals(PAD_MIN_ABOVE, place.above, 0.01f)
+        assertEquals(PAD_MIN_ABOVE, place.cardRoom, 0.01f)
+        assertEquals(SWITCH_GROUP, place.tab, 0.01f)
         assertTrue(place.height < padWidth * padRatio(PadSize.NORMAL))
+        assertEquals(CardSize.HIDDEN, place.card.size)
     }
 
     @Test
-    fun `taller phones stop the pad growing and put the room above it`() {
-        for ((width, height) in listOf(390f to 844f, 412f to 915f)) {
-            val (place, available, padWidth) = phone(width, height)
-            assertFits(place, available)
-            assertEquals(padWidth * padRatio(PadSize.NORMAL), place.height, 0.01f)
-            assertEquals(PAD_BELOW, place.below, 0.01f)
-            assertTrue("free room goes above at ${width}x$height", place.above > PAD_MIN_ABOVE)
-        }
+    fun `a mid phone stops the pad growing and shows the card as one line`() {
+        val (place, available, padWidth) = phone(390f, 844f)
+        assertFits(place, available)
+        assertEquals(padWidth * padRatio(PadSize.NORMAL), place.height, 0.01f)
+        assertEquals(CardFit(CardSize.LINE, CARD_LINE), place.card)
+    }
+
+    @Test
+    fun `a tall phone shows the full card`() {
+        val (place, available, padWidth) = phone(412f, 915f)
+        assertFits(place, available)
+        assertEquals(padWidth * padRatio(PadSize.NORMAL), place.height, 0.01f)
+        assertEquals(CardSize.FULL, place.card.size)
+        assertTrue(place.card.height in CARD_FULL..CARD_MAX)
+    }
+
+    @Test
+    fun `the card grows to its ceiling in Erwann's band and centres in it`() {
+        // His 412x915 (dev.46): pills end at 165, the pad's top at 387, so 168 dp above the tab.
+        val fit = cardFor(387f - 165f - SWITCH_GROUP)
+        assertEquals(CardFit(CardSize.FULL, CARD_MAX), fit)
+        val margin = (168f - fit.height) / 2f
+        assertTrue("margin $margin either side", margin >= CARD_MARGIN)
+    }
+
+    @Test
+    fun `card thresholds step full, line, hidden`() {
+        assertEquals(CardSize.FULL, cardFor(CARD_FULL + 2 * CARD_MARGIN).size)
+        assertEquals(CardSize.LINE, cardFor(CARD_FULL + 2 * CARD_MARGIN - 1f).size)
+        assertEquals(CardSize.LINE, cardFor(CARD_LINE + 2 * CARD_MARGIN).size)
+        assertEquals(CardSize.HIDDEN, cardFor(CARD_LINE + 2 * CARD_MARGIN - 1f).size)
+        assertEquals(CARD_MAX, cardFor(1000f).height, 0.01f)
     }
 
     @Test
     fun `the pad's middle sits in the lower half on a tall phone`() {
         val (place, _, _) = phone(412f, 915f)
-        // From the screen's top: everything above the pad block, then the room above the pad.
-        val middle = 24f + 68f + 48f + 54f + place.above + place.height / 2f
+        // From the screen's top: the status bar, header and pills, then the card room and the tab.
+        val middle = 24f + 68f + 48f + place.cardRoom + place.tab + place.height / 2f
         assertTrue("pad middle at $middle dp", middle > 915f / 2f)
     }
 
@@ -62,10 +91,10 @@ class PadLayoutTest {
 
     @Test
     fun `no room at all collapses without going negative`() {
-        for (available in listOf(0f, 10f, 30f, 40f)) {
+        for (available in listOf(0f, 10f, 30f, 40f, 60f, 90f)) {
             val place = placePad(available, 250f, PadSize.LARGE)
-            assertEquals(available, place.above + place.height + place.below, 0.01f)
-            assertTrue(place.above >= 0f && place.height >= 0f && place.below >= 0f)
+            assertTrue(place.cardRoom >= 0f && place.height >= 0f && place.below >= 0f)
+            assertEquals(CardSize.HIDDEN, place.card.size)
         }
     }
 }

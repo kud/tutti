@@ -37,6 +37,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -94,6 +95,8 @@ fun RemoteScreen(
     var sheet2 by remember { mutableStateOf<RemoteSheet?>(null) }
     // The full input view is a state of the remote, not a screen: InputRules moves it.
     var input by remember { mutableStateOf(InputMode()) }
+    // Whether the now-showing card fits above the pad: the pad block measures, the chip reads it.
+    var cardShown by remember { mutableStateOf(false) }
     val hasField = state.remote.ime != null
     LaunchedEffect(hasField, state.remote.imeShows) {
         input = InputRules.tv(input, hasField, state.remote.imeShows, SystemClock.uptimeMillis())
@@ -191,7 +194,8 @@ fun RemoteScreen(
                     Modifier.fillMaxWidth().padding(start = 16.dp, end = 12.dp, top = 8.dp, bottom = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    SystemChip(state, onClick = onOpenSettings, modifier = Modifier.weight(1f))
+                    // The chip's "On the TV" line steps aside while the card below says it.
+                    SystemChip(state, onClick = onOpenSettings, modifier = Modifier.weight(1f), showNow = !cardShown)
                     Spacer(Modifier.width(4.dp))
                     IconButton(onClick = onOpenScenes) {
                         Icon(painterResource(R.drawable.ic_scene), contentDescription = stringResource(R.string.action_scenes))
@@ -241,26 +245,45 @@ fun RemoteScreen(
                 // and the free room goes between them (placePad). Large takes the margins back.
                 val large = layout.padSize == PadSize.LARGE
                 val railGap = if (large) 8.dp else 12.dp
+                val showing = cardShowing(state)
                 Column(
                     Modifier
                         .weight(1f)
                         .fillMaxWidth()
                         .padding(horizontal = if (large) 8.dp else 16.dp),
                 ) {
-                    // Fixed under the pills (or the header), centred on the pad's axis, not the
-                    // screen's: the rail's slot stands empty beside it (Iris, 2026-10-24).
-                    Spacer(Modifier.height(SWITCH_TOP))
-                    Row(Modifier.fillMaxWidth()) {
-                        Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                            PadModeSwitch(
-                                mode = state.prefs.padMode,
-                                onModeChange = controller::setPadMode,
-                            )
-                        }
-                        Spacer(Modifier.width(railGap + RAIL_WIDTH))
-                    }
                     BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
                         val place = placePad(maxHeight.value, (maxWidth - railGap - RAIL_WIDTH).value, layout.padSize)
+                        val shown = showing?.takeIf { place.card.size != CardSize.HIDDEN }
+                        SideEffect { cardShown = shown != null }
+                        // The card centres in the room above the tab (Erwann, 2026-10-24: the band
+                        // must read as meant, not as a void), full width less 16 dp margins.
+                        if (shown != null) {
+                            Box(
+                                Modifier
+                                    .align(Alignment.TopStart)
+                                    .fillMaxWidth()
+                                    .height(place.cardRoom.dp)
+                                    .padding(horizontal = if (large) 8.dp else 0.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                NowShowingCard(
+                                    showing = shown,
+                                    fit = place.card,
+                                    tvName = state.devices.tv?.name.orEmpty(),
+                                    appIcons = state.appIcons,
+                                )
+                            }
+                        }
+                        // The pad's corner tab: on its start edge, its track 12 dp above the pad's
+                        // top, its 48 dp target 6 dp clear of it, moving with it (Iris's option A).
+                        PadModeSwitch(
+                            mode = state.prefs.padMode,
+                            onModeChange = controller::setPadMode,
+                            modifier = Modifier
+                                .align(Alignment.BottomStart)
+                                .padding(bottom = (place.below + place.height + SWITCH_CLEAR).dp),
+                        )
                         Row(
                             Modifier
                                 .align(Alignment.BottomStart)
@@ -434,9 +457,6 @@ fun secondaryLabel(button: SecondaryButton): String = when (button) {
 
 /** The full-height sheets the bottom row's doors open. */
 private enum class RemoteSheet { APPS, KEYS }
-
-/** Above the mode switch's 48 dp target, so its 36 dp track is drawn 12 dp under the pills (Iris). */
-private val SWITCH_TOP = 6.dp
 
 /** How far the input view rises when the TV opens it. */
 private val INPUT_RISE = 24.dp

@@ -59,4 +59,21 @@ class ForegroundAppTest {
         assertNull(foregroundAppName("com.netflix.ninja", Link.UNREACHABLE, PowerStatus.ACTIVE))
         assertNull(foregroundAppName("com.netflix.ninja", Link.ONLINE, PowerStatus.STANDBY))
     }
+
+    @Test
+    fun `the card always has something to say once a tv is set up`() {
+        val app = NowShowing.App("Netflix", "com.netflix.ninja")
+        assertNull(cardShowing(false, app, Link.ONLINE, PowerStatus.ACTIVE, barOn = true))
+        assertEquals(CardShowing.Showing(app), cardShowing(true, app, Link.ONLINE, PowerStatus.ACTIVE, barOn = true))
+        assertEquals(CardShowing.Home, cardShowing(true, null, Link.ONLINE, PowerStatus.ACTIVE, barOn = true))
+        assertEquals(CardShowing.Offline, cardShowing(true, null, Link.UNREACHABLE, PowerStatus.UNKNOWN, barOn = false))
+        assertEquals(CardShowing.Offline, cardShowing(true, null, Link.CONNECTING, PowerStatus.UNKNOWN, barOn = false))
+    }
+
+    @Test
+    fun `standby wins and says whether the bar stays on`() {
+        val app = NowShowing.App("Netflix", "com.netflix.ninja")
+        assertEquals(CardShowing.Standby(true), cardShowing(true, app, Link.ONLINE, PowerStatus.STANDBY, barOn = true))
+        assertEquals(CardShowing.Standby(false), cardShowing(true, null, Link.UNREACHABLE, PowerStatus.STANDBY, barOn = false))
+    }
 }
