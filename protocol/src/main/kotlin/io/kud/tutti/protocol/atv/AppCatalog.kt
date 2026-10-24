@@ -4,11 +4,26 @@ data class AppEntry(
     val id: String,
     val name: String,
     val packageName: String,
-    /** Explicit launch URI; defaults to the Play Store launch link. */
-    val link: String? = null,
+    /**
+     * Deep links the app answers to, tried first. Only forms documented by Home Assistant's
+     * Android TV Remote integration (its "Launching apps" table, 2026-10); never guessed.
+     */
+    val links: List<String> = emptyList(),
 ) {
-    /** `market://launch?id=<package>` boots the installed app (or its store page). Verified on Google TV. */
-    val launchLink: String get() = link ?: "market://launch?id=$packageName"
+    /** Every link to try, in order: the deep links, then the Play Store launch link as fallback. */
+    val launchLinks: List<String> get() = links + marketLink(packageName)
+
+    /** The first link tried. */
+    val launchLink: String get() = launchLinks.first()
+
+    companion object {
+        /**
+         * What androidtvremote2 sends for a bare package id. Home Assistant documents that a Play
+         * Store change "is currently preventing this method from working for many apps", so it is
+         * the last resort, not the default.
+         */
+        fun marketLink(packageName: String) = "market://launch?id=$packageName"
+    }
 }
 
 /**
@@ -18,10 +33,10 @@ data class AppEntry(
  */
 object AppCatalog {
     val apps: List<AppEntry> = listOf(
-        AppEntry("netflix", "Netflix", "com.netflix.ninja"),
-        AppEntry("youtube", "YouTube", "com.google.android.youtube.tv"),
-        AppEntry("primevideo", "Prime Video", "com.amazon.amazonvideo.livingroom"),
-        AppEntry("disney", "Disney+", "com.disney.disneyplus"),
+        AppEntry("netflix", "Netflix", "com.netflix.ninja", listOf("netflix://")),
+        AppEntry("youtube", "YouTube", "com.google.android.youtube.tv", listOf("https://www.youtube.com", "vnd.youtube.launch://")),
+        AppEntry("primevideo", "Prime Video", "com.amazon.amazonvideo.livingroom", listOf("https://app.primevideo.com")),
+        AppEntry("disney", "Disney+", "com.disney.disneyplus", listOf("https://www.disneyplus.com")),
         AppEntry("appletv", "Apple TV", "com.apple.atve.androidtv.appletv"),
         AppEntry("canal", "Canal+", "com.canal.android.canal"),
         // Renamed back from Max in 2025; the id stays so saved choices keep resolving.
@@ -35,13 +50,13 @@ object AppCatalog {
         AppEntry("paramount", "Paramount+", "com.cbs.ca"),
         AppEntry("mubi", "MUBI", "com.mubi"),
         AppEntry("crunchyroll", "Crunchyroll", "com.crunchyroll.crunchyroid"),
-        AppEntry("twitch", "Twitch", "tv.twitch.android.app"),
+        AppEntry("twitch", "Twitch", "tv.twitch.android.app", listOf("twitch://home")),
         AppEntry("spotify", "Spotify", "com.spotify.tv.android"),
         AppEntry("deezer", "Deezer", "deezer.android.app"),
         // Dedicated Android TV packages, distinct from the phone apps.
         AppEntry("ytmusic", "YouTube Music", "com.google.android.youtube.tvmusic"),
         AppEntry("jellyfin", "Jellyfin", "org.jellyfin.androidtv"),
-        AppEntry("plex", "Plex", "com.plexapp.android"),
+        AppEntry("plex", "Plex", "com.plexapp.android", listOf("plex://")),
         AppEntry("kodi", "Kodi", "org.xbmc.kodi"),
         AppEntry("vlc", "VLC", "org.videolan.vlc"),
         AppEntry("putio", "Put.io", "io.put.putio"),
