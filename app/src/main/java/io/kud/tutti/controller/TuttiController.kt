@@ -784,27 +784,34 @@ class TuttiController @Inject constructor(
      * TV gets a Wake-on-LAN packet when its MAC is known, [TuttiUiState.waking] shows, and the
      * command follows once it answers, or [TuttiEvent.WakeFailed] if it never does.
      */
-    fun power() {
+    fun power() = power(PowerTarget.BOTH, state.value.powered != true)
+
+    /**
+     * Power for one device or both (the long press on Power, and the card's "Turn on the TV"),
+     * through the same wake machinery as [power()]: [powerPlan] decides, per device, whether the
+     * command goes now, waits on a wake, or has nothing to do. A wake tries only the devices the
+     * target names, so [TuttiEvent.WakeFailed] blames only a device that was asked to wake.
+     */
+    fun power(target: PowerTarget, on: Boolean) {
         if (waking.value) return
         val current = state.value
-        val on = current.powered != true
         val tvDevice = current.devices.tv
-        val tvNow = tvDevice != null && tvReachable()
-        val barNow = current.devices.bar != null && theatre.state.value.connected
-        if (tvNow || barNow) {
-            setOverride { it.copy(powered = on) }
-            if (tvNow) scope.launch { tvPower(on) }
-            if (barNow) scope.launch { theatre.setToggle(TheatreFeature.POWER, on) }
-        }
-        // Turning off: whatever is out of reach is asleep already.
-        if (!on) return
-        val tvAway = tvDevice?.takeIf { !tvNow }
-        val barAway = current.devices.bar != null && !barNow
-        if (tvAway == null && !barAway) return
+        val plan = powerPlan(
+            target = target,
+            on = on,
+            tvConfigured = tvDevice != null,
+            tvReachable = tvDevice != null && tvReachable(),
+            barConfigured = current.devices.bar != null,
+            barReachable = current.devices.bar != null && theatre.state.value.connected,
+        )
+        plan.overridePowered?.let { powered -> setOverride { it.copy(powered = powered) } }
+        if (plan.sendTv) scope.launch { tvPower(on) }
+        if (plan.sendBar) scope.launch { theatre.setToggle(TheatreFeature.POWER, on) }
+        if (!plan.waking) return
         waking.value = true
         scope.launch {
             try {
-                wakeAndPower(tvAway, barAway)
+                wakeAndPower(tvDevice?.takeIf { plan.wakeTv }, plan.wakeBar)
             } finally {
                 waking.value = false
             }
