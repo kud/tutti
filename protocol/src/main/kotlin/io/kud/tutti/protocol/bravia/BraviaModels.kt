@@ -38,6 +38,9 @@ sealed interface BraviaError {
     data class Malformed(val detail: String) : BraviaError
 
     data class Transport(val detail: String) : BraviaError
+
+    /** HTTPS answered with a certificate other than the pinned one: re-pair, never retry blindly. */
+    data object PinMismatch : BraviaError
 }
 
 sealed interface BraviaResult<out T> {

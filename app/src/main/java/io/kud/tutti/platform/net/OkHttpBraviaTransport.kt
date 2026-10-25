@@ -7,6 +7,7 @@ import io.kud.tutti.protocol.bravia.BraviaClient
 import io.kud.tutti.protocol.bravia.BraviaTransport
 import io.kud.tutti.protocol.bravia.HttpReply
 import io.kud.tutti.protocol.net.CertificatePin
+import io.kud.tutti.protocol.net.CertificatePinMismatch
 import io.kud.tutti.protocol.net.LanAddress
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -33,11 +34,14 @@ import javax.net.ssl.SSLException
  * BRAVIA REST over OkHttp, LAN only.
  *
  * HTTPS first, pinned trust-on-first-use: the first certificate seen is persisted through
- * [savePin] only after a request has succeeded, and every later request must match it.
- * Plain HTTP is used only when HTTPS is refused outright (port closed) AND no pin has ever
- * been recorded for this TV, and only towards a private address. Once a pin exists, HTTPS
- * is the only way in. Headers (they carry the PSK) are never logged: there is no logging
- * interceptor on this client.
+ * [savePin] only after an authenticated request (one carrying the PSK) has had a 2xx answer,
+ * and every later request must match it; a mismatch is a [CertificatePinMismatch]. Plain
+ * HTTP is used only when HTTPS is refused outright (port closed), no pin has ever been
+ * recorded for this TV, an unauthenticated request (discovery) has answered over HTTP, and
+ * only towards a private address. The PSK never goes out on that first HTTP request, and
+ * every unauthenticated request tries HTTPS again first, so a TV caught while booting does
+ * not stay on HTTP. Once a pin exists, HTTPS is the only way in. Headers (they carry the
+ * PSK) are never logged: there is no logging interceptor on this client.
  *
  * The internal constructor is the test seam: the device simulator listens on loopback ports.
  */
@@ -73,6 +77,8 @@ class OkHttpBraviaTransport internal constructor(
             .readTimeout(readTimeoutMs, TimeUnit.MILLISECONDS)
             .writeTimeout(8, TimeUnit.SECONDS)
             .retryOnConnectionFailure(false)
+            // The TV is on the LAN: a system or app proxy must never see the PSK.
+            .proxy(Proxy.NO_PROXY)
             // Never follow a redirect: OkHttp keeps custom headers on one, so the PSK could
             // reach a host that is not the TV. A 3xx is an answer, reported as such.
             .followRedirects(false)
@@ -86,18 +92,22 @@ class OkHttpBraviaTransport internal constructor(
     override suspend fun post(path: String, body: String, headers: Map<String, String>): HttpReply =
         withContext(Dispatchers.IO) {
             checkHost(host)
-            if (!useHttp) {
-                try {
-                    return@withContext execute("https", path, body, headers).also { persistFirstSeen() }
-                } catch (e: ConnectException) {
-                    // Port 443 closed. Fall back to HTTP only if this TV was never seen over HTTPS,
-                    // and stay on HTTP only once it answers: a TV still booting refuses both ports,
-                    // and an HTTPS-only (EU) TV caught then was never tried over HTTPS again.
-                    if (trust.expected != null) throw e
-                    return@withContext execute("http", path, body, headers).also { useHttp = true }
+            val authenticated = headers.keys.any { it.equals(BraviaClient.PSK_HEADER, ignoreCase = true) }
+            if (useHttp && authenticated) return@withContext execute("http", path, body, headers)
+            try {
+                execute("https", path, body, headers).also { reply ->
+                    useHttp = false
+                    if (authenticated && reply.status in 200..299) persistFirstSeen()
                 }
+            } catch (e: ConnectException) {
+                // Port 443 closed. HTTP only for a TV never pinned, and only on a request without
+                // the key: it is the probe, and HTTP sticks only once it has answered.
+                if (trust.expected != null || authenticated) throw e
+                execute("http", path, body, headers).also { useHttp = true }
+            } catch (e: SSLException) {
+                if (generateSequence<Throwable>(e) { it.cause }.take(8).any { it is PinMismatchException }) throw CertificatePinMismatch(e)
+                throw e
             }
-            execute("http", path, body, headers)
         }
 
     /** One icon fetch: the image bytes, or why there are none. */
@@ -125,9 +135,10 @@ class OkHttpBraviaTransport internal constructor(
         if (parsed.scheme == "https" && !pinned) return@withContext failed(IconOutcome.NO_PIN)
         var target = parsed
         var note: String? = null
+        // The key only ever rides HTTPS to the pinned TV (the hostname verifier checks the pin).
         fun get(withPsk: Boolean): IconFetch = execute(
             Request.Builder().url(target).get()
-                .apply { if (withPsk && !psk.isNullOrEmpty()) header(BraviaClient.PSK_HEADER, psk) },
+                .apply { if (withPsk && !psk.isNullOrEmpty() && target.scheme == "https") header(BraviaClient.PSK_HEADER, psk) },
         ) { response ->
             when {
                 !response.isSuccessful -> failed(IconOutcome.HTTP_STATUS, "${response.code}")
@@ -145,7 +156,17 @@ class OkHttpBraviaTransport internal constructor(
         fun attempt(): IconFetch = try {
             get(withPsk = false).let { first ->
                 val code = ((first as? IconFetch.Failed)?.attempt?.detail)
-                if (first is IconFetch.Failed && (code == "401" || code == "403") && !psk.isNullOrEmpty()) get(withPsk = true) else first
+                when {
+                    first !is IconFetch.Failed || (code != "401" && code != "403") || psk.isNullOrEmpty() -> first
+                    target.scheme == "https" -> get(withPsk = true)
+                    // Refused over HTTP: the key goes only over HTTPS, so only to a pinned TV.
+                    pinned -> {
+                        target = target.newBuilder().scheme("https").port(httpsPort).build()
+                        note = "http $code, https with key"
+                        get(withPsk = true)
+                    }
+                    else -> first
+                }
             }
         } catch (e: ConnectException) {
             failed(IconOutcome.REFUSED)

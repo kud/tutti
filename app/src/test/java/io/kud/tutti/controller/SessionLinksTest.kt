@@ -41,3 +41,12 @@ class SessionLinksTest {
         assertTrue(ControllerQuickControls.powerSettled(tvAsleep))
     }
 }
+
+class RestPinRuleTest {
+    @Test
+    fun `the REST pin survives only a save at the same address`() {
+        assertTrue(restPinSurvives("192.168.1.20", "192.168.1.20"))
+        assertFalse(restPinSurvives("192.168.1.20", "192.168.1.30"))
+        assertFalse(restPinSurvives(null, "192.168.1.20"))
+    }
+}

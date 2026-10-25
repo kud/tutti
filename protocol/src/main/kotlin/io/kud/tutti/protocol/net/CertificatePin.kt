@@ -18,3 +18,9 @@ data class CertificatePin(val sha256Hex: String) {
         }
     }
 }
+
+/**
+ * A transport's report that a pinned device presented another certificate. An `IOException`
+ * so it travels as a network failure, but callers tell it apart: it means "re-pair".
+ */
+class CertificatePinMismatch(cause: Throwable? = null) : java.io.IOException("certificate does not match the recorded pin", cause)

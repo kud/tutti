@@ -556,11 +556,16 @@ class TuttiController @Inject constructor(
                     linkNotes.update { it.copy(rest = failureDetail("tv ip control: poll", outcome = "answered, then stopped answering getPowerStatus")) }
                 }
                 is BraviaResult.Failure -> {
-                    val link = if (found.error == BraviaError.Unauthorized) Link.UNAUTHORIZED else Link.UNREACHABLE
+                    val link = when (found.error) {
+                        BraviaError.Unauthorized -> Link.UNAUTHORIZED
+                        // Another certificate than the pinned one: the TV was reset, or someone is in between.
+                        BraviaError.PinMismatch -> Link.NEEDS_PAIRING
+                        else -> Link.UNREACHABLE
+                    }
                     links.update { it.copy(rest = link) }
                     linkNotes.update { it.copy(rest = failureDetail("tv ip control: discover (HTTPS/HTTP + PSK)", outcome = "$link: ${found.error}")) }
                     // A wrong PSK will not fix itself: wait for a new one (restart) or a long while.
-                    if (link == Link.UNAUTHORIZED) wait = MAX_BACKOFF_MS
+                    if (link == Link.UNAUTHORIZED || link == Link.NEEDS_PAIRING) wait = MAX_BACKOFF_MS
                 }
             }
             backoff(wait)
@@ -592,7 +597,7 @@ class TuttiController @Inject constructor(
     private suspend fun refreshTv(client: BraviaClient): Boolean {
         val power = when (val result = client.powerStatus()) {
             is BraviaResult.Ok -> result.value
-            is BraviaResult.Failure -> if (result.error is BraviaError.Transport) return false else PowerStatus.UNKNOWN
+            is BraviaResult.Failure -> if (result.error is BraviaError.Transport || result.error == BraviaError.PinMismatch) return false else PowerStatus.UNKNOWN
         }
         val caps = client.capabilities
         val active = power == PowerStatus.ACTIVE
@@ -1448,6 +1453,8 @@ class TuttiController @Inject constructor(
                     steps += "paired, saving pin"
                     secure.setTvRemotePin(result.serverPin)
                     steps += "saving device"
+                    // A TV at another address is another certificate: its REST pin starts again.
+                    if (!restPinSurvives(store.devices.first().tv?.host, address)) secure.setTvRestPin(null)
                     store.updateDevices { it.copy(tv = (it.tv ?: TvDevice(address)).copy(host = address)) }
                     restart.update { it + 1 }
                     watchdog?.cancel()
@@ -1773,3 +1780,6 @@ class TuttiController @Inject constructor(
 /** The cache file for a package's icon: the package name itself, or null for anything that is not one. */
 internal fun iconFileName(packageName: String): String? =
     packageName.takeIf { Regex("[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z0-9_]+)+").matches(it) }
+
+/** Whether the TV's REST pin still applies once the TV is saved at [next]: only at the same address. */
+internal fun restPinSurvives(previous: String?, next: String): Boolean = previous != null && previous.trim() == next.trim()

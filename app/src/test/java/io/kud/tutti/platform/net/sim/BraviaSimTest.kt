@@ -86,12 +86,51 @@ class BraviaSimTest {
     }
 
     @Test
-    fun `an HTTP-only TV is reached over HTTP when no pin exists`() = runBlocking {
+    fun `an HTTP-only TV is reached over HTTP only once discovery answered there without the key`() = runBlocking {
         tv.https.sleep()
         val transport = transport()
-        assertEquals(PowerStatus.ACTIVE, client(transport).powerStatus().ok())
+        val client = client(transport)
+        // An authenticated call never falls back on its own: the key would go out on a guess.
+        assertTrue(client.powerStatus().error() is BraviaError.Transport)
+        assertEquals(0, tv.http.pskSeen.get())
+        client.discover().ok()
+        assertEquals(0, tv.http.pskSeen.get())
         assertEquals("http", transport.scheme)
+        assertEquals(PowerStatus.ACTIVE, client.powerStatus().ok())
         assertTrue(saved.isEmpty())
+    }
+
+    @Test
+    fun `HTTP does not stick: the next discovery tries HTTPS again`() = runBlocking {
+        tv.https.sleep()
+        val transport = transport()
+        val client = client(transport)
+        client.discover().ok()
+        assertEquals("http", transport.scheme)
+        tv.https.wake()
+        client.discover().ok()
+        assertEquals("https", transport.scheme)
+        val before = tv.http.pskSeen.get()
+        assertEquals(PowerStatus.ACTIVE, client.powerStatus().ok())
+        assertEquals(before, tv.http.pskSeen.get())
+    }
+
+    @Test
+    fun `discovery never carries the key`() = runBlocking {
+        client().discover().ok()
+        assertEquals(0, tv.https.pskSeen.get())
+        assertEquals(0, tv.http.pskSeen.get())
+    }
+
+    @Test
+    fun `the pin is kept only after an authenticated call succeeds`() = runBlocking {
+        val transport = transport()
+        client(transport, psk = "9999").discover().ok()
+        assertTrue("an unauthenticated answer pins nothing", saved.isEmpty())
+        assertEquals(BraviaError.Unauthorized, client(transport, psk = "9999").powerStatus().error())
+        assertTrue("a refused key pins nothing", saved.isEmpty())
+        client(transport).powerStatus().ok()
+        assertEquals(listOf(CertificatePin.of(SimKeys.tv.certificate)), saved)
     }
 
     @Test
@@ -126,7 +165,7 @@ class BraviaSimTest {
         assertEquals(PowerStatus.ACTIVE, client.powerStatus().ok())
         tv.https.changeCertificate(SimKeys.tvAfterReset)
         tv.https.dropConnections()
-        assertTrue(client.powerStatus().error() is BraviaError.Transport)
+        assertEquals(BraviaError.PinMismatch, client.powerStatus().error())
         assertEquals(listOf(CertificatePin.of(SimKeys.tv.certificate)), saved)
         assertEquals(0, tv.http.accepted.get())
     }
@@ -194,5 +233,16 @@ class BraviaSimTest {
         val transport = pinnedTransport()
         tv.https.dropConnections()
         assertTrue(transport.fetchIcon("https://$HOST:${tv.https.port}/DIAL/icon/a.png") is OkHttpBraviaTransport.IconFetch.Image)
+    }
+
+    @Test
+    fun `an icon refused over HTTP gets the key over HTTPS, and only from a pinned TV`() = runBlocking {
+        tv.files["/DIAL/icon/a.png"] = png
+        tv.filesNeedPsk = true
+        val unpinned = transport()
+        assertEquals(IconOutcome.HTTP_STATUS, unpinned.fetchIcon("http://$HOST:${tv.http.port}/DIAL/icon/a.png", psk = "1234").failure().outcome)
+        val transport = pinnedTransport()
+        assertTrue(transport.fetchIcon("http://$HOST:${tv.http.port}/DIAL/icon/a.png", psk = "1234") is OkHttpBraviaTransport.IconFetch.Image)
+        assertEquals("the key never goes over HTTP", 0, tv.http.pskSeen.get())
     }
 }

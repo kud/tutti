@@ -226,6 +226,7 @@ class DiagnosticRunner(
             is BraviaError.Unsupported -> fail("not_listed", error.method)
             is BraviaError.Malformed -> fail("malformed", error.detail)
             is BraviaError.Transport -> fail("transport", error.detail)
+            BraviaError.PinMismatch -> fail("pin_mismatch", "certificate does not match the recorded pin")
         }
     }
 

@@ -9,6 +9,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.IOException
+import java.net.Proxy
 import java.util.concurrent.TimeUnit
 
 /**
@@ -32,6 +33,8 @@ class OkHttpBarHttpTransport internal constructor(
             .followRedirects(false)
             .followSslRedirects(false)
             .retryOnConnectionFailure(false)
+            // LAN only: never through a system or app proxy.
+            .proxy(Proxy.NO_PROXY)
             .build()
     }
 

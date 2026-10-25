@@ -9,6 +9,7 @@ import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.add
 import kotlinx.serialization.json.addJsonObject
+import io.kud.tutti.protocol.net.CertificatePinMismatch
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
@@ -34,11 +35,14 @@ class BraviaClient(
      * per-service `getMethodTypes` is not in the reference, so it is only the fallback.
      */
     suspend fun discover(): BraviaResult<Capabilities> {
+        // Without the PSK: discovery is auth "none", and it is the call that settles which
+        // scheme the transport uses, so the key never goes out before that is known.
         val guide = rawCall(
             GUIDE_PATH,
             "getSupportedApiInfo",
             listOf(buildJsonObject { putJsonArray("services") { BraviaService.entries.forEach { add(it.id) } } }),
             "1.0",
+            authenticated = false,
         )
         if (guide is BraviaResult.Ok) {
             val found = BraviaParsers.supportedApiInfo(guide.value)
@@ -47,7 +51,10 @@ class BraviaClient(
         val found = mutableMapOf<BraviaService, List<MethodInfo>>()
         var lastError: BraviaError? = null
         for (service in BraviaService.entries) {
-            when (val result = rawCall(service.path, "getMethodTypes", listOf(JsonPrimitive("")), "1.0")) {
+            val bare = rawCall(service.path, "getMethodTypes", listOf(JsonPrimitive("")), "1.0", authenticated = false)
+            // Some firmware may want the key even here; by now the guide call has settled the scheme.
+            val result = if ((bare as? BraviaResult.Failure)?.error == BraviaError.Unauthorized) rawCall(service.path, "getMethodTypes", listOf(JsonPrimitive("")), "1.0") else bare
+            when (result) {
                 is BraviaResult.Ok -> found[service] = BraviaParsers.methodTypes(result.value)
                 is BraviaResult.Failure -> {
                     if (result.error == BraviaError.Unauthorized) return result
@@ -166,7 +173,7 @@ class BraviaClient(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            BraviaResult.Failure(BraviaError.Transport(e.message ?: e.javaClass.simpleName))
+            BraviaResult.Failure(transportError(e))
         }
     }
 
@@ -175,18 +182,19 @@ class BraviaClient(
         method: String,
         params: List<JsonElement>,
         version: String,
+        authenticated: Boolean = true,
     ): BraviaResult<JsonArray> {
         val id = ids.incrementAndGet()
         val reply = try {
             transport.post(
                 path,
                 JsonRpc.request(method, id, params, version),
-                authHeaders() + ("Content-Type" to "application/json; charset=UTF-8"),
+                (if (authenticated) authHeaders() else emptyMap()) + ("Content-Type" to "application/json; charset=UTF-8"),
             )
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            return BraviaResult.Failure(BraviaError.Transport(e.message ?: e.javaClass.simpleName))
+            return BraviaResult.Failure(transportError(e))
         }
         if (reply.status == 401 || reply.status == 403) return BraviaResult.Failure(BraviaError.Unauthorized)
         // Sony answers RPC errors with 200 and sometimes with 4xx/5xx and a JSON body: parse first.
@@ -206,6 +214,13 @@ class BraviaClient(
                 }
         }
     }
+
+    private fun transportError(e: Exception): BraviaError =
+        if (generateSequence<Throwable>(e) { it.cause }.take(8).any { it is CertificatePinMismatch }) {
+            BraviaError.PinMismatch
+        } else {
+            BraviaError.Transport(e.message ?: e.javaClass.simpleName)
+        }
 
     private fun authHeaders(): Map<String, String> = psk()?.takeIf { it.isNotEmpty() }?.let { mapOf(PSK_HEADER to it) } ?: emptyMap()
 

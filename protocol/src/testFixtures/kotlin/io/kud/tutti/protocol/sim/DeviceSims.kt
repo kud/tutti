@@ -86,9 +86,13 @@ class FakeBraviaTv(
 
         override fun wrap(raw: java.net.Socket): java.net.Socket = tlsServer?.wrapPublic(raw) ?: raw
 
+        /** Requests that carried the PSK header on this port, for "never in clear" checks. */
+        val pskSeen = java.util.concurrent.atomic.AtomicInteger(0)
+
         override fun serve(link: Link) {
             while (true) {
                 val request = readRequest(link.input) ?: return
+                if (request.headers.containsKey("x-auth-psk")) pskSeen.incrementAndGet()
                 if (!link.received()) continue
                 val (status, bytes, type) = if (request.method == "GET") file(request) else answer(request).let { Triple(it.first, it.second.encodeToByteArray(), "application/json") }
                 val head = "HTTP/1.1 $status ${if (status == 200) "OK" else "Error"}\r\n" +
