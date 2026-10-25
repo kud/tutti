@@ -173,11 +173,30 @@ class AtvRemote(
     suspend fun longPress(keyCode: Int): Boolean =
         sendKey(keyCode, KeyDirection.START_LONG) && sendKey(keyCode, KeyDirection.END_LONG)
 
-    /** Replaces the focused field's text. Echoed locally first. */
-    suspend fun sendText(text: String): Boolean {
-        val current = mutableState.value
-        mutableState.update { session.typed(it, text) }
-        return send(RemoteMessages.text(text, current.imeCounter, current.fieldCounter))
+    private val typing = ArrayDeque<RemoteMessage>()
+    private val typingLock = Mutex()
+
+    /**
+     * The phone field's whole text, on every change. Not suspending on purpose: the mirror and
+     * the queue take each keystroke in the order it was typed, on the caller's thread, and one
+     * drainer sends them in that order. A coroutine per keystroke on a pool once let "ph" reach
+     * the mirror before "p" did.
+     */
+    fun type(text: String) {
+        synchronized(typing) {
+            var messages = emptyList<RemoteMessage>()
+            mutableState.update { state -> session.type(state, text).also { messages = it.messages }.state }
+            if (messages.isEmpty()) return
+            typing.addAll(messages)
+        }
+        scope.launch {
+            typingLock.withLock {
+                while (true) {
+                    val next = synchronized(typing) { typing.removeFirstOrNull() } ?: break
+                    send(next)
+                }
+            }
+        }
     }
 
     suspend fun launch(link: String): Boolean = send(RemoteMessages.appLink(link))

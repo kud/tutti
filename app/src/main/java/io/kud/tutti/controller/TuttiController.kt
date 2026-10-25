@@ -941,7 +941,7 @@ class TuttiController @Inject constructor(
 
     /** Replaces the TV field's text (each keystroke, live). */
     fun text(text: String) {
-        scope.launch { atv.sendText(text) }
+        atv.type(text)
     }
 
     // region voice

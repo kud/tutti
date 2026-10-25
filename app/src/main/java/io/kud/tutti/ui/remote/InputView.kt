@@ -139,10 +139,13 @@ fun InputView(
         mutableStateOf(TextFieldValue(initial, TextRange(initial.length)))
     }
 
-    // Follow the TV when its field changes on its side (autocomplete, another remote).
+    // Follow the TV when its field changes on its side (autocomplete, another remote); our own
+    // echoes never get here (RemoteSession drops them). Never while the phone keyboard is
+    // composing a word: replacing the text under Gboard's composing region makes it commit the
+    // word again on top, which fed the "pphppph" loop. The next keystroke sends ours instead.
     LaunchedEffect(field?.text) {
         val current = field ?: return@LaunchedEffect
-        if (current.text != value.text) {
+        if (current.text != value.text && value.composition == null) {
             value = TextFieldValue(current.text, TextRange(current.selectionEnd.coerceIn(0, current.text.length)))
         }
     }
