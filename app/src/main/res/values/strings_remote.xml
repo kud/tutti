@@ -20,6 +20,7 @@
     <string name="action_keyboard">Keyboard</string>
     <string name="action_mute">Mute</string>
     <string name="action_scenes">Scenes</string>
+    <string name="action_edit_dock">Edit dock</string>
     <string name="action_settings">Settings</string>
     <!-- The top bar's overflow below 420 dp (TopBar.kt): Settings and Gestures fold into it. -->
     <string name="action_more">More options</string>
@@ -46,7 +47,7 @@
     <string name="volume_down">Volume down</string>
     <string name="scene_modified">modified</string>
     <string name="dock_add">Add</string>
-    <string name="dock_assign_title">Pin %1$d</string>
+    <string name="dock_customise">Customise the dock</string>
     <string name="longpress_assign_title">Long press: %1$s</string>
     <string name="picker_apps">Apps</string>
     <string name="picker_inputs">Inputs</string>

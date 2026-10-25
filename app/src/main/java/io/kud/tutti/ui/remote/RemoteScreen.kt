@@ -76,8 +76,6 @@ import io.kud.tutti.ui.motion.rememberWaiting
 import kotlinx.coroutines.delay
 
 private sealed interface PickerTarget {
-    data class Slot(val index: Int) : PickerTarget
-
     data class LongPress(val button: SecondaryButton) : PickerTarget
 
     /** A pin's editor (long press on it). */
@@ -310,7 +308,12 @@ fun RemoteScreen(
                     // The chip's "On the TV" line steps aside while the card below says it.
                     SystemChip(state, onClick = onOpenSettings, modifier = Modifier.weight(1f), showNow = !cardShown)
                     Spacer(Modifier.width(4.dp))
-                    TopBarOverflow(onScenes = onOpenScenes, onSettings = onOpenSettings, onGestures = { gesturesSheet = true })
+                    TopBarOverflow(
+                        onScenes = onOpenScenes,
+                        onEditDock = { onEditingChange(true) },
+                        onSettings = onOpenSettings,
+                        onGestures = { gesturesSheet = true },
+                    )
                     Spacer(Modifier.width(POWER_GAP_DP.dp))
                     // Waking a sleeping TV takes seconds: a turning ring says so (not a colour), and the label follows.
                     // The ring keeps the loading rules: not before 150 ms, then at least 400 ms; held still when motion is reduced.
@@ -529,12 +532,11 @@ fun RemoteScreen(
                             else -> slot.primary?.let(controller::run)
                         }
                     },
-                    onAssign = { index ->
-                        picker = PickerTarget.Slot(index)
-                    },
                     onEdit = { index ->
                         picker = PickerTarget.Edit(index)
                     },
+                    // An empty dock's one way in: the same editor as ⋮ › Edit dock and Settings.
+                    onCustomise = { onEditingChange(true) },
                     onRunSecondary = { _, action ->
                         haptics.click()
                         controller.run(action)
@@ -707,17 +709,6 @@ fun RemoteScreen(
     if (gesturesSheet) GesturesSheet(onDismiss = { gesturesSheet = false })
 
     when (val target = picker) {
-        is PickerTarget.Slot -> ActionPickerSheet(
-            title = stringResource(R.string.dock_assign_title, target.index + 1),
-            state = state,
-            allowRemove = state.dock.slots.getOrNull(target.index)?.primary != null,
-            onPick = { action ->
-                controller.assignDock(target.index, action, state.dock.slots.getOrNull(target.index)?.secondary)
-                picker = null
-            },
-            onLoadTv = controller::loadTvSettings,
-            onDismiss = { picker = null },
-        )
         is PickerTarget.LongPress -> ActionPickerSheet(
             title = stringResource(R.string.longpress_assign_title, secondaryLabel(target.button)),
             state = state,

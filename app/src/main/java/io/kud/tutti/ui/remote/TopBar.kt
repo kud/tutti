@@ -21,7 +21,7 @@ import io.kud.tutti.ui.common.TuttiMenu
 /**
  * The remote's top bar, one layout at every width (Erwann, 2026-10-25: « les étoiles aussi dans le
  * menu », « le menu à côté du connecteur BRAVIA pour laisser de la place entre le bouton power »,
- * « les dots verticaux »): the system chip, the "⋮" right against it holding Scenes, Settings and
+ * « les dots verticaux »): the system chip, the "⋮" right against it holding Scenes, Edit dock, Settings and
  * Gestures, then [POWER_GAP_DP] of nothing, then Power at the far edge. With one icon left between
  * chip and Power there is nothing to fold any more, so wide screens wear the same bar (Iris): a
  * second layout would only bring back an icon beside Power, which is what the gap is there to stop.
@@ -39,11 +39,13 @@ private const val BAR_FIXED_DP = 16 + 12 + 4 + 48 + POWER_GAP_DP + 52
 fun chipWidthDp(barWidthDp: Int): Int = barWidthDp - BAR_FIXED_DP
 
 /**
- * The bar's "⋮": one icon button, heard as "More options", opening three text rows, Scenes, Settings
- * then Gestures, each with its icon and at least 48 dp tall. A tap runs the row and closes the menu.
+ * The bar's "⋮": one icon button, heard as "More options", opening text rows, Scenes, Edit dock,
+ * Settings then Gestures, each with its icon and at least 48 dp tall. A tap runs the row and closes
+ * the menu. Edit dock opens the layout editor, the dock's one way in now its "+ Add" slots are gone
+ * (Erwann, 2026-10-25).
  */
 @Composable
-fun TopBarOverflow(onScenes: () -> Unit, onSettings: () -> Unit, onGestures: () -> Unit) {
+fun TopBarOverflow(onScenes: () -> Unit, onEditDock: () -> Unit, onSettings: () -> Unit, onGestures: () -> Unit) {
     var open by remember { mutableStateOf(false) }
     Box {
         IconButton(onClick = { open = true }) {
@@ -56,6 +58,15 @@ fun TopBarOverflow(onScenes: () -> Unit, onSettings: () -> Unit, onGestures: () 
                 onClick = {
                     open = false
                     onScenes()
+                },
+                modifier = Modifier.heightIn(min = 48.dp),
+            )
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.action_edit_dock)) },
+                leadingIcon = { Icon(painterResource(R.drawable.ic_edit), contentDescription = null) },
+                onClick = {
+                    open = false
+                    onEditDock()
                 },
                 modifier = Modifier.heightIn(min = 48.dp),
             )

@@ -9,6 +9,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -92,11 +93,14 @@ import io.kud.tutti.ui.common.slotLabel
 
 /**
  * The bottom row: two fixed doors, Apps and Keys (the rest of the remote), then his pins, four to
- * a page. The doors share a tone so they read as one family, apart from the pins. With one page
- * the row is exactly the old one; from two, the pins swipe sideways under the still doors and
- * small dots show where he is. A pin runs on tap and opens its editor on long press; a pin with
- * its own long press offers that first, the editor below it, like a launcher's shortcuts. An
- * empty pin asks on tap. A pin whose tap toggles a bar setting wears that setting's state
+ * a page. The doors share a tone so they read as one family, apart from the pins. Only filled pins
+ * show (Erwann, 2026-10-25: no "+ Add" slots; the editor is in the top bar's ⋮): every tile keeps
+ * the one width a full row gives it, and the row, doors and pins together, is centred as a group,
+ * sized by the fullest page so a swipe never moves the doors. An empty dock shows one quiet
+ * "Customise the dock" in the pins' place. From two pages the pins swipe sideways under the still
+ * doors and small dots show where he is. A pin runs on tap and opens its editor on long press; a
+ * pin with its own long press offers that first, the editor below it, like a launcher's shortcuts.
+ * A pin whose tap toggles a bar setting wears that setting's state
  * ([PinToggle]): a check badge and the accent-filled, squarer tile when on (Power's and Mute's on), an empty ring when off, a
  * dashed ring when tutti does not know, and TalkBack hears it as a switch.
  */
@@ -106,38 +110,47 @@ fun Dock(
     onApps: () -> Unit,
     onKeys: () -> Unit,
     onRun: (index: Int, slot: DockSlot) -> Unit,
-    onAssign: (index: Int) -> Unit,
     onEdit: (index: Int) -> Unit,
+    onCustomise: () -> Unit,
     modifier: Modifier = Modifier,
     onRunSecondary: (index: Int, action: DockAction) -> Unit = { _, _ -> },
     initialPage: Int = 0,
 ) {
-    val pages = state.dock.pages
+    val pages = shownPins(state.dock)
+    val span = dockSpan(pages)
     val pager = rememberPagerState(initialPage = initialPage) { pages.size }
     BoxWithConstraints(modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-        // Six equal tiles: five 6dp gaps plus the 6dp step between the doors and the pins.
+        // Six equal tiles: five 6dp gaps plus the 6dp step between the doors and the pins. Fewer pins
+        // keep that width and the group centres, rather than stretching (Iris, 2026-10-25).
         val tile = (maxWidth - GAP * 6) / 6
-        Column {
+        val pinsWidth = tile * span + GAP * (span - 1).coerceAtLeast(0)
+        Column(Modifier.align(Alignment.TopCenter)) {
             Row(horizontalArrangement = Arrangement.spacedBy(GAP)) {
                 DoorTile(R.drawable.ic_apps, stringResource(R.string.dock_apps), onApps, Modifier.width(tile))
                 DoorTile(R.drawable.ic_dialpad, stringResource(R.string.dock_keys), onKeys, Modifier.width(tile))
                 Spacer(Modifier.width(0.dp))
+                if (pages.isEmpty()) {
+                    CustomiseEntry(onCustomise, Modifier.width(tile * 4 + GAP * 3))
+                    return@Row
+                }
                 val pageDescription = stringResource(R.string.dock_page_desc, pager.currentPage + 1, pages.size)
                 HorizontalPager(
                     state = pager,
                     userScrollEnabled = pages.size > 1,
                     pageSpacing = GAP,
                     modifier = Modifier
-                        .width(tile * 4 + GAP * 3)
+                        .width(pinsWidth)
                         .then(if (pages.size > 1) Modifier.semantics { stateDescription = pageDescription } else Modifier),
                 ) { page ->
+                    // A page with fewer pins than the fullest starts against the doors.
                     Row(horizontalArrangement = Arrangement.spacedBy(GAP)) {
-                        pages[page].forEachIndexed { offset, slot ->
-                            val index = page * DockConfig.PAGE_SIZE + offset
+                        pages[page].forEach { index ->
+                            val slot = state.dock.slot(index)
                             PinTile(
                                 slot = slot,
                                 state = state,
-                                onClick = { if (slot.primary != null) onRun(index, slot) else onAssign(index) },
+                                // A slot with only a long-press action has no tap: it opens its editor.
+                                onClick = { if (slot.primary != null) onRun(index, slot) else onEdit(index) },
                                 onEdit = { onEdit(index) },
                                 onSecondary = { action -> onRunSecondary(index, action) },
                                 modifier = Modifier.width(tile),
@@ -150,7 +163,7 @@ fun Dock(
                 Row(
                     Modifier
                         .padding(start = tile * 2 + GAP * 3, top = 8.dp)
-                        .width(tile * 4 + GAP * 3),
+                        .width(pinsWidth),
                     horizontalArrangement = Arrangement.Center,
                 ) {
                     repeat(pages.size) { page ->
@@ -167,6 +180,45 @@ fun Dock(
                 }
             }
         }
+    }
+}
+
+/**
+ * The dock as shown: for each page holding at least one pin, its slots' indices across pages, in
+ * order. Empty slots and empty pages are left out; the editor and "Pin to dock" still list them.
+ */
+internal fun shownPins(dock: DockConfig): List<List<Int>> =
+    dock.pages.mapIndexedNotNull { page, slots ->
+        slots.indices
+            .filter { slots[it].primary != null || slots[it].secondary != null }
+            .map { page * DockConfig.PAGE_SIZE + it }
+            .takeIf { it.isNotEmpty() }
+    }
+
+/** How many pin widths the row reserves: the fullest shown page, so a swipe never moves the doors. */
+internal fun dockSpan(pages: List<List<Int>>): Int = pages.maxOfOrNull { it.size } ?: 0
+
+/** An empty dock's one way in: quiet text where the pins would be, never a tile that looks like one. */
+@Composable
+private fun CustomiseEntry(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val tint = MaterialTheme.colorScheme.onSurfaceVariant
+    Row(
+        modifier
+            .height(64.dp)
+            .clip(TileShape)
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(horizontal = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(painterResource(R.drawable.ic_edit), contentDescription = null, tint = tint, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(8.dp))
+        Text(
+            stringResource(R.string.dock_customise),
+            style = MaterialTheme.typography.labelLarge,
+            color = tint,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 
@@ -202,7 +254,7 @@ private fun PinTile(
     onSecondary: (DockAction) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val label = slotLabel(slot, state) ?: stringResource(R.string.dock_add)
+    val label = slotLabel(slot, state) ?: slot.secondary?.let { actionLabel(it, state) } ?: stringResource(R.string.dock_reassign)
     val edit = stringResource(R.string.dock_reassign)
     val secondary = slot.secondary
     var menu by remember { mutableStateOf(false) }
@@ -309,7 +361,7 @@ private fun PinTile(
             ),
         ) { tint ->
             Box(contentAlignment = Alignment.Center) {
-                PinFace(slot.primary, slot.icon, slot.letters, state, tint, iconSize = 20.dp)
+                PinFace(slot.primary ?: slot.secondary, slot.icon, slot.letters, state, tint, iconSize = 20.dp)
                 if (toggle != null) {
                     PinStateBadge(toggle, tint, background, Modifier.align(Alignment.TopEnd).offset(x = 8.dp, y = (-6).dp))
                 }
