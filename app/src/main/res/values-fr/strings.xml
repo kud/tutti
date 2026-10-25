@@ -15,7 +15,7 @@
     <string name="bt_status_connecting">Connexion à %1$s…</string>
     <string name="bt_status_paired">Associé à %1$s, non connecté</string>
     <string name="bt_status_not_paired">Non associé</string>
-    <string name="bt_status_busy">Une autre appli utilise le téléphone comme clavier Bluetooth. Fermez-la, puis réessayez.</string>
+    <string name="bt_status_busy">Une autre app utilise le téléphone comme clavier Bluetooth. Fermez-la, puis réessayez.</string>
     <string name="bt_status_permission">tutti a besoin de l’autorisation Appareils à proximité</string>
     <string name="bt_status_off">Le Bluetooth est désactivé</string>
     <string name="bt_status_starting">Démarrage…</string>
@@ -27,7 +27,7 @@
     <string name="bt_pair_steps">Sur la TV : Paramètres › Télécommandes et accessoires › Associer un accessoire. Touchez Rendre visible ici, choisissez tutti sur la TV, puis confirmez le code des deux côtés.</string>
     <string name="bt_known_devices">Déjà associés à ce téléphone</string>
     <string name="bt_forget">Oublier cette TV</string>
-    <string name="bt_role_note">Une seule appli à la fois peut servir de clavier Bluetooth. tutti prend ce rôle tant que cet écran est ouvert et le rend quand vous le quittez.</string>
+    <string name="bt_role_note">Une seule app à la fois peut servir de clavier Bluetooth. tutti prend ce rôle tant que cet écran est ouvert et le rend quand vous le quittez.</string>
     <string name="bt_touchpad_hint">Touchez pour cliquer · deux doigts pour faire défiler · touchez à deux doigts pour revenir</string>
     <string name="bt_pointer_hint">Pointez le téléphone vers la TV et bougez-le : le curseur suit.</string>
     <string name="bt_pointer_no_gyro">Ce téléphone n’a pas de gyroscope : le pointeur ne peut pas le suivre. Le pavé tactile fonctionne.</string>

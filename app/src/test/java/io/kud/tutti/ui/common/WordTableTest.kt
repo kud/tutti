@@ -42,6 +42,7 @@ class WordTableTest {
         val fr = BANNED.getValue("values-fr")
         val allowed = listOf(
             "le téléphone",
+            "Télétexte",
             "la télécommande",
             "Alimentation du caisson",
             "Paramètres › Réseau et Internet › Réseau domestique › Contrôle IP › Authentification",
@@ -87,8 +88,8 @@ class WordTableTest {
             ),
             "values-fr" to listOf(
                 Ban("(?i)téléviseur", "la TV", "Oublier ce téléviseur"),
-                Ban("(?i)\\btélé\\b", "la TV", "règlent la télé."),
-                Ban("(?i)\\bapplis?\\b", "apps", "Aucune appli en cours"),
+                Ban("(?i)(?<!\\p{L})télé(?!\\p{L})", "la TV", "règlent la télé."),
+                Ban("(?i)(?<!\\p{L})applis?(?!\\p{L})", "apps", "Aucune appli en cours"),
                 Ban("\\bAlimentation\\b(?! du caisson)", "Marche / arrêt", "Alimentation"),
                 Ban("(?i)placer dans le dock|\\bEmplacement \\d", "Épingler au dock, épingle", "Emplacement 2"),
                 Ban("Configuration du réseau local|(?<!Réseau domestique )[→›] Contrôle IP", "Paramètres › Réseau et Internet › Réseau domestique › Contrôle IP", "Configuration du réseau local → Contrôle IP"),
