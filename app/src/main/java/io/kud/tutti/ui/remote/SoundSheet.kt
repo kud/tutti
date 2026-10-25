@@ -405,7 +405,7 @@ private fun SoundTile(state: TuttiUiState, feature: TheatreFeature, onTap: () ->
         Text(name, style = MaterialTheme.typography.titleSmall, color = content)
         if (failed && reason == null) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(painterResource(R.drawable.ic_close), contentDescription = null, tint = content, modifier = Modifier.size(14.dp))
+                Icon(painterResource(R.drawable.ic_warning), contentDescription = null, tint = content, modifier = Modifier.size(14.dp))
                 Spacer(Modifier.width(4.dp))
                 Text(stringResource(R.string.sound_tile_failed), style = MaterialTheme.typography.bodySmall, color = content, maxLines = 2)
             }

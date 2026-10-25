@@ -180,7 +180,7 @@ private fun SceneCard(ui: SceneUi, summary: String, onApply: () -> Unit, onEdit:
         Text(summary, style = MaterialTheme.typography.bodySmall, color = content.copy(alpha = 0.8f), maxLines = 3)
         if (failure != null) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(painterResource(R.drawable.ic_close), contentDescription = null, tint = content, modifier = Modifier.size(14.dp))
+                Icon(painterResource(R.drawable.ic_warning), contentDescription = null, tint = content, modifier = Modifier.size(14.dp))
                 Spacer(Modifier.size(4.dp))
                 Text(
                     pluralStringResource(R.plurals.scene_steps_failed, failure.failed, failure.failed, failure.total),
@@ -190,7 +190,7 @@ private fun SceneCard(ui: SceneUi, summary: String, onApply: () -> Unit, onEdit:
             }
         } else when (ui.status) {
             SceneStatus.ACTIVE -> Text(stringResource(R.string.scenes_active), style = MaterialTheme.typography.labelMedium, color = content)
-            SceneStatus.MODIFIED -> Text(stringResource(R.string.scene_modified), style = MaterialTheme.typography.labelMedium, color = seed)
+            SceneStatus.MODIFIED -> Text(stringResource(R.string.scene_modified), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             SceneStatus.IDLE -> Unit
         }
     }

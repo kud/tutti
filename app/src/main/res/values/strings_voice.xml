@@ -15,4 +15,8 @@
     <string name="voice_permission_continue">Continue</string>
     <string name="voice_permission_not_now">Not now</string>
     <string name="voice_permission_denied">Mic denied: allow it in the phone’s settings</string>
+    <!-- TalkBack's toggle on the mic: it can't hold the button. -->
+    <string name="voice_action_start">Start talking</string>
+    <string name="voice_action_send">Send to the TV</string>
+    <string name="voice_action_cancel">Cancel without sending</string>
 </resources>

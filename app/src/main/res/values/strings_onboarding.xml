@@ -8,7 +8,7 @@
     <string name="onboarding_bar_body">In BRAVIA Connect, turn on External control for the bar, then enter its IP address.</string>
     <string name="onboarding_add_bar">Add the bar</string>
     <string name="onboarding_psk_title">TV pre-shared key (optional)</string>
-    <string name="onboarding_psk_body">For picture, sound output and inputs. On the TV:\n1. Settings → Network &amp; Internet → Local network (or Home network) → IP control.\n2. Authentication: “Normal and Pre-Shared Key”, then choose a key.\n3. Network &amp; Internet → Remote device settings → Control remotely: On.</string>
+    <string name="onboarding_psk_body">For picture, sound output and inputs. On the TV:\n1. Settings → Network &amp; Internet → Local network setup → IP control.\n2. Authentication: “Normal and Pre-Shared Key”, then choose a key.\n3. Network &amp; Internet → Remote device settings → Control remotely: On.</string>
     <string name="onboarding_psk_field">Pre-shared key</string>
     <string name="onboarding_save">Save</string>
     <string name="pairing_connecting">Connecting to the TV…</string>
@@ -62,4 +62,5 @@
     <string name="onboarding_psk_show">Show the key</string>
     <string name="onboarding_psk_hide">Hide the key</string>
     <string name="onboarding_psk_remove">Remove the saved key</string>
+    <string name="onboarding_ip_invalid">Enter the TV’s address on your home network, like 192.168.1.20.</string>
 </resources>

@@ -51,9 +51,6 @@ import io.kud.tutti.controller.Link
 import io.kud.tutti.controller.TuttiUiState
 import io.kud.tutti.ui.common.AppIcon
 
-private val Online = Color(0xFF4CD18A)
-private val Pending = Color(0xFFF2B84B)
-
 private fun Link.isDown() = this == Link.UNREACHABLE || this == Link.NEEDS_PAIRING
 
 /**
@@ -87,8 +84,10 @@ fun SystemChip(state: TuttiUiState, onClick: () -> Unit, modifier: Modifier = Mo
     val dotTarget = when (dotState) {
         DotState.NONE -> MaterialTheme.colorScheme.outline
         DotState.DOWN -> MaterialTheme.colorScheme.error
-        DotState.PARTIAL, DotState.CONNECTING -> Pending
-        DotState.ONLINE -> Online
+        // Scheme roles, so the dot follows dynamic colour and keeps its contrast in both themes;
+        // the state itself is told by shape (dot, open ring, hollow) and the chip's words.
+        DotState.PARTIAL, DotState.CONNECTING -> MaterialTheme.colorScheme.tertiary
+        DotState.ONLINE -> MaterialTheme.colorScheme.primary
     }
     val nudge = LocalChipNudge.current
     val pulse = remember { Animatable(0f) }

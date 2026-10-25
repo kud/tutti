@@ -15,4 +15,8 @@
     <string name="voice_permission_continue">Continuer</string>
     <string name="voice_permission_not_now">Pas maintenant</string>
     <string name="voice_permission_denied">Micro refusé : autorisez-le dans les réglages du téléphone</string>
+    <!-- TalkBack's toggle on the mic: it can't hold the button. -->
+    <string name="voice_action_start">Commencer à parler</string>
+    <string name="voice_action_send">Envoyer à la TV</string>
+    <string name="voice_action_cancel">Annuler sans envoyer</string>
 </resources>

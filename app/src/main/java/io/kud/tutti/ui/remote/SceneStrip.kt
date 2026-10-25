@@ -118,7 +118,8 @@ fun ScenePill(ui: SceneUi, onClick: () -> Unit, onLongClick: () -> Unit, modifie
     SceneStepTicks(ui.progress)
     Row(
         modifier = modifier
-            .height(40.dp)
+            // 48 dp to touch, a 40 dp pill to see.
+            .height(48.dp)
             .graphicsLayer {
                 scaleX = press.scale
                 scaleY = press.scale
@@ -127,9 +128,11 @@ fun ScenePill(ui: SceneUi, onClick: () -> Unit, onLongClick: () -> Unit, modifie
             .combinedClickable(
                 interactionSource = interaction,
                 indication = rememberTuttiIndication(shape, layerColor = content),
+                onLongClickLabel = stringResource(R.string.editor_edit),
                 onLongClick = onLongClick,
                 onClick = onClick,
             )
+            .padding(vertical = 4.dp)
             .clip(shape)
             .background(container)
             .then(if (ui.status == SceneStatus.MODIFIED) Modifier.border(1.5.dp, seed, shape) else Modifier)
@@ -149,12 +152,12 @@ fun ScenePill(ui: SceneUi, onClick: () -> Unit, onLongClick: () -> Unit, modifie
         }
         if (failed) {
             Spacer(Modifier.width(6.dp))
-            Icon(painterResource(R.drawable.ic_close), contentDescription = null, tint = content, modifier = Modifier.size(14.dp))
+            Icon(painterResource(R.drawable.ic_warning), contentDescription = null, tint = content, modifier = Modifier.size(14.dp))
             Spacer(Modifier.width(2.dp))
             Text(stringResource(R.string.scene_failed_short), style = MaterialTheme.typography.labelSmall, color = content)
         } else if (ui.status == SceneStatus.MODIFIED) {
             Spacer(Modifier.width(6.dp))
-            Text(stringResource(R.string.scene_modified), style = MaterialTheme.typography.labelSmall, color = seed)
+            Text(stringResource(R.string.scene_modified), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

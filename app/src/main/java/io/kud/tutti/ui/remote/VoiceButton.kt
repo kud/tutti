@@ -42,7 +42,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.Dp
@@ -167,6 +170,9 @@ fun VoiceButton(
     }
     val label = stringResource(R.string.voice_button)
     val listeningLabel = stringResource(R.string.voice_listening)
+    val startLabel = stringResource(R.string.voice_action_start)
+    val sendLabel = stringResource(R.string.voice_action_send)
+    val cancelLabel = stringResource(R.string.voice_action_cancel)
 
     Box(
         modifier = Modifier
@@ -185,6 +191,35 @@ fun VoiceButton(
                 when {
                     downReason != null -> stateDescription = downReason
                     talking -> stateDescription = listeningLabel
+                }
+                // TalkBack can't hold and release, so it gets a toggle: activate to start talking,
+                // again to send, or the Cancel action to drop it. Down, it offers nothing.
+                if (downReason == null && !down) {
+                    onClick(label = if (talking) sendLabel else startLabel) {
+                        when {
+                            talking -> {
+                                hold = Hold.NONE
+                                haptics.click()
+                                controller.finishVoice()
+                            }
+                            !controller.micGranted() -> rationale = true
+                            else -> {
+                                haptics.select()
+                                hold = Hold.TALKING
+                                controller.startVoice()
+                            }
+                        }
+                        true
+                    }
+                    if (talking) {
+                        customActions = listOf(
+                            CustomAccessibilityAction(cancelLabel) {
+                                hold = Hold.NONE
+                                controller.cancelVoice()
+                                true
+                            },
+                        )
+                    }
                 }
             }
             .pointerInput(controller) {

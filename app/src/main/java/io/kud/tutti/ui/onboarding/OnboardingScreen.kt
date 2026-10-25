@@ -365,6 +365,12 @@ private fun SearchStep(
                 label = { Text(stringResource(R.string.onboarding_ip)) },
                 singleLine = true,
                 isError = typed.isNotEmpty() && !LanAddress.isPrivate(typed),
+                // The error in words, not only the red outline.
+                supportingText = if (typed.isNotEmpty() && !LanAddress.isPrivate(typed)) {
+                    { Text(stringResource(R.string.onboarding_ip_invalid)) }
+                } else {
+                    null
+                },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
                 modifier = Modifier.fillMaxWidth(),
             )

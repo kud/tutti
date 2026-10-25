@@ -288,7 +288,7 @@ internal fun CheckLine(state: CheckState, text: String, failure: String? = null)
                         CircularProgressIndicator(Modifier.size(16.dp), color = colors.onSurface, strokeWidth = 2.dp)
                     }
                     CheckState.FAILED -> Icon(
-                        painterResource(R.drawable.ic_close),
+                        painterResource(R.drawable.ic_warning),
                         contentDescription = null,
                         tint = colors.error,
                         modifier = Modifier.size(18.dp).border(1.5.dp, colors.error, RoundedCornerShape(50)).padding(2.dp),

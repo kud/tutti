@@ -307,7 +307,7 @@ private fun AppTile(
                         .border(2.dp, scheme.surface, CircleShape),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Icon(painterResource(R.drawable.ic_close), contentDescription = null, tint = scheme.onErrorContainer, modifier = Modifier.size(16.dp))
+                    Icon(painterResource(R.drawable.ic_warning), contentDescription = null, tint = scheme.onErrorContainer, modifier = Modifier.size(16.dp))
                 }
             }
         }
