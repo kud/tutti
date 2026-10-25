@@ -864,6 +864,23 @@ fun RemoteScreen(
                     Unit
                 }
             },
+            inputs = tvInputsRow(
+                ipControl = state.ipControlSet,
+                inputs = state.tv.inputs,
+                currentUri = state.tv.input,
+                restOnline = state.links.rest == Link.ONLINE,
+                tvPowered = tvPowered(state),
+                downReason = stringResource(R.string.power_sleep_down),
+                standbyReason = stringResource(R.string.power_sleep_standby),
+            ),
+            onInput = { uri ->
+                haptics.select()
+                controller.switchInput(uri)
+            },
+            onPinInput = { uri, name ->
+                haptics.longPress()
+                powerPinner.request(DockAction.Input(uri, name), name)
+            },
         )
     }
 

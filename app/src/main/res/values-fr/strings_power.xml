@@ -25,4 +25,5 @@
     <string name="gentle_off_notification_text">Le volume baissera pendant les 2 dernières minutes</string>
     <string name="gentle_off_channel">Extinction programmée</string>
     <string name="gentle_off_channel_description">Le compte à rebours avant que la TV et la barre s’éteignent.</string>
+    <string name="tv_input_pin">Épingler au dock</string>
 </resources>

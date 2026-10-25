@@ -4,6 +4,7 @@ import androidx.annotation.DrawableRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -33,6 +34,9 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import io.kud.tutti.R
@@ -116,6 +120,9 @@ fun PowerSheet(
     onGentle: (minutes: Int) -> Unit = {},
     onGentleCancel: () -> Unit = {},
     onAllowExact: (() -> Unit)? = null,
+    inputs: TvInputsRow? = null,
+    onInput: (uri: String) -> Unit = {},
+    onPinInput: ((uri: String, name: String) -> Unit)? = null,
 ) {
     // With the TV alone, "TV only" would imply a soundbar that isn't there.
     val solo = choices.none { it.target == PowerTarget.BAR }
@@ -152,6 +159,8 @@ fun PowerSheet(
                     )
                     PowerRow(icon, name, action) { onChoose(choice) }
                 }
+                // The inputs stay open after a tap: the mark moves to the one now on screen.
+                if (inputs != null) InputChips(inputs, onInput, onPinInput)
                 // The sleep timer stays open after a tap: each press moves the TV to its next step,
                 // and the TV's screen shows which (Iris's gesture audit, item 6).
                 // Screen off stays open too: the next tap brings the picture back. A long press pins it.
@@ -175,6 +184,88 @@ fun PowerSheet(
                     PowerRow(R.drawable.ic_bedtime, stringResource(R.string.power_sleep), detail, enabled = sleep.reason == null, down = sleep.reason != null, onClick = onSleep)
                 }
                 if (gentle != null) GentleOff(gentle, now, exactAllowed, onGentle, onGentleCancel, onAllowExact)
+            }
+        }
+    }
+}
+
+/**
+ * The TV's inputs ([tvInputsRow]) as one row of chips, scrolling sideways when they don't fit:
+ * each named as the TV names it, the one on screen marked with a tick and said "Current input",
+ * one with nothing plugged in quieter. A tap switches to it, a long press pins it to the dock.
+ * Down: the reason in words above them, the chips in the dashed dress and not clickable.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun InputChips(row: TvInputsRow, onInput: (String) -> Unit, onPin: ((String, String) -> Unit)?) {
+    val down = row.reason != null
+    val currentWords = stringResource(R.string.tv_input_current)
+    val emptyWords = stringResource(R.string.tv_input_disconnected)
+    val pinWords = stringResource(R.string.tv_input_pin)
+    val dash = androidx.compose.runtime.remember { androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(12f, 8f)) }
+    val outline = MaterialTheme.colorScheme.outline
+    Column(Modifier.fillMaxWidth().padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            stringResource(R.string.tv_inputs),
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.semantics { heading() }.padding(start = 4.dp),
+        )
+        row.reason?.let {
+            Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 4.dp))
+        }
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            for (input in row.inputs) {
+                val fill = if (input.current) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh
+                val ink = when {
+                    down || !input.connected -> MaterialTheme.colorScheme.onSurfaceVariant
+                    input.current -> MaterialTheme.colorScheme.onSecondaryContainer
+                    else -> MaterialTheme.colorScheme.onSurface
+                }
+                Row(
+                    Modifier
+                        .heightIn(min = 48.dp)
+                        .then(
+                            if (down) {
+                                Modifier.drawBehind {
+                                    drawRoundRect(
+                                        outline,
+                                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.5.dp.toPx(), pathEffect = dash),
+                                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(12.dp.toPx()),
+                                    )
+                                }
+                            } else {
+                                Modifier.background(fill, RoundedCornerShape(12.dp))
+                            },
+                        )
+                        .combinedClickable(
+                            enabled = !down,
+                            role = Role.Button,
+                            onClickLabel = input.name,
+                            onLongClickLabel = onPin?.let { pinWords },
+                            onLongClick = onPin?.let { pin -> { pin(input.uri, input.name) } },
+                            onClick = { onInput(input.uri) },
+                        )
+                        .semantics(mergeDescendants = true) {
+                            selected = input.current
+                            when {
+                                row.reason != null -> stateDescription = row.reason
+                                input.current -> stateDescription = currentWords
+                                !input.connected -> stateDescription = emptyWords
+                            }
+                        }
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        painterResource(if (input.current) R.drawable.ic_check else R.drawable.ic_input),
+                        contentDescription = null,
+                        tint = ink,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(input.name, style = MaterialTheme.typography.labelLarge, color = ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
             }
         }
     }
