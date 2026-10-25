@@ -10,20 +10,31 @@ import io.kud.tutti.protocol.atv.proto.pairing.PairingOption
 import io.kud.tutti.protocol.atv.proto.pairing.PairingRequestAck
 import io.kud.tutti.protocol.atv.proto.pairing.PairingSecretAck
 import io.kud.tutti.protocol.atv.proto.pairing.RoleType
+import io.kud.tutti.protocol.atv.proto.remote.RemoteAppInfo
 import io.kud.tutti.protocol.atv.proto.remote.RemoteConfigure
 import io.kud.tutti.protocol.atv.proto.remote.RemoteDeviceInfo
+import io.kud.tutti.protocol.atv.proto.remote.RemoteEditInfo
+import io.kud.tutti.protocol.atv.proto.remote.RemoteImeBatchEdit
+import io.kud.tutti.protocol.atv.proto.remote.RemoteImeKeyInject
+import io.kud.tutti.protocol.atv.proto.remote.RemoteImeObject
+import io.kud.tutti.protocol.atv.proto.remote.RemoteImeShowRequest
+import io.kud.tutti.protocol.atv.proto.remote.RemoteKeyCode
 import io.kud.tutti.protocol.atv.proto.remote.RemoteKeyInject
 import io.kud.tutti.protocol.atv.proto.remote.RemoteMessage
 import io.kud.tutti.protocol.atv.proto.remote.RemotePingRequest
 import io.kud.tutti.protocol.atv.proto.remote.RemoteSetActive
 import io.kud.tutti.protocol.atv.proto.remote.RemoteSetVolumeLevel
 import io.kud.tutti.protocol.atv.proto.remote.RemoteStart
+import io.kud.tutti.protocol.atv.proto.remote.RemoteTextFieldStatus
+import io.kud.tutti.protocol.atv.proto.remote.RemoteVoiceBegin
 import io.kud.tutti.protocol.net.ClientIdentity
 import java.security.SecureRandom
 import java.security.cert.X509Certificate
 import java.security.interfaces.RSAPublicKey
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.Executors
 import java.util.concurrent.LinkedBlockingQueue
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.concurrent.thread
 
@@ -169,6 +180,12 @@ class FakeAtvPairingTv(
  * [pairedClient] (a TV that forgot the pairing drops the link). It opens with its configure,
  * expects the client's configure, sends set-active, then the power state and volume, and pings
  * every [pingMillis]. Keys, app links and pongs are recorded.
+ *
+ * Beyond the handshake it plays the TV's side of the rest of the session: the app in front
+ * ([foreground]), a focused text field ([focusField]) that takes a batch edit only with its own
+ * input-session counter and echoes its whole text back, after [echoDelayMillis] (a late echo is
+ * what looped "ph" into "pphppph…"), its own volume reports ([reportVolume]), and voice: the
+ * search key opens a session when [features] carries bit 3 and [answersVoice] is on.
  */
 class FakeAtvRemoteTv(
     identity: ClientIdentity = SimKeys.tv,
@@ -183,6 +200,29 @@ class FakeAtvRemoteTv(
 
     /** The TV's features in its configure: bit 3 is voice. */
     @Volatile var features: Int = 622
+
+    /** The focused field's input session and field counters, as the TV numbers them. */
+    @Volatile var imeCounter: Int = 7
+    @Volatile var fieldCounter: Int = 3
+
+    /** The focused field's text; null while no field has focus. */
+    @Volatile var field: String? = null
+
+    /** Texts the field took from batch edits, in order, and those refused for a stale counter. */
+    val taken = CopyOnWriteArrayList<String>()
+    val refused = CopyOnWriteArrayList<String>()
+
+    /** How long the TV takes to echo a batch edit back: 0 answers at once. */
+    @Volatile var echoDelayMillis: Long = 0
+
+    /** Whether the search key opens a voice session (the TV also needs [features] bit 3). */
+    @Volatile var answersVoice: Boolean = true
+    private val voiceIds = AtomicInteger(40)
+
+    /** Voice traffic from the client: echoed begins, payload bytes, ends, by session id. */
+    val voiceBegins = CopyOnWriteArrayList<Int>()
+    val voiceBytes = AtomicInteger()
+    val voiceEnds = CopyOnWriteArrayList<Int>()
 
     override fun serve(link: Link) {
         val client = link.peerCertificate ?: return
@@ -200,8 +240,16 @@ class FakeAtvRemoteTv(
                     message.remote_ping_response != null -> pongs.incrementAndGet()
                     message.remote_key_inject != null -> keys += message.remote_key_inject
                     message.remote_app_link_launch_request != null -> appLinks += message.remote_app_link_launch_request.app_link
+                    message.remote_voice_begin != null -> voiceBegins += message.remote_voice_begin.session_id
+                    message.remote_voice_payload != null -> voiceBytes.addAndGet(message.remote_voice_payload.samples.size)
+                    message.remote_voice_end != null -> voiceEnds += message.remote_voice_end.session_id
                 }
                 if (!link.received()) continue
+                message.remote_ime_batch_edit?.let { edit(link, it) }
+                val key = message.remote_key_inject
+                if (key?.key_code == RemoteKeyCode.KEYCODE_SEARCH && answersVoice && features and VOICE_BIT != 0) {
+                    link.write(frame(RemoteMessage(remote_voice_begin = RemoteVoiceBegin(session_id = voiceIds.incrementAndGet(), package_name = "com.example.assistant"))))
+                }
                 when {
                     message.remote_configure != null -> {
                         configured.incrementAndGet()
@@ -215,6 +263,85 @@ class FakeAtvRemoteTv(
                 }
             }
         }
+    }
+
+    /** A batch edit: taken only with the field's own input-session counter, then echoed whole. */
+    private fun edit(link: Link, edit: RemoteImeBatchEdit) {
+        val value = edit.edit_info.lastOrNull()?.text_field_status?.value_ ?: return
+        if (field == null || edit.ime_counter != imeCounter) {
+            refused += value
+            return
+        }
+        field = value
+        taken += value
+        val echo = echo(value)
+        val delay = echoDelayMillis
+        if (delay <= 0) {
+            link.write(echo)
+        } else {
+            // One thread, so late echoes still leave in the order the edits came, as on one socket.
+            echoes.schedule({ runCatching { link.write(echo) } }, delay, TimeUnit.MILLISECONDS)
+        }
+    }
+
+    private val echoes = Executors.newSingleThreadScheduledExecutor { Thread(it, "atv-remote-echo").apply { isDaemon = true } }
+
+    private fun echo(text: String): ByteArray = frame(
+        RemoteMessage(
+            remote_ime_batch_edit = RemoteImeBatchEdit(
+                ime_counter = imeCounter,
+                field_counter = fieldCounter,
+                edit_info = listOf(RemoteEditInfo(insert = 1, text_field_status = RemoteImeObject(text.length, text.length, text))),
+            ),
+        ),
+    )
+
+    private fun tell(message: RemoteMessage) {
+        links.forEach { link -> runCatching { link.write(frame(message)) } }
+    }
+
+    /** The TV brings [app] to the front: its keyboard service says so, and any field loses focus. */
+    fun foreground(app: String) {
+        field = null
+        tell(RemoteMessage(remote_ime_key_inject = RemoteImeKeyInject(app_info = RemoteAppInfo(app_package = app))))
+    }
+
+    /**
+     * A text field gets focus in [app]: the TV's keyboard starts on it (a key inject carrying the
+     * counters) and shows it (a show request with its text and [label]). Without [show], only
+     * the keyboard starts, as when the phone types before the TV reports a field.
+     */
+    fun focusField(app: String, label: String = "Search", text: String = "", show: Boolean = true) {
+        imeCounter++
+        fieldCounter++
+        field = text
+        tell(
+            RemoteMessage(
+                remote_ime_key_inject = RemoteImeKeyInject(
+                    app_info = RemoteAppInfo(counter = imeCounter, app_package = app),
+                    text_field_status = RemoteTextFieldStatus(counter_field = fieldCounter, value_ = text),
+                ),
+            ),
+        )
+        if (!show) return
+        tell(
+            RemoteMessage(
+                remote_ime_show_request = RemoteImeShowRequest(
+                    remote_text_field_status = RemoteTextFieldStatus(counter_field = fieldCounter, value_ = text, start = text.length, end = text.length, label = label),
+                ),
+            ),
+        )
+    }
+
+    /** Text typed on the TV's own keyboard: the field changes and every client hears it. */
+    fun typeOnTv(text: String) {
+        field = text
+        tell(RemoteMessage(remote_ime_batch_edit = RemoteImeBatchEdit(ime_counter = imeCounter, field_counter = fieldCounter, edit_info = listOf(RemoteEditInfo(insert = 1, text_field_status = RemoteImeObject(text.length, text.length, text))))))
+    }
+
+    /** The TV's own volume changed (its remote, CEC): told to every client. */
+    fun reportVolume(level: Int, max: Int = 100, muted: Boolean = false) {
+        tell(RemoteMessage(remote_set_volume_level = RemoteSetVolumeLevel(volume_max = max, volume_level = level, volume_muted = muted)))
     }
 
     /** The power button on the TV itself, or its own standby timer: told to every client. */
@@ -235,4 +362,8 @@ class FakeAtvRemoteTv(
     }
 
     private fun frame(message: RemoteMessage): ByteArray = Framing.frame(message.encode())
+
+    private companion object {
+        const val VOICE_BIT = 8
+    }
 }
