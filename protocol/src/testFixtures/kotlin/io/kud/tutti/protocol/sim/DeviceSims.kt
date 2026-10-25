@@ -489,6 +489,15 @@ class FakeTheatreBar(initial: Map<String, String> = DEFAULTS) : SimServer("theat
     /** Every line received, verbatim. */
     val lines = CopyOnWriteArrayList<String>()
 
+    /**
+     * Per feature: how long a `set`'s ACK, and the notify after it, take to come. The value
+     * changes at once, as the Bar 9's 360 Spatial did while its ACK came late (2026-10-25).
+     */
+    val ackDelayMillis: MutableMap<String, Long> = ConcurrentHashMap()
+
+    /** Features that never notify, DRC and Auto Volume on the real bar: the app polls them. */
+    val quiet: MutableSet<String> = ConcurrentHashMap.newKeySet<String>().apply { addAll(listOf("audio.drangecomp", "audio.aav")) }
+
     override fun serve(link: Link) {
         val reader = BufferedReader(InputStreamReader(link.input, Charsets.UTF_8))
         while (true) {
@@ -507,8 +516,19 @@ class FakeTheatreBar(initial: Map<String, String> = DEFAULTS) : SimServer("theat
                         !values.containsKey(feature) -> reply(link, id, feature = null, value = "ERR")
                         else -> {
                             values[feature] = value
-                            reply(link, id, feature = null, value = "ACK")
-                            notifyAll(feature, value)
+                            val acknowledge = {
+                                reply(link, id, feature = null, value = "ACK")
+                                if (feature !in quiet) notifyAll(feature, value)
+                            }
+                            val delay = ackDelayMillis[feature] ?: 0
+                            if (delay <= 0) {
+                                acknowledge()
+                            } else {
+                                kotlin.concurrent.thread(isDaemon = true, name = "theatre-bar-late-ack") {
+                                    Thread.sleep(delay)
+                                    runCatching { acknowledge() }
+                                }
+                            }
                         }
                     }
                 }
