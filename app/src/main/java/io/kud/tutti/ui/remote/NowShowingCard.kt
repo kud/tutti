@@ -28,6 +28,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -38,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import io.kud.tutti.R
 import io.kud.tutti.protocol.theatre.TheatreFeature
 import io.kud.tutti.ui.common.AppIcon
+import io.kud.tutti.ui.common.brandColour
 import io.kud.tutti.ui.common.barValueLabel
 import io.kud.tutti.ui.motion.Motion
 
@@ -154,10 +156,12 @@ private fun CardIcon(showing: CardShowing, size: Dp, appIcons: Map<String, Strin
         Modifier.size(size).background(MaterialTheme.colorScheme.surfaceContainerHighest, RoundedCornerShape(size / 4)),
         contentAlignment = Alignment.Center,
     ) {
+        val glyph = showing.icon()
         Icon(
-            painterResource(showing.icon()),
+            painterResource(glyph),
             contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            // A brand logo (the bar's Spotify) keeps its own colour; state glyphs stay quiet.
+            tint = brandColour(glyph)?.let { Color(it) } ?: MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.size(size * 0.5f),
         )
     }

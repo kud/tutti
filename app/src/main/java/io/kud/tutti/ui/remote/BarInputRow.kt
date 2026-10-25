@@ -58,6 +58,7 @@ import io.kud.tutti.controller.TuttiController
 import io.kud.tutti.controller.TuttiUiState
 import io.kud.tutti.protocol.theatre.FeatureKind
 import io.kud.tutti.protocol.theatre.TheatreFeature
+import io.kud.tutti.ui.common.brandColour
 import io.kud.tutti.ui.common.LocalReducedMotion
 import io.kud.tutti.ui.common.PressStyle
 import io.kud.tutti.ui.common.barValueLabel
@@ -248,7 +249,8 @@ private fun RowScope.InputSegment(
                 // The tick replaces the icon on the chosen input, as on DRC's segments.
                 selected -> Icon(painterResource(R.drawable.ic_check), contentDescription = null, tint = content, modifier = Modifier.size(20.dp))
                 refused -> Icon(painterResource(R.drawable.ic_warning), contentDescription = null, tint = content, modifier = Modifier.size(20.dp))
-                else -> Icon(painterResource(icon), contentDescription = null, tint = content, modifier = Modifier.size(20.dp))
+                // A brand logo keeps its own colour (Erwann, 2026-10-25), at the state's opacity.
+                else -> Icon(painterResource(icon), contentDescription = null, tint = brandColour(icon)?.let { Color(it).copy(alpha = content.alpha) } ?: content, modifier = Modifier.size(20.dp))
             }
         }
         Spacer(Modifier.height(4.dp))

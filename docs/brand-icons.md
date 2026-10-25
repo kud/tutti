@@ -4,18 +4,20 @@ The app buttons (the app keys in More, the Apps sheet, the action picker and Doc
 
 ## Order
 
-1. **The TV's launcher art**, once fetched over IP control (`state.appIcons`). It is the app's own icon, in its own colours. Only ever from the TV itself (`AppIcons.plan`): a blank icon URL counts as none; one naming another address of the TV (loopback, a second interface, a LAN name) is aimed back at the configured, pinned host; an internet host is never fetched. An HTTP icon on a pinned TV with port 80 shut is asked over HTTPS at the same path, a 401/403 once more with the PSK, and anything that is not an image is not cached. A failed icon is asked again on later polls, 30 s, 2 min, 10 min, 30 min, then hourly (`IconBook`); the diagnostic lists each app still without one and why.
-2. **The same app's icon on this phone**, through `PackageManager` (`PhoneIconBitmaps`), when the phone has it installed. Matched by package only (`PhoneIcons`, protocol, tested): the TV package itself, since many apps ship one package to phones and TVs, then the catalog entry's verified phone package (`AppEntry.phonePackages`). Never by name: a label match ("Arte", "TV", "Music") would sooner or later put another app's coloured logo on a tile, and a wrong logo is worse than the honest letter. Visibility is `<queries>` for MAIN/LAUNCHER intents, never `QUERY_ALL_PACKAGES`: an app outside the catalog has a package known only at run time, which per-package entries can't cover. tutti asks only about the candidates, never lists what is installed, and nothing leaves the phone. Rasterised once off the main thread at the tile's size and cached in memory; an adaptive icon is drawn full bleed, both layers cropped to the 72/108 safe zone and clipped by the tile's corner (Iris, 2026-10-25, see `design.md`), a legacy one fitted. The diagnostic's line for each app without a TV icon ends with what its tile shows instead (`shown: phone`, `mark` or `letter`), never which phone package matched.
-3. **The brand's official mark** from [Simple Icons](https://github.com/simple-icons/simple-icons), for the apps in `AppCatalog` it covers.
-4. **The app's first letter**, for everything else.
+Every surface, in colour and full bleed (Erwann, 2026-10-25; `AppIcon`, rules in `BrandColours`, tested):
 
-All four sit on the same `surfaceContainerHighest` tile. The phone and TV icons are the app's own, in colour. The mark is drawn monochrome in `onSurface` (near-black in light, near-white in dark) at 60% of the tile: it reads by shape, never by colour, holds contrast on any dynamic palette, and keeps a row of mixed sources calm. The button around it always carries the app's name as text.
+1. **The same app's icon on this phone**, through `PackageManager` (`PhoneIconBitmaps`). Matched by package only (`PhoneIcons`, protocol, tested): the TV package itself, then the catalog entry's verified phone package (`AppEntry.phonePackages`). Never by name. Visibility is `<queries>` for MAIN/LAUNCHER intents, never `QUERY_ALL_PACKAGES`; tutti asks only about the candidates and nothing leaves the phone. An adaptive icon is drawn full bleed, both layers cropped to the 72/108 safe zone; a legacy one fitted.
+2. **The TV's launcher art** (`state.appIcons`), only ever from the TV itself (`AppIcons.plan`, `IconBook`). Square (aspect 0.8 to 1.25): cropped edge to edge. Wider: a banner, fitted to the tile's width on the colour its four corners share; when they disagree (more than 12 per channel, or transparent) it is skipped for the next source.
+3. **The brand's official logo as a coloured tile** (`brandFace`): a Simple Icons mark on its brand hex, the glyph white or near-black by WCAG contrast (letter instead when neither reaches 3:1), at 56% of the tile; or a full-colour logo (svgl) in its own colours on its own ground, at 80% (Put.io's own square fills the tile).
+4. **The app's first letter**, for apps outside the catalog with no phone or TV icon, and for catalog apps whose logo is not sourced yet (below).
+
+The diagnostic's line for each app without a TV icon ends with what its tile shows instead (`shown: phone`, `logo` or `letter`), never which phone package matched.
 
 ## Rules
 
 - Paths are copied unchanged from the pinned release by a one-off conversion (SVG `path` to VectorDrawable `pathData`, same 24x24 viewport). We scale and tint them; we never redraw, crop, recolour in parts or combine them.
 - The marks remain the trademarks of their owners. tutti uses each only to identify the app a button opens, which is the use Simple Icons' disclaimer and the brands' guidelines allow. The Simple Icons data is CC0; that licence does not cover the trademarks.
-- A brand Simple Icons does not carry keeps its letter tile. Never draw, trace or scrape a logo to fill the gap.
+- A logo comes from a recorded source (Simple Icons, svgl, a brand press kit, an official Wikimedia Commons file), its paths copied unchanged; never drawn, traced or redrawn. A catalog app whose logo is not sourced yet keeps its letter tile until it is.
 - To update: pick a new release tag (`git ls-remote --tags https://github.com/simple-icons/simple-icons`), fetch `icons/<slug>.svg` at that tag, copy its single `d` into `res/drawable/brand_<slug>.xml`, and update the table.
 
 ## Provenance
@@ -62,3 +64,17 @@ Checked on each app's Google Play page (`hl=en&gl=FR`) on 2026-10-25, by the dev
 | Jellyfin | `org.jellyfin.androidtv` | `org.jellyfin.mobile` | verified |
 | Disney+, Apple TV, Canal+, HBO Max, france.tv, TF1+, M6+, Arte, Molotov, Paramount+, MUBI, Crunchyroll, Twitch, Deezer, Plex, Kodi, VLC | same as TV | same as TV | TV package lists Phone |
 | Put.io | `io.put.putio` (TV only) | none known | not verified: no phone package found, so only the TV package is asked |
+
+## Full-colour logos (svgl)
+
+From [svgl](https://github.com/pheralb/svgl) at commit `f9b726cee1d1f3c697a18c880185e89d9a55bb70` (fetched 2026-10-25, `https://raw.githubusercontent.com/pheralb/svgl/<commit>/static/library/<file>`). svgl's code is MIT; the logos are their owners' trademarks, used only to identify the app a button opens. Converted by a one-off script (paths and colours copied unchanged; a `rect` becomes the equivalent path; Disney+'s radial gradient keeps its stops, with its 4e-5 skew dropped from the transform).
+
+| App | File | Drawable | Ground |
+| --- | --- | --- | --- |
+| Prime Video | `prime-video.svg` | `logo_primevideo` | white (the logo's colours are drawn for a light ground) |
+| Disney+ | `disneyplus.svg` | `logo_disneyplus` | white (same) |
+| Put.io | `putio.svg` | `logo_putio` | its own `#323232` square |
+
+## Not sourced yet
+
+Canal+, france.tv, TF1+, M6+, Arte and Molotov keep their letter tile. Simple Icons, svgl, SVG Logos (gilbarbara) and the Iconify sets checked carry no official logo for them; Custom Brand Icons (CC BY-NC-SA, community traced) and Arcticons (redrawn line art) are not the official logos, and tv-logo/tv-logos holds channel PNGs (TF1, M6, Arte, Canal+), not the streaming brands, under personal-use terms.

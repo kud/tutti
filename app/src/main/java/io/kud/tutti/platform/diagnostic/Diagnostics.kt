@@ -23,7 +23,7 @@ import io.kud.tutti.protocol.grpc.CloudPlaneState
 import io.kud.tutti.protocol.net.Redact
 import io.kud.tutti.protocol.net.TcpConnector
 import io.kud.tutti.protocol.net.TlsConnector
-import io.kud.tutti.ui.common.brandMark
+import io.kud.tutti.ui.common.brandFace
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
@@ -167,7 +167,7 @@ class Diagnostics @Inject constructor(
         val lines = controller.iconReport { pkg ->
             when {
                 runCatching { PhoneIconBitmaps.has(context, pkg) }.getOrDefault(false) -> "phone"
-                brandMark(pkg) != null -> "mark"
+                brandFace(pkg) != null -> "logo"
                 else -> "letter"
             }
         }
