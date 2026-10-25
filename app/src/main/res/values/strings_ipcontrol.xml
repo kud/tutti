@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- IP control: the code shown on the TV first, the PSK second (Erwann, 2026-10-25). -->
+    <string name="ipc_action">IP control</string>
+    <string name="ipc_title">IP control</string>
+    <string name="ipc_gives">Lets tutti read and change the TV’s settings, see what’s playing and wake the TV from off.</string>
+    <string name="ipc_recommended">Recommended</string>
+    <string name="ipc_code_choice">Code shown on the TV</string>
+    <string name="ipc_code_choice_detail">The TV shows a 4-digit code and you type it here. No key to make up in the TV’s menus.</string>
+    <string name="ipc_psk_choice">Use a PSK instead</string>
+    <string name="ipc_needs">The TV needs IP control turned on, with authentication set to “Normal” or “Normal and Pre-Shared Key”. On the TV: Settings › Network &amp; Internet › Home network › IP control › Authentication (the path in Sony’s guide; your TV’s menu may word it slightly differently).</string>
+    <string name="ipc_now_code">Set up with the code shown on the TV.</string>
+    <string name="ipc_now_psk">Set up with a PSK.</string>
+    <string name="ipc_now_renew">The TV no longer accepts tutti’s code: show a new one.</string>
+    <string name="ipc_show_code">Show a code on the TV</string>
+    <string name="ipc_asking">Asking the TV for a code…</string>
+    <string name="ipc_enter_code">Enter the code shown on the TV</string>
+    <string name="ipc_code_field">4-digit code</string>
+    <string name="ipc_code_rule">Four digits, as on the TV screen.</string>
+    <string name="ipc_send">Confirm</string>
+    <string name="ipc_sending">Checking the code…</string>
+    <string name="ipc_another_code">Show another code</string>
+    <string name="ipc_wrong_code">That code doesn’t match. Check the TV screen and try again.</string>
+    <string name="ipc_done">Done: IP control is on. tutti will keep its access renewed on its own.</string>
+    <string name="ipc_close">Close</string>
+    <string name="ipc_retry">Try again</string>
+    <string name="ipc_failed_no_tv">Add the TV first.</string>
+    <string name="ipc_failed_unreachable">The TV didn’t answer. Check it’s on and on the same network as the phone.</string>
+    <string name="ipc_failed_not_enabled">The TV answered but won’t give a code. Check that IP control is on, with authentication “Normal” or “Normal and Pre-Shared Key”.</string>
+    <string name="ipc_failed_screen_off">The TV’s screen is off, so it can’t show a code. Turn the TV on and try again.</string>
+    <string name="ipc_failed_certificate">The TV isn’t the one tutti knows (its certificate changed). Forget the TV and add it again.</string>
+    <string name="ipc_failed_other">That didn’t work. Try again, or use a PSK instead.</string>
+    <string name="ipc_row_renew">IP control: code to renew</string>
+    <string name="ipc_renew_action">Renew the code</string>
+    <string name="intro_ready_code">Picture and sound output: turn on IP control with a code shown on the TV.</string>
+    <string name="technical_ip_code">IP control code</string>
+    <string name="technical_ip_code_renew">refused, to renew</string>
+    <string name="technical_ip_code_stored">cookie stored on this phone</string>
+    <string name="technical_ip_code_none">none</string>
+</resources>

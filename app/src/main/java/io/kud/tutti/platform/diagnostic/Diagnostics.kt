@@ -80,6 +80,7 @@ class Diagnostics @Inject constructor(
                 psk = psk,
                 remotePin = secure.tvRemotePin(),
                 restPinRecorded = restPin != null,
+                ipCookie = secure.tvIpCookie()?.value,
             )
             // Pins learned here are not saved: the diagnostic never changes what the app trusts.
             val transport = tv?.let { OkHttpBraviaTransport(it.host, restPin) {} }

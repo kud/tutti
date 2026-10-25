@@ -30,11 +30,11 @@
     <string name="unlock_pair_action">Pair the TV</string>
     <string name="unlock_pair_again">Pair again</string>
 
-    <string name="unlock_ip_title">IP control and PSK</string>
+    <string name="unlock_ip_title">IP control</string>
     <string name="unlock_ip_gives">TV settings (picture, sound output, power saving), what’s playing and on which input, the TV’s own apps and icons, and waking a TV that is fully off.</string>
-    <string name="unlock_ip_how">On the TV:\n1. Settings → Network &amp; Internet → Local network setup → IP control.\n2. Authentication: “Normal and Pre-Shared Key”.\n3. Pre-Shared Key: choose a key.\n\nThen enter the same key in tutti.</string>
-    <string name="unlock_ip_action">Enter the PSK</string>
-    <string name="unlock_ip_change">Change the PSK</string>
+    <string name="unlock_ip_how">On the TV, once: Settings › Network &amp; Internet › Home network › IP control (the path in Sony’s guide). Turn it on, with Authentication “Normal” or “Normal and Pre-Shared Key”.\n\nThen in tutti, “Show a code on the TV” and type the 4 digits the TV shows. A PSK still works if you prefer one.</string>
+    <string name="unlock_ip_action">Show a code on the TV</string>
+    <string name="unlock_ip_change">IP control…</string>
     <string name="unlock_wake_ready">Waking from off: ready.</string>
     <string name="unlock_wake_pending">Waking from off: tutti learns the TV’s hardware address the next time it is on.</string>
 
@@ -98,7 +98,7 @@
     <string name="technical_refused">refused by the bar</string>
     <string name="technical_needs_bar_link">needs the control link (33336)</string>
     <string name="technical_http_no_answer">no answer on port 54545</string>
-    <string name="technical_needs_psk">needs IP control + PSK</string>
+    <string name="technical_needs_psk">needs IP control</string>
     <string name="technical_not_listed">not listed by this TV</string>
     <string name="technical_no_answer">no answer</string>
     <string name="technical_none_reported">none reported</string>

@@ -56,11 +56,14 @@ import io.kud.tutti.protocol.atv.KeyMap
 import io.kud.tutti.protocol.atv.PairingFailure
 import io.kud.tutti.protocol.atv.PairingResult
 import io.kud.tutti.protocol.atv.V2Key
+import io.kud.tutti.protocol.bravia.AuthCookie
 import io.kud.tutti.protocol.bravia.BraviaClient
 import io.kud.tutti.protocol.bravia.BraviaError
 import io.kud.tutti.protocol.bravia.BraviaResult
 import io.kud.tutti.protocol.bravia.BraviaService
+import io.kud.tutti.protocol.bravia.IpRegistration
 import io.kud.tutti.protocol.bravia.PowerStatus
+import io.kud.tutti.protocol.bravia.Registration
 import io.kud.tutti.protocol.bravia.getOrNull
 import io.kud.tutti.protocol.grpc.SonyCloudPlane
 import io.kud.tutti.protocol.net.LanAddress
@@ -165,6 +168,16 @@ class TuttiController @Inject constructor(
 
     /** Whether a PSK is stored, for the setup checklist; never the key itself. */
     private val pskSet = MutableStateFlow(false)
+
+    /** The IP-control cookie (Sony's "Normal" auth, from the code shown on the TV). Never logged. */
+    @Volatile private var ipCookie: AuthCookie? = null
+    private val ipCode = MutableStateFlow(IpCodeStatus.NONE)
+
+    /** When renewal was last tried (epoch ms), so a TV that renews without a new cookie, or can't be reached, is not asked every poll. */
+    @Volatile private var renewTriedAt = 0L
+
+    /** The transport and client id between asking the TV for its code and sending it back. */
+    @Volatile private var codeSession: Pair<OkHttpBraviaTransport, String>? = null
     private val technical = MutableStateFlow(TechnicalReadouts())
     @Volatile private var bravia: BraviaClient? = null
     @Volatile private var braviaTransport: OkHttpBraviaTransport? = null
@@ -255,8 +268,10 @@ class TuttiController @Inject constructor(
 
     private val volumeExtra = combine(guard, sceneUndo, capClock) { g, u, c -> VolumeExtra(g, u, c) }
 
-    val state: StateFlow<TuttiUiState> = combine(stored, live, extra, library, combine(pskSet, technical, volumeExtra, ::Triple)) { s, l, e, a, k ->
-        build(s, l, e, k.third).copy(apps = a.first, appIcons = a.second, linkNotes = e.linkNotes, pskSet = k.first, technical = k.second)
+    private val credentials = combine(pskSet, ipCode, ::Pair)
+
+    val state: StateFlow<TuttiUiState> = combine(stored, live, extra, library, combine(credentials, technical, volumeExtra, ::Triple)) { s, l, e, a, k ->
+        build(s, l, e, k.third).copy(apps = a.first, appIcons = a.second, linkNotes = e.linkNotes, pskSet = k.first.first, ipCode = k.first.second, technical = k.second)
     }
         .stateIn(scope, SharingStarted.Eagerly, TuttiUiState())
 
@@ -277,7 +292,11 @@ class TuttiController @Inject constructor(
     @Volatile private var codeAnswer: CompletableDeferred<String?>? = null
 
     init {
-        scope.launch { pskSet.value = secure.tvPsk() != null }
+        scope.launch {
+            pskSet.value = secure.tvPsk() != null
+            ipCookie = secure.tvIpCookie()
+            if (ipCookie != null && ipCode.value == IpCodeStatus.NONE) ipCode.value = IpCodeStatus.SET
+        }
         scope.launch(Dispatchers.IO) {
             // A cached file that is not an image (an error page saved by an older build) would
             // count as cached forever and never be fetched again: drop it instead.
@@ -432,6 +451,8 @@ class TuttiController @Inject constructor(
         if (tvWasUp) tvDownSince = SystemClock.elapsedRealtime()
         psk = secure.tvPsk()
         pskSet.value = psk != null
+        ipCookie = secure.tvIpCookie()
+        if (ipCookie == null) ipCode.value = IpCodeStatus.NONE else if (ipCode.value == IpCodeStatus.NONE) ipCode.value = IpCodeStatus.SET
         // A learnt MAC is not a reason to drop and reopen every session.
         val hosts = store.devices.map { it.copy(tv = it.tv?.copy(mac = null)) }.distinctUntilChanged()
         combine(hosts, restart) { devices, _ -> devices }.collectLatest { devices ->
@@ -592,10 +613,11 @@ class TuttiController @Inject constructor(
             tv.value = TvState()
             return
         }
-        if (psk == null) {
-            // IP control needs the PSK for everything past discovery, so without one there is
-            // nothing to poll: retrying only repeated the same failure (Erwann, 2026-10-24). TV
-            // settings explain how to set it up; setPsk restarts this loop.
+        if (psk == null && ipCookie == null) {
+            // IP control needs the PSK or the code's cookie for everything past discovery, so
+            // without one there is nothing to poll: retrying only repeated the same failure
+            // (Erwann, 2026-10-24). TV settings explain how to set it up; setPsk and
+            // submitTvCode restart this loop.
             bravia = null
             braviaTransport = null
             links.update { it.copy(rest = Link.ABSENT) }
@@ -603,7 +625,8 @@ class TuttiController @Inject constructor(
             return
         }
         val transport = OkHttpBraviaTransport(device.host, secure.tvRestPin()) { secure.setTvRestPin(it) }
-        val client = BraviaClient(transport, psk = { psk })
+        // The cookie wins when both exist (BraviaClient sends one credential, never both).
+        val client = BraviaClient(transport, cookie = { ipCookie?.value }, psk = { psk })
         braviaTransport = transport
         tvHostForIcons = device.host
         bravia = client
@@ -623,6 +646,13 @@ class TuttiController @Inject constructor(
     private suspend fun restSession(client: BraviaClient, device: TvDevice) {
         var wait = MIN_BACKOFF_MS
         while (scope.isActive) {
+            if (psk == null && !keepCookieFresh(client)) {
+                // The TV refused the cookie, renewal included: only a new code helps, which restarts this loop.
+                links.update { it.copy(rest = Link.UNAUTHORIZED) }
+                linkNotes.update { it.copy(rest = failureDetail("tv ip control: code cookie", outcome = "expired or refused, and not renewed")) }
+                backoff(MAX_BACKOFF_MS)
+                continue
+            }
             links.update { it.copy(rest = Link.CONNECTING) }
             when (val found = client.discover()) {
                 is BraviaResult.Ok -> {
@@ -635,6 +665,7 @@ class TuttiController @Inject constructor(
                     learnMac(client, device.host)
                     while (scope.isActive) {
                         if (!refreshTv(client)) break
+                        if (psk == null && !keepCookieFresh(client)) break
                         delay(POLL_TV_MS)
                     }
                     links.update { it.copy(rest = Link.UNREACHABLE) }
@@ -655,6 +686,41 @@ class TuttiController @Inject constructor(
             }
             backoff(wait)
             wait = (wait * 2).coerceAtMost(MAX_BACKOFF_MS)
+        }
+    }
+
+    /**
+     * Before IP control is used with the code's cookie: renews it when due ([IpRegistration.needsRenewal])
+     * or once the TV refused it ([IpCodeStatus.RENEW] pending a check). False only when the TV
+     * refused the renewal too, so a new code is needed; a renewal that could not reach the TV keeps
+     * the cookie for the next try. Renewal itself is unverified on a real TV ([IpRegistration]).
+     */
+    private suspend fun keepCookieFresh(client: BraviaClient, refused: Boolean = false): Boolean {
+        val current = ipCookie ?: return true
+        if (ipCode.value == IpCodeStatus.RENEW) return false
+        val now = System.currentTimeMillis()
+        if (!refused && !IpRegistration.needsRenewal(current, now)) return true
+        if (!refused && now - renewTriedAt < RENEW_RETRY_MS && !IpRegistration.expired(current, now)) return true
+        // Refused again right after a renewal the TV accepted: the cookie it kept is no good either.
+        if (refused && now - renewTriedAt < REFUSED_AFTER_RENEW_MS) {
+            ipCode.value = IpCodeStatus.RENEW
+            return false
+        }
+        renewTriedAt = now
+        return when (val renewed = client.renew(current, nowMs = now)) {
+            is BraviaResult.Ok -> when (val outcome = renewed.value) {
+                is Registration.Registered -> {
+                    if (outcome.cookie != current) secure.setTvIpCookie(outcome.cookie)
+                    ipCookie = outcome.cookie
+                    ipCode.value = IpCodeStatus.SET
+                    true
+                }
+                Registration.Refused, Registration.CodeShown -> {
+                    ipCode.value = IpCodeStatus.RENEW
+                    false
+                }
+            }
+            is BraviaResult.Failure -> !refused && !IpRegistration.expired(current, now)
         }
     }
 
@@ -682,7 +748,15 @@ class TuttiController @Inject constructor(
     private suspend fun refreshTv(client: BraviaClient): Boolean {
         val power = when (val result = client.powerStatus()) {
             is BraviaResult.Ok -> result.value
-            is BraviaResult.Failure -> if (result.error is BraviaError.Transport || result.error == BraviaError.PinMismatch) return false else PowerStatus.UNKNOWN
+            is BraviaResult.Failure -> when {
+                result.error is BraviaError.Transport || result.error == BraviaError.PinMismatch -> return false
+                // A refused cookie: renew it once, or stop polling until a new code.
+                result.error == BraviaError.Unauthorized && psk == null && ipCookie != null -> {
+                    keepCookieFresh(client, refused = true)
+                    return false
+                }
+                else -> PowerStatus.UNKNOWN
+            }
         }
         val caps = client.capabilities
         val active = power == PowerStatus.ACTIVE
@@ -690,7 +764,7 @@ class TuttiController @Inject constructor(
         // not asked. It rides this poll (POLL_TV_MS), never a loop of its own. A failed or empty
         // answer (what an app playing is expected to give) clears [TvState.playing], so the chip
         // falls back to the app name rather than keeping a stale channel.
-        val playing = if (active && !psk.isNullOrEmpty()) client.playingContent().getOrNull() else null
+        val playing = if (active && (!psk.isNullOrEmpty() || ipCookie != null)) client.playingContent().getOrNull() else null
         val input = playing?.uri
         val pictureMode = if (active && caps.supports(BraviaService.VIDEO, "getPictureQualitySettings")) {
             client.pictureSettings("pictureMode").getOrNull()?.firstOrNull { it.target == "pictureMode" }?.currentValue
@@ -1106,7 +1180,7 @@ class TuttiController @Inject constructor(
                 if (!iconBook.value.due(app.packageName, app.iconUrl, now)) continue
                 val attempt = when (val plan = AppIcons.plan(app.iconUrl, host)) {
                     is AppIcons.Plan.Skip -> plan.outcome.let { IconAttempt(it) } to plan.shape
-                    is AppIcons.Plan.Fetch -> when (val got = transport.fetchIcon(plan.url, psk)) {
+                    is AppIcons.Plan.Fetch -> when (val got = transport.fetchIcon(plan.url, psk, cookie = ipCookie?.value)) {
                         is OkHttpBraviaTransport.IconFetch.Failed -> got.attempt to plan.shape
                         is OkHttpBraviaTransport.IconFetch.Image -> {
                             // A full disk or a vanished cache dir is a missing icon, never a crash.
@@ -1910,9 +1984,9 @@ class TuttiController @Inject constructor(
                 "app" to AppVersion.of(context),
                 "android" to "${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})",
                 "links" to "remote ${l.tv}, rest ${l.rest}, bar ${l.bar}",
-                "configured" to "tv ${devices.tv != null}, bar ${devices.bar != null}, psk ${psk != null}",
+                "configured" to "tv ${devices.tv != null}, bar ${devices.bar != null}, psk ${psk != null}, code ${ipCode.value.name.lowercase()}",
             ),
-            sensitive = sensitive + listOfNotNull(devices.tv?.host, devices.tv?.mac, devices.bar?.host, psk),
+            sensitive = sensitive + listOfNotNull(devices.tv?.host, devices.tv?.mac, devices.bar?.host, psk, ipCookie?.value),
         )
     }
 
@@ -1944,16 +2018,87 @@ class TuttiController @Inject constructor(
         return true
     }
 
-    /** Stores [value] (null clears it). False, and nothing stored, when it breaks [PskRules]. */
+    /**
+     * Stores [value] (null clears it). False, and nothing stored, when it breaks [PskRules]. A new
+     * key replaces the code's cookie: IP control uses one method at a time.
+     */
     fun setPsk(value: String?): Boolean {
         if (value != null && !PskRules.valid(value)) return false
         scope.launch {
             secure.setTvPsk(value)
             psk = secure.tvPsk()
             pskSet.value = psk != null
+            if (psk != null) dropIpCookie()
             restart.update { it + 1 }
         }
         return true
+    }
+
+    private suspend fun dropIpCookie() {
+        secure.setTvIpCookie(null)
+        ipCookie = null
+        ipCode.value = IpCodeStatus.NONE
+    }
+
+    /**
+     * Step one of « Code affiché sur la TV »: asks the TV to show its 4-digit code (`actRegister`
+     * without credentials, [BraviaClient.requestCode]). The transport is kept for [submitTvCode], so
+     * both go the same way (HTTPS pinned, or HTTP to a private address after the probe).
+     */
+    suspend fun requestTvCode(): TvCodeStep {
+        val host = store.devices.first().tv?.host ?: return TvCodeStep.Failed(TvCodeFailure.NO_TV)
+        val transport = OkHttpBraviaTransport(host, secure.tvRestPin()) { secure.setTvRestPin(it) }
+        // Same entry in the TV's list of remote devices as last time, when there was one.
+        val clientId = (ipCookie ?: secure.tvIpCookie())?.clientId ?: IpRegistration.clientId(UUID.randomUUID().toString())
+        codeSession = transport to clientId
+        return when (val result = BraviaClient(transport) { null }.requestCode(clientId)) {
+            is BraviaResult.Ok -> when (val outcome = result.value) {
+                Registration.CodeShown -> TvCodeStep.Shown
+                is Registration.Registered -> registered(outcome.cookie)
+                Registration.Refused -> TvCodeStep.Failed(TvCodeFailure.NOT_ENABLED)
+            }
+            is BraviaResult.Failure -> TvCodeStep.Failed(codeFailure(result.error))
+        }
+    }
+
+    /** Step two: the code as typed. A wrong one can be typed again without asking for a new one. */
+    suspend fun submitTvCode(code: String): TvCodeStep {
+        val (transport, clientId) = codeSession ?: return TvCodeStep.Failed(TvCodeFailure.OTHER)
+        if (!IpRegistration.validCode(code)) return TvCodeStep.WrongCode
+        return when (val result = BraviaClient(transport) { null }.submitCode(clientId, code)) {
+            is BraviaResult.Ok -> when (val outcome = result.value) {
+                is Registration.Registered -> registered(outcome.cookie)
+                Registration.Refused, Registration.CodeShown -> TvCodeStep.WrongCode
+            }
+            is BraviaResult.Failure -> TvCodeStep.Failed(codeFailure(result.error))
+        }
+    }
+
+    /** Leaving the code dialog: nothing kept but what was stored. */
+    fun cancelTvCode() {
+        codeSession = null
+    }
+
+    /** The cookie replaces the PSK: one method at a time, the one just set up. */
+    private suspend fun registered(cookie: AuthCookie): TvCodeStep {
+        secure.setTvIpCookie(cookie)
+        secure.setTvPsk(null)
+        psk = null
+        pskSet.value = false
+        ipCookie = cookie
+        ipCode.value = IpCodeStatus.SET
+        codeSession = null
+        restart.update { it + 1 }
+        return TvCodeStep.Registered
+    }
+
+    private fun codeFailure(error: BraviaError): TvCodeFailure = when (error) {
+        is BraviaError.Transport -> TvCodeFailure.UNREACHABLE
+        BraviaError.PinMismatch -> TvCodeFailure.CERTIFICATE
+        BraviaError.Unauthorized, is BraviaError.Http, is BraviaError.Unsupported -> TvCodeFailure.NOT_ENABLED
+        // Sony's 40005, "Display Is Turned off": the TV can't show a code with its screen off.
+        is BraviaError.Rpc -> if (error.code == 40005) TvCodeFailure.SCREEN_OFF else TvCodeFailure.NOT_ENABLED
+        is BraviaError.Malformed -> TvCodeFailure.OTHER
     }
 
     suspend fun hasPsk(): Boolean = secure.tvPsk() != null
@@ -1966,6 +2111,9 @@ class TuttiController @Inject constructor(
             identities.forget()
             psk = null
             pskSet.value = false
+            ipCookie = null
+            ipCode.value = IpCodeStatus.NONE
+            codeSession = null
             activeSceneId.value = null
             store.updateDevices { it.copy(tv = null) }
             tv.value = TvState()
@@ -2209,6 +2357,8 @@ class TuttiController @Inject constructor(
         private const val LINGER_MS = 30_000L
         private const val MIN_BACKOFF_MS = 1_000L
         private const val MAX_BACKOFF_MS = 30_000L
+        private const val RENEW_RETRY_MS = 6 * 60 * 60 * 1000L
+        private const val REFUSED_AFTER_RENEW_MS = 60_000L
         private const val READY_TIMEOUT_MS = 8_000L
         private const val POLL_BAR_MS = 20_000L
         private const val REASK_EVERY_POLLS = 3

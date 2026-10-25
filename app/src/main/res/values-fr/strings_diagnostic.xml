@@ -29,7 +29,7 @@
 
     <string name="diagnostic_step_discovery">Recherche sur le réseau (mDNS)</string>
     <string name="diagnostic_step_rest_interface">La TV répond</string>
-    <string name="diagnostic_step_rest_auth">Code PSK accepté</string>
+    <string name="diagnostic_step_rest_auth">Accès au contrôle IP accepté</string>
     <string name="diagnostic_step_rest_methods">Méthodes proposées</string>
     <string name="diagnostic_step_rest_read">Lecture : %1$s</string>
     <string name="diagnostic_step_remote_identity">Association enregistrée</string>

@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Contrôle IP : le code affiché sur la TV d’abord, la clé PSK ensuite (Erwann, 2026-10-25). -->
+    <string name="ipc_action">Contrôle IP</string>
+    <string name="ipc_title">Contrôle IP</string>
+    <string name="ipc_gives">Permet à tutti de lire et changer les réglages de la TV, de voir ce qui passe et de réveiller la TV éteinte.</string>
+    <string name="ipc_recommended">Recommandé</string>
+    <string name="ipc_code_choice">Code affiché sur la TV</string>
+    <string name="ipc_code_choice_detail">La TV affiche un code à 4 chiffres et vous le saisissez ici. Pas de clé à inventer dans les menus de la TV.</string>
+    <string name="ipc_psk_choice">Utiliser plutôt une clé PSK</string>
+    <string name="ipc_needs">Le contrôle IP doit être activé sur la TV, avec l’authentification « Normale » ou « Normale et clé pré-partagée ». Sur la TV : Paramètres › Réseau et Internet › Réseau domestique › Contrôle IP › Authentification (le chemin du guide Sony ; le menu de votre TV peut le formuler un peu autrement).</string>
+    <string name="ipc_now_code">Configuré avec le code affiché sur la TV.</string>
+    <string name="ipc_now_psk">Configuré avec une clé PSK.</string>
+    <string name="ipc_now_renew">La TV n’accepte plus le code de tutti : affichez-en un nouveau.</string>
+    <string name="ipc_show_code">Afficher un code sur la TV</string>
+    <string name="ipc_asking">Demande d’un code à la TV…</string>
+    <string name="ipc_enter_code">Saisissez le code affiché sur la TV</string>
+    <string name="ipc_code_field">Code à 4 chiffres</string>
+    <string name="ipc_code_rule">Quatre chiffres, comme à l’écran de la TV.</string>
+    <string name="ipc_send">Valider</string>
+    <string name="ipc_sending">Vérification du code…</string>
+    <string name="ipc_another_code">Afficher un autre code</string>
+    <string name="ipc_wrong_code">Ce code ne correspond pas. Vérifiez l’écran de la TV et réessayez.</string>
+    <string name="ipc_done">C’est fait : le contrôle IP est activé. tutti renouvellera son accès tout seul.</string>
+    <string name="ipc_close">Fermer</string>
+    <string name="ipc_retry">Réessayer</string>
+    <string name="ipc_failed_no_tv">Ajoutez d’abord la TV.</string>
+    <string name="ipc_failed_unreachable">La TV n’a pas répondu. Vérifiez qu’elle est allumée et sur le même réseau que le téléphone.</string>
+    <string name="ipc_failed_not_enabled">La TV répond mais refuse de donner un code. Vérifiez que le contrôle IP est activé, avec l’authentification « Normale » ou « Normale et clé pré-partagée ».</string>
+    <string name="ipc_failed_screen_off">L’écran de la TV est éteint, elle ne peut pas afficher de code. Allumez la TV et réessayez.</string>
+    <string name="ipc_failed_certificate">Cette TV n’est pas celle que tutti connaît (son certificat a changé). Oubliez la TV puis ajoutez-la de nouveau.</string>
+    <string name="ipc_failed_other">Ça n’a pas marché. Réessayez, ou utilisez plutôt une clé PSK.</string>
+    <string name="ipc_row_renew">Contrôle IP : code à renouveler</string>
+    <string name="ipc_renew_action">Renouveler le code</string>
+    <string name="intro_ready_code">Image et sortie son : activez le contrôle IP avec un code affiché sur la TV.</string>
+    <string name="technical_ip_code">Code du contrôle IP</string>
+    <string name="technical_ip_code_renew">refusé, à renouveler</string>
+    <string name="technical_ip_code_stored">cookie enregistré sur ce téléphone</string>
+    <string name="technical_ip_code_none">aucun</string>
+</resources>

@@ -53,6 +53,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import io.kud.tutti.R
+import io.kud.tutti.controller.IpCodeStatus
 import io.kud.tutti.controller.Link
 import io.kud.tutti.controller.TuttiController
 import io.kud.tutti.controller.TuttiUiState
@@ -73,7 +74,7 @@ import io.kud.tutti.ui.common.SwitchRow
 import io.kud.tutti.ui.common.SystemFeedback
 import io.kud.tutti.ui.common.actionLabel
 import io.kud.tutti.ui.common.openBraviaConnect
-import io.kud.tutti.ui.onboarding.PskDialog
+import io.kud.tutti.ui.onboarding.IpControlDialog
 import io.kud.tutti.ui.remote.ActionPickerSheet
 import io.kud.tutti.ui.remote.secondaryLabel
 
@@ -116,7 +117,7 @@ fun SettingsScreen(
 ) {
     val context = LocalContext.current
     var picker by remember { mutableStateOf<SecondaryButton?>(null) }
-    var pskDialog by remember { mutableStateOf(false) }
+    var ipDialog by remember { mutableStateOf(false) }
     var forget by remember { mutableStateOf<Forget?>(null) }
     var appsDialog by remember { mutableStateOf(false) }
     var adding by remember { mutableStateOf(false) }
@@ -149,6 +150,7 @@ fun SettingsScreen(
                 // What tutti can do, and what unlocks more: always first, so it's found.
                 UnlockEntryRow(state, onOpenUnlock)
                 if (tv != null) {
+                    val ipRenew = !state.pskSet && state.ipCode == IpCodeStatus.RENEW
                     SettingsRow(
                         title = tv.name,
                         icon = R.drawable.ic_tv,
@@ -156,11 +158,13 @@ fun SettingsScreen(
                         detail = listOfNotNull(
                             stringResource(R.string.devices_tv_status, linkLabel(state.links.tv), linkLabel(state.links.rest)),
                             stringResource(R.string.devices_bt_paired).takeIf { target?.list?.tv?.bluetooth != null },
+                            stringResource(R.string.ipc_row_renew).takeIf { ipRenew },
                         ).joinToString(" · "),
                         footer = {
                             DeviceActions {
                                 TextButton(onClick = onPair) { Text(stringResource(R.string.settings_pair_again)) }
-                                TextButton(onClick = { pskDialog = true }) { Text(stringResource(R.string.settings_psk)) }
+                                // The code on the TV first, the PSK inside (Erwann, 2026-10-25).
+                                TextButton(onClick = { ipDialog = true }) { Text(stringResource(if (ipRenew) R.string.ipc_renew_action else R.string.ipc_action)) }
                                 // The TV's Bluetooth fallback lives on its row now, not in a group of its own.
                                 if (hidSupported) {
                                     TextButton(onClick = onOpenBluetooth) { Text(stringResource(R.string.bt_title)) }
@@ -394,11 +398,9 @@ fun SettingsScreen(
             onDismiss = { picker = null },
         )
     }
-    if (pskDialog) {
-        PskDialog(hasKey = state.pskSet, onSave = {
-            controller.setPsk(it)
-            pskDialog = false
-        }, onDismiss = { pskDialog = false })
+    if (ipDialog) {
+        // Renewing goes straight to the code: the row already says what it is for.
+        IpControlDialog(state, controller, onDismiss = { ipDialog = false }, startWithCode = !state.pskSet && state.ipCode == IpCodeStatus.RENEW)
     }
     forget?.let { target ->
         // Named, so the dialog says which device goes (Iris, 2026-10-25).

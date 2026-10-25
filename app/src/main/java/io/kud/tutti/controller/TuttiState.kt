@@ -18,6 +18,44 @@ import io.kud.tutti.protocol.scenes.SceneKey
 import io.kud.tutti.protocol.theatre.TheatreFeature
 import io.kud.tutti.protocol.theatre.TheatreState
 
+/**
+ * Sony's "Normal" IP-control authentication, as stored on this phone (the cookie itself never
+ * leaves the secure store): no cookie, a cookie in use, or one the TV refused even after renewal,
+ * so a new code must be shown on the TV (« Contrôle IP : code à renouveler »).
+ */
+enum class IpCodeStatus { NONE, SET, RENEW }
+
+/** Where the « Code affiché sur la TV » flow stands after a step ([TuttiController.requestTvCode]). */
+sealed interface TvCodeStep {
+    /** The TV shows its 4-digit code now. */
+    data object Shown : TvCodeStep
+
+    /** The cookie is stored and IP control restarts with it. */
+    data object Registered : TvCodeStep
+
+    /** The TV refused the code; it can be typed again. */
+    data object WrongCode : TvCodeStep
+
+    data class Failed(val why: TvCodeFailure) : TvCodeStep
+}
+
+enum class TvCodeFailure {
+    NO_TV,
+
+    /** Nothing answered: the TV is off, asleep without Remote start, or on another network. */
+    UNREACHABLE,
+
+    /** The TV answered but won't register: IP control off, or authentication not "Normal". */
+    NOT_ENABLED,
+
+    /** Sony's 40005: the screen is off, so there is nowhere to show the code. */
+    SCREEN_OFF,
+
+    /** Another certificate than the pinned one: the TV was reset, or someone is in between. */
+    CERTIFICATE,
+    OTHER,
+}
+
 /** One channel's health, as the system chip shows it. */
 enum class Link {
     /** Not configured. */
@@ -29,7 +67,7 @@ enum class Link {
     /** The TV forgot us or changed certificate: "Associer à nouveau". */
     NEEDS_PAIRING,
 
-    /** REST answered 401/403: the PSK is wrong or missing. */
+    /** REST answered 401/403: the PSK or the code's cookie is wrong, expired or missing. */
     UNAUTHORIZED,
 }
 
@@ -220,6 +258,8 @@ data class TuttiUiState(
     val appIcons: Map<String, String> = emptyMap(),
     /** A TV PSK is stored on this phone (the key itself never leaves the secure store). */
     val pskSet: Boolean = false,
+    /** The IP-control cookie from the code shown on the TV: none, working, or refused and to renew. */
+    val ipCode: IpCodeStatus = IpCodeStatus.NONE,
     /** Readouts fetched when Technical details opens. */
     val technical: TechnicalReadouts = TechnicalReadouts(),
     /** App launches in flight and the app shown optimistically meanwhile ([io.kud.tutti.protocol.apps.LaunchQueue]). */
@@ -228,6 +268,9 @@ data class TuttiUiState(
     /** [apps] minus the ones hidden in Settings: what the Apps sheet and pickers offer. */
     val visibleApps: List<io.kud.tutti.protocol.apps.KnownApp>
         get() = apps.filterNot { it.packageName in prefs.hiddenApps }
+
+    /** IP control has a credential that should work: the PSK, or a cookie the TV has not refused. */
+    val ipControlSet: Boolean get() = pskSet || ipCode == IpCodeStatus.SET
 
     /** IP control answers: the TV's own app list, its icons and `setActiveApp` are live. */
     val ipControl: Boolean get() = links.rest == Link.ONLINE

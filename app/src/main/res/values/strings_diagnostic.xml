@@ -29,7 +29,7 @@
 
     <string name="diagnostic_step_discovery">Network search (mDNS)</string>
     <string name="diagnostic_step_rest_interface">The TV answers</string>
-    <string name="diagnostic_step_rest_auth">PSK accepted</string>
+    <string name="diagnostic_step_rest_auth">IP control access accepted</string>
     <string name="diagnostic_step_rest_methods">Methods offered</string>
     <string name="diagnostic_step_rest_read">Read: %1$s</string>
     <string name="diagnostic_step_remote_identity">Pairing recorded</string>

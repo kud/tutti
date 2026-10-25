@@ -51,7 +51,7 @@ import io.kud.tutti.controller.TuttiController
 import io.kud.tutti.controller.TuttiUiState
 import io.kud.tutti.ui.common.SettingsGroup
 import io.kud.tutti.ui.common.SettingsRow
-import io.kud.tutti.ui.onboarding.PskDialog
+import io.kud.tutti.ui.onboarding.IpControlDialog
 
 /** The glyph and word for each status: the state reads in shape and words, never colour alone. */
 @DrawableRes
@@ -131,7 +131,8 @@ fun UnlockScreen(
 ) {
     val items = unlocks(state)
     var open by rememberSaveable { mutableStateOf(openStep(items, focus)) }
-    var pskDialog by rememberSaveable { mutableStateOf(false) }
+    // IP control's dialog: null closed, true straight to the code on the TV, false on the choice.
+    var ipDialog by rememberSaveable { mutableStateOf<Boolean?>(null) }
     // Remote start is read from the TV's settings (getWolMode), which load only on request.
     LaunchedEffect(state.links.rest) { if (state.links.rest == Link.ONLINE) controller.loadTvSettings() }
 
@@ -165,19 +166,14 @@ fun UnlockScreen(
                             expanded = open == item.step,
                             onToggle = { open = if (open == item.step) null else item.step },
                         ) {
-                            StepBody(item, state, controller, onPsk = { pskDialog = true }, onPair = onPair, onAddBar = onAddBar)
+                            StepBody(item, state, controller, onIp = { ipDialog = it }, onPair = onPair, onAddBar = onAddBar)
                         }
                     }
                 }
             }
         }
     }
-    if (pskDialog) {
-        PskDialog(hasKey = state.pskSet, onSave = {
-            controller.setPsk(it)
-            pskDialog = false
-        }, onDismiss = { pskDialog = false })
-    }
+    ipDialog?.let { code -> IpControlDialog(state, controller, onDismiss = { ipDialog = null }, startWithCode = code) }
 }
 
 @Composable
@@ -247,7 +243,7 @@ private fun StepBody(
     item: UnlockItem,
     state: TuttiUiState,
     controller: TuttiController,
-    onPsk: () -> Unit,
+    onIp: (startWithCode: Boolean) -> Unit,
     onPair: () -> Unit,
     onAddBar: () -> Unit,
 ) {
@@ -279,8 +275,8 @@ private fun StepBody(
                     else -> Unit
                 }
                 Unlock.IP_CONTROL -> when (status) {
-                    UnlockStatus.TODO, UnlockStatus.ATTENTION -> Primary(R.string.unlock_ip_action, onPsk)
-                    UnlockStatus.DONE, UnlockStatus.CHECKING -> Quiet(R.string.unlock_ip_change, onPsk)
+                    UnlockStatus.TODO, UnlockStatus.ATTENTION -> Primary(R.string.unlock_ip_action) { onIp(true) }
+                    UnlockStatus.DONE, UnlockStatus.CHECKING -> Quiet(R.string.unlock_ip_change) { onIp(false) }
                     else -> Unit
                 }
                 Unlock.REMOTE_START -> if (state.ipControl && status != UnlockStatus.DONE) {

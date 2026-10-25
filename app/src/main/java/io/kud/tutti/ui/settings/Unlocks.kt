@@ -1,5 +1,6 @@
 package io.kud.tutti.ui.settings
 
+import io.kud.tutti.controller.IpCodeStatus
 import io.kud.tutti.controller.Link
 import io.kud.tutti.controller.TuttiUiState
 import io.kud.tutti.protocol.grpc.CloudPlaneState
@@ -14,7 +15,7 @@ enum class Unlock(val device: UnlockDevice, val optional: Boolean = false) {
     /** The TV remote (Android TV Remote v2, 6466/6467): the base, everything else builds on it. */
     PAIR_TV(UnlockDevice.TV),
 
-    /** IP control + PSK: TV settings, picture and sound readouts, inputs, waking from off (the MAC). */
+    /** IP control, by the code shown on the TV or a PSK: TV settings, picture and sound readouts, inputs, waking from off (the MAC). */
     IP_CONTROL(UnlockDevice.TV),
 
     /** Remote start: the TV keeps its network up in standby, so Power can wake it. */
@@ -72,8 +73,10 @@ fun statusOf(step: Unlock, state: TuttiUiState): UnlockStatus {
         }
         Unlock.IP_CONTROL -> when {
             tv == null -> UnlockStatus.BLOCKED
-            // Without a key the REST loop never starts (rest stays ABSENT): plainly not done yet.
-            !state.pskSet -> UnlockStatus.TODO
+            // The TV refused the code's cookie, renewal included: a new code is needed.
+            !state.pskSet && state.ipCode == IpCodeStatus.RENEW -> UnlockStatus.ATTENTION
+            // Without a code or a key the REST loop never starts (rest stays ABSENT): plainly not done yet.
+            !state.ipControlSet -> UnlockStatus.TODO
             else -> when (state.links.rest) {
                 Link.ONLINE -> UnlockStatus.DONE
                 Link.UNAUTHORIZED, Link.UNREACHABLE, Link.NEEDS_PAIRING -> UnlockStatus.ATTENTION

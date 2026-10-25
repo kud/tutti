@@ -783,7 +783,7 @@ fun RemoteScreen(
                 app = app,
                 tvName = state.devices.tv?.name.orEmpty(),
                 appIcons = state.appIcons,
-                actions = appActions(pinnedAt, state.pskSet),
+                actions = appActions(pinnedAt, state.ipControlSet),
                 pinnedAt = pinnedAt,
                 closeDown = state.links.rest != Link.ONLINE,
                 onPin = {

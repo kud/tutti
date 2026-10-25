@@ -29,11 +29,11 @@
     <string name="unlock_pair_action">Associer la TV</string>
     <string name="unlock_pair_again">Associer à nouveau</string>
 
-    <string name="unlock_ip_title">Contrôle IP et clé PSK</string>
+    <string name="unlock_ip_title">Contrôle IP</string>
     <string name="unlock_ip_gives">Les réglages de la TV (image, sortie son, économie d’énergie), ce qui passe et sur quelle entrée, les apps de la TV et leurs icônes, et le réveil d’une TV complètement éteinte.</string>
-    <string name="unlock_ip_how">Sur la TV :\n1. Paramètres → Réseau et Internet → Configuration du réseau local → Contrôle IP.\n2. Authentification : « Normale et clé pré-partagée ».\n3. Clé pré-partagée : choisissez une clé.\n\nPuis saisissez la même clé dans tutti.</string>
-    <string name="unlock_ip_action">Saisir la clé PSK</string>
-    <string name="unlock_ip_change">Changer la clé PSK</string>
+    <string name="unlock_ip_how">Sur la TV, une fois : Paramètres › Réseau et Internet › Réseau domestique › Contrôle IP (le chemin du guide Sony). Activez-le, avec l’authentification « Normale » ou « Normale et clé pré-partagée ».\n\nPuis dans tutti, « Afficher un code sur la TV » et saisissez les 4 chiffres affichés par la TV. Une clé PSK fonctionne toujours si vous préférez.</string>
+    <string name="unlock_ip_action">Afficher un code sur la TV</string>
+    <string name="unlock_ip_change">Contrôle IP…</string>
     <string name="unlock_wake_ready">Réveil depuis l’arrêt : prêt.</string>
     <string name="unlock_wake_pending">Réveil depuis l’arrêt : tutti apprend l’adresse matérielle de la TV la prochaine fois qu’elle est allumée.</string>
 
@@ -95,7 +95,7 @@
     <string name="technical_refused">refusé par la barre</string>
     <string name="technical_needs_bar_link">nécessite la liaison de contrôle (33336)</string>
     <string name="technical_http_no_answer">pas de réponse sur le port 54545</string>
-    <string name="technical_needs_psk">nécessite le contrôle IP et la clé PSK</string>
+    <string name="technical_needs_psk">nécessite le contrôle IP</string>
     <string name="technical_not_listed">non proposé par cette TV</string>
     <string name="technical_no_answer">pas de réponse</string>
     <string name="technical_none_reported">aucune indiquée</string>

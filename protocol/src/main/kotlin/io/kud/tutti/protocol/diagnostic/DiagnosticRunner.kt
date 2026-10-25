@@ -58,6 +58,8 @@ data class DiagnosticTargets(
     val psk: String?,
     val remotePin: CertificatePin?,
     val restPinRecorded: Boolean,
+    /** The IP-control cookie from the code shown on the TV; used instead of [psk] when set. */
+    val ipCookie: String? = null,
 )
 
 /** mDNS result, counted only: service names can carry a person's name. */
@@ -103,7 +105,7 @@ class DiagnosticRunner(
     val steps: StateFlow<List<StepResult>> = mutableSteps.asStateFlow()
 
     private val scrub = ConcurrentHashMap.newKeySet<String>().apply {
-        listOfNotNull(targets.tvHost, targets.barHost, targets.psk, targets.remotePin?.sha256Hex).forEach(::add)
+        listOfNotNull(targets.tvHost, targets.barHost, targets.psk, targets.ipCookie, targets.remotePin?.sha256Hex).forEach(::add)
     }
 
     /** Everything the report must never show: hosts, PSK, pin, and identifying values seen in replies. */
@@ -165,12 +167,12 @@ class DiagnosticRunner(
             return restSteps.drop(1).forEach { skip(it, "TV REST unreachable (see rest.interface)") }
         }
 
-        val client = BraviaClient(transport) { targets.psk }
-        if (targets.psk.isNullOrEmpty()) {
-            skip(DiagnosticSteps.REST_AUTH, "no PSK set in the app")
+        val client = BraviaClient(transport, cookie = { targets.ipCookie }) { targets.psk }
+        if (targets.psk.isNullOrEmpty() && targets.ipCookie.isNullOrEmpty()) {
+            skip(DiagnosticSteps.REST_AUTH, "no code cookie or PSK set in the app")
         } else {
             step(DiagnosticSteps.REST_AUTH) {
-                fact("psk", "set")
+                fact("auth", if (!targets.ipCookie.isNullOrEmpty()) "code cookie" else "psk")
                 val result = expect(client.call(BraviaService.SYSTEM, "getSystemInformation"))
                 fact("shape", JsonShape.of(result, scrub))
             }

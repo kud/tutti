@@ -70,6 +70,16 @@ fun TechnicalScreen(state: TuttiUiState, onOpen: () -> Unit, onBack: () -> Unit)
                     Fact(R.string.technical_address, tv.host)
                     Fact(R.string.technical_remote_link, linkLabel(state.links.tv))
                     Fact(R.string.technical_rest_link, linkLabel(state.links.rest))
+                    Fact(
+                        R.string.technical_ip_code,
+                        stringResource(
+                            when (state.ipCode) {
+                                io.kud.tutti.controller.IpCodeStatus.SET -> R.string.technical_ip_code_stored
+                                io.kud.tutti.controller.IpCodeStatus.RENEW -> R.string.technical_ip_code_renew
+                                io.kud.tutti.controller.IpCodeStatus.NONE -> R.string.technical_ip_code_none
+                            },
+                        ),
+                    )
                     Fact(R.string.technical_psk, stringResource(if (state.pskSet) R.string.technical_psk_stored else R.string.technical_psk_none))
                     Fact(R.string.technical_mac, stringResource(if (tv.mac != null) R.string.technical_mac_learnt else R.string.technical_mac_not_yet))
                     Fact(

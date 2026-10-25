@@ -95,7 +95,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * The intro (Iris's motion spec, "Intro, écran par écran"): Welcome, then four numbered steps,
- * TV (search), Code, Bar, Ready. The TV's PSK is no longer asked here: Ready points to Settings.
+ * TV (search), Code, Bar, Ready. IP control is not a step: Ready offers the code shown on the TV.
  * The flow follows the controller's pairing state; the step bar and the screen slide 24 dp with a
  * crossfade on each change (a [Motion.SHORT] fade with reduced motion). Welcome shows only on a
  * first setup; from Settings' "Pair" it opens on the search. [barOnly] (Settings' "Add the
@@ -234,6 +234,7 @@ fun OnboardingScreen(
                     IntroStep.BAR -> BarStep(state = state, controller = controller, onNext = { if (barOnly) onDone() else step = IntroStep.READY })
                     IntroStep.READY -> ReadyStep(
                         state = state,
+                        controller = controller,
                         tvName = discovered.firstOrNull { it.host == tvHost }?.name ?: stringResource(R.string.onboarding_tv_title),
                         onOpen = {
                             controller.setOnboarded()
@@ -660,7 +661,8 @@ private fun BarStep(state: TuttiUiState, controller: TuttiController, onNext: ()
  * Reduced motion: fades only, the haptic stays.
  */
 @Composable
-private fun ReadyStep(state: TuttiUiState, tvName: String, onOpen: () -> Unit) {
+private fun ReadyStep(state: TuttiUiState, controller: TuttiController, tvName: String, onOpen: () -> Unit) {
+    var ipDialog by remember { mutableStateOf(false) }
     val reduced = LocalReducedMotion.current
     val feedback = rememberFeedback()
     val scope = rememberCoroutineScope()
@@ -723,12 +725,18 @@ private fun ReadyStep(state: TuttiUiState, tvName: String, onOpen: () -> Unit) {
                 }
             }
             if (!state.ipControl) {
+                // IP control leads with the code shown on the TV (Erwann, 2026-10-25); the PSK is inside.
                 Rise(2) {
-                    Text(
-                        stringResource(R.string.intro_ready_psk),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = colors.onSurfaceVariant,
-                    )
+                    Column {
+                        Text(
+                            stringResource(R.string.intro_ready_code),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = colors.onSurfaceVariant,
+                        )
+                        if (state.devices.tv != null) {
+                            TextButton(onClick = { ipDialog = true }) { Text(stringResource(R.string.ipc_show_code)) }
+                        }
+                    }
                 }
             }
             Rise(3) {
@@ -745,6 +753,7 @@ private fun ReadyStep(state: TuttiUiState, tvName: String, onOpen: () -> Unit) {
             }
         }
     }
+    if (ipDialog) IpControlDialog(state, controller, onDismiss = { ipDialog = false })
 }
 
 /** A device and its state, by glyph and word: ✓ Paired, or the link's own word. */

@@ -12,7 +12,7 @@
     <string name="action_power">Allumer ou éteindre</string>
     <string name="power_waking">Réveil de la TV et de la barre</string>
     <string name="power_wake_failed_tv">La TV ne s’est pas réveillée : activez le Démarrage à distance</string>
-    <string name="power_wake_failed_tv_no_mac">La TV ne s’est pas réveillée : configurez le Démarrage à distance et la PSK</string>
+    <string name="power_wake_failed_tv_no_mac">La TV ne s’est pas réveillée : activez Démarrage à distance et contrôle IP</string>
     <string name="power_wake_failed_tv_not_found">La TV n’a pas répondu : vérifiez le Démarrage à distance et le Wi-Fi</string>
     <string name="power_wake_failed_bar">La barre de son n’a pas répondu</string>
     <string name="action_back">Retour</string>

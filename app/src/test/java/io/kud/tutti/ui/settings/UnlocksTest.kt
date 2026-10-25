@@ -1,5 +1,6 @@
 package io.kud.tutti.ui.settings
 
+import io.kud.tutti.controller.IpCodeStatus
 import io.kud.tutti.controller.Link
 import io.kud.tutti.controller.Links
 import io.kud.tutti.controller.TuttiUiState
@@ -53,6 +54,19 @@ class UnlocksTest {
         assertEquals(UnlockStatus.ATTENTION, with(Link.UNAUTHORIZED))
         assertEquals(UnlockStatus.ATTENTION, with(Link.UNREACHABLE))
         assertEquals(UnlockStatus.CHECKING, with(Link.CONNECTING))
+    }
+
+    @Test
+    fun `the code shown on the TV counts as IP control, and a refused one needs a look`() {
+        fun with(code: IpCodeStatus, rest: Link = Link.ONLINE) =
+            TuttiUiState(devices = Devices(tv = tv), links = Links(rest = rest), ipCode = code).status(Unlock.IP_CONTROL)
+        assertEquals(UnlockStatus.DONE, with(IpCodeStatus.SET))
+        assertEquals(UnlockStatus.CHECKING, with(IpCodeStatus.SET, Link.CONNECTING))
+        assertEquals(UnlockStatus.ATTENTION, with(IpCodeStatus.RENEW, Link.UNAUTHORIZED))
+        assertEquals(UnlockStatus.TODO, with(IpCodeStatus.NONE, Link.ABSENT))
+        assertTrue(TuttiUiState(ipCode = IpCodeStatus.SET).ipControlSet)
+        assertFalse(TuttiUiState(ipCode = IpCodeStatus.RENEW).ipControlSet)
+        assertTrue(TuttiUiState(pskSet = true).ipControlSet)
     }
 
     @Test

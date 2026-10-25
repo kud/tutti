@@ -5,11 +5,10 @@
     <string name="settings_tv_status">%1$s · remote %2$s · IP control %3$s</string>
     <string name="settings_bar_status">%1$s · %2$s</string>
     <string name="settings_pair_again">Pair again</string>
-    <string name="settings_psk">PSK</string>
     <string name="settings_forget">Forget device</string>
     <string name="settings_forget_title">Forget this device?</string>
     <string name="settings_forget_named">Forget %1$s?</string>
-    <string name="settings_forget_tv_detail">The pairing, the PSK and the TV’s certificate pin will be erased from this phone.</string>
+    <string name="settings_forget_tv_detail">The pairing, the IP control code or PSK and the TV’s certificate pin will be erased from this phone.</string>
     <string name="settings_forget_bar_detail">The bar will be removed from the app.</string>
     <string name="settings_add_device">Add a device</string>
     <string name="settings_add_bar">Add the soundbar</string>
@@ -56,7 +55,7 @@
     <string name="link_online">connected</string>
     <string name="link_unreachable">unreachable</string>
     <string name="link_needs_pairing">needs pairing again</string>
-    <string name="link_unauthorized">PSK refused or missing</string>
+    <string name="link_unauthorized">access refused (code or PSK)</string>
     <string name="tv_picture">Picture</string>
     <string name="tv_sound_output">Sound output</string>
     <string name="tv_speaker">Speakers</string>
@@ -100,11 +99,11 @@
     <string name="bar_bt_pair_detail">Switches the bar to Bluetooth and makes it visible. Then pick it on your device.</string>
     <string name="bar_none_reported">The bar hasn’t reported any of these settings yet. Those it doesn’t support stay hidden.</string>
     <string name="tv_rest_offline_title">The TV’s IP control isn’t answering</string>
-    <string name="tv_rest_offline_body">These settings go through the TV’s IP control. To turn it on, on the TV:\n\n1. Settings → Network &amp; Internet → Local network setup → IP control.\n2. Authentication: “Normal and Pre-Shared Key”.\n3. Pre-Shared Key: pick a code, then enter the same one here with “PSK”.\n4. Also turn on “Remote start”, so the TV answers in standby.\n\nThe TV and the phone must be on the same network.</string>
-    <string name="tv_rest_unauthorized_title">The TV refuses the PSK</string>
-    <string name="tv_rest_unauthorized_body">The TV answers, but the key in tutti doesn’t match (or there isn’t one). Check on the TV: Settings → Network &amp; Internet → Local network setup → IP control → Pre-Shared Key, then enter exactly the same here.</string>
+    <string name="tv_rest_offline_body">These settings go through the TV’s IP control. To turn it on, on the TV:\n\n1. Settings › Network &amp; Internet › Home network › IP control (the path in Sony’s guide).\n2. Authentication: “Normal” or “Normal and Pre-Shared Key”.\n3. Back in tutti, “IP control” shows a code on the TV to type here (or takes a PSK).\n4. Also turn on “Remote start”, so the TV answers in standby.\n\nThe TV and the phone must be on the same network.</string>
+    <string name="tv_rest_unauthorized_title">The TV refuses tutti’s access</string>
+    <string name="tv_rest_unauthorized_body">The TV answers, but no longer accepts tutti’s code, or the PSK doesn’t match. Show a new code on the TV with “IP control”, or enter the PSK exactly as set on the TV.</string>
     <string name="tv_rest_connecting">Connecting to the TV’s IP control…</string>
-    <string name="tv_rest_enter_psk">Enter the PSK</string>
+    <string name="tv_rest_enter_psk">IP control…</string>
     <string name="tv_power">Power</string>
     <string name="tv_wol">Wake from the network</string>
     <string name="tv_wol_detail">Wake-on-LAN: tutti can turn the TV on from standby</string>

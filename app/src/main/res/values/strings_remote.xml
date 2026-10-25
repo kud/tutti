@@ -11,7 +11,7 @@
     <string name="action_power">Power on or off</string>
     <string name="power_waking">Waking the TV and the bar</string>
     <string name="power_wake_failed_tv">The TV did not wake: turn on Remote start</string>
-    <string name="power_wake_failed_tv_no_mac">The TV did not wake: set up Remote start and its PSK</string>
+    <string name="power_wake_failed_tv_no_mac">The TV did not wake: set up Remote start and IP control</string>
     <string name="power_wake_failed_tv_not_found">The TV did not answer: check Remote start and the Wi-Fi</string>
     <string name="power_wake_failed_bar">The soundbar did not answer</string>
     <string name="action_back">Back</string>

@@ -5,6 +5,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
+import io.kud.tutti.protocol.bravia.AuthCookie
 import io.kud.tutti.protocol.devices.Device
 import io.kud.tutti.protocol.devices.SecretKeys
 import io.kud.tutti.protocol.net.CertificatePin
@@ -14,11 +15,11 @@ import javax.inject.Named
 import javax.inject.Singleton
 
 /**
- * Secrets: the TV PSK and the pins. Lives in files/datastore/secure.preferences_pb, excluded
+ * Secrets: the TV PSK, the IP-control cookie and the pins. Lives in files/datastore/secure.preferences_pb, excluded
  * from backup (res/xml/data_extraction_rules.xml and backup_rules.xml). Every value is encrypted by [SecretCipher]. Nothing here
  * is ever logged; use Redact if a value must be mentioned.
  *
- * Keys are per device (`psk/<id>`, `pin/<id>/remote`, `pin/<id>/rest`, [SecretKeys]). For one
+ * Keys are per device (`psk/<id>`, `ipcookie/<id>`, `pin/<id>/remote`, `pin/<id>/rest`, [SecretKeys]). For one
  * release the TV's are also written to, and read back from, the version-1 flat keys, so neither a
  * crash mid-migration nor a downgrade can lose the PSK or the pairing.
  */
@@ -31,6 +32,14 @@ class SecureStore @Inject constructor(
 
     suspend fun setTvPsk(psk: String?) = write(SecretKeys.psk(TV), psk?.takeIf { it.isNotBlank() })
 
+    /**
+     * The cookie from the code shown on the TV (Sony's "Normal" authentication), a bearer secret like
+     * the PSK; it has no version-1 twin. Unreadable means none.
+     */
+    suspend fun tvIpCookie(): AuthCookie? = AuthCookie.decode(read(SecretKeys.ipCookie(TV)))
+
+    suspend fun setTvIpCookie(cookie: AuthCookie?) = write(SecretKeys.ipCookie(TV), cookie?.encode())
+
     /** Pin of the TV's remote-protocol certificate, recorded at pairing. */
     suspend fun tvRemotePin(): CertificatePin? = read(SecretKeys.remotePin(TV))?.let(::CertificatePin)
 
@@ -41,7 +50,7 @@ class SecureStore @Inject constructor(
 
     suspend fun setTvRestPin(pin: CertificatePin?) = write(SecretKeys.restPin(TV), pin?.sha256Hex)
 
-    /** "Oublier l'appareil" (TV): PSK and both pins, old keys included. */
+    /** "Oublier l'appareil" (TV): PSK, IP-control cookie and both pins, old keys included. */
     suspend fun forgetTv() = forgetDevice(TV)
 
     /** "Forget" for any device: every key holding its secrets. */

@@ -43,7 +43,7 @@ import io.kud.tutti.ui.common.ProblemNote
 import io.kud.tutti.ui.common.LocalRowSurface
 import io.kud.tutti.ui.common.SettingsGroup
 import io.kud.tutti.ui.common.SwitchRow
-import io.kud.tutti.ui.onboarding.PskDialog
+import io.kud.tutti.ui.onboarding.IpControlDialog
 import io.kud.tutti.ui.scenes.inputName
 import kotlin.math.roundToInt
 
@@ -186,12 +186,7 @@ fun TvSettingsScreen(state: TuttiUiState, controller: TuttiController, onBack: (
             }
         }
     }
-    if (pskDialog) {
-        PskDialog(hasKey = state.pskSet, onSave = {
-            controller.setPsk(it)
-            pskDialog = false
-        }, onDismiss = { pskDialog = false })
-    }
+    if (pskDialog) IpControlDialog(state, controller, onDismiss = { pskDialog = false })
 }
 
 @Composable
