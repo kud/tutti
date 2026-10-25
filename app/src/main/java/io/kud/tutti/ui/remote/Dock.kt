@@ -313,7 +313,7 @@ private fun PinTile(
                     leadingIcon = { Icon(painterResource(actionIcon(secondary, state)), contentDescription = null) },
                     // A long-press toggle says where it stands now; unknown says nothing rather than "Off".
                     trailingIcon = secondaryToggle?.let { known ->
-                        { Text(stringResource(if (known.on) R.string.state_on else R.string.state_off), style = MaterialTheme.typography.labelMedium) }
+                        { Text(stringResource(if (known.on) R.string.toggle_state_on else R.string.toggle_state_off), style = MaterialTheme.typography.labelMedium) }
                     },
                     onClick = {
                         menu = false
@@ -413,7 +413,7 @@ private fun Tile(
 @Composable
 private fun toggleStateText(toggle: PinToggle?, state: TuttiUiState): String? = when (toggle) {
     null -> null
-    is PinToggle.Known -> stringResource(if (toggle.on) R.string.state_on else R.string.state_off)
+    is PinToggle.Known -> stringResource(if (toggle.on) R.string.toggle_state_on else R.string.toggle_state_off)
     PinToggle.Unknown -> stringResource(R.string.sound_reason_unreported)
     PinToggle.Unreachable -> stringResource(R.string.system_unreachable, state.devices.bar?.name.orEmpty())
     PinToggle.NoBar -> stringResource(R.string.sound_reason_no_bar)

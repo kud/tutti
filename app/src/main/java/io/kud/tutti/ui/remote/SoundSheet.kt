@@ -370,7 +370,7 @@ private fun SoundTile(state: TuttiUiState, feature: TheatreFeature, onTap: () ->
     val stateLine = if (failed && reason == null) {
         stringResource(R.string.sound_tile_failed)
     } else {
-        reason ?: stringResource(if (on) R.string.state_on else R.string.state_off)
+        reason ?: stringResource(if (on) R.string.toggle_state_on else R.string.toggle_state_off)
     }
     Column(
         modifier
@@ -411,7 +411,7 @@ private fun SoundTile(state: TuttiUiState, feature: TheatreFeature, onTap: () ->
             }
         } else {
             Text(
-                text = reason ?: stringResource(if (on) R.string.state_on else R.string.state_off),
+                text = reason ?: stringResource(if (on) R.string.toggle_state_on else R.string.toggle_state_off),
                 style = MaterialTheme.typography.bodySmall,
                 color = if (reason == null) content else scheme.onSurfaceVariant,
                 maxLines = 2,
@@ -465,8 +465,8 @@ private const val FAILED_MS = 3_000L
 @Composable
 fun choiceLabel(value: String?): String = when (value) {
     "auto" -> stringResource(R.string.state_auto)
-    "on" -> stringResource(R.string.state_on)
-    "off" -> stringResource(R.string.state_off)
+    "on" -> stringResource(R.string.toggle_state_on)
+    "off" -> stringResource(R.string.toggle_state_off)
     null -> "—"
     else -> value
 }

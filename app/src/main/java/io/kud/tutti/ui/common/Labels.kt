@@ -201,7 +201,7 @@ fun keyGroupLabel(group: KeyGroup): Int = when (group) {
 /** A bar value as the picker and the pin's name say it: On / Off, a signed level, a named choice. */
 @Composable
 fun barValueLabel(feature: TheatreFeature, value: String): String = when (val kind = feature.kind) {
-    is FeatureKind.Toggle -> stringResource(if (value == kind.on) R.string.state_on else R.string.state_off)
+    is FeatureKind.Toggle -> stringResource(if (value == kind.on) R.string.toggle_state_on else R.string.toggle_state_off)
     is FeatureKind.Level -> value.toIntOrNull()?.let { if (it > 0 && kind.min < 0) "+$it" else if (it < 0) "\u2212${-it}" else "$it" } ?: value
     is FeatureKind.Choice -> when (value) {
         "tv" -> "TV"

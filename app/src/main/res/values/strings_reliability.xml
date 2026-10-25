@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- A toggle's state. Named toggle_*: state_on/state_off shadowed Compose's own private strings. -->
+    <string name="toggle_state_on">On</string>
+    <string name="toggle_state_off">Off</string>
+</resources>
