@@ -16,6 +16,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -73,6 +74,7 @@ import androidx.compose.runtime.mutableStateMapOf
 import io.kud.tutti.ui.common.LocalMessages
 import io.kud.tutti.controller.TuttiUiState
 import io.kud.tutti.platform.data.DockAction
+import io.kud.tutti.protocol.theatre.TheatreFeature
 import io.kud.tutti.platform.data.DockSlot
 import io.kud.tutti.protocol.apps.KnownApp
 import io.kud.tutti.platform.data.PadSize
@@ -893,6 +895,7 @@ fun RemoteScreen(
     }
 
     val liveCard = cardShowing(state)
+    val keysPinner = rememberDockPinner(state, controller)
     playbackFor?.let { opened ->
         PlaybackSheet(
             showing = liveCard?.takeIf(::cardOpensPlayback) ?: opened,
@@ -904,6 +907,27 @@ fun RemoteScreen(
                 sheetKey(code) { playbackFor = null }
             },
             onDismiss = { playbackFor = null },
+            barToggles = if (state.links.bar == Link.ABSENT) null else {
+                {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        for (feature in PLAYBACK_BAR_TOGGLES) {
+                            SoundTile(
+                                state = state,
+                                feature = feature,
+                                onTap = {
+                                    haptics.select()
+                                    controller.toggleBar(feature)
+                                },
+                                onPin = { name ->
+                                    haptics.longPress()
+                                    keysPinner.request(DockAction.ToggleBar(feature.key), name)
+                                },
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                    }
+                }
+            },
         )
     }
     actionsFor?.let { opened ->
@@ -951,7 +975,6 @@ fun RemoteScreen(
         )
     }
 
-    val keysPinner = rememberDockPinner(state, controller)
     when (sheet2) {
         RemoteSheet.APPS -> AppsSheet(
             state = state,
@@ -1043,3 +1066,6 @@ private const val INPUT_BACK_MS = 200
 
 /** The “Son” handle and its one-line summary. */
 private val SHEET_PEEK = 72.dp
+
+/** The bar's two film-night switches, repeated in the playback sheet (benchmark item 5). */
+private val PLAYBACK_BAR_TOGGLES = listOf(TheatreFeature.VOICE, TheatreFeature.NIGHT)

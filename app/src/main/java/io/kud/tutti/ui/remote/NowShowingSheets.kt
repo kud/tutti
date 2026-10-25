@@ -88,6 +88,7 @@ internal fun PlaybackSheet(
     downReason: String?,
     onKey: (Int) -> Unit,
     onDismiss: () -> Unit,
+    barToggles: (@Composable () -> Unit)? = null,
 ) {
     TuttiSheet(onDismissRequest = onDismiss) {
         val scroll = rememberScrollState()
@@ -124,6 +125,9 @@ internal fun PlaybackSheet(
                         PlaybackKey(code, size = 56.dp, shape = RoundedCornerShape(16.dp), main = false, downReason = downReason, onKey = onKey, wide = true, modifier = Modifier.weight(1f))
                     }
                 }
+                // The bar's Voice and Night, where the film is (benchmark item 5, from Sonos): the
+                // Son sheet's own tiles, so state is said in words and a mark, and pinnable alike.
+                barToggles?.invoke()
                 if (!down) {
                     Text(
                         stringResource(R.string.playback_note),

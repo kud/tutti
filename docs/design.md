@@ -83,6 +83,8 @@ Tap (« la lecture est pas mal »): a `TuttiSheet` whose pinned header is the ca
 
 Long press, on an app only (« aller sur home de l'app ou kill l'app »): a `TuttiSheet` with the same header under "App actions", rows like the Power sheet's, offering only what tutti can do (`appActions`, tested): "Pin to the dock" (the Apps sheet's pin dialog) or "Remove from the dock" ("Frees pin n"); and, with a PSK, "Close apps on the TV", "Every app, not just this one", because Sony's IP control (`appControl.terminateApps`) closes every app at once and none by name. It asks first ("Close every app on the TV?"); with IP control not answering the row is shown dashed and disabled with why. Not offered: going back to the app's home, since a launch link on Google TV resumes the app where it was, and a store page, which tutti has never been seen to open. The long press is the card's only one; nothing else is assigned to it.
 
+Voice and Night ride along (Iris, 2026-10-25, benchmark item 5): with a bar set up, the playback sheet carries the bar's "Voice" and "Night" under the track keys, the Son sheet's own tiles (`SoundTile`), so each says On or Off in words with its mark, takes the down dress with the reason when the bar is out of reach, and pins to the dock on a long press like the Son sheet's. Sonos keeps dialogue and night on the "now playing" screen, and people lost them when they moved; the Son sheet keeps them too.
+
 ### Now-showing card: what Cast reports playing (Iris, 2026-10-25)
 
 Shown only when the TV reports it over Cast (architecture § 7). YouTube does; Netflix doesn't. When nothing is reported, nothing new appears and the card reads as before.

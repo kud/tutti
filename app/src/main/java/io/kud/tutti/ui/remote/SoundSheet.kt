@@ -353,7 +353,7 @@ private fun ChoiceSegments(state: TuttiUiState, feature: TheatreFeature, onSelec
 }
 
 @Composable
-private fun SoundTile(state: TuttiUiState, feature: TheatreFeature, onTap: () -> Unit, onPin: (String) -> Unit, modifier: Modifier = Modifier) {
+internal fun SoundTile(state: TuttiUiState, feature: TheatreFeature, onTap: () -> Unit, onPin: (String) -> Unit, modifier: Modifier = Modifier) {
     val reason = barReason(state, feature)
     val value = state.bar.value(feature)
     val on = state.bar.isOn(feature) == true
