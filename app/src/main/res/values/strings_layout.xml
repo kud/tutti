@@ -40,7 +40,7 @@
     <string name="row_input">Input</string>
     <string name="row_guide">Guide</string>
     <string name="row_tv_settings">TV settings</string>
-    <string name="row_voice">Voice</string>
+    <string name="row_voice">Mic</string>
     <string name="pin_page_remove_title">Remove page %1$d?</string>
     <string name="pin_page_remove_body">Its pins go with it.</string>
     <string name="pin_page_remove_confirm">Remove</string>

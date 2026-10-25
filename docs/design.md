@@ -91,7 +91,7 @@ Long press, on an app only (« aller sur home de l'app ou kill l'app »): a `Tut
 
 ### Edit mode
 - Settings › Shortcuts › "Remote layout", or "Edit the remote layout" at the foot of a pin's editor, turns the remote into its own edit mode: the same screen, what can change in a dashed frame, what can't under a lock. Changes save as they are made; "Done" (or Back) leaves.
-- Adjustable: the round-button row (up to six, from Back, Home, Play/Pause, Voice, Keyboard, Info, Subtitles, Input, Guide, TV settings; drag sideways or TalkBack's move left / right), the scene strip (shown or hidden), the pad in three steps (Compact is shorter, Normal is as tall as it is wide, Large takes the margins back and stands taller; the rail follows the pad's height in each), the hand (Left / Right, one switch; it mirrors the pad, the rail and the round-button row, never Power, the scenes, the dock or the Son sheet; a move in the editor lands where it was dropped on either hand), and the pins' order within a page (drag, or move left / right; tap opens the pin's editor).
+- Adjustable: the round-button row (up to six, from Back, Home, Play/Pause, Mic, Keyboard, Info, Subtitles, Input, Guide, TV settings; drag sideways or TalkBack's move left / right), the scene strip (shown or hidden), the pad in three steps (Compact is shorter, Normal is as tall as it is wide, Large takes the margins back and stands taller; the rail follows the pad's height in each), the hand (Left / Right, one switch; it mirrors the pad, the rail and the round-button row, never Power, the scenes, the dock or the Son sheet; a move in the editor lands where it was dropped on either hand), and the pins' order within a page (drag, or move left / right; tap opens the pin's editor).
 - Anchors never move or hide: Power (short press both, long press the device sheet), the volume rail, the pad's place and the Son sheet. The pad's side is chosen once, by the hand, never dragged; the rail takes the other side. "Reset the layout" asks first and puts the row, the scenes, the pad and the hand (right) back; pins stay.
 - Stored with every field defaulted to today's screen, so a phone that never opens edit mode sees no change.
 
@@ -159,7 +159,7 @@ Iris, 2026-10-24, from Erwann's "si les touches ne marchent pas à ce moment-là
 - Main creation path: "Capturer l'état actuel" — every captured value becomes a removable chip; name, colour and glyph. Blank form is the fallback.
 - Per-app profiles: "Quand Netflix est au premier plan, appliquer Cinéma" (while connected).
 - Strip: pill in its own tonal colour. Gallery: large card with plain-words summary ("Atmos · Voix + · Basses −2"). Active scene filled; manual change → outline marked "modifiée". Applying fills the pill left to right (progress).
-- Starter gallery: Cinéma, Série du soir, Nuit (volume cap 20), Musique, Sport, Jeu, Info.
+- Starter gallery: Cinéma, Série du soir, Coucher (EN "Bedtime", volume cap 20; it was « Nuit », which clashed with the bar's Night mode and its default pin, Iris 2026-10-25), Musique, Sport, Jeu, Info.
 - Long press on a pill opens its menu (Iris's gesture audit, 2026-10-25), the most useful first: "Undo the last scene" on the pill that can still be undone, then "Apply", "Edit scene", "Pin to the dock". Each row is also a TalkBack action on the pill (`sceneMenu`, tested).
 - Undo the last scene: just before a scene runs, tutti keeps what it is about to change, only the keys it touches, as they stand (`SceneUndo`, `:protocol`, tested), and the scene that was active. After a clean run the message "Cinéma applied" carries "Undo"; the pill's menu keeps it. Undoing restores those values through the same runner (never waking or switching anything off) and makes the previous scene active again; the message says "Cinéma undone", or the problem if some steps failed. One level: a new scene replaces it, undoing spends it. Stale, and no longer offered, after 15 minutes, once another scene is active (or this one is deleted), or once the room is switched off.
 
@@ -270,8 +270,13 @@ Each thing has one name in each language, everywhere: screens, TalkBack, the not
 | TV applications | apps | apps (never « applis », « applications ») |
 | Power | Power for the control; Turn on / Turn off for the action | Marche / arrêt for the control (never « Alimentation », « Power »); Allumer / Éteindre for the action |
 | The TV's input | Input | Entrée (never « Source ») |
+| The row's microphone key | Mic ("Voice" is the bar's voice enhancement) | Micro (« Voix » is the bar's) |
+| The bar's Night mode | Night | Nuit (the starter scene is Bedtime / Coucher) |
+| The TV's picture-scene setting | TV scene select (Sony's name, qualified: tutti's own are scenes) | Sélection de scène de la TV |
+| The Quick Settings tile | Living room (never "Remote": Google's own TV remote tile has that name) | Salon (never « Télécommande ») |
 
-- IP control has one menu path, written the same in every string: Settings → Network & Internet → Local network setup → IP control (FR: Paramètres → Réseau et Internet → Configuration du réseau local → Contrôle IP).
+- IP control has one menu path, written the same in every string, as Sony's guide and the IP control dialog give it: Settings › Network & Internet › Home network › IP control (FR: Paramètres › Réseau et Internet › Réseau domestique › Contrôle IP). Menu paths use ›.
+- `WordTableTest` fails on a banned word in either locale (téléviseur, télé, applis, Alimentation for the control, Slot, Put in the dock, another IP control path), naming the house word; its probe proves every pattern still catches its example.
 - Link states in French are invariable (« en ligne », « injoignable », « à configurer »), so they agree with any device: « télécommande en ligne », « barre injoignable ».
 - Counts use plurals in both languages; French `one` covers 0 and 1.
 - Failure marks are `ic_warning`, never ✕: ✕ means close or remove.

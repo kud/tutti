@@ -114,7 +114,7 @@
     <string name="tv_output_speaker_hdmi">Speakers and HDMI</string>
     <string name="tv_output_hdmi">HDMI</string>
     <string name="tv_output_audio_system">Audio system</string>
-    <string name="tv_target_scene">Scene select</string>
+    <string name="tv_target_scene">TV scene select</string>
     <string name="tv_scene_auto">Auto</string>
     <string name="tv_scene_auto_24p">Auto (24p sync)</string>
     <string name="tv_scene_general">General</string>

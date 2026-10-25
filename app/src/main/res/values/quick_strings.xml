@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="quick_tile_label">Remote</string>
+    <string name="quick_tile_label">Living room</string>
     <string name="quick_widget_label">Quick remote</string>
     <string name="quick_widget_description">Scenes, volume and mute</string>
 

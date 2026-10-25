@@ -15,7 +15,7 @@
         <item quantity="other">%1$d réglages masqués : la barre ne les a pas annoncés</item>
     </plurals>
     <string name="picker_bar_offline">La barre n’est pas connectée : ses réglages apparaîtront dès qu’elle répondra.</string>
-    <string name="picker_no_ip">Le contrôle IP est désactivé sur la TV : le mode d’image et les touches propres à la TV en ont besoin (Réglages TV › Réseau › Contrôle IP).</string>
+    <string name="picker_no_ip">Le contrôle IP est désactivé sur la TV : le mode d’image et les touches propres à la TV en ont besoin (sur la TV : Paramètres › Réseau et Internet › Réseau domestique › Contrôle IP).</string>
     <string name="picker_inputs_no_ip">Le contrôle IP est désactivé sur la TV : il faut l’activer pour lister les entrées.</string>
     <string name="picker_tv_loading">Interrogation de la TV…</string>
     <string name="picker_tv_none">La TV n’a annoncé ni mode d’image ni touche propre.</string>

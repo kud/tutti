@@ -18,7 +18,7 @@
     <string name="apps_screen_unconfirmed">Sent. The TV can’t confirm its apps screen opened</string>
     <string name="apps_pin_action">Pin to the dock</string>
     <string name="apps_pin_title">Pin %1$s</string>
-    <string name="apps_slot">Slot %1$d · %2$s</string>
+    <string name="apps_slot">Pin %1$d · %2$s</string>
     <string name="apps_slot_empty">empty</string>
     <string name="more_title">All keys</string>
     <string name="more_section_channels">Numbers and channels</string>

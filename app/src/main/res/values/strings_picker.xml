@@ -14,7 +14,7 @@
         <item quantity="other">%1$d settings hidden: the bar hasn’t announced them</item>
     </plurals>
     <string name="picker_bar_offline">The soundbar isn’t connected: its settings appear once it answers.</string>
-    <string name="picker_no_ip">IP control is off on the TV: picture mode and the TV’s own keys need it (TV settings › Network › IP control).</string>
+    <string name="picker_no_ip">IP control is off on the TV: picture mode and the TV’s own keys need it (on the TV: Settings › Network &amp; Internet › Home network › IP control).</string>
     <string name="picker_inputs_no_ip">IP control is off on the TV: inputs need it to be listed.</string>
     <string name="picker_tv_loading">Asking the TV…</string>
     <string name="picker_tv_none">The TV announced no picture modes or keys of its own.</string>

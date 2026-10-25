@@ -18,12 +18,12 @@
     <string name="apps_screen_unconfirmed">Envoyé. La TV ne confirme pas l’ouverture de l’écran Apps</string>
     <string name="apps_pin_action">Épingler au dock</string>
     <string name="apps_pin_title">Épingler %1$s</string>
-    <string name="apps_slot">Emplacement %1$d · %2$s</string>
+    <string name="apps_slot">Épingle %1$d · %2$s</string>
     <string name="apps_slot_empty">vide</string>
     <string name="more_title">Toutes les touches</string>
     <string name="more_section_channels">Chiffres et chaînes</string>
     <string name="more_section_colours">Touches de couleur</string>
-    <string name="more_section_tv">Télé</string>
+    <string name="more_section_tv">TV</string>
     <string name="more_jump">Préc.</string>
     <string name="more_live_tv">TV</string>
     <string name="more_channel_short">CH</string>

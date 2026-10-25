@@ -104,7 +104,7 @@
     <string name="tv_rest_unauthorized_body">La TV répond, mais n’accepte plus le code de tutti, ou la clé PSK ne correspond pas. Affichez un nouveau code sur la TV avec « Contrôle IP », ou saisissez la clé PSK exactement comme sur la TV.</string>
     <string name="tv_rest_connecting">Connexion au contrôle IP de la TV…</string>
     <string name="tv_rest_enter_psk">Contrôle IP…</string>
-    <string name="tv_power">Alimentation</string>
+    <string name="tv_power">Marche / arrêt</string>
     <string name="tv_wol">Allumage par le réseau</string>
     <string name="tv_wol_detail">Wake-on-LAN : la TV s’allume depuis tutti même en veille</string>
     <string name="tv_sleep_timer">Minuterie de veille</string>
@@ -114,7 +114,7 @@
     <string name="tv_output_speaker_hdmi">Haut-parleurs et HDMI</string>
     <string name="tv_output_hdmi">HDMI</string>
     <string name="tv_output_audio_system">Système audio</string>
-    <string name="tv_target_scene">Sélection de scène</string>
+    <string name="tv_target_scene">Sélection de scène de la TV</string>
     <string name="tv_scene_auto">Auto</string>
     <string name="tv_scene_auto_24p">Auto (synchro 24p)</string>
     <string name="tv_scene_general">Général</string>

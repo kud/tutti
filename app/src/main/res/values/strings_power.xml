@@ -5,7 +5,7 @@
     <string name="screen_off_detail">For music or a podcast. Tap again here to bring the picture back.</string>
     <string name="screen_off_back">Picture back on</string>
     <string name="screen_off_back_detail">The TV says its screen is off.</string>
-    <string name="screen_off_pin">Put in the dock</string>
+    <string name="screen_off_pin">Pin to the dock</string>
     <string name="screen_off_picker">Screen</string>
     <string name="screen_off_scene_key">Screen off</string>
     <string name="screen_off_summary_on">Screen off</string>

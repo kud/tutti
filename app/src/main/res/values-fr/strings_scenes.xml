@@ -37,12 +37,12 @@
     <string name="editor_profile">Appliquer automatiquement</string>
     <string name="editor_profile_value">Quand %1$s est au premier plan</string>
     <string name="editor_none">Aucune</string>
-    <string name="editor_dock">Placer dans le dock</string>
+    <string name="editor_dock">Épingler au dock</string>
     <string name="editor_done">OK</string>
     <string name="editor_free_value">Valeur telle que la TV l’écrit</string>
     <string name="scene_starter_cinema">Cinéma</string>
     <string name="scene_starter_serie">Série du soir</string>
-    <string name="scene_starter_nuit">Nuit</string>
+    <string name="scene_starter_nuit">Coucher</string>
     <string name="scene_starter_musique">Musique</string>
     <string name="scene_starter_sport">Sport</string>
     <string name="scene_starter_jeu">Jeu</string>

@@ -40,7 +40,7 @@
     <string name="row_input">Entrée</string>
     <string name="row_guide">Guide</string>
     <string name="row_tv_settings">Réglages TV</string>
-    <string name="row_voice">Voix</string>
+    <string name="row_voice">Micro</string>
     <string name="pin_page_remove_title">Supprimer la page %1$d ?</string>
     <string name="pin_page_remove_body">Ses boutons partent avec elle.</string>
     <string name="pin_page_remove_confirm">Supprimer</string>

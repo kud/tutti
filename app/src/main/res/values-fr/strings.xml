@@ -4,13 +4,13 @@
 
     <!-- Bluetooth mode (keyboard and mouse over BluetoothHidDevice) -->
     <string name="settings_bluetooth">Bluetooth</string>
-    <string name="settings_bluetooth_detail">Utilisez le téléphone comme clavier et souris du téléviseur, sans Wi-Fi</string>
+    <string name="settings_bluetooth_detail">Utilisez le téléphone comme clavier et souris de la TV, sans Wi-Fi</string>
     <string name="bt_title">Clavier et souris Bluetooth</string>
     <string name="bt_touchpad">Pavé tactile</string>
     <string name="bt_pointer">Pointeur</string>
     <string name="bt_keyboard">Clavier</string>
-    <string name="bt_unsupported">Ce téléphone ne permet pas aux applis de servir de clavier et souris Bluetooth.</string>
-    <string name="bt_the_tv">le téléviseur</string>
+    <string name="bt_unsupported">Ce téléphone ne permet pas aux apps de servir de clavier et souris Bluetooth.</string>
+    <string name="bt_the_tv">la TV</string>
     <string name="bt_status_connected">Connecté à %1$s</string>
     <string name="bt_status_connecting">Connexion à %1$s…</string>
     <string name="bt_status_paired">Associé à %1$s, non connecté</string>
@@ -24,24 +24,24 @@
     <string name="bt_allow">Autoriser</string>
     <string name="bt_turn_on">Activer</string>
     <string name="bt_retry">Réessayer</string>
-    <string name="bt_pair_steps">Sur le téléviseur : Paramètres › Télécommandes et accessoires › Associer un accessoire. Touchez Rendre visible ici, choisissez tutti sur le téléviseur, puis confirmez le code des deux côtés.</string>
+    <string name="bt_pair_steps">Sur la TV : Paramètres › Télécommandes et accessoires › Associer un accessoire. Touchez Rendre visible ici, choisissez tutti sur la TV, puis confirmez le code des deux côtés.</string>
     <string name="bt_known_devices">Déjà associés à ce téléphone</string>
-    <string name="bt_forget">Oublier ce téléviseur</string>
+    <string name="bt_forget">Oublier cette TV</string>
     <string name="bt_role_note">Une seule appli à la fois peut servir de clavier Bluetooth. tutti prend ce rôle tant que cet écran est ouvert et le rend quand vous le quittez.</string>
     <string name="bt_touchpad_hint">Touchez pour cliquer · deux doigts pour faire défiler · touchez à deux doigts pour revenir</string>
-    <string name="bt_pointer_hint">Pointez le téléphone vers le téléviseur et bougez-le : le curseur suit.</string>
+    <string name="bt_pointer_hint">Pointez le téléphone vers la TV et bougez-le : le curseur suit.</string>
     <string name="bt_pointer_no_gyro">Ce téléphone n’a pas de gyroscope : le pointeur ne peut pas le suivre. Le pavé tactile fonctionne.</string>
     <string name="bt_pointer_recentre">Maintenez pour recentrer</string>
     <string name="bt_pointer_frozen">Figé</string>
     <string name="bt_click">Clic</string>
     <string name="bt_sensitivity">Sensibilité</string>
     <string name="bt_sensitivity_value">%1$d pour cent</string>
-    <string name="bt_keyboard_field">Écrivez sur le téléviseur</string>
+    <string name="bt_keyboard_field">Écrivez sur la TV</string>
     <string name="bt_keyboard_missing">Non envoyés, cette disposition ne peut pas les taper : %1$s</string>
-    <string name="bt_layout">Disposition du clavier sur le téléviseur</string>
+    <string name="bt_layout">Disposition du clavier sur la TV</string>
     <string name="bt_layout_us">QWERTY (US)</string>
     <string name="bt_layout_fr">AZERTY (français)</string>
-    <string name="bt_layout_explain">Le Bluetooth envoie la position des touches, pas les lettres. Choisissez la disposition réglée sur le téléviseur pour ce clavier, sinon les lettres sortent fausses.</string>
+    <string name="bt_layout_explain">Le Bluetooth envoie la position des touches, pas les lettres. Choisissez la disposition réglée sur la TV pour ce clavier, sinon les lettres sortent fausses.</string>
     <string name="bt_key_left">Gauche</string>
     <string name="bt_key_up">Haut</string>
     <string name="bt_key_down">Bas</string>

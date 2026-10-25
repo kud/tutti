@@ -37,12 +37,12 @@
     <string name="editor_profile">Apply automatically</string>
     <string name="editor_profile_value">When %1$s is in front</string>
     <string name="editor_none">None</string>
-    <string name="editor_dock">Put in the dock</string>
+    <string name="editor_dock">Pin to the dock</string>
     <string name="editor_done">Done</string>
     <string name="editor_free_value">Value as the TV spells it</string>
     <string name="scene_starter_cinema">Cinema</string>
     <string name="scene_starter_serie">Evening series</string>
-    <string name="scene_starter_nuit">Night</string>
+    <string name="scene_starter_nuit">Bedtime</string>
     <string name="scene_starter_musique">Music</string>
     <string name="scene_starter_sport">Sport</string>
     <string name="scene_starter_jeu">Game</string>
