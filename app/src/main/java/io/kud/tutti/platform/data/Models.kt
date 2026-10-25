@@ -57,6 +57,12 @@ data class AppPrefs(
      * connect, a stale one still lets + and − work (Erwann, 2026-10-24: "même s'il est faux").
      */
     val lastBarVolume: Int? = null,
+    /** The one-time gesture hints already shown, and the day of the last one. */
+    val hints: HintMemory = HintMemory(),
+    /** His names for the bar's inputs, by `main.input` value; the segment shows them. */
+    val barInputNames: Map<String, String> = emptyMap(),
+    /** Bar inputs left out of the Son sheet's row, by value; the current input always shows. */
+    val hiddenBarInputs: Set<String> = emptySet(),
 ) {
     /** The old switch on reads as [VibrationLevel.ALL], off as [VibrationLevel.OFF]. */
     val vibrationLevel: VibrationLevel
@@ -319,3 +325,15 @@ internal val StoreJson: Json = Json {
     ignoreUnknownKeys = true
     encodeDefaults = true
 }
+
+/**
+ * What the one-time hints remember (discoverability rule 3): every hint already shown, and the
+ * day the last one showed. Shown counts as spent: a hint shows once, ever, so closing it is
+ * permanent by construction.
+ */
+@Serializable
+data class HintMemory(
+    val shown: Set<String> = emptySet(),
+    /** Days since the epoch, local time; null before the first hint. */
+    val lastDay: Long? = null,
+)

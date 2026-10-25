@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The Gestures sheet and its registry (ui/common/Gestures.kt). -->
+    <string name="gestures_title">Gestures</string>
+    <string name="gestures_open">Gestures</string>
+    <string name="gestures_intro">Every hidden gesture in tutti. Each one is a shortcut: what it does is also somewhere you can see.</string>
+    <string name="gestures_surface_remote">Top of the remote</string>
+    <string name="gestures_surface_pad">Pad</string>
+    <string name="gestures_surface_volume">Volume</string>
+    <string name="gestures_surface_keys">Round keys</string>
+    <string name="gestures_surface_dock">Dock</string>
+    <string name="gestures_surface_scenes">Scenes</string>
+    <string name="gestures_surface_sound">Sound sheet</string>
+    <string name="gestures_surface_sheets">Other sheets</string>
+    <string name="gestures_surface_outside">Outside the app</string>
+    <string name="gestures_kind_long_press">Long press</string>
+    <string name="gestures_kind_hold">Hold</string>
+    <string name="gestures_kind_drag">Drag</string>
+    <string name="gestures_kind_swipe">Swipe</string>
+    <string name="gestures_kind_two_finger_tap">Two-finger tap</string>
+    <string name="gestures_kind_two_finger_drag">Two-finger drag</string>
+    <string name="gestures_kind_tap">Tap</string>
+
+    <string name="gesture_power_long">Choose what turns off</string>
+    <string name="gesture_power_long_detail">Long press Power: the TV, the soundbar or both.</string>
+    <string name="gesture_now_showing_long">App actions</string>
+    <string name="gesture_now_showing_long_detail">Long press the On the TV card: pin the app, or close the TV\'s apps.</string>
+    <string name="gesture_pad_hold">Keep moving</string>
+    <string name="gesture_pad_hold_detail">Leave your finger on the pad after a swipe and the step repeats.</string>
+    <string name="gesture_pad_long">Long OK</string>
+    <string name="gesture_pad_long_detail">Long press the pad or OK: the TV\'s own long press, for an app\'s options.</string>
+    <string name="gesture_pad_two_tap">Play or pause</string>
+    <string name="gesture_pad_two_tap_detail">Tap the touchpad with two fingers.</string>
+    <string name="gesture_pad_two_vertical">Soundbar volume</string>
+    <string name="gesture_pad_two_vertical_detail">Drag up or down on the touchpad with two fingers.</string>
+    <string name="gesture_volume_drag">Set the volume</string>
+    <string name="gesture_volume_drag_detail">Drag anywhere on the volume rail.</string>
+    <string name="gesture_volume_hold">Keep turning</string>
+    <string name="gesture_volume_hold_detail">Hold + or − and the volume keeps stepping.</string>
+    <string name="gesture_key_long">Your own action</string>
+    <string name="gesture_key_long_detail">Long press Home, Back or Play: the action you gave it, or pick one the first time.</string>
+    <string name="gesture_mic_hold">Speak to the TV</string>
+    <string name="gesture_mic_hold_detail">Hold the mic key while you talk, let go to send.</string>
+    <string name="gesture_pin_long">Pin menu</string>
+    <string name="gesture_pin_long_detail">Long press a pin: its second action, then Edit.</string>
+    <string name="gesture_dock_swipe">Next page of pins</string>
+    <string name="gesture_dock_swipe_detail">Swipe the dock sideways once it has two pages.</string>
+    <string name="gesture_scene_long">Edit a scene</string>
+    <string name="gesture_scene_long_detail">Long press a scene in the strip.</string>
+    <string name="gesture_bar_input_long">Input menu</string>
+    <string name="gesture_bar_input_long_detail">Long press a soundbar input: rename it, hide it or pin it to the dock.</string>
+    <string name="gesture_bluetooth_long">Pair a device</string>
+    <string name="gesture_bluetooth_long_detail">Long press Bluetooth in Bar input: the soundbar waits for a phone or headphones.</string>
+    <string name="gesture_effect_long">Pin an effect</string>
+    <string name="gesture_effect_long_detail">Long press a sound tile to pin it to the dock.</string>
+    <string name="gesture_choice_long">Pin a setting</string>
+    <string name="gesture_choice_long_detail">Long press a DRC or IMAX choice to pin it to the dock.</string>
+    <string name="gesture_app_tile_long">Pin an app</string>
+    <string name="gesture_app_tile_long_detail">Long press an app in the Apps sheet.</string>
+    <string name="gesture_all_keys_long">Pin a key</string>
+    <string name="gesture_all_keys_long_detail">Long press any key in All keys to pin it to the dock.</string>
+    <string name="gesture_tv_setting_long">Pin a TV setting</string>
+    <string name="gesture_tv_setting_long_detail">Long press a picture mode or sound output in TV settings.</string>
+    <string name="gesture_keyboard_swipe">Close the keyboard</string>
+    <string name="gesture_keyboard_swipe_detail">Swipe the keyboard view down.</string>
+    <string name="gesture_launcher_long">Scenes from the home screen</string>
+    <string name="gesture_launcher_long_detail">Long press the tutti icon: your scenes and the keyboard, without opening the remote first.</string>
+    <string name="gesture_tile_long">Open tutti</string>
+    <string name="gesture_tile_long_detail">Long press the Quick Settings tile.</string>
+
+    <!-- One-time hints. -->
+    <string name="hint_dismiss">Got it</string>
+    <string name="hint_long_press_pin">Long press to pin it to the dock.</string>
+    <string name="hint_bar_input_long">Long press an input to rename, hide or pin it.</string>
+    <string name="hint_gestures">The ? lists every hidden gesture.</string>
+
+    <!-- Pin to dock, everywhere. -->
+    <string name="pin_to_dock">Pin to dock</string>
+    <string name="pin_to_dock_title">Pin “%1$s”</string>
+    <string name="pinned_tag">Pinned</string>
+
+    <!-- Bar input menu. -->
+    <string name="bar_input_menu_title">%1$s</string>
+    <string name="bar_input_pair">Pair a device</string>
+    <string name="bar_input_pair_detail">The soundbar waits for a phone or headphones</string>
+    <string name="bar_input_rename">Rename</string>
+    <string name="bar_input_rename_detail">Only in tutti; the soundbar keeps its name</string>
+    <string name="bar_input_hide">Hide</string>
+    <string name="bar_input_hide_detail">Leaves the row; bring it back in Settings › Soundbar</string>
+    <string name="bar_input_pin_detail">One tap from the remote</string>
+    <string name="bar_input_rename_title">Rename %1$s</string>
+    <string name="bar_input_rename_reset">Original name</string>
+    <string name="save">Save</string>
+    <string name="bar_input_hidden_title">Hidden inputs</string>
+    <string name="bar_input_show">Show %1$s</string>
+    <string name="bar_input_hidden_none">No hidden input</string>
+    <string name="bar_input_long_label">Input menu</string>
+
+    <!-- Launcher shortcuts. -->
+    <string name="shortcut_keyboard">Keyboard</string>
+    <string name="shortcut_keyboard_long">Type on the TV</string>
+    <string name="shortcut_scene_long">Apply %1$s</string>
+</resources>
