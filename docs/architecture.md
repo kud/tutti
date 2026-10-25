@@ -109,6 +109,19 @@ Erwann, 2026-10-25: "clavier, souris, trackpad en mode Bluetooth si besoin", the
 
 **Touchpad and pointer.** Touchpad: finger pixels with a mild acceleration (`TouchpadMotion`), tap = left click, two-finger drag = wheel (one detent per 48 px, natural direction), two-finger tap = right click (Android: Back). Pointer (`AirPointer`, LG Magic Remote style): `TYPE_GYROSCOPE` at `SENSOR_DELAY_GAME`, rotation about the screen's normal moves the cursor sideways, about x up and down; a 0.03 rad/s dead zone (subtracted, so motion starts from zero), an EMA (0.45), 3200 cursor units per radian at sensitivity 1 (0.25 to 3), fractions carried between reports (`MotionAccumulator`), int8 splitting. "Hold to recentre" is the clutch: nothing moves while held, the filter restarts from rest on release. The sensor listener exists only while the Pointer segment is in front and the TV is connected.
 
+## Gentle switch-off timer (decided, Maya, 2026-10-25; app side not built yet)
+
+Iris's top 10, item 5: "turn off in 15/30/45/60/90 min", the bar's volume stepping down over the last two minutes, then the TV and the bar off. The timing is pure and tested in `:protocol` (`sleep/SleepFade.kt`): phases, the stepped level, "a hand on the rail wins" (the fade only ever lowers), the next wake-up, and the level to restore on a cancel mid-fade.
+
+The phone side, chosen with Android 14+ in mind:
+
+- **A `connectedDevice` foreground service for the whole timer**, started from the Power sheet while tutti is in front (always allowed). Its notification is the timer: "Off at 23:40", a countdown chronometer (`setUsesChronometer` + `setChronometerCountDown`, so nothing redraws it) and Cancel. The type fits Play's definition (it drives LAN devices) and needs `FOREGROUND_SERVICE_CONNECTED_DEVICE` plus one prerequisite permission, which `CHANGE_WIFI_MULTICAST_STATE` already is. It holds **no wake lock while waiting**: an idle service costs next to nothing.
+- **An exact alarm wakes it at the fade's start** (`setExactAndAllowWhileIdle`, which fires through Doze), guarded by `canScheduleExactAlarms()`. tutti asks for `SCHEDULE_EXACT_ALARM`, the user-granted one; never `USE_EXACT_ALARM`, which Play reserves for alarm and calendar apps. On Android 14+ that permission is off by default for new installs, so the sheet offers the system page that grants it.
+- **The fade itself runs under a partial wake lock** capped at 3 minutes: twelve steps ten seconds apart, then Power off for both, then the service stops. Every step is LAN-only, through the controller's existing sockets.
+- **Without exact alarms**, tutti falls back to `setAndAllowWhileIdle`, which Doze may defer by several minutes, and the sheet says so in words ("may switch off a few minutes late"). If the process was killed and the alarm restarts it, the service starts from the alarm (an exact alarm exempts it from the background-start ban); after a reboot the timer is gone and the notification with it, which is honest.
+- **The TV's own sleep timer is not the backstop**: Sony documents no setter, only an IRCC key that cycles steps the TV shows on screen, so tutti can't set a known duration through it.
+- **Unverified**: the fade and off on a real phone in Doze, the bar's response to a step every ten seconds, and the phone keeping Wi-Fi through Doze (an app with a foreground service keeps network access).
+
 ## Verified vs not
 
 | Item | Status |
