@@ -43,6 +43,12 @@ interface QuickControls {
     /** Play/pause on the TV, over the remote link. */
     suspend fun playPause() {}
 
+    /**
+     * Turns the room off (TV and bar), never on: the notification's "Turn off", offered only
+     * while the TV is on and only once the phone is unlocked.
+     */
+    suspend fun powerOff() {}
+
     suspend fun applyScene(id: String)
 }
 

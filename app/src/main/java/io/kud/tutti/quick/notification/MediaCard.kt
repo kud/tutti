@@ -14,8 +14,11 @@ import io.kud.tutti.quick.VolumeTarget
  * volume keys map onto the bar (or the TV).
  */
 
-/** The buttons, in the order they sit on the expanded notification. */
-enum class MediaAction { PLAY_PAUSE, VOLUME_DOWN, MUTE, VOLUME_UP }
+/**
+ * The buttons, in the order they sit on the expanded notification. [TURN_OFF] is last, never in
+ * the collapsed view, and only ever runs once the phone is unlocked ([turnOffInSession]).
+ */
+enum class MediaAction { PLAY_PAUSE, VOLUME_DOWN, MUTE, VOLUME_UP, TURN_OFF }
 
 /**
  * Indexes into [MediaAction.entries] for the collapsed view (Android 12 and older):
@@ -34,6 +37,8 @@ sealed interface MediaCommand {
     data object Unmute : MediaCommand
     /** A key to the TV over the remote link (play/pause is always the TV's). */
     data class TvKey(val keyCode: Int) : MediaCommand
+    /** The room off (TV and bar), never on. */
+    data object TurnOff : MediaCommand
 }
 
 fun commandFor(action: MediaAction): MediaCommand = when (action) {
@@ -41,7 +46,16 @@ fun commandFor(action: MediaAction): MediaCommand = when (action) {
     MediaAction.VOLUME_DOWN -> MediaCommand.Step(-1)
     MediaAction.MUTE -> MediaCommand.ToggleMute
     MediaAction.VOLUME_UP -> MediaCommand.Step(+1)
+    MediaAction.TURN_OFF -> MediaCommand.TurnOff
 }
+
+/**
+ * Android 13+ draws the media controls from the session's custom actions, which run with no
+ * unlock at all, on the lock screen too. So "Turn off" joins them only while the phone is
+ * unlocked: on the lock screen the controls keep play/pause, volume and mute, and it comes back
+ * with the unlock. The notification's own action (Android 12 and older) asks for the unlock instead.
+ */
+fun turnOffInSession(locked: Boolean): Boolean = !locked
 
 /** `android.media.AudioManager` adjust directions, copied so this file stays plain Kotlin. */
 object AdjustDirection {
@@ -118,11 +132,13 @@ data class MediaCard(
     val guardHeld: Int? = null,
     /** What Cast reports playing; null keeps today's metadata. Personal viewing data: never logged. */
     val cast: CastNowPlaying? = null,
+    /** The session offers "Turn off" (the phone is unlocked; see [turnOffInSession]). */
+    val turnOff: Boolean = false,
 ) {
     val muted: Boolean get() = level?.muted == true
 }
 
-fun cardFor(state: QuickState): MediaCard = MediaCard(
+fun cardFor(state: QuickState, locked: Boolean = true): MediaCard = MediaCard(
     appLabel = state.nowShowing?.label,
     appPackage = state.nowShowing?.packageName,
     appIconPath = state.nowShowing?.iconPath,
@@ -133,6 +149,7 @@ fun cardFor(state: QuickState): MediaCard = MediaCard(
     remote = remoteVolumeFor(state.level),
     guardHeld = state.guardLine?.takeIf { state.guardHeld },
     cast = state.cast,
+    turnOff = turnOffInSession(locked),
 )
 
 /**

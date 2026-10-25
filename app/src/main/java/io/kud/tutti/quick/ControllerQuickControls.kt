@@ -1,6 +1,7 @@
 package io.kud.tutti.quick
 
 import io.kud.tutti.controller.Link
+import io.kud.tutti.controller.PowerTarget
 import io.kud.tutti.controller.TuttiController
 import io.kud.tutti.controller.TuttiEvent
 import io.kud.tutti.controller.TuttiUiState
@@ -51,6 +52,11 @@ class ControllerQuickControls @Inject constructor(
      * It waits until power is known, or every configured link has had its first say.
      */
     override suspend fun togglePower() = held(until = ::powerSettled) { controller.power() }
+
+    /** Off only: the notification's "Turn off" never wakes a room that went off meanwhile. */
+    override suspend fun powerOff() = held(until = ::powerSettled) {
+        if (controller.state.value.powered != false) controller.power(PowerTarget.BOTH, false)
+    }
 
     override suspend fun volumeUp() = step(+1)
 

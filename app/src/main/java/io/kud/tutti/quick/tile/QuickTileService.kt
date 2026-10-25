@@ -47,8 +47,9 @@ class QuickTileService : TileService() {
 
     override fun onClick() {
         super.onClick()
-        // Volume is harmless, but the overlay also has Power and scenes: ask for the unlock first.
-        if (isLocked) unlockAndRun { openOverlay() } else openOverlay()
+        // Locked, the overlay opens over the lock screen with play/pause, volume and mute only;
+        // Power and scenes wait for the unlock (QuickOverlayActivity).
+        openOverlay()
     }
 
     private fun openOverlay() {

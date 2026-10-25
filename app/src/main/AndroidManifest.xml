@@ -94,6 +94,15 @@
             android:taskAffinity=""
             android:theme="@style/quick_OverlayTheme" />
 
+        <!-- The notification's "Turn off": no window, only the unlock prompt, then the room off. -->
+        <activity
+            android:name=".quick.lock.QuickTurnOffActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:theme="@style/quick_OverlayTheme" />
+
         <service
             android:name=".quick.tile.QuickTileService"
             android:exported="true"

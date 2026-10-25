@@ -98,6 +98,25 @@ class MediaCardTest {
         assertEquals(MediaCommand.Step(-1), commandFor(MediaAction.VOLUME_DOWN))
         assertEquals(MediaCommand.ToggleMute, commandFor(MediaAction.MUTE))
         assertEquals(MediaCommand.Step(+1), commandFor(MediaAction.VOLUME_UP))
+        assertEquals(MediaCommand.TurnOff, commandFor(MediaAction.TURN_OFF))
+    }
+
+    @Test
+    fun `turn off is last and never in the compact view`() {
+        assertEquals(MediaAction.TURN_OFF, MediaAction.entries.last())
+        assertFalse(COMPACT_ACTIONS.any { MediaAction.entries[it] == MediaAction.TURN_OFF })
+    }
+
+    @Test
+    fun `the session offers turn off only while the phone is unlocked`() {
+        assertFalse(turnOffInSession(locked = true))
+        assertTrue(turnOffInSession(locked = false))
+        val state = QuickState(connected = true, power = true)
+        assertFalse(cardFor(state).turnOff)
+        assertFalse(cardFor(state, locked = true).turnOff)
+        assertTrue(cardFor(state, locked = false).turnOff)
+        // Locking changes the card, so the session is re-posted without it.
+        assertTrue(cardFor(state, locked = true) != cardFor(state, locked = false))
     }
 
     @Test

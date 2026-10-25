@@ -11,7 +11,8 @@ class QuickNotificationReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         QuickRuntime.start(context)
         val action = intent.action?.let(::mediaAction)
-        if (action == null) return
+        // Turn off never comes this way: it goes through QuickTurnOffActivity and the unlock.
+        if (action == null || action == MediaAction.TURN_OFF) return
         val pending = goAsync()
         val job = QuickRuntime.act(context) {
             // goAsync allows ~10 s; quick actions are optimistic and return far sooner.
@@ -25,6 +26,8 @@ class QuickNotificationReceiver : BroadcastReceiver() {
         const val ACTION_VOLUME_DOWN = "io.kud.tutti.quick.action.VOLUME_DOWN"
         const val ACTION_MUTE = "io.kud.tutti.quick.action.MUTE"
         const val ACTION_PLAY_PAUSE = "io.kud.tutti.quick.action.PLAY_PAUSE"
+        /** The session's custom action only; the notification's button starts QuickTurnOffActivity. */
+        const val ACTION_TURN_OFF = "io.kud.tutti.quick.action.TURN_OFF"
         private const val ACTION_TIMEOUT_MS = 8_000L
 
         /** One string per button, shared by the notification's intents and the session's custom actions. */
@@ -33,6 +36,7 @@ class QuickNotificationReceiver : BroadcastReceiver() {
             MediaAction.VOLUME_DOWN -> ACTION_VOLUME_DOWN
             MediaAction.MUTE -> ACTION_MUTE
             MediaAction.VOLUME_UP -> ACTION_VOLUME_UP
+            MediaAction.TURN_OFF -> ACTION_TURN_OFF
         }
 
         fun mediaAction(value: String): MediaAction? =

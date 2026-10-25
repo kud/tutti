@@ -29,6 +29,9 @@ import io.kud.tutti.quick.QuickControls
 import io.kud.tutti.quick.QuickPreferences
 import io.kud.tutti.quick.QuickRuntime
 import io.kud.tutti.quick.VolumeTarget
+import io.kud.tutti.quick.lock.QuickTurnOffActivity
+import io.kud.tutti.quick.lock.keyguardLocked
+import io.kud.tutti.quick.lock.keyguardLockedFlow
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
@@ -38,7 +41,8 @@ import kotlinx.coroutines.withContext
 
 /**
  * The ongoing media-style control notification: what the TV is showing, then
- * play/pause, volume −, mute and volume +, on the lock screen too. Shown only
+ * play/pause, volume −, mute and volume +, on the lock screen too, and "Turn off"
+ * once the phone is unlocked. Shown only
  * while the TV is on, the controller is connected and the user has it enabled.
  *
  * Backed by a framework [MediaSession] (no androidx.media dependency: minSdk 29
@@ -85,8 +89,8 @@ object QuickNotifications {
         var live: Live? = null
         var lastPost: Long? = null
         try {
-            combine(controls.state, preferences.notificationEnabled) { state, enabled ->
-                state.takeIf { enabled && it.connected && it.power }?.let(::cardFor)
+            combine(controls.state, preferences.notificationEnabled, keyguardLockedFlow(context)) { state, enabled, locked ->
+                state.takeIf { enabled && it.connected && it.power }?.let { cardFor(it, locked) }
             }
                 .distinctUntilChanged()
                 .collectLatest { card ->
@@ -136,6 +140,8 @@ object QuickNotifications {
 
                 override fun onCustomAction(action: String, extras: Bundle?) {
                     val media = QuickNotificationReceiver.mediaAction(action) ?: return
+                    // Offered only while unlocked; a tap racing the lock is dropped, never sent locked.
+                    if (media == MediaAction.TURN_OFF && context.keyguardLocked()) return
                     send(context, commandFor(media))
                 }
             })
@@ -178,6 +184,7 @@ object QuickNotifications {
                 .addCustomAction(customAction(context, MediaAction.VOLUME_DOWN, card))
                 .addCustomAction(customAction(context, MediaAction.VOLUME_UP, card))
                 .addCustomAction(customAction(context, MediaAction.MUTE, card))
+                .apply { if (card.turnOff) addCustomAction(customAction(context, MediaAction.TURN_OFF, card)) }
                 .build(),
         )
 
@@ -237,6 +244,7 @@ object QuickNotifications {
         // The icon shows the state (a struck speaker while muted); the label says what a tap does.
         MediaAction.MUTE -> if (card.muted) R.drawable.quick_ic_volume_off else R.drawable.quick_ic_volume_up
         MediaAction.VOLUME_UP -> R.drawable.quick_ic_add
+        MediaAction.TURN_OFF -> R.drawable.quick_ic_power
     }
 
     private fun actionLabel(context: Context, action: MediaAction, card: MediaCard): String = context.getString(
@@ -245,6 +253,7 @@ object QuickNotifications {
             MediaAction.VOLUME_DOWN -> R.string.quick_notification_volume_down
             MediaAction.MUTE -> if (card.muted) R.string.quick_notification_unmute else R.string.quick_notification_mute
             MediaAction.VOLUME_UP -> R.string.quick_notification_volume_up
+            MediaAction.TURN_OFF -> R.string.quick_notification_turn_off
         },
     )
 
@@ -273,13 +282,21 @@ object QuickNotifications {
                     .setShowActionsInCompactView(*COMPACT_ACTIONS),
             )
         MediaAction.entries.forEachIndexed { index, action ->
-            builder.addAction(
-                Notification.Action.Builder(
-                    Icon.createWithResource(context, actionIcon(action, card)),
-                    actionLabel(context, action, card),
-                    pendingAction(context, QuickNotificationReceiver.intentAction(action), index + 1),
-                ).build(),
+            val intent = if (action == MediaAction.TURN_OFF) {
+                turnOffIntent(context)
+            } else {
+                pendingAction(context, QuickNotificationReceiver.intentAction(action), index + 1)
+            }
+            val button = Notification.Action.Builder(
+                Icon.createWithResource(context, actionIcon(action, card)),
+                actionLabel(context, action, card),
+                intent,
             )
+            // Turn off asks for the unlock on the lock screen; the rest work without it.
+            if (action == MediaAction.TURN_OFF && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                button.setAuthenticationRequired(true)
+            }
+            builder.addAction(button.build())
         }
         card.sceneColor?.let { builder.setColor(it.toInt()) }
         return builder.build()
@@ -305,6 +322,19 @@ object QuickNotifications {
         PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
     )
 
+    /**
+     * An activity, not a broadcast: from the lock screen the platform asks for the unlock before
+     * starting it, and [QuickTurnOffActivity] asks again if it still lands over the lock screen.
+     */
+    private fun turnOffIntent(context: Context): PendingIntent = PendingIntent.getActivity(
+        context,
+        TURN_OFF_REQUEST,
+        Intent(context, QuickTurnOffActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+    )
+
+    private const val TURN_OFF_REQUEST = 0x70FF
+
     private fun pendingAction(context: Context, action: String, requestCode: Int): PendingIntent =
         PendingIntent.getBroadcast(
             context,
@@ -323,5 +353,6 @@ internal suspend fun QuickControls.perform(command: MediaCommand) {
         MediaCommand.Mute -> if (state.value.level?.muted != true) toggleMute()
         MediaCommand.Unmute -> if (state.value.level?.muted == true) toggleMute()
         is MediaCommand.TvKey -> playPause()
+        MediaCommand.TurnOff -> powerOff()
     }
 }
