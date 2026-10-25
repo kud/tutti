@@ -102,6 +102,17 @@ object VolumeRules {
         }
     }
 
+    /**
+     * The levels a volume move is felt crossing, with a firmer tick than a step's (Iris,
+     * 2026-10-25): the saved levels, the guard's line while the guard is on (unlocked or not: it
+     * still marks where loud starts) and tonight's cap. Only 1..99, since 0 and 100 are walls.
+     */
+    fun landmarks(presets: List<Int?>, guard: VolumeGuardState, tonight: Int?): List<Int> =
+        (presets.filterNotNull() + listOfNotNull(guard.threshold.takeIf { guard.enabled }, tonight))
+            .filter { it in 1 until TuttiController.MAX_VOLUME }
+            .distinct()
+            .sorted()
+
     /** Always [PRESET_SLOTS] slots, whatever was stored. */
     fun presets(stored: List<Int?>): List<Int?> = List(PRESET_SLOTS) { stored.getOrNull(it) }
 

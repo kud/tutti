@@ -38,4 +38,27 @@ class VolumeStepsTest {
             }
         }
     }
+
+    @Test
+    fun `arriving on or jumping over a landmark is a detent, leaving one is not`() {
+        val marks = listOf(24, 40)
+        assertTrue(VolumeSteps.crosses(23, 24, marks))
+        assertTrue(VolumeSteps.crosses(25, 24, marks))
+        assertTrue(VolumeSteps.crosses(20, 30, marks))
+        assertTrue(VolumeSteps.crosses(45, 38, marks))
+        assertFalse(VolumeSteps.crosses(24, 25, marks))
+        assertFalse(VolumeSteps.crosses(24, 23, marks))
+        assertFalse(VolumeSteps.crosses(24, 24, marks))
+        assertFalse(VolumeSteps.crosses(10, 20, marks))
+    }
+
+    @Test
+    fun `the wall stays the bump even on a landmark, and an unknown start only ticks`() {
+        val marks = listOf(30, 60)
+        assertEquals(StepFeel.DETENT, VolumeSteps.feel(29, 30, 100, marks))
+        assertEquals(StepFeel.TICK, VolumeSteps.feel(30, 31, 100, marks))
+        assertEquals(StepFeel.WALL, VolumeSteps.feel(59, 60, 60, marks))
+        assertEquals(StepFeel.WALL, VolumeSteps.feel(1, 0, 100, listOf(0)))
+        assertEquals(StepFeel.TICK, VolumeSteps.feel(null, 30, 100, marks))
+    }
 }

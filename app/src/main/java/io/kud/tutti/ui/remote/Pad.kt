@@ -111,6 +111,8 @@ fun Pad(
     modifier: Modifier = Modifier,
     volume: Int? = null,
     volumeCap: Int? = null,
+    /** Levels a two-finger step feels as a detent ([io.kud.tutti.controller.TuttiUiState.volumeLandmarks]). */
+    volumeLandmarks: List<Int> = emptyList(),
     /** The switch's corner: top-left for a right-hand layout (the rail on the left), else top-right. */
     switchOnLeft: Boolean = false,
     /**
@@ -133,6 +135,7 @@ fun Pad(
     val skip by rememberUpdatedState(onSkip)
     val currentVolume by rememberUpdatedState(volume)
     val currentCap by rememberUpdatedState(volumeCap)
+    val currentLandmarks by rememberUpdatedState(volumeLandmarks)
     var tagVisible by remember { mutableStateOf(false) }
     var tagLevel by remember { mutableIntStateOf(0) }
     // The skip tag's running count of steps, signed ("Skip back ×3"); null while the tag shows a volume.
@@ -178,7 +181,11 @@ fun Pad(
         val base = (if (tagVisible) tagLevel else null) ?: currentVolume ?: return
         val ceiling = currentCap ?: TuttiController.MAX_VOLUME
         val next = VolumeSteps.step(base, delta, ceiling)
-        if (VolumeSteps.ticks(next, ceiling)) haptics.tick()
+        when (VolumeSteps.feel(base, next, ceiling, currentLandmarks)) {
+            StepFeel.DETENT -> haptics.detent()
+            StepFeel.TICK -> haptics.tick()
+            StepFeel.WALL -> Unit
+        }
         tagLevel = next
         tagSkip = null
         showTag()

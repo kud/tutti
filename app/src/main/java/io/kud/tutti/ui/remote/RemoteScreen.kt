@@ -581,6 +581,7 @@ fun RemoteScreen(
                                 },
                                 volume = state.volume.takeIf { state.bar.connected },
                                 volumeCap = state.volumeCap,
+                                volumeLandmarks = state.volumeLandmarks,
                                 switchOnLeft = layout.hand.switchOnLeft,
                                 modifier = m
                                     .semantics { traversalIndex = 0f }
@@ -612,6 +613,7 @@ fun RemoteScreen(
                                 onMute = controller::toggleMute,
                                 modifier = Modifier.semantics { traversalIndex = 1f },
                                 guardLine = state.volumeGuardLine,
+                                landmarks = state.volumeLandmarks,
                                 onOpenLevel = {
                                     haptics.click()
                                     volumeSheet = true

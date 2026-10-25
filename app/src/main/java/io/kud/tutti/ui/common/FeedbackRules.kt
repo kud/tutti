@@ -13,6 +13,12 @@ enum class FeedbackEvent {
     /** A D-pad direction, a touchpad or volume step, a scene apply step, a drag slot crossed. */
     STEP,
 
+    /**
+     * A volume move crossed a landmark: a saved level, the high-volume guard's line, tonight's cap.
+     * Firmer than [STEP] and plays instead of it, so a level is found blind, in the dark.
+     */
+    DETENT,
+
     /** A toggle or selection changed: a tile, a switch, the pad mode. */
     SELECT,
 
@@ -33,14 +39,14 @@ enum class FeedbackEvent {
 }
 
 /** The haptic a [FeedbackEvent] plays; [Feedback] maps each to an API-guarded constant. */
-enum class HapticPattern { CLICK, TICK, SELECT, LONG_PRESS, BUMP, CONFIRM, REJECT, DOUBLE_PULSE }
+enum class HapticPattern { CLICK, TICK, DETENT, SELECT, LONG_PRESS, BUMP, CONFIRM, REJECT, DOUBLE_PULSE }
 
 /** What one event plays, after the user's settings: a haptic or none, and the platform click or not. */
 data class FeedbackPlan(val haptic: HapticPattern?, val sound: Boolean)
 
 /**
  * The rule table, kept free of Android so it is unit-tested. "Essentials only" drops the
- * per-key click and the per-step tick and keeps state changes, walls and outcomes. The click
+ * per-key click and the per-step tick and keeps state changes, walls, detents and outcomes. The click
  * sound plays only on a discrete key press: never on steps, swipes, the volume rail or outcomes.
  * Neither ever overrides Android: the system's own touch vibration and touch sounds switches
  * still apply on top, in [Feedback].
@@ -49,6 +55,7 @@ object FeedbackRules {
     fun haptic(event: FeedbackEvent): HapticPattern = when (event) {
         FeedbackEvent.KEY -> HapticPattern.CLICK
         FeedbackEvent.STEP -> HapticPattern.TICK
+        FeedbackEvent.DETENT -> HapticPattern.DETENT
         FeedbackEvent.SELECT -> HapticPattern.SELECT
         FeedbackEvent.LONG_PRESS -> HapticPattern.LONG_PRESS
         FeedbackEvent.BUMP -> HapticPattern.BUMP

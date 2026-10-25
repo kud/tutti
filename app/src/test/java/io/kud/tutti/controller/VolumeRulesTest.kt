@@ -120,4 +120,11 @@ class VolumeRulesTest {
         assertEquals(99, VolumeRules.threshold(100))
         assertEquals(30, VolumeRules.threshold(30))
     }
+
+    @Test
+    fun `landmarks are the saved levels, the guard's line while it is on and tonight's cap`() {
+        assertEquals(listOf(12, 20, 30, 45), VolumeRules.landmarks(listOf(45, null, 12), armed, tonight = 20))
+        assertEquals(listOf(30), VolumeRules.landmarks(listOf(30, 30), armed.copy(unlocked = true), tonight = null))
+        assertEquals(listOf(12), VolumeRules.landmarks(listOf(12, 0, 100), armed.copy(enabled = false), tonight = null))
+    }
 }

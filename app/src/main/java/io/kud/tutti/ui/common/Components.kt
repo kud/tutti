@@ -198,7 +198,8 @@ private val TAG_GAP = 8.dp
 fun ValueTag(text: String, modifier: Modifier = Modifier) {
     Text(
         text = text,
-        style = MaterialTheme.typography.labelLarge,
+        // "Vol 24": tabular, so the tag holds its width while two fingers step through levels.
+        style = MaterialTheme.typography.labelLarge.tabular(),
         color = MaterialTheme.colorScheme.inverseOnSurface,
         maxLines = 1,
         modifier = modifier

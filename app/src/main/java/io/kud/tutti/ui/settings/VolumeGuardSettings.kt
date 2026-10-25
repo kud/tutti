@@ -23,6 +23,7 @@ import io.kud.tutti.ui.common.RevealRow
 import io.kud.tutti.ui.common.SettingsRow
 import io.kud.tutti.ui.common.SwitchRow
 import io.kud.tutti.ui.common.rememberHaptics
+import io.kud.tutti.ui.common.tabular
 
 /**
  * Settings › Volume: the high-volume guard (Erwann, 2026-10-25), on by default at 30 on the bar's
@@ -57,7 +58,7 @@ internal fun VolumeGuardRows(prefs: AppPrefs, onChange: (enabled: Boolean, level
                         ) { Icon(painterResource(R.drawable.ic_remove), contentDescription = stringResource(R.string.settings_guard_down)) }
                         Text(
                             level.toString(),
-                            style = MaterialTheme.typography.titleMedium,
+                            style = MaterialTheme.typography.titleMedium.tabular(),
                             textAlign = TextAlign.Center,
                             // The row's detail already says it, with its scale.
                             modifier = Modifier.width(32.dp).clearAndSetSemantics { },

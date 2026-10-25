@@ -241,6 +241,8 @@ data class TuttiUiState(
     val tonightCap: io.kud.tutti.platform.data.TonightCap? = null,
     /** Where the high-volume guard stops a change right now, or null ([VolumeRules.guardLine]). */
     val volumeGuardLine: Int? = null,
+    /** Levels a volume move is felt crossing: saved levels, the guard's line, tonight's cap ([VolumeRules.landmarks]). */
+    val volumeLandmarks: List<Int> = emptyList(),
     /** The guard's question, while it waits for an answer. */
     val volumeAsk: VolumeAsk? = null,
     /** A quick surface was stopped at the guard: they say going above needs the app. */

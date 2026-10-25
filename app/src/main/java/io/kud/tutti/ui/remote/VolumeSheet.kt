@@ -22,6 +22,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Slider
@@ -67,6 +68,7 @@ import io.kud.tutti.ui.common.PinnedHeader
 import io.kud.tutti.ui.common.TuttiMenu
 import io.kud.tutti.ui.common.TuttiSheet
 import io.kud.tutti.ui.common.rememberHaptics
+import io.kud.tutti.ui.common.tabular
 import java.time.ZoneId
 import java.util.Date
 
@@ -134,7 +136,7 @@ fun VolumeSheet(
                 } else {
                     Text(
                         if (volume != null) stringResource(R.string.volume_sheet_now, volume) else stringResource(R.string.volume_sheet_now_unknown),
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = MaterialTheme.typography.bodyMedium.tabular(),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
                     )
@@ -149,8 +151,9 @@ fun VolumeSheet(
                     large = true,
                     onChange = {
                         touched = true
+                        // A saved level, the guard's line or tonight's cap is a detent, as on the rail.
+                        if (VolumeSteps.crosses(draft, it, state.volumeLandmarks)) haptics.detent() else haptics.tick()
                         draft = it
-                        haptics.tick()
                     },
                 )
                 Slider(
@@ -158,7 +161,9 @@ fun VolumeSheet(
                     onValueChange = {
                         touched = true
                         val next = it.toInt()
-                        if (next != draft) haptics.tick()
+                        if (next != draft) {
+                            if (VolumeSteps.crosses(draft, next, state.volumeLandmarks)) haptics.detent() else haptics.tick()
+                        }
                         draft = next
                     },
                     valueRange = 0f..ceiling.toFloat().coerceAtLeast(1f),
@@ -179,6 +184,7 @@ fun VolumeSheet(
                 ) {
                     Text(
                         if (target == volume) stringResource(R.string.volume_sheet_already, target) else stringResource(R.string.volume_sheet_set, target),
+                        style = LocalTextStyle.current.tabular(),
                     )
                 }
 
@@ -219,7 +225,7 @@ fun VolumeSheet(
                 }
                 if (tonight != null) {
                     val time = android.text.format.DateFormat.getTimeFormat(context).format(Date(tonight.until))
-                    Text(stringResource(R.string.volume_cap_active, tonight.level, time), style = MaterialTheme.typography.bodyLarge)
+                    Text(stringResource(R.string.volume_cap_active, tonight.level, time), style = MaterialTheme.typography.bodyLarge.tabular())
                     OutlinedButton(
                         onClick = {
                             haptics.select()
@@ -277,7 +283,7 @@ fun VolumeSheet(
                             onCap(capLevel, VolumeRules.capUntil(System.currentTimeMillis(), ZoneId.systemDefault(), until))
                         },
                         modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
-                    ) { Text(stringResource(R.string.volume_cap_set, capLevel)) }
+                    ) { Text(stringResource(R.string.volume_cap_set, capLevel), style = LocalTextStyle.current.tabular()) }
                 }
             }
         }
@@ -323,7 +329,7 @@ private fun LevelStepper(
         }
         Text(
             value.toString(),
-            style = if (large) MaterialTheme.typography.displaySmall else MaterialTheme.typography.headlineSmall,
+            style = (if (large) MaterialTheme.typography.displaySmall else MaterialTheme.typography.headlineSmall).tabular(),
             fontWeight = FontWeight.SemiBold,
             textAlign = TextAlign.Center,
             color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -397,9 +403,9 @@ private fun PresetTile(
         Column(clickable.padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
             when {
                 level != null -> {
-                    Text(level.toString(), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold, color = scheme.onSecondaryContainer)
+                    Text(level.toString(), style = MaterialTheme.typography.headlineSmall.tabular(), fontWeight = FontWeight.SemiBold, color = scheme.onSecondaryContainer)
                 }
-                current != null -> Text(stringResource(R.string.volume_preset_empty, current), style = MaterialTheme.typography.labelLarge, textAlign = TextAlign.Center)
+                current != null -> Text(stringResource(R.string.volume_preset_empty, current), style = MaterialTheme.typography.labelLarge.tabular(), textAlign = TextAlign.Center)
                 else -> Text(stringResource(R.string.volume_preset_empty_unknown), style = MaterialTheme.typography.labelLarge, color = scheme.onSurfaceVariant)
             }
         }

@@ -847,6 +847,7 @@ class TuttiController @Inject constructor(
             sceneVolumeCap = sceneCap,
             tonightCap = tonight,
             volumeGuardLine = VolumeRules.guardLine(guardState, volume, cap ?: MAX_VOLUME).takeIf { l.bar.connected },
+            volumeLandmarks = VolumeRules.landmarks(s.prefs.volumePresets, guardState, tonight?.level),
             volumeAsk = v.guard.ask,
             volumeGuardNotice = v.guard.notice,
             sceneUndo = v.undo?.takeIf { !it.stale(SystemClock.elapsedRealtime(), active, powered) },

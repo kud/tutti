@@ -67,6 +67,7 @@ import io.kud.tutti.quick.overlayRail
 import io.kud.tutti.quick.quickControls
 import io.kud.tutti.ui.common.FeedbackPrefs
 import io.kud.tutti.ui.common.LocalFeedbackPrefs
+import io.kud.tutti.ui.common.tabular
 import io.kud.tutti.ui.common.rememberFeedback
 import io.kud.tutti.ui.theme.TuttiTheme
 import kotlinx.coroutines.Job
@@ -361,7 +362,7 @@ private fun VolumeRow(
         }
         Text(
             text = shown?.roundToInt()?.toString() ?: "–",
-            style = MaterialTheme.typography.titleMedium,
+            style = MaterialTheme.typography.titleMedium.tabular(),
             modifier = Modifier.width(32.dp),
         )
         val muteLabel = stringResource(

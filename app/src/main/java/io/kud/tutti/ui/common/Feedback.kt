@@ -45,6 +45,8 @@ class Feedback internal constructor(private val view: View, private val prefs: F
 
     fun tick() = perform(FeedbackEvent.STEP)
 
+    fun detent() = perform(FeedbackEvent.DETENT)
+
     fun select() = perform(FeedbackEvent.SELECT)
 
     fun click() = perform(FeedbackEvent.KEY)
@@ -66,6 +68,11 @@ class Feedback internal constructor(private val view: View, private val prefs: F
             HapticPattern.CLICK -> view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
             HapticPattern.TICK -> view.performHapticFeedback(
                 if (modern) HapticFeedbackConstants.SEGMENT_FREQUENT_TICK else HapticFeedbackConstants.CLOCK_TICK,
+            )
+            // The segment tick is the frequent tick's firmer sibling; before API 34, the virtual key's
+            // click against the clock tick. Neither is a wall's bump.
+            HapticPattern.DETENT -> view.performHapticFeedback(
+                if (modern) HapticFeedbackConstants.SEGMENT_TICK else HapticFeedbackConstants.VIRTUAL_KEY,
             )
             HapticPattern.SELECT -> view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
             HapticPattern.LONG_PRESS -> view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)

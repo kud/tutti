@@ -65,6 +65,7 @@ import io.kud.tutti.R
 import io.kud.tutti.controller.TuttiController
 import io.kud.tutti.ui.common.LocalReducedMotion
 import io.kud.tutti.ui.common.rememberHaptics
+import io.kud.tutti.ui.common.tabular
 import io.kud.tutti.ui.motion.Motion
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
@@ -110,9 +111,12 @@ fun VolumeRail(
     guardLine: Int? = null,
     /** A tap on the level's number opens the volume sheet (exact level, saved levels, cap for tonight). */
     onOpenLevel: (() -> Unit)? = null,
+    /** Levels felt as a detent rather than a tick ([TuttiUiState.volumeLandmarks]). */
+    landmarks: List<Int> = emptyList(),
 ) {
     val haptics = rememberHaptics()
     val currentGuard by rememberUpdatedState(guardLine)
+    val currentLandmarks by rememberUpdatedState(landmarks)
     var dragLevel by remember { mutableStateOf<Int?>(null) }
     var railHeight by remember { mutableIntStateOf(0) }
     val currentVolume by rememberUpdatedState(volume)
@@ -157,7 +161,10 @@ fun VolumeRail(
         val now = currentVolume ?: return@step
         val ceiling = wallFor(currentCap, currentGuard, now)
         val next = VolumeSteps.step(now, delta, ceiling)
-        if (VolumeSteps.ticks(next, ceiling)) {
+        val feel = VolumeSteps.feel(now, next, ceiling, currentLandmarks)
+        if (feel == StepFeel.DETENT) {
+            haptics.detent()
+        } else if (feel == StepFeel.TICK) {
             haptics.tick()
         } else if (!reduced) {
             stretchOrigin = if (next <= 0) 0f else 1f
@@ -247,9 +254,13 @@ fun VolumeRail(
                                 setVolume(wanted)
                             }
                             if (level != dragLevel) {
+                                val from = dragLevel ?: start
                                 dragLevel = level
                                 onCap = currentCap != null && level == ceiling
-                                if (VolumeSteps.ticks(level, wall)) {
+                                val feel = VolumeSteps.feel(from, level, wall, currentLandmarks)
+                                if (feel == StepFeel.DETENT) {
+                                    haptics.detent()
+                                } else if (feel == StepFeel.TICK) {
                                     haptics.tick()
                                 } else if (!reduced) {
                                     // Against a wall: stretch away from it and spring back.
@@ -336,7 +347,8 @@ fun VolumeRail(
                     ) {
                         Text(
                             text = text,
-                            style = MaterialTheme.typography.titleLarge,
+                            // Tabular figures: the number keeps its width while a drag runs through it.
+                            style = MaterialTheme.typography.titleLarge.tabular(),
                             fontWeight = FontWeight.SemiBold,
                             color = when {
                                 shown == null -> scheme.onSurfaceVariant

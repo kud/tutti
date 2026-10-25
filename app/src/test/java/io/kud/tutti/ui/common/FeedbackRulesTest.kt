@@ -3,6 +3,7 @@ package io.kud.tutti.ui.common
 import io.kud.tutti.platform.data.VibrationLevel
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -13,6 +14,7 @@ class FeedbackRulesTest {
         val table = mapOf(
             FeedbackEvent.KEY to HapticPattern.CLICK,
             FeedbackEvent.STEP to HapticPattern.TICK,
+            FeedbackEvent.DETENT to HapticPattern.DETENT,
             FeedbackEvent.SELECT to HapticPattern.SELECT,
             FeedbackEvent.LONG_PRESS to HapticPattern.LONG_PRESS,
             FeedbackEvent.BUMP to HapticPattern.BUMP,
@@ -36,6 +38,14 @@ class FeedbackRulesTest {
                 assertEquals(event.name, FeedbackRules.haptic(event), plan.haptic)
             }
         }
+    }
+
+    @Test
+    fun `a detent is not the step tick or the wall, and essentials keeps it`() {
+        val detent = FeedbackRules.haptic(FeedbackEvent.DETENT)
+        assertNotEquals(FeedbackRules.haptic(FeedbackEvent.STEP), detent)
+        assertNotEquals(FeedbackRules.haptic(FeedbackEvent.BUMP), detent)
+        assertEquals(detent, FeedbackRules.plan(FeedbackEvent.DETENT, VibrationLevel.ESSENTIALS, keySounds = false).haptic)
     }
 
     @Test
