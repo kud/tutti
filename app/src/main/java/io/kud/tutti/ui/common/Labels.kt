@@ -308,10 +308,15 @@ fun actionIcon(action: DockAction, state: TuttiUiState): Int = when (action) {
     is DockAction.Macro -> R.drawable.ic_bolt
 }
 
+/** A bar feature's glyph, the same on its Sound sheet tile and on a Dock pin, so one is recognised in the other. */
 @DrawableRes
 fun barIcon(featureKey: String): Int = when (featureKey) {
     TheatreFeature.NIGHT.key -> R.drawable.ic_bedtime
-    TheatreFeature.VOICE.key, TheatreFeature.VOICE_ZOOM.key -> R.drawable.ic_voice_enhance
+    TheatreFeature.VOICE.key -> R.drawable.ic_voice_enhance
+    TheatreFeature.VOICE_ZOOM.key -> R.drawable.ic_frame_person
+    TheatreFeature.SOUND_FIELD.key -> R.drawable.ic_surround_sound
+    TheatreFeature.SPATIAL_360.key -> R.drawable.ic_360
+    TheatreFeature.AUTO_VOLUME.key -> R.drawable.ic_graphic_eq
     TheatreFeature.MUTE.key -> R.drawable.ic_volume_off
     TheatreFeature.VOLUME.key -> R.drawable.ic_volume_up
     TheatreFeature.INPUT.key -> R.drawable.ic_input

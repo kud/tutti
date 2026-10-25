@@ -81,6 +81,7 @@ import io.kud.tutti.controller.TuttiUiState
 import io.kud.tutti.protocol.theatre.FeatureKind
 import io.kud.tutti.protocol.theatre.TheatreFeature
 import io.kud.tutti.ui.common.PinnedHeader
+import io.kud.tutti.ui.common.barIcon
 import io.kud.tutti.ui.common.belowStatusBar
 import io.kud.tutti.ui.common.featureLabel
 import io.kud.tutti.ui.common.openBraviaConnect
@@ -393,10 +394,15 @@ private fun SoundTile(state: TuttiUiState, feature: TheatreFeature, onTap: () ->
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.Center,
     ) {
+        // The glyph (recognition, never state) and the mark (state) share the top line, at opposite
+        // corners, so the name below has the tile's whole width and never wraps at 390 dp.
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(name, style = MaterialTheme.typography.titleSmall, color = content, modifier = Modifier.weight(1f))
+            Icon(painterResource(barIcon(feature.key)), contentDescription = null, tint = content, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.weight(1f))
             TileMark(on = on, locked = reason != null, pending = waiting.spinner && !failed, color = content, onColor = container)
         }
+        Spacer(Modifier.height(4.dp))
+        Text(name, style = MaterialTheme.typography.titleSmall, color = content)
         if (failed && reason == null) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(painterResource(R.drawable.ic_close), contentDescription = null, tint = content, modifier = Modifier.size(14.dp))
