@@ -422,7 +422,7 @@ fun LinkRow(
 private fun ThemeRow(mode: ThemeMode, onChange: (ThemeMode) -> Unit) {
     SettingsRow(
         title = stringResource(R.string.settings_theme),
-        icon = R.drawable.ic_visibility,
+        icon = R.drawable.ic_contrast,
         footer = {
             SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(top = 8.dp)) {
                 ThemeMode.entries.forEachIndexed { index, entry ->
