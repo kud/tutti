@@ -1,10 +1,10 @@
 package io.kud.tutti.ui.remote
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.annotation.DrawableRes
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.keyframes
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -36,11 +36,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -50,7 +48,8 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.graphics.graphicsLayer
+import io.kud.tutti.ui.motion.refusalShake
+import io.kud.tutti.ui.motion.rememberRefusalShake
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -290,11 +289,11 @@ private fun PinTile(
     val shape = RoundedCornerShape(corner)
     val secondaryToggle = pinToggle(secondary, state.bar, state.devices.bar != null) as? PinToggle.Known
     // A refusal, as on the Sound tile: the badge has already sprung back (the rollback); the pin
-    // shakes 4 dp and plays reject. Reduced motion keeps the haptic, not the shake.
+    // plays the shared refusal shake with its reject (RefusalShake).
     val feature = (slot.primary as? DockAction.ToggleBar)?.featureKey?.let(TheatreFeature::fromKey)
     val outcome = remember { TileOutcome() }
     var refusals by remember { mutableIntStateOf(0) }
-    val shake = remember { Animatable(0f) }
+    val shake = rememberRefusalShake()
     val pendingValue = feature?.let { state.bar.pending[it.key]?.value }
     val shownValue = feature?.let { state.bar.value(it) }
     LaunchedEffect(feature, pendingValue, shownValue, state.bar.connected) {
@@ -302,27 +301,14 @@ private fun PinTile(
     }
     LaunchedEffect(refusals) {
         if (refusals == 0) return@LaunchedEffect
-        feedback.reject()
-        if (!reduced) {
-            shake.snapTo(0f)
-            shake.animateTo(
-                0f,
-                keyframes {
-                    durationMillis = Motion.MEDIUM
-                    4f at 40
-                    -4f at 100
-                    3f at 160
-                    -2f at 210
-                },
-            )
-        }
+        shake.refuse()
     }
     // The long press opens the pin's menu or editor: the same ring as the segments and tiles
     // (discoverability rule 1). Editing is local, so it sweeps even while the device is down.
     val ring = rememberLongPressProgress(press.interaction, enabled = true)
     Box(
         modifier
-            .graphicsLayer { translationX = shake.value.dp.toPx() }
+            .refusalShake(shake)
             .longPressRing({ ring.value }, shape, scheme.onSurface),
     ) {
         Tile(

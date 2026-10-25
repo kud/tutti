@@ -1,13 +1,13 @@
 package io.kud.tutti.ui.onboarding
 
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.keyframes
-import androidx.compose.foundation.layout.offset
 import androidx.compose.runtime.getValue
+import androidx.compose.animation.core.Animatable
+import io.kud.tutti.ui.motion.ShakeSize
+import io.kud.tutti.ui.motion.refusalShake
+import io.kud.tutti.ui.motion.rememberRefusalShake
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.unit.IntOffset
 import io.kud.tutti.ui.common.LocalReducedMotion
 import io.kud.tutti.ui.common.rememberFeedback
 import io.kud.tutti.ui.motion.Motion
@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -57,7 +56,7 @@ import io.kud.tutti.protocol.atv.PairingCode
  *
  * Motion (Iris's spec, step 3 and 4): each typed character pops 1.1 → 1 with a tick; [locked]
  * (the code is on its way) takes the cells to 70 % and stops input; a new [mismatch] count shakes
- * the row 3 × 6 dp with a reject. Reduced motion keeps the haptics and drops the pop and shake.
+ * the row with the shared refusal shake (6 dp, [RefusalShake]) and its reject. Reduced motion drops the pop.
  */
 @Composable
 fun PairingCodeField(
@@ -74,23 +73,9 @@ fun PairingCodeField(
     val progress = stringResource(R.string.pairing_code_progress, code.length, PairingCode.LENGTH)
     val feedback = rememberFeedback()
     val reduced = LocalReducedMotion.current
-    val shake = remember { Animatable(0f) }
+    val shake = rememberRefusalShake(ShakeSize.WIDE)
     LaunchedEffect(mismatch) {
-        if (mismatch == 0) return@LaunchedEffect
-        feedback.reject()
-        if (reduced) return@LaunchedEffect
-        shake.snapTo(0f)
-        shake.animateTo(
-            0f,
-            keyframes {
-                durationMillis = Motion.MEDIUM
-                SHAKE_DP at 42
-                -SHAKE_DP at 83
-                SHAKE_DP at 125
-                -SHAKE_DP at 167
-                SHAKE_DP at 208
-            },
-        )
+        if (mismatch != 0) shake.refuse()
     }
     val dim by animateFloatAsState(if (locked) LOCKED_ALPHA else 1f, Motion.fade(), label = "locked")
     BasicTextField(
@@ -121,7 +106,7 @@ fun PairingCodeField(
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .offset { IntOffset(shake.value.dp.roundToPx(), 0) }
+                    .refusalShake(shake)
                     .graphicsLayer { alpha = dim },
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
@@ -179,4 +164,3 @@ private fun Cell(char: Char?, current: Boolean, pop: Boolean, modifier: Modifier
 
 private const val POP_SCALE = 1.1f
 private const val LOCKED_ALPHA = 0.7f
-private const val SHAKE_DP = 6f

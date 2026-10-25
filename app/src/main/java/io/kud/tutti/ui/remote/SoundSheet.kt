@@ -1,8 +1,8 @@
 package io.kud.tutti.ui.remote
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.keyframes
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.LaunchedEffect
@@ -19,6 +19,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import io.kud.tutti.ui.motion.refusalShake
+import io.kud.tutti.ui.motion.rememberRefusalShake
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.animateFloatAsState
@@ -58,14 +60,11 @@ import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
@@ -370,14 +369,14 @@ private fun SoundTile(state: TuttiUiState, feature: TheatreFeature, onTap: () ->
     val hint = explanation(feature)?.let { stringResource(it) }
 
     // Pending, then the outcome: the tile has already flipped (optimistic). An arc shows only if the
-    // bar takes more than 150 ms; a refusal springs the tile back (the rollback), shakes it 4 dp,
-    // plays reject and says so for 3 s. Reduced motion keeps the words and the cross, not the shake.
+    // bar takes more than 150 ms; a refusal springs the tile back (the rollback), plays the
+    // shared refusal shake with its reject (RefusalShake) and says so for 3 s.
     val pending = state.bar.pending[feature.key]?.value
     val waiting = rememberWaiting(pending != null)
     val outcome = remember { TileOutcome() }
     var refusals by remember { mutableIntStateOf(0) }
     var failed by remember { mutableStateOf(false) }
-    val shake = remember { Animatable(0f) }
+    val shake = rememberRefusalShake()
     // A late answer (the bar took it after all) clears the warning at once: never "On" beside
     // "Didn't take" (Erwann's 360 Spatial screenshot, 2026-10-25).
     var late by remember { mutableIntStateOf(0) }
@@ -392,20 +391,7 @@ private fun SoundTile(state: TuttiUiState, feature: TheatreFeature, onTap: () ->
     LaunchedEffect(refusals) {
         if (refusals == 0) return@LaunchedEffect
         failed = true
-        feedback.reject()
-        if (!reduced) {
-            shake.snapTo(0f)
-            shake.animateTo(
-                0f,
-                keyframes {
-                    durationMillis = Motion.MEDIUM
-                    4f at 40
-                    -4f at 100
-                    3f at 160
-                    -2f at 210
-                },
-            )
-        }
+        shake.refuse()
         delay(FAILED_MS)
         failed = false
     }
@@ -417,10 +403,10 @@ private fun SoundTile(state: TuttiUiState, feature: TheatreFeature, onTap: () ->
     Column(
         modifier
             .heightIn(min = 76.dp)
+            .refusalShake(shake)
             .graphicsLayer {
                 scaleX = press.scale
                 scaleY = press.scale
-                translationX = shake.value.dp.toPx()
             }
             .background(container, RoundedCornerShape(corner))
             // Long press pins it; refused like the tap while the bar is out of reach.
