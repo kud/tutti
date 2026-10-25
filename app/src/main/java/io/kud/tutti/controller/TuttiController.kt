@@ -1786,6 +1786,7 @@ class TuttiController @Inject constructor(
                 theatre.state.value.connected
             }
             is SceneStep.LaunchApp -> launchDirect(step.appPackage)
+            is SceneStep.PictureOff -> bravia?.setPowerSavingMode(pictureOffMode(step.on)) is BraviaResult.Ok
         }
     }
 
@@ -1817,6 +1818,7 @@ class TuttiController @Inject constructor(
                     setTvSetting(TvSettingGroup.SOUND, io.kud.tutti.protocol.bravia.TvSetting.OUTPUT_TERMINAL, action.terminal)
                 else -> setOutputTerminal(action.terminal)
             }
+            is DockAction.PictureOff -> if (bravia == null) actionFailed("shortcut: picture off", outcomeOf(null)) else setPictureOff(action.on)
             is DockAction.Macro -> for (step in action.steps) {
                 when (step) {
                     is MacroStep.Wait -> delay(step.millis.coerceIn(0, MAX_MACRO_WAIT_MS))
@@ -2280,6 +2282,13 @@ class TuttiController @Inject constructor(
         }
     }
 
+    /**
+     * Screen off, sound on (Iris's top 10, item 4): the TV's power saving `pictureOff`, or `off` to
+     * light it again. Sony's help guide says any remote key but volume and mute brings the picture
+     * back; unverified on the XR80 and over tutti's own keys, so tutti always offers the way back.
+     */
+    fun setPictureOff(on: Boolean) = setPowerSaving(pictureOffMode(on))
+
     fun setPowerSaving(mode: String) {
         val client = bravia ?: return
         tv.update { it.copy(settings = it.settings.copy(powerSaving = mode)) }
@@ -2394,3 +2403,6 @@ internal fun loggingHandler(log: (String) -> Unit): CoroutineExceptionHandler = 
     val text = runCatching { Redact.text(error.stackTraceToString()) }.getOrDefault(error.javaClass.name)
     runCatching { log("uncaught in the controller scope: $text") }
 }
+
+/** The power saving value that turns the picture off ([on]) or back on. `off` also clears a `low`/`high` saving. */
+internal fun pictureOffMode(on: Boolean): String = if (on) "pictureOff" else "off"

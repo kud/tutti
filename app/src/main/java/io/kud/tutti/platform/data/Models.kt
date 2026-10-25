@@ -221,6 +221,11 @@ sealed interface DockAction {
     @SerialName("tv.sound")
     data class TvSoundOutput(val terminal: String) : DockAction
 
+    /** Screen off with the sound on ([on]), or the picture back: power saving `pictureOff` / `off`. Needs IP control. */
+    @Serializable
+    @SerialName("tv.pictureOff")
+    data class PictureOff(val on: Boolean = true) : DockAction
+
     /** Ordered steps with optional waits. Nested macros are flattened out at edit time. */
     @Serializable
     @SerialName("macro")

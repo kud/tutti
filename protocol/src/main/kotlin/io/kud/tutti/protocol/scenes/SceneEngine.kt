@@ -17,6 +17,9 @@ sealed interface SceneStep {
     data class Bar(val feature: TheatreFeature, val value: String) : SceneStep
 
     data class LaunchApp(val appPackage: String) : SceneStep
+
+    /** The TV's picture off (power saving `pictureOff`) or back on (`off`), sound untouched. */
+    data class PictureOff(val on: Boolean) : SceneStep
 }
 
 sealed interface SceneMatch {
@@ -67,6 +70,8 @@ object SceneEngine {
         scene.launchApp?.let { app ->
             if ((snapshot[SceneKey.TV_APP] as? SceneValue.Text)?.value != app) steps += SceneStep.LaunchApp(app)
         }
+        // Last: an app coming to the front, or an input change, could light the screen again.
+        (s[SceneKey.PICTURE_OFF] as? SceneValue.Flag)?.let { if (differs(SceneKey.PICTURE_OFF)) steps += SceneStep.PictureOff(it.on) }
         return steps
     }
 

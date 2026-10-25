@@ -21,6 +21,7 @@ fun keyName(key: SceneKey): String = stringResource(
         SceneKey.TV_INPUT -> R.string.scene_key_input
         SceneKey.TV_APP -> R.string.scene_key_app
         SceneKey.PICTURE_MODE -> R.string.scene_key_picture
+        SceneKey.PICTURE_OFF -> R.string.screen_off_scene_key
         SceneKey.SOUND_FIELD -> R.string.bar_sound_field
         SceneKey.VOICE -> R.string.bar_voice
         SceneKey.NIGHT -> R.string.bar_night
@@ -40,6 +41,7 @@ fun settingChip(key: SceneKey, value: SceneValue, state: TuttiUiState): String {
         SceneKey.TV_INPUT -> inputName(text, state)
         SceneKey.TV_APP -> appName(text)
         SceneKey.PICTURE_MODE -> stringResource(R.string.summary_picture, text)
+        SceneKey.PICTURE_OFF -> stringResource(if (flag == true) R.string.screen_off_summary_on else R.string.screen_off_summary_off)
         SceneKey.SOUND_FIELD -> stringResource(if (flag == true) R.string.summary_sound_field_on else R.string.summary_sound_field_off)
         SceneKey.VOICE -> stringResource(if (flag == true) R.string.summary_voice_on else R.string.summary_voice_off)
         SceneKey.NIGHT -> stringResource(if (flag == true) R.string.summary_night_on else R.string.summary_night_off)

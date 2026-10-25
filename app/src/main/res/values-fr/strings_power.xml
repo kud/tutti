@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="screen_off_title">Écran éteint, son allumé</string>
+    <string name="screen_off_detail">Pour la musique ou un podcast. Touchez à nouveau ici pour rallumer l’image.</string>
+    <string name="screen_off_back">Rallumer l’écran</string>
+    <string name="screen_off_back_detail">La TV indique que son écran est éteint.</string>
+    <string name="screen_off_pin">Épingler au dock</string>
+    <string name="screen_off_picker">Écran</string>
+    <string name="screen_off_scene_key">Écran éteint</string>
+    <string name="screen_off_summary_on">Écran éteint</string>
+    <string name="screen_off_summary_off">Écran allumé</string>
+</resources>

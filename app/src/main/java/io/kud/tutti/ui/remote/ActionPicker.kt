@@ -314,13 +314,22 @@ fun ActionPickerContent(
                             PickRow(soundLabels.getValue(terminal), tvSoundOutputIcon(terminal)) { onPick(DockAction.TvSoundOutput(terminal)) }
                         }
                     }
+                    if (!searching && state.tv.settings.powerSavingSupported) {
+                        header("tv-screen", R.string.screen_off_picker, sub = true)
+                        item(key = "screen-off") {
+                            PickRow(stringResource(R.string.screen_off_title), R.drawable.ic_visibility_off) { onPick(DockAction.PictureOff(true)) }
+                        }
+                        item(key = "screen-back") {
+                            PickRow(stringResource(R.string.screen_off_back), R.drawable.ic_tv) { onPick(DockAction.PictureOff(false)) }
+                        }
+                    }
                     if (irccRows.isNotEmpty()) {
                         header("tv-keys", R.string.picker_tv_keys, sub = true)
                         items(irccRows, key = { "ircc-${it.name}" }) { code ->
                             PickRow(Ircc.displayName(code.name), R.drawable.ic_tv) { onPick(DockAction.Ircc(code.name, code.value)) }
                         }
                     }
-                    if (pictureModes.isEmpty() && ircc.isEmpty() && soundOutputs.isEmpty() && !searching) item(key = "tv-none") { Note(stringResource(R.string.picker_tv_none)) }
+                    if (pictureModes.isEmpty() && ircc.isEmpty() && soundOutputs.isEmpty() && !state.tv.settings.powerSavingSupported && !searching) item(key = "tv-none") { Note(stringResource(R.string.picker_tv_none)) }
                 }
             }
 

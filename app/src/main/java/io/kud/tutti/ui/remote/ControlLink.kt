@@ -71,7 +71,7 @@ fun dockOwner(action: DockAction?): Owner = when (action) {
     is DockAction.ToggleBar, is DockAction.SetBar -> Owner.BAR
     is DockAction.Key -> if (action.keyCode in WAKE_KEYS) Owner.ANY else Owner.TV
     is DockAction.LaunchApp, is DockAction.Input, is DockAction.Ircc,
-    is DockAction.PictureMode, is DockAction.TvSoundOutput,
+    is DockAction.PictureMode, is DockAction.TvSoundOutput, is DockAction.PictureOff,
     -> Owner.TV
 }
 

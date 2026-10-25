@@ -717,7 +717,25 @@ fun RemoteScreen(
     if (powerSheet) {
         // The sleep key comes from the TV's IRCC list, which only TV settings load: ask once.
         LaunchedEffect(Unit) { controller.loadSleepTimer() }
+        val powerPinner = rememberDockPinner(state, controller)
+        val pinScreenOff = stringResource(R.string.screen_off_title)
+        val pinScreenBack = stringResource(R.string.screen_off_back)
         PowerSheet(
+            screen = screenOffRow(
+                ipControl = state.ipControlSet,
+                supported = state.tv.settings.powerSavingSupported,
+                loaded = state.tv.settings.loaded,
+                powerSaving = state.tv.settings.powerSaving,
+                restOnline = state.links.rest == Link.ONLINE,
+                tvPowered = tvPowered(state),
+                downReason = stringResource(R.string.power_sleep_down),
+                standbyReason = stringResource(R.string.power_sleep_standby),
+            ),
+            onScreen = { off ->
+                haptics.click()
+                controller.setPictureOff(off)
+            },
+            onPinScreen = { off -> powerPinner.request(DockAction.PictureOff(off), if (off) pinScreenOff else pinScreenBack) },
             sleep = sleepTimerRow(
                 sleepCode = state.tv.settings.sleepCode,
                 restOnline = state.links.rest == Link.ONLINE,

@@ -4,7 +4,8 @@ import androidx.annotation.DrawableRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -70,6 +71,22 @@ fun sleepTimerRow(sleepCode: String?, restOnline: Boolean, tvPowered: Boolean?, 
 }
 
 /**
+ * "Screen off, sound on" in the Power sheet (Iris's top 10, item 4). [off] is true only when the TV
+ * reports its power saving as `pictureOff`; unknown reads as lit, so the row offers to darken it,
+ * and the way back is always one tap here or on a pin. Rides IP control like the sleep timer.
+ */
+data class ScreenOffRow(val off: Boolean, val reason: String?)
+
+/** The screen-off row, or null when the TV doesn't list power saving (or IP control isn't set up). */
+fun screenOffRow(ipControl: Boolean, supported: Boolean, loaded: Boolean, powerSaving: String?, restOnline: Boolean, tvPowered: Boolean?, downReason: String, standbyReason: String): ScreenOffRow? = when {
+    !ipControl -> null
+    loaded && !supported -> null
+    !restOnline -> ScreenOffRow(off = false, reason = downReason)
+    tvPowered == false -> ScreenOffRow(off = false, reason = standbyReason)
+    else -> ScreenOffRow(off = powerSaving == "pictureOff", reason = null)
+}
+
+/**
  * Which device a Power is for, as a modal sheet (Erwann, 2026-10-24: « proposer une modale qui
  * propose quel device »): a sheet rather than a dialog because it is a choice among actions, like
  * every other picker here, and it lands under the thumb rather than mid-screen. One row per
@@ -83,6 +100,9 @@ fun PowerSheet(
     onDismiss: () -> Unit,
     sleep: SleepTimerRow? = null,
     onSleep: () -> Unit = {},
+    screen: ScreenOffRow? = null,
+    onScreen: (off: Boolean) -> Unit = {},
+    onPinScreen: ((off: Boolean) -> Unit)? = null,
 ) {
     // With the TV alone, "TV only" would imply a soundbar that isn't there.
     val solo = choices.none { it.target == PowerTarget.BAR }
@@ -121,6 +141,22 @@ fun PowerSheet(
                 }
                 // The sleep timer stays open after a tap: each press moves the TV to its next step,
                 // and the TV's screen shows which (Iris's gesture audit, item 6).
+                // Screen off stays open too: the next tap brings the picture back. A long press pins it.
+                if (screen != null) {
+                    val wantOff = !screen.off
+                    val title = stringResource(if (wantOff) R.string.screen_off_title else R.string.screen_off_back)
+                    val detail = screen.reason ?: stringResource(if (wantOff) R.string.screen_off_detail else R.string.screen_off_back_detail)
+                    PowerRow(
+                        if (wantOff) R.drawable.ic_visibility_off else R.drawable.ic_tv,
+                        title,
+                        detail,
+                        enabled = screen.reason == null,
+                        down = screen.reason != null,
+                        onLongClickLabel = stringResource(R.string.screen_off_pin),
+                        onLongClick = onPinScreen?.let { pin -> { pin(wantOff) } },
+                        onClick = { onScreen(wantOff) },
+                    )
+                }
                 if (sleep != null) {
                     val detail = sleep.reason ?: stringResource(R.string.power_sleep_detail)
                     PowerRow(R.drawable.ic_bedtime, stringResource(R.string.power_sleep), detail, enabled = sleep.reason == null, down = sleep.reason != null, onClick = onSleep)
@@ -130,13 +166,16 @@ fun PowerSheet(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun PowerRow(
+internal fun PowerRow(
     @DrawableRes icon: Int,
     name: String,
     action: String,
     enabled: Boolean = true,
     down: Boolean = false,
+    onLongClickLabel: String? = null,
+    onLongClick: (() -> Unit)? = null,
     onClick: () -> Unit,
 ) {
     val dash = androidx.compose.runtime.remember { androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(12f, 8f)) }
@@ -159,7 +198,14 @@ private fun PowerRow(
                     Modifier.background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(16.dp))
                 },
             )
-            .clickable(enabled = enabled, role = Role.Button, onClickLabel = action, onClick = onClick)
+            .combinedClickable(
+                enabled = enabled,
+                role = Role.Button,
+                onClickLabel = action,
+                onLongClickLabel = onLongClickLabel,
+                onLongClick = onLongClick,
+                onClick = onClick,
+            )
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

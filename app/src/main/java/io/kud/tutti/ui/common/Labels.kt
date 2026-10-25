@@ -292,6 +292,7 @@ fun actionLabel(action: DockAction, state: TuttiUiState): String = when (action)
     is DockAction.Ircc -> Ircc.displayName(action.name)
     is DockAction.PictureMode -> stringResource(R.string.action_picture, action.label)
     is DockAction.TvSoundOutput -> stringResource(tvSoundOutputLabel(action.terminal))
+    is DockAction.PictureOff -> stringResource(if (action.on) R.string.screen_off_title else R.string.screen_off_back)
     is DockAction.Macro -> action.name.ifBlank {
         action.steps.count { it is io.kud.tutti.platform.data.MacroStep.Run }.let { pluralStringResource(R.plurals.macro_steps, it, it) }
     }
@@ -308,6 +309,7 @@ fun actionIcon(action: DockAction, state: TuttiUiState): Int = when (action) {
     is DockAction.Ircc -> R.drawable.ic_tv
     is DockAction.PictureMode -> R.drawable.ic_tune
     is DockAction.TvSoundOutput -> tvSoundOutputIcon(action.terminal)
+    is DockAction.PictureOff -> if (action.on) R.drawable.ic_visibility_off else R.drawable.ic_tv
     is DockAction.Macro -> R.drawable.ic_bolt
 }
 

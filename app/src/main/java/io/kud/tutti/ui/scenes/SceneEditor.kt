@@ -373,7 +373,7 @@ private fun defaultValue(key: SceneKey, state: TuttiUiState): SceneValue = when 
     SceneKey.TV_INPUT -> SceneValue.Text(state.tv.input ?: state.tv.inputs.firstOrNull()?.uri ?: "extInput:hdmi?port=1")
     SceneKey.TV_APP -> SceneValue.Text(state.remote.currentApp ?: AppCatalog.apps.first().packageName)
     SceneKey.PICTURE_MODE -> SceneValue.Text(state.tv.pictureMode ?: "standard")
-    SceneKey.SOUND_FIELD, SceneKey.VOICE, SceneKey.NIGHT -> SceneValue.Flag(true)
+    SceneKey.SOUND_FIELD, SceneKey.VOICE, SceneKey.NIGHT, SceneKey.PICTURE_OFF -> SceneValue.Flag(true)
     SceneKey.BASS -> SceneValue.Level(0)
     SceneKey.VOLUME -> SceneValue.Level(state.volume ?: 20)
     SceneKey.VOLUME_CAP -> SceneValue.Level(20)

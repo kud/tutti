@@ -15,6 +15,12 @@ enum class SceneKey {
 
     /** Picture mode value as the TV's own `getPictureQualitySettings` candidates spell it. */
     PICTURE_MODE,
+
+    /**
+     * Screen off, sound on: the TV's power saving set to `pictureOff` (on) or back to `off`.
+     * Applied last, so launching the scene's app can't light the screen again.
+     */
+    PICTURE_OFF,
     SOUND_FIELD,
     VOICE,
     NIGHT,

@@ -150,4 +150,23 @@ class SceneEngineTest {
         assertEquals("starter-cinema", AppProfiles.sceneFor("com.netflix.ninja", profiles))
         assertEquals(null, AppProfiles.sceneFor("org.xbmc.kodi", profiles))
     }
+
+    @Test
+    fun `picture off comes last, after the final app, so launching it can't light the screen`() {
+        val music = Scene(
+            id = "m", name = "Musique", color = 0, glyph = "music_note",
+            settings = mapOf(SceneKey.PICTURE_OFF to Flag(true), SceneKey.SOUND_FIELD to Flag(true)),
+            launchApp = "com.spotify.tv.android",
+        )
+        val steps = SceneEngine.plan(music, snapshot(SceneKey.SOUND_FIELD to Flag(false)))
+        assertEquals(SceneStep.PictureOff(true), steps.last())
+        assertTrue(steps.any { it is SceneStep.LaunchApp })
+    }
+
+    @Test
+    fun `picture off is skipped only when the tv reports it already`() {
+        val dark = Scene(id = "d", name = "d", color = 0, glyph = "g", settings = mapOf(SceneKey.PICTURE_OFF to Flag(true)))
+        assertEquals(listOf<SceneStep>(SceneStep.PictureOff(true)), SceneEngine.plan(dark, snapshot()))
+        assertEquals(emptyList(), SceneEngine.plan(dark, snapshot(SceneKey.PICTURE_OFF to Flag(true))))
+    }
 }
