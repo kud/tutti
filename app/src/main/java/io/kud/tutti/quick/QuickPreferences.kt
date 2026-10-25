@@ -23,7 +23,15 @@ class QuickPreferences(context: Context) {
         store.edit { it[NOTIFICATION_ENABLED] = enabled }
     }
 
+    /** Lets `tutti://scene/<id>` (NFC, Tasker) apply a scene from outside the app. Off by default. */
+    val automationEnabled: Flow<Boolean> = store.data.map { it[AUTOMATION_ENABLED] ?: false }
+
+    suspend fun setAutomationEnabled(enabled: Boolean) {
+        store.edit { it[AUTOMATION_ENABLED] = enabled }
+    }
+
     private companion object {
         val NOTIFICATION_ENABLED = booleanPreferencesKey("notification_enabled")
+        val AUTOMATION_ENABLED = booleanPreferencesKey("automation_enabled")
     }
 }

@@ -62,6 +62,7 @@ import io.kud.tutti.platform.data.SecondaryButton
 import io.kud.tutti.platform.data.ThemeMode
 import io.kud.tutti.platform.data.VibrationLevel
 import io.kud.tutti.protocol.grpc.CloudPlaneState
+import io.kud.tutti.quick.settings.QuickAutomationSetting
 import io.kud.tutti.quick.settings.QuickNotificationSetting
 import io.kud.tutti.ui.common.AppIcon
 import io.kud.tutti.ui.common.ChoiceRow
@@ -288,6 +289,7 @@ fun SettingsScreen(
                     icon = R.drawable.ic_bedtime,
                 )
                 QuickNotificationSetting(icon = R.drawable.ic_bolt)
+                QuickAutomationSetting(icon = R.drawable.ic_scene)
             }
 
             SettingsGroup(stringResource(R.string.settings_feedback)) {

@@ -85,6 +85,27 @@
             android:taskAffinity=""
             android:theme="@style/quick_OverlayTheme" />
 
+        <!-- tutti://scene/<id> from an NFC tag or an automation app. No window; does nothing unless
+             Settings › Automation is on. Never BROWSABLE: a web page cannot reach it. -->
+        <activity
+            android:name=".quick.automation.SceneTriggerActivity"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:theme="@android:style/Theme.NoDisplay">
+            <intent-filter>
+                <action android:name="android.nfc.action.NDEF_DISCOVERED" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="tutti" android:host="scene" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="tutti" android:host="scene" />
+            </intent-filter>
+        </activity>
+
         <service
             android:name=".quick.tile.QuickTileService"
             android:exported="true"
