@@ -3,20 +3,11 @@ package io.kud.tutti.protocol.hid
 import io.kud.tutti.protocol.atv.V2Key
 
 /**
- * What the remote is pointed at over Bluetooth (Erwann, 2026-10-25: the TV, or the Mac when it is
- * shown on the TV; no other host). Each target remembers its own Bluetooth address and keyboard
- * layout; [layouts] is the choice offered for it, the first being the default.
+ * What the remote is pointed at over Bluetooth (Erwann, 2026-10-25: the TV, or the computer when it
+ * is shown on the TV; no other host). The Bluetooth personality only: key meanings are the same on
+ * every computer, and the layouts offered are the device's ([io.kud.tutti.protocol.devices.Device.layouts]).
  */
-enum class HidTarget(val layouts: List<KeyLayout>) {
-    TV(listOf(KeyLayout.US, KeyLayout.FR_AZERTY)),
-    MAC(listOf(KeyLayout.MAC_FR, KeyLayout.MAC_US)),
-    ;
-
-    val defaultLayout: KeyLayout get() = layouts.first()
-
-    /** [stored] if it belongs to this target, else the default: a TV layout never types to the Mac. */
-    fun layoutOr(stored: KeyLayout?): KeyLayout = stored?.takeIf { it in layouts } ?: defaultLayout
-}
+enum class HidTarget { TV, COMPUTER }
 
 /** One remote control as Bluetooth sends it: a keyboard key, or a consumer-page usage. */
 sealed interface HidAction {
@@ -36,7 +27,7 @@ enum class RemoteLink { LAN, BLUETOOTH, NONE }
 object HidRoute {
     /**
      * The TV prefers the LAN (Remote v2 reaches keys HID can't: power, inputs, settings) and falls
-     * back to Bluetooth when it is down. The Mac has no LAN link: Bluetooth or nothing.
+     * back to Bluetooth when it is down. A computer has no LAN link: Bluetooth or nothing.
      */
     fun link(target: HidTarget, lanUp: Boolean, hidConnected: Boolean): RemoteLink = when {
         target == HidTarget.TV && lanUp -> RemoteLink.LAN
@@ -45,24 +36,24 @@ object HidRoute {
     }
 
     /**
-     * The target that follows the TV's input (Erwann, 2026-10-25: tutti is used as much on macOS
-     * shown on the TV as on Google TV): the Mac while the TV shows the input marked as the Mac's,
-     * the TV otherwise. Null [macInput] (nothing marked) always gives the TV.
+     * The target that follows the TV's input (Erwann, 2026-10-25: tutti is used as much on the
+     * computer shown on the TV as on Google TV): the computer while the TV shows the input marked
+     * as its, the TV otherwise. Null [computerInput] (nothing marked) always gives the TV.
      */
-    fun targetFor(currentInput: String?, macInput: String?): HidTarget =
-        if (macInput != null && currentInput == macInput) HidTarget.MAC else HidTarget.TV
+    fun targetFor(currentInput: String?, computerInput: String?): HidTarget =
+        if (computerInput != null && currentInput == computerInput) HidTarget.COMPUTER else HidTarget.TV
 
     /**
      * Which host holds the one HID connection while the remote is in front (Erwann, 2026-10-25:
      * « autant se connecter à la TV qu'au Mac, et pouvoir switcher »). The TV lives on its LAN
-     * links, so the Mac keeps Bluetooth as soon as it is configured, whatever the target, and a
+     * links, so the computer keeps Bluetooth as soon as it is configured, whatever the target, and a
      * switch is only routing. The connection moves to the TV only when the TV is the target and
      * its LAN is down (the remote says so in words). Null: Bluetooth isn't needed; release the role.
      * Never consulted in the background: the role is only held while the remote is in front.
      */
-    fun hidHost(target: HidTarget, macConfigured: Boolean, lanUp: Boolean): HidTarget? = when {
+    fun hidHost(target: HidTarget, computerConfigured: Boolean, lanUp: Boolean): HidTarget? = when {
         target == HidTarget.TV && !lanUp -> HidTarget.TV
-        macConfigured -> HidTarget.MAC
+        computerConfigured -> HidTarget.COMPUTER
         else -> null
     }
 
@@ -75,7 +66,7 @@ object HidRoute {
     /**
      * The HID equivalent of a Remote v2 key for [target], or null when Bluetooth has none (power,
      * inputs, colour keys, settings: the remote shows those as unavailable rather than guessing).
-     * Volume is the bar's and the TV's, never the Mac's: the Mac's sound goes out over HDMI.
+     * Volume is the bar's and the TV's, never a computer's: its sound goes out over HDMI.
      */
     fun action(v2Key: Int, target: HidTarget): HidAction? {
         common(v2Key)?.let { return it }
@@ -88,8 +79,8 @@ object HidRoute {
                 V2Key.VOLUME_MUTE -> HidAction.Consumer(ConsumerUsage.MUTE)
                 else -> null
             }
-            // macOS ignores AC Back and AC Home; Esc is what "back out" means there.
-            HidTarget.MAC -> when (v2Key) {
+            // macOS ignores AC Back and AC Home; Esc is what "back out" means on every computer.
+            HidTarget.COMPUTER -> when (v2Key) {
                 V2Key.BACK -> key(KeyUsage.ESCAPE)
                 else -> null
             }

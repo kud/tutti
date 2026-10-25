@@ -4,7 +4,7 @@ import io.kud.tutti.platform.data.PadMode
 import io.kud.tutti.protocol.hid.RemoteLink
 
 /** What a target is, for its glyph and its words. Kind, not link, decides how the remote behaves. */
-enum class TargetKind { TV, MAC }
+enum class TargetKind { TV, COMPUTER }
 
 /**
  * One row of the target sheet: a device present now (Iris, 2026-10-25). [link] is the link its
@@ -38,7 +38,7 @@ const val TARGET_SETTLE_MS = 800L
 
 /**
  * The pad's modes for a target, in the order the corner switch cycles them. A Bluetooth target
- * (the Mac, or the TV with its LAN down) gets the gyro pointer as a third mode; it is always in
+ * (the computer, or the TV with its LAN down) gets the gyro pointer as a third mode; it is always in
  * the cycle there, disabled with its reason when it can't work, never hidden (Iris, 2026-10-25).
  */
 fun padModes(bluetooth: Boolean): List<PadMode> =

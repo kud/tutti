@@ -43,12 +43,12 @@ class NowShowingActionsTest {
     @Test
     fun `on the mac's input the tap controls the mac instead of opening playback`() {
         val mac = CardShowing.Showing(NowShowing.Input("HDMI 2"))
-        assertEquals(CardTap.CONTROL_MAC, cardTap(mac, onMacInput = true))
-        assertEquals(CardTap.PLAYBACK, cardTap(mac, onMacInput = false))
+        assertEquals(CardTap.CONTROL_COMPUTER, cardTap(mac, onComputerInput = true))
+        assertEquals(CardTap.PLAYBACK, cardTap(mac, onComputerInput = false))
         // An app is never the Mac's input, whatever the flag says.
-        assertEquals(CardTap.PLAYBACK, cardTap(CardShowing.Showing(app), onMacInput = true))
-        assertEquals(CardTap.NONE, cardTap(CardShowing.Home, onMacInput = true))
-        assertEquals(CardTap.NONE, cardTap(null, onMacInput = true))
+        assertEquals(CardTap.PLAYBACK, cardTap(CardShowing.Showing(app), onComputerInput = true))
+        assertEquals(CardTap.NONE, cardTap(CardShowing.Home, onComputerInput = true))
+        assertEquals(CardTap.NONE, cardTap(null, onComputerInput = true))
     }
 
     @Test

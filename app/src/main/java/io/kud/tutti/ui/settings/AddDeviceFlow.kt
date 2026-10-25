@@ -56,8 +56,8 @@ import io.kud.tutti.platform.bluetooth.HidLink
 import io.kud.tutti.platform.bluetooth.HidPhase
 import io.kud.tutti.platform.bluetooth.HidSupport
 import io.kud.tutti.protocol.bravia.ExternalInput
+import io.kud.tutti.protocol.devices.ComputerOs
 import io.kud.tutti.protocol.devices.Targeting
-import io.kud.tutti.protocol.hid.KeyLayout
 import io.kud.tutti.ui.common.OpensChevron
 import io.kud.tutti.ui.common.SettingsGroup
 import io.kud.tutti.ui.common.SettingsRow
@@ -66,13 +66,14 @@ import kotlinx.coroutines.launch
 
 private const val INPUT_POLL_MS = 4_000L
 
-private enum class AddStep { WHAT, PAIR, INPUT, NAME, DONE }
+private enum class AddStep { WHAT, OS, PAIR, INPUT, NAME, DONE }
 
 /**
  * « Ajouter un appareil » (Iris, 2026-10-25, from Erwann's « Comment j'ajoute un appareil ? »).
- * Asks what first: a Mac always; the TV or the bar only when missing, through their existing setup.
- * A Mac then goes pair → input → name → done, each step saying what to do next and every failure
- * in words. Full screen, so Back steps back and the remote never shows through mid-flow.
+ * Asks what first: a computer always; the TV or the bar only when missing, through their existing setup.
+ * A computer then says its system (Erwann, 2026-10-25: « n'importe quel type d'ordi »), which sets
+ * the pairing words and the default layout, and goes pair → input → name → done, each step saying
+ * what to do next and every failure in words. Full screen, so Back steps back and the remote never shows through mid-flow.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -88,15 +89,16 @@ internal fun AddDeviceFlow(
     onRefreshInputs: () -> Unit = {},
 ) {
     var step by remember { mutableStateOf(AddStep.WHAT) }
-    // The inputs as they were when the flow opened: the one that comes on since is the Mac's.
+    // The inputs as they were when the flow opened: the one that comes on since is the computer's.
     val before = remember { inputs }
+    var os by remember { mutableStateOf(ComputerOs.MACOS) }
     var picked by remember { mutableStateOf<HidHost?>(null) }
     var input by remember { mutableStateOf<String?>(null) }
     var inputTouched by remember { mutableStateOf(false) }
     var name by remember { mutableStateOf("") }
     var failed by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
-    // The TV reports an input's `connected` only when asked: ask again while the Mac is being
+    // The TV reports an input's `connected` only when asked: ask again while the computer is being
     // plugged in or woken, so the input that comes on can be seen (and only then).
     if (step == AddStep.PAIR || step == AddStep.INPUT) {
         LaunchedEffect(Unit) {
@@ -110,7 +112,8 @@ internal fun AddDeviceFlow(
     val back: () -> Unit = {
         when (step) {
             AddStep.WHAT, AddStep.DONE -> onClose()
-            AddStep.PAIR -> step = AddStep.WHAT
+            AddStep.OS -> step = AddStep.WHAT
+            AddStep.PAIR -> step = AddStep.OS
             AddStep.INPUT -> step = AddStep.PAIR
             AddStep.NAME -> step = AddStep.INPUT
         }
@@ -143,7 +146,7 @@ internal fun AddDeviceFlow(
                         hid = hid,
                         tvMissing = tvMissing,
                         barMissing = barMissing,
-                        onMac = { step = AddStep.PAIR },
+                        onComputer = { step = AddStep.OS },
                         onTv = {
                             onClose()
                             onSetUpTv()
@@ -153,7 +156,11 @@ internal fun AddDeviceFlow(
                             onSetUpBar()
                         },
                     )
-                    AddStep.PAIR -> PairStep(targets, hid) { host ->
+                    AddStep.OS -> OsStep { chosen ->
+                        os = chosen
+                        step = AddStep.PAIR
+                    }
+                    AddStep.PAIR -> PairStep(targets, hid, os) { host ->
                         picked = host
                         name = host.name
                         step = AddStep.INPUT
@@ -162,7 +169,7 @@ internal fun AddDeviceFlow(
                         val newly = Targeting.newlyConnected(before, inputs)
                         // Preselect what came on, until the person picks by hand.
                         LaunchedEffect(newly) { if (!inputTouched && newly != null) input = newly }
-                        InputStep(inputs, newly, input, onPick = {
+                        InputStep(inputs, newly, input, airplay = os.airplay, onPick = {
                             inputTouched = true
                             input = it
                         }, onNext = { step = AddStep.NAME })
@@ -171,12 +178,12 @@ internal fun AddDeviceFlow(
                         val host = picked ?: return@NameStep
                         failed = false
                         scope.launch {
-                            runCatching { targets.addMac(name.trim().ifEmpty { host.name }, host.address, input, KeyLayout.MAC_FR) }
+                            runCatching { targets.addComputer(name.trim().ifEmpty { host.name }, host.address, os, input) }
                                 .onSuccess { step = AddStep.DONE }
                                 .onFailure { failed = true }
                         }
                     })
-                    AddStep.DONE -> DoneStep(name.trim().ifEmpty { picked?.name.orEmpty() }, input?.let { inputName(it, inputs) }, onClose)
+                    AddStep.DONE -> DoneStep(name.trim().ifEmpty { picked?.name.orEmpty() }, input?.let { inputName(it, inputs) }, layoutName(os.defaultLayout), onClose)
                 }
             }
         }
@@ -199,7 +206,7 @@ private fun StepHeader(number: Int?, title: String, body: String?) {
 }
 
 @Composable
-private fun WhatStep(hid: HidLink?, tvMissing: Boolean, barMissing: Boolean, onMac: () -> Unit, onTv: () -> Unit, onBar: () -> Unit) {
+private fun WhatStep(hid: HidLink?, tvMissing: Boolean, barMissing: Boolean, onComputer: () -> Unit, onTv: () -> Unit, onBar: () -> Unit) {
     val support = hid?.state?.collectAsStateWithLifecycle()?.value?.support ?: HidSupport.UNSUPPORTED
     StepHeader(null, stringResource(R.string.devices_add_what), null)
     SettingsGroup(null) {
@@ -213,15 +220,15 @@ private fun WhatStep(hid: HidLink?, tvMissing: Boolean, barMissing: Boolean, onM
                 trailing = { OpensChevron() },
             )
         }
-        val macPossible = support != HidSupport.UNSUPPORTED
+        val computerPossible = support != HidSupport.UNSUPPORTED
         SettingsRow(
-            title = stringResource(R.string.devices_add_mac),
-            detail = stringResource(R.string.devices_add_mac_detail),
-            notice = stringResource(R.string.devices_add_no_bt).takeUnless { macPossible },
+            title = stringResource(R.string.devices_add_computer),
+            detail = stringResource(R.string.devices_add_computer_detail),
+            notice = stringResource(R.string.devices_add_no_bt).takeUnless { computerPossible },
             icon = R.drawable.ic_laptop,
-            enabled = macPossible,
-            onClick = onMac.takeIf { macPossible },
-            trailing = if (macPossible) ({ OpensChevron() }) else null,
+            enabled = computerPossible,
+            onClick = onComputer.takeIf { computerPossible },
+            trailing = if (computerPossible) ({ OpensChevron() }) else null,
         )
         if (!tvMissing && barMissing) {
             SettingsRow(
@@ -235,9 +242,39 @@ private fun WhatStep(hid: HidLink?, tvMissing: Boolean, barMissing: Boolean, onM
     }
 }
 
-/** Step 1: make the phone visible, pair from the Mac, pick it among the bonded computers. */
+/** Right after « Ordinateur »: its system, which sets the pairing words and the default layout. */
 @Composable
-private fun PairStep(targets: TargetController, hid: HidLink?, onPick: (HidHost) -> Unit) {
+private fun OsStep(onPick: (ComputerOs) -> Unit) {
+    StepHeader(null, stringResource(R.string.devices_os_title), null)
+    SettingsGroup(null) {
+        for (os in ComputerOs.entries) {
+            SettingsRow(
+                title = stringResource(os.label()),
+                detail = stringResource(if (os == ComputerOs.MACOS) R.string.devices_os_macos_detail else R.string.devices_os_pc_detail),
+                icon = R.drawable.ic_laptop,
+                onClick = { onPick(os) },
+                trailing = { OpensChevron() },
+            )
+        }
+    }
+}
+
+private fun ComputerOs.label(): Int = when (this) {
+    ComputerOs.MACOS -> R.string.devices_os_macos
+    ComputerOs.WINDOWS -> R.string.devices_os_windows
+    ComputerOs.LINUX -> R.string.devices_os_linux
+}
+
+/** Where each system keeps its Bluetooth settings, in words. */
+private fun ComputerOs.pairSteps(): Int = when (this) {
+    ComputerOs.MACOS -> R.string.devices_pair_steps_macos
+    ComputerOs.WINDOWS -> R.string.devices_pair_steps_windows
+    ComputerOs.LINUX -> R.string.devices_pair_steps_linux
+}
+
+/** Step 1: make the phone visible, pair from the computer, pick it among the bonded computers. */
+@Composable
+private fun PairStep(targets: TargetController, hid: HidLink?, os: ComputerOs, onPick: (HidHost) -> Unit) {
     // Holds the HID role while pairing, so the phone is registered as a keyboard and bonded hosts refresh.
     DisposableEffect(targets) {
         targets.settingsShown()
@@ -253,7 +290,7 @@ private fun PairStep(targets: TargetController, hid: HidLink?, onPick: (HidHost)
     val enable = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { targets.settingsShown() }
     val discoverable = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { }
 
-    StepHeader(1, stringResource(R.string.devices_pair_title), stringResource(R.string.devices_pair_steps))
+    StepHeader(1, stringResource(R.string.devices_pair_title), stringResource(os.pairSteps()))
 
     // Where the link stands, with its one way forward; announced when it changes.
     val phase = hidState?.phase ?: HidPhase.STOPPED
@@ -279,7 +316,7 @@ private fun PairStep(targets: TargetController, hid: HidLink?, onPick: (HidHost)
         }
     }
 
-    StepHeader(null, stringResource(R.string.devices_mac_pick), stringResource(R.string.devices_pair_then))
+    StepHeader(null, stringResource(R.string.devices_computer_pick), stringResource(R.string.devices_pair_then))
     if (choices.isEmpty()) {
         Text(
             stringResource(R.string.devices_pair_none),
@@ -298,21 +335,21 @@ private fun PairStep(targets: TargetController, hid: HidLink?, onPick: (HidHost)
 
 /** Step 2: the HDMI input, preselected when exactly one came on since the flow opened, and saying so. */
 @Composable
-private fun InputStep(inputs: List<ExternalInput>, newly: String?, selected: String?, onPick: (String?) -> Unit, onNext: () -> Unit) {
+private fun InputStep(inputs: List<ExternalInput>, newly: String?, selected: String?, airplay: Boolean, onPick: (String?) -> Unit, onNext: () -> Unit) {
     val explain = when {
         inputs.none { it.isHdmi } -> stringResource(R.string.devices_input_unknown)
         newly != null -> stringResource(R.string.devices_input_detected, inputName(newly, inputs))
         else -> stringResource(R.string.devices_input_not_detected)
     }
-    StepHeader(2, stringResource(R.string.devices_mac_input), stringResource(R.string.devices_mac_input_hint))
+    StepHeader(2, stringResource(R.string.devices_computer_input), stringResource(R.string.devices_computer_input_hint))
     Column(Modifier.padding(horizontal = 32.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(explain, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
-        RadioList(InputOptions.of(inputs, selected, newly), selected, onPick)
+        RadioList(InputOptions.of(inputs, selected, newly, airplay), selected, onPick)
         Button(onClick = onNext, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text(stringResource(R.string.devices_next)) }
     }
 }
 
-/** Step 3: the name the remote shows, prefilled with the Mac's own Bluetooth name. */
+/** Step 3: the name the remote shows, prefilled with the computer's own Bluetooth name. */
 @Composable
 private fun NameStep(name: String, failed: Boolean, onName: (String) -> Unit, onAdd: () -> Unit) {
     StepHeader(3, stringResource(R.string.devices_name_title), stringResource(R.string.devices_name_hint))
@@ -332,16 +369,16 @@ private fun NameStep(name: String, failed: Boolean, onName: (String) -> Unit, on
                 Text(stringResource(R.string.devices_save_failed), style = MaterialTheme.typography.bodyMedium)
             }
         }
-        Button(onClick = onAdd, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text(stringResource(R.string.devices_add_mac_button)) }
+        Button(onClick = onAdd, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text(stringResource(R.string.devices_add_computer_button)) }
     }
 }
 
 @Composable
-private fun DoneStep(name: String, input: String?, onDone: () -> Unit) {
+private fun DoneStep(name: String, input: String?, layout: String, onDone: () -> Unit) {
     StepHeader(
         null,
         stringResource(R.string.devices_done_title, name),
-        if (input != null) stringResource(R.string.devices_done_input, input) else stringResource(R.string.devices_done_airplay),
+        if (input != null) stringResource(R.string.devices_done_input, input, name, layout) else stringResource(R.string.devices_done_no_input, layout),
     )
     Column(Modifier.padding(horizontal = 32.dp)) {
         Button(onClick = onDone, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text(stringResource(R.string.devices_done)) }

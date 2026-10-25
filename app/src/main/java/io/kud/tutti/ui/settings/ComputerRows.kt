@@ -42,93 +42,110 @@ import io.kud.tutti.protocol.hid.KeyLayout
 import io.kud.tutti.ui.common.SettingsRow
 import kotlinx.coroutines.launch
 
-private sealed interface MacDialog {
+private sealed interface ComputerDialog {
     val id: String
 
-    data class Rename(override val id: String) : MacDialog
-    data class Input(override val id: String) : MacDialog
-    data class Layout(override val id: String) : MacDialog
-    data class Forget(override val id: String) : MacDialog
+    data class Rename(override val id: String) : ComputerDialog
+    data class Input(override val id: String) : ComputerDialog
+    data class Layout(override val id: String) : ComputerDialog
+    data class Forget(override val id: String) : ComputerDialog
 }
 
-/** The Mac's link and screen in words: "Bluetooth connected · Shown on HDMI 2". */
+/** The computer's link and screen in words: "Bluetooth connected · Shown on HDMI 2". */
 @Composable
-internal fun macStatus(mac: Device, target: TargetState, inputs: List<ExternalInput>): String {
-    val link = stringResource(if (target.hidConnectedTo == mac.id) R.string.devices_mac_bt_connected else R.string.devices_mac_bt_idle)
-    val shown = mac.shownOn?.hdmiInput?.let { stringResource(R.string.devices_mac_on_input, inputName(it, inputs)) }
-        ?: stringResource(R.string.devices_mac_airplay)
+internal fun computerStatus(computer: Device, target: TargetState, inputs: List<ExternalInput>): String {
+    val link = stringResource(if (target.hidConnectedTo == computer.id) R.string.devices_computer_bt_connected else R.string.devices_computer_bt_idle)
+    val shown = computer.shownOn?.hdmiInput?.let { stringResource(R.string.devices_computer_on_input, inputName(it, inputs)) }
+        ?: stringResource(if (computer.airplay) R.string.devices_computer_airplay else R.string.devices_computer_no_input)
     return "$link · $shown"
 }
 
+/** A layout as a choice, the default marked. */
 @Composable
 internal fun layoutLabel(layout: KeyLayout): String = stringResource(
-    if (layout == KeyLayout.MAC_US) R.string.devices_layout_mac_us else R.string.devices_layout_mac_fr,
+    when (layout) {
+        KeyLayout.MAC_FR -> R.string.devices_layout_mac_fr
+        KeyLayout.MAC_US -> R.string.devices_layout_mac_us
+        KeyLayout.FR_AZERTY -> R.string.devices_layout_pc_fr
+        KeyLayout.US -> R.string.devices_layout_pc_us
+    },
+)
+
+/** A layout's plain name, inside a sentence. */
+@Composable
+internal fun layoutName(layout: KeyLayout): String = stringResource(
+    when (layout) {
+        KeyLayout.MAC_FR -> R.string.devices_layout_name_mac_fr
+        KeyLayout.MAC_US -> R.string.devices_layout_name_mac_us
+        KeyLayout.FR_AZERTY -> R.string.devices_layout_name_pc_fr
+        KeyLayout.US -> R.string.devices_layout_name_pc_us
+    },
 )
 
 /**
- * One row per Mac (Iris, 2026-10-25): the laptop glyph, its name, its link and input in words,
+ * One row per computer (Iris, 2026-10-25): the laptop glyph, its name, its link and input in words,
  * and its actions as text buttons (each its own 48 dp target, named for TalkBack by its label).
  */
 @Composable
-internal fun MacRows(targets: TargetController, target: TargetState, inputs: List<ExternalInput>) {
+internal fun ComputerRows(targets: TargetController, target: TargetState, inputs: List<ExternalInput>) {
     val scope = rememberCoroutineScope()
-    var dialog by remember { mutableStateOf<MacDialog?>(null) }
+    var dialog by remember { mutableStateOf<ComputerDialog?>(null) }
 
-    for (mac in target.list.macs) {
+    for (computer in target.list.computers) {
         SettingsRow(
-            title = mac.name,
+            title = computer.name,
             icon = R.drawable.ic_laptop,
-            detail = macStatus(mac, target, inputs),
+            detail = computerStatus(computer, target, inputs),
             footer = {
                 FlowRow(Modifier.offset(x = (-12).dp)) {
-                    TextButton(onClick = { dialog = MacDialog.Rename(mac.id) }) { Text(stringResource(R.string.devices_rename)) }
-                    TextButton(onClick = { dialog = MacDialog.Input(mac.id) }) { Text(stringResource(R.string.devices_input_action)) }
-                    TextButton(onClick = { dialog = MacDialog.Layout(mac.id) }) { Text(stringResource(R.string.devices_layout_action)) }
-                    TextButton(onClick = { targets.pairAgain(mac.id) }) { Text(stringResource(R.string.devices_pair_again)) }
-                    TextButton(onClick = { dialog = MacDialog.Forget(mac.id) }) { Text(stringResource(R.string.settings_forget)) }
+                    TextButton(onClick = { dialog = ComputerDialog.Rename(computer.id) }) { Text(stringResource(R.string.devices_rename)) }
+                    TextButton(onClick = { dialog = ComputerDialog.Input(computer.id) }) { Text(stringResource(R.string.devices_input_action)) }
+                    TextButton(onClick = { dialog = ComputerDialog.Layout(computer.id) }) { Text(stringResource(R.string.devices_layout_action)) }
+                    TextButton(onClick = { targets.pairAgain(computer.id) }) { Text(stringResource(R.string.devices_pair_again)) }
+                    TextButton(onClick = { dialog = ComputerDialog.Forget(computer.id) }) { Text(stringResource(R.string.settings_forget)) }
                 }
             },
         )
     }
 
     val open = dialog ?: return
-    // A Mac forgotten meanwhile (from another screen) just closes nothing: its dialog is not drawn.
-    val mac = target.list[open.id] ?: return
+    // A computer forgotten meanwhile (from another screen) just closes nothing: its dialog is not drawn.
+    val computer = target.list[open.id] ?: return
     val close = { dialog = null }
     when (open) {
-        is MacDialog.Rename -> RenameDialog(mac.name, onSave = { name ->
-            scope.launch { targets.rename(mac.id, name) }
+        is ComputerDialog.Rename -> RenameDialog(computer.name, onSave = { name ->
+            scope.launch { targets.rename(computer.id, name) }
             close()
         }, onDismiss = close)
-        is MacDialog.Input -> ChoiceDialog(
-            title = stringResource(R.string.devices_input_title, mac.name),
+        is ComputerDialog.Input -> ChoiceDialog(
+            title = stringResource(R.string.devices_input_title, computer.name),
             explain = if (inputs.none { it.isHdmi }) stringResource(R.string.devices_input_unknown) else null,
-            options = InputOptions.of(inputs, mac.shownOn?.hdmiInput),
-            selected = mac.shownOn?.hdmiInput,
+            options = InputOptions.of(inputs, computer.shownOn?.hdmiInput, airplay = computer.computerOs?.airplay == true),
+            selected = computer.shownOn?.hdmiInput,
             onPick = { uri ->
-                scope.launch { targets.setMacInput(mac.id, uri) }
+                scope.launch { targets.setComputerInput(computer.id, uri) }
                 close()
             },
             onDismiss = close,
         )
-        is MacDialog.Layout -> ChoiceDialog(
-            title = stringResource(R.string.devices_layout_title, mac.name),
+        is ComputerDialog.Layout -> ChoiceDialog(
+            title = stringResource(R.string.devices_layout_title, computer.name),
             explain = stringResource(R.string.devices_layout_explain),
-            options = listOf(KeyLayout.MAC_FR, KeyLayout.MAC_US).map { it to (layoutLabel(it) to null) },
-            selected = mac.layout(),
+            options = computer.layouts().map { it to (layoutLabel(it) to null) },
+            selected = computer.layout(),
             onPick = { layout ->
-                if (layout != null) scope.launch { targets.setLayout(mac.id, layout) }
+                if (layout != null) scope.launch { targets.setLayout(computer.id, layout) }
                 close()
             },
             onDismiss = close,
         )
-        is MacDialog.Forget -> AlertDialog(
+        is ComputerDialog.Forget -> AlertDialog(
             onDismissRequest = close,
-            title = { Text(stringResource(R.string.settings_forget_named, mac.name)) },
-            text = { Text(stringResource(R.string.devices_forget_mac_detail)) },
+            title = { Text(stringResource(R.string.settings_forget_named, computer.name)) },
+            text = { Text(stringResource(R.string.devices_forget_computer_detail)) },
             confirmButton = {
                 TextButton(onClick = {
-                    scope.launch { targets.forget(mac.id) }
+                    scope.launch { targets.forget(computer.id) }
                     close()
                 }) { Text(stringResource(R.string.settings_forget)) }
             },
@@ -137,10 +154,10 @@ internal fun MacRows(targets: TargetController, target: TargetState, inputs: Lis
     }
 }
 
-/** HDMI inputs as choices, each with whether something is plugged in, said in words; then AirPlay only. */
+/** HDMI inputs as choices, each with whether something is plugged in, said in words; then none (AirPlay only, for a Mac). */
 internal object InputOptions {
     @Composable
-    fun of(inputs: List<ExternalInput>, current: String?, newly: String? = null): List<Pair<String?, Pair<String, String?>>> {
+    fun of(inputs: List<ExternalInput>, current: String?, newly: String? = null, airplay: Boolean = true): List<Pair<String?, Pair<String, String?>>> {
         val hdmi = inputs.filter { it.isHdmi }
         val listed = hdmi.map { input ->
             val note = when {
@@ -152,7 +169,7 @@ internal object InputOptions {
         }
         // An input set before IP control went off stays choosable, by name.
         val kept = current?.takeIf { uri -> hdmi.none { it.uri == uri } }?.let { listOf(it as String? to (inputName(it, inputs) to null)) }.orEmpty()
-        return listed + kept + (null to (stringResource(R.string.devices_mac_input_none) to null))
+        return listed + kept + (null to (stringResource(if (airplay) R.string.devices_input_airplay else R.string.devices_input_none) to null))
     }
 }
 

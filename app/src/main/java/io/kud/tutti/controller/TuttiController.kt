@@ -1987,6 +1987,26 @@ class TuttiController @Inject constructor(
 
     // region tv settings
 
+    /**
+     * The TV's inputs again, for the add flow's polling while a computer is plugged in or woken: one
+     * call, and only each known input's `connected` flag changes (the full list when none is known
+     * yet). [loadTvSettings] stays the whole sweep.
+     */
+    fun refreshInputs() {
+        val client = bravia ?: return
+        scope.launch {
+            val fresh = client.externalInputs().getOrNull() ?: return@launch
+            tv.update { state ->
+                val inputs = if (state.inputs.isEmpty()) {
+                    fresh
+                } else {
+                    state.inputs.map { old -> fresh.firstOrNull { it.uri == old.uri }?.let { old.copy(connected = it.connected) } ?: old }
+                }
+                state.copy(inputs = inputs)
+            }
+        }
+    }
+
     fun loadTvSettings() {
         val client = bravia ?: return
         scope.launch {

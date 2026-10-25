@@ -43,7 +43,7 @@ import kotlinx.coroutines.delay
 
 internal fun TargetKind.glyph(): Int = when (this) {
     TargetKind.TV -> R.drawable.ic_tv
-    TargetKind.MAC -> R.drawable.ic_laptop
+    TargetKind.COMPUTER -> R.drawable.ic_laptop
 }
 
 @Composable

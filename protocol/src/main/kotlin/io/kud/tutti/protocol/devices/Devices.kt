@@ -2,6 +2,7 @@ package io.kud.tutti.protocol.devices
 
 import io.kud.tutti.protocol.hid.HidTarget
 import io.kud.tutti.protocol.hid.KeyLayout
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -12,25 +13,48 @@ import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonDecoder
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNames
 
 /**
- * What a device is. The kind, never the link, decides behaviour: Back is Esc on a Mac and AC Back
- * on the TV whatever carries it. Stage 1 (Erwann, 2026-10-25): one TV, one bar, any number of Macs.
+ * What a device is. The kind, never the link, decides behaviour: Back is Esc on a computer and AC
+ * Back on the TV whatever carries it. Stage 1 (Erwann, 2026-10-25): one TV, one bar, any number of
+ * computers (« c'est pas qu'un Mac, ça peut être n'importe quel type d'ordi »).
  */
+@OptIn(ExperimentalSerializationApi::class)
 @Serializable
 enum class DeviceKind {
     TV,
     SOUNDBAR,
-    MAC,
+
+    /** Any computer shown on the TV; its [ComputerOs] picks the layouts. v0.2.0-dev.1/2 stored "MAC". */
+    @JsonNames("MAC")
+    COMPUTER,
     ;
 
     /** The Bluetooth personality ([io.kud.tutti.protocol.hid.HidRoute]) this kind takes; the bar has none. */
     val hidTarget: HidTarget?
         get() = when (this) {
             TV -> HidTarget.TV
-            MAC -> HidTarget.MAC
+            COMPUTER -> HidTarget.COMPUTER
             SOUNDBAR -> null
         }
+}
+
+/**
+ * A computer's system. Key meanings are the same on all of them (Back is Esc, OK is Enter); only
+ * the layouts differ, the first being the default: Apple's French on a Mac, the PC AZERTY (AltGr
+ * for the third level) elsewhere. AirPlay is a Mac's only.
+ */
+@Serializable
+enum class ComputerOs(val layouts: List<KeyLayout>) {
+    MACOS(listOf(KeyLayout.MAC_FR, KeyLayout.MAC_US)),
+    WINDOWS(listOf(KeyLayout.FR_AZERTY, KeyLayout.US)),
+    LINUX(listOf(KeyLayout.FR_AZERTY, KeyLayout.US)),
+    ;
+
+    val defaultLayout: KeyLayout get() = layouts.first()
+
+    val airplay: Boolean get() = this == MACOS
 }
 
 /** One way to reach a device. "HTTP" in Erwann's words is [SonyIp], and only that. */
@@ -60,7 +84,7 @@ sealed interface DeviceLink {
     data class Bluetooth(val address: String, val layout: String? = null) : DeviceLink
 }
 
-/** How the TV shows a Mac: its HDMI input (a Sony input uri), and/or AirPlay mirroring. */
+/** How the TV shows a computer: its HDMI input (a Sony input uri), and/or AirPlay mirroring (macOS only). */
 @Serializable
 data class ShownOn(val hdmiInput: String? = null, val airplay: Boolean = true)
 
@@ -72,18 +96,34 @@ data class Device(
     val kind: DeviceKind,
     @Serializable(with = LinkListSerializer::class)
     val links: List<DeviceLink> = emptyList(),
-    /** Macs only. */
+    /** Computers only. */
     val shownOn: ShownOn? = null,
+    /** Computers only. Absent on a computer stored before it existed, which was a Mac: see [computerOs]. */
+    val os: ComputerOs? = null,
 ) {
     inline fun <reified T : DeviceLink> link(): T? = links.filterIsInstance<T>().firstOrNull()
 
     val bluetooth: DeviceLink.Bluetooth? get() = link()
 
-    /** The layout typed to this device: its own if it suits the kind, else the kind's default. */
-    fun layout(): KeyLayout? {
-        val target = kind.hidTarget ?: return null
-        return target.layoutOr(KeyLayout.entries.firstOrNull { it.name == bluetooth?.layout })
+    /** A computer's system; one stored without it was added as a Mac. Null for anything else. */
+    val computerOs: ComputerOs? get() = if (kind == DeviceKind.COMPUTER) os ?: ComputerOs.MACOS else null
+
+    /** The layouts offered for this device, the default first; empty for the bar. */
+    fun layouts(): List<KeyLayout> = when (kind) {
+        DeviceKind.TV -> TV_LAYOUTS
+        DeviceKind.COMPUTER -> computerOs?.layouts.orEmpty()
+        DeviceKind.SOUNDBAR -> emptyList()
     }
+
+    /** The layout typed to this device: its own if it suits it (a TV layout never types to a Mac), else the default. */
+    fun layout(): KeyLayout? {
+        val offered = layouts()
+        val stored = KeyLayout.entries.firstOrNull { it.name == bluetooth?.layout }
+        return stored?.takeIf { it in offered } ?: offered.firstOrNull()
+    }
+
+    /** Whether the TV can show it over AirPlay: a Mac's only (Windows and Linux have no AirPlay sender). */
+    val airplay: Boolean get() = computerOs?.airplay == true && shownOn?.airplay != false
 
     /** Replaces the link of the same type, or adds it. */
     fun withLink(link: DeviceLink): Device = copy(links = links.filterNot { it::class == link::class } + link)
@@ -93,6 +133,9 @@ data class Device(
     companion object {
         const val TV_ID = "tv"
         const val BAR_ID = "bar"
+
+        /** The TV's layouts, US first (Android TV's own default). */
+        val TV_LAYOUTS: List<KeyLayout> = listOf(KeyLayout.US, KeyLayout.FR_AZERTY)
     }
 }
 
@@ -105,7 +148,7 @@ data class DeviceList(
 ) {
     val tv: Device? get() = devices.firstOrNull { it.kind == DeviceKind.TV }
     val bar: Device? get() = devices.firstOrNull { it.kind == DeviceKind.SOUNDBAR }
-    val macs: List<Device> get() = devices.filter { it.kind == DeviceKind.MAC }
+    val computers: List<Device> get() = devices.filter { it.kind == DeviceKind.COMPUTER }
     val isEmpty: Boolean get() = devices.isEmpty()
 
     operator fun get(id: String): Device? = devices.firstOrNull { it.id == id }
@@ -115,7 +158,7 @@ data class DeviceList(
      * replaces the first, keeping the first's place.
      */
     fun put(device: Device): DeviceList {
-        val single = device.kind != DeviceKind.MAC
+        val single = device.kind != DeviceKind.COMPUTER
         val index = devices.indexOfFirst { it.id == device.id || (single && it.kind == device.kind) }
         return copy(devices = if (index < 0) devices + device else devices.toMutableList().also { it[index] = device })
     }
@@ -130,12 +173,12 @@ data class DeviceList(
     }
 }
 
-/** Which links a kind accepts. Anything else (a bar on Bluetooth, a Mac on Google) is refused. */
+/** Which links a kind accepts. Anything else (a bar on Bluetooth, a computer on Google) is refused. */
 object DeviceKinds {
     fun allowedLinks(kind: DeviceKind): Set<Class<out DeviceLink>> = when (kind) {
         DeviceKind.TV -> setOf(DeviceLink.Google::class.java, DeviceLink.SonyIp::class.java, DeviceLink.Bluetooth::class.java)
         DeviceKind.SOUNDBAR -> setOf(DeviceLink.BarIp::class.java)
-        DeviceKind.MAC -> setOf(DeviceLink.Bluetooth::class.java)
+        DeviceKind.COMPUTER -> setOf(DeviceLink.Bluetooth::class.java)
     }
 
     fun accepts(kind: DeviceKind, link: DeviceLink): Boolean = link.javaClass in allowedLinks(kind)
@@ -147,7 +190,19 @@ object DeviceKinds {
  */
 internal object LinkListSerializer : KSerializer<List<DeviceLink>> by lenientList(DeviceLink.serializer())
 
-internal object DeviceListSerializer : KSerializer<List<Device>> by lenientList(Device.serializer())
+/**
+ * The device list, lenient like the links, and a computer stored before [Device.os] existed (kind
+ * "MAC", read as [DeviceKind.COMPUTER]) comes back as macOS, so the next write stores it explicitly.
+ */
+internal object DeviceListSerializer : KSerializer<List<Device>> {
+    private val lenient = lenientList(Device.serializer())
+    override val descriptor: SerialDescriptor = lenient.descriptor
+
+    override fun serialize(encoder: Encoder, value: List<Device>) = lenient.serialize(encoder, value)
+
+    override fun deserialize(decoder: Decoder): List<Device> =
+        lenient.deserialize(decoder).map { if (it.kind == DeviceKind.COMPUTER && it.os == null) it.copy(os = ComputerOs.MACOS) else it }
+}
 
 private fun <T> lenientList(item: KSerializer<T>): KSerializer<List<T>> = object : KSerializer<List<T>> {
     private val strict = ListSerializer(item)

@@ -21,24 +21,24 @@ internal fun targetRows(state: TargetState): List<TargetRow> = state.present.map
     TargetRow(
         id = d.id,
         name = d.name,
-        kind = if (d.kind == DeviceKind.MAC) TargetKind.MAC else TargetKind.TV,
+        kind = if (d.kind == DeviceKind.COMPUTER) TargetKind.COMPUTER else TargetKind.TV,
         link = d.via.remoteLink(),
         current = d.id == state.target?.id,
     )
 }
 
-/** What a remote key does on the Mac, for TalkBack beside the unchanged glyph; null for keys with no Mac meaning. */
-internal fun macMeaning(code: Int): Int? = when (code) {
-    V2Key.BACK -> R.string.mac_meaning_back
-    V2Key.DPAD_UP, V2Key.DPAD_DOWN, V2Key.DPAD_LEFT, V2Key.DPAD_RIGHT -> R.string.mac_meaning_arrow
-    V2Key.DPAD_CENTER, V2Key.ENTER -> R.string.mac_meaning_ok
-    V2Key.MEDIA_PLAY_PAUSE, V2Key.MEDIA_NEXT, V2Key.MEDIA_PREVIOUS, V2Key.MEDIA_REWIND, V2Key.MEDIA_FAST_FORWARD -> R.string.mac_meaning_media
+/** What a remote key does on a computer, for TalkBack beside the unchanged glyph; null for keys with no computer meaning. */
+internal fun computerMeaning(code: Int): Int? = when (code) {
+    V2Key.BACK -> R.string.computer_meaning_back
+    V2Key.DPAD_UP, V2Key.DPAD_DOWN, V2Key.DPAD_LEFT, V2Key.DPAD_RIGHT -> R.string.computer_meaning_arrow
+    V2Key.DPAD_CENTER, V2Key.ENTER -> R.string.computer_meaning_ok
+    V2Key.MEDIA_PLAY_PAUSE, V2Key.MEDIA_NEXT, V2Key.MEDIA_PREVIOUS, V2Key.MEDIA_REWIND, V2Key.MEDIA_FAST_FORWARD -> R.string.computer_meaning_media
     else -> null
 }
 
 @Composable
-internal fun macMeaningWords(): (Int) -> String? {
-    val words = listOf(R.string.mac_meaning_back, R.string.mac_meaning_arrow, R.string.mac_meaning_ok, R.string.mac_meaning_media)
+internal fun computerMeaningWords(): (Int) -> String? {
+    val words = listOf(R.string.computer_meaning_back, R.string.computer_meaning_arrow, R.string.computer_meaning_ok, R.string.computer_meaning_media)
         .associateWith { stringResource(it) }
-    return { code -> macMeaning(code)?.let(words::get) }
+    return { code -> computerMeaning(code)?.let(words::get) }
 }

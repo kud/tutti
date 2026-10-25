@@ -8,7 +8,7 @@ import io.kud.tutti.protocol.devices.DeviceList
 /**
  * The flat `Devices(tv, bar)` the rest of the app still reads, as a view of the [DeviceList]
  * (stage 1 keeps the TV and bar engine untouched). Writes through [applyLegacy] change only the
- * TV's and bar's LAN links and names: the TV's Bluetooth link and every Mac survive.
+ * TV's and bar's LAN links and names: the TV's Bluetooth link and every computer survive.
  */
 internal object DeviceViews {
     fun legacy(list: DeviceList): Devices {

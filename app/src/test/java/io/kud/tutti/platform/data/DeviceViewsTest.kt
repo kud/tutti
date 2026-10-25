@@ -16,7 +16,7 @@ class DeviceViewsTest {
         listOf(DeviceLink.Google("192.168.1.20"), DeviceLink.SonyIp("192.168.1.20", "aa-bb"), DeviceLink.Bluetooth("00:11:22:33:44:77")),
     )
     private val bar = Device("bar", "Bar", DeviceKind.SOUNDBAR, listOf(DeviceLink.BarIp("192.168.1.21")))
-    private val mac = Device("mac-a", "Work", DeviceKind.MAC, listOf(DeviceLink.Bluetooth("00:11:22:33:44:55")), ShownOn("extInput:hdmi?port=2"))
+    private val mac = Device("mac-a", "Work", DeviceKind.COMPUTER, listOf(DeviceLink.Bluetooth("00:11:22:33:44:55")), ShownOn("extInput:hdmi?port=2"))
     private val list = DeviceList(listOf(tv, bar, mac))
 
     @Test

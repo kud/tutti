@@ -88,14 +88,14 @@ class HidRouteTest {
         assertEquals(RemoteLink.LAN, HidRoute.link(HidTarget.TV, lanUp = true, hidConnected = true))
         assertEquals(RemoteLink.BLUETOOTH, HidRoute.link(HidTarget.TV, lanUp = false, hidConnected = true))
         assertEquals(RemoteLink.NONE, HidRoute.link(HidTarget.TV, lanUp = false, hidConnected = false))
-        assertEquals(RemoteLink.BLUETOOTH, HidRoute.link(HidTarget.MAC, lanUp = true, hidConnected = true))
-        assertEquals(RemoteLink.NONE, HidRoute.link(HidTarget.MAC, lanUp = true, hidConnected = false))
+        assertEquals(RemoteLink.BLUETOOTH, HidRoute.link(HidTarget.COMPUTER, lanUp = true, hidConnected = true))
+        assertEquals(RemoteLink.NONE, HidRoute.link(HidTarget.COMPUTER, lanUp = true, hidConnected = false))
         // The Mac holds Bluetooth whenever it is set up, even while the TV is the target.
-        assertEquals(HidTarget.MAC, HidRoute.hidHost(HidTarget.TV, macConfigured = true, lanUp = true))
-        assertEquals(HidTarget.MAC, HidRoute.hidHost(HidTarget.MAC, macConfigured = true, lanUp = false))
-        assertEquals(HidTarget.TV, HidRoute.hidHost(HidTarget.TV, macConfigured = true, lanUp = false))
-        assertEquals(HidTarget.TV, HidRoute.hidHost(HidTarget.TV, macConfigured = false, lanUp = false))
-        assertNull(HidRoute.hidHost(HidTarget.TV, macConfigured = false, lanUp = true))
+        assertEquals(HidTarget.COMPUTER, HidRoute.hidHost(HidTarget.TV, computerConfigured = true, lanUp = true))
+        assertEquals(HidTarget.COMPUTER, HidRoute.hidHost(HidTarget.COMPUTER, computerConfigured = true, lanUp = false))
+        assertEquals(HidTarget.TV, HidRoute.hidHost(HidTarget.TV, computerConfigured = true, lanUp = false))
+        assertEquals(HidTarget.TV, HidRoute.hidHost(HidTarget.TV, computerConfigured = false, lanUp = false))
+        assertNull(HidRoute.hidHost(HidTarget.TV, computerConfigured = false, lanUp = true))
         assertTrue(HidRoute.gyroPossible(RemoteLink.BLUETOOTH, hasGyroscope = true))
         assertTrue(!HidRoute.gyroPossible(RemoteLink.LAN, hasGyroscope = true))
         assertTrue(!HidRoute.gyroPossible(RemoteLink.BLUETOOTH, hasGyroscope = false))
@@ -104,7 +104,7 @@ class HidRouteTest {
     @Test
     fun theTargetFollowsTheMacsInput() {
         val mac = "extInput:hdmi?port=3"
-        assertEquals(HidTarget.MAC, HidRoute.targetFor(mac, mac))
+        assertEquals(HidTarget.COMPUTER, HidRoute.targetFor(mac, mac))
         assertEquals(HidTarget.TV, HidRoute.targetFor("extInput:hdmi?port=2", mac))
         assertEquals(HidTarget.TV, HidRoute.targetFor(null, mac))
         assertEquals(HidTarget.TV, HidRoute.targetFor(null, null))
@@ -122,17 +122,10 @@ class HidRouteTest {
             assertNull(HidRoute.action(V2Key.TV_INPUT, target))
         }
         assertEquals(HidAction.Consumer(ConsumerUsage.BACK), HidRoute.action(V2Key.BACK, HidTarget.TV))
-        assertEquals(HidAction.Key(KeyStroke(KeyUsage.ESCAPE)), HidRoute.action(V2Key.BACK, HidTarget.MAC))
+        assertEquals(HidAction.Key(KeyStroke(KeyUsage.ESCAPE)), HidRoute.action(V2Key.BACK, HidTarget.COMPUTER))
         assertEquals(HidAction.Consumer(ConsumerUsage.VOLUME_UP), HidRoute.action(V2Key.VOLUME_UP, HidTarget.TV))
-        assertNull(HidRoute.action(V2Key.VOLUME_UP, HidTarget.MAC))
-        assertNull(HidRoute.action(V2Key.HOME, HidTarget.MAC))
+        assertNull(HidRoute.action(V2Key.VOLUME_UP, HidTarget.COMPUTER))
+        assertNull(HidRoute.action(V2Key.HOME, HidTarget.COMPUTER))
     }
 
-    @Test
-    fun aTargetKeepsOnlyItsOwnLayouts() {
-        assertEquals(KeyLayout.MAC_FR, HidTarget.MAC.layoutOr(KeyLayout.FR_AZERTY))
-        assertEquals(KeyLayout.MAC_US, HidTarget.MAC.layoutOr(KeyLayout.MAC_US))
-        assertEquals(KeyLayout.US, HidTarget.TV.layoutOr(null))
-        assertEquals(KeyLayout.FR_AZERTY, HidTarget.TV.layoutOr(KeyLayout.FR_AZERTY))
-    }
 }

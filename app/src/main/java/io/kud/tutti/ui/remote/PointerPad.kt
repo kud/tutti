@@ -76,7 +76,7 @@ fun rememberHasGyroscope(): Boolean {
 }
 
 /**
- * The pad for a Bluetooth target (the Mac, or the TV over Bluetooth), in its pointing modes:
+ * The pad for a Bluetooth target (the computer, or the TV over Bluetooth), in its pointing modes:
  * [PadMode.TOUCHPAD] is a trackpad (slide to move, tap to click, two fingers to scroll), and
  * [PadMode.GYRO] the phone as an air mouse (tap clicks, holding freezes the cursor while you
  * re-aim). Around it: a scroll strip on the [stripOnLeft] side, separate from the surface so a drag

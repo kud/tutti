@@ -122,7 +122,7 @@ fun SettingsScreen(
     var adding by remember { mutableStateOf(false) }
     val targets = rememberTargets()
     val target = targets?.state?.collectAsStateWithLifecycle()?.value
-    // The phone can be a Bluetooth keyboard: the TV row offers it, and a Mac can be added.
+    // The phone can be a Bluetooth keyboard: the TV row offers it, and a computer can be added.
     val hidSupported = hid?.state?.collectAsStateWithLifecycle()?.value?.support == HidSupport.SUPPORTED
     if (hid != null) LaunchedEffect(hid) { hid.probe() }
     // Pairing from here holds the Bluetooth role; leaving Settings gives it back.
@@ -187,7 +187,7 @@ fun SettingsScreen(
                         },
                     )
                 }
-                if (targets != null && target != null) MacRows(targets, target, state.tv.inputs)
+                if (targets != null && target != null) ComputerRows(targets, target, state.tv.inputs)
                 // One way in for every device (Erwann, 2026-10-25: « Comment j'ajoute un appareil ? »):
                 // it asks what first, offering the TV or the bar only when missing.
                 if (targets != null) {
@@ -375,7 +375,7 @@ fun SettingsScreen(
             onSetUpTv = onPair,
             onSetUpBar = onAddBar,
             onClose = { adding = false },
-            onRefreshInputs = controller::loadTvSettings,
+            onRefreshInputs = controller::refreshInputs,
         )
     }
     if (appsDialog) {

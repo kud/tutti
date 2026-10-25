@@ -18,8 +18,8 @@ class DevicesTest {
 
     private val tv = Device(Device.TV_ID, "Salon", DeviceKind.TV, listOf(DeviceLink.Google("192.168.1.20"), DeviceLink.SonyIp("192.168.1.20")))
     private val bar = Device(Device.BAR_ID, "Bar", DeviceKind.SOUNDBAR, listOf(DeviceLink.BarIp("192.168.1.21")))
-    private val work = Device("mac-a", "Work", DeviceKind.MAC, listOf(DeviceLink.Bluetooth("00:11:22:33:44:55")), ShownOn("extInput:hdmi?port=2"))
-    private val home = Device("mac-b", "Home", DeviceKind.MAC, listOf(DeviceLink.Bluetooth("00:11:22:33:44:66", "MAC_US")), ShownOn("extInput:hdmi?port=3"))
+    private val work = Device("mac-a", "Work", DeviceKind.COMPUTER, listOf(DeviceLink.Bluetooth("00:11:22:33:44:55")), ShownOn("extInput:hdmi?port=2"), ComputerOs.MACOS)
+    private val home = Device("mac-b", "Home", DeviceKind.COMPUTER, listOf(DeviceLink.Bluetooth("00:11:22:33:44:66", "MAC_US")), ShownOn("extInput:hdmi?port=3"), ComputerOs.MACOS)
     private val room = DeviceList(listOf(tv, bar, work, home))
 
     @Test
@@ -48,6 +48,61 @@ class DevicesTest {
         assertNull(DeviceMigration.migrate(null, "{not json", null))
         assertNull(DeviceMigration.migrate(null, "{}", "00:11:22:33:44:77"))
         assertEquals(listOf("bar"), DeviceMigration.migrate(null, """{"bar":{"host":"192.168.1.21"}}""", null)!!.devices.map { it.id })
+    }
+
+    /** Exactly what v0.2.0-dev.2 wrote for a Mac (copied literally, not encoded by today's classes). */
+    private val dev2Store = """{"devices":[{"id":"tv","name":"Salon","kind":"TV","links":[{"type":"google","host":"192.168.1.20"}]},""" +
+        """{"id":"mac-a","name":"Work","kind":"MAC","links":[{"type":"bluetooth","address":"00:11:22:33:44:55","layout":"MAC_US"}],""" +
+        """"shownOn":{"hdmiInput":"extInput:hdmi?port=2","airplay":true}}],"version":2}"""
+
+    @Test
+    fun `a mac stored by dev 2 comes back as a macos computer with its link, layout and input`() {
+        val list = json.decodeFromString(DeviceList.serializer(), dev2Store)
+        val mac = list["mac-a"]!!
+        assertEquals(DeviceKind.COMPUTER, mac.kind)
+        assertEquals(ComputerOs.MACOS, mac.os)
+        assertEquals(ComputerOs.MACOS, mac.computerOs)
+        assertEquals("00:11:22:33:44:55", mac.bluetooth?.address)
+        assertEquals(KeyLayout.MAC_US, mac.layout())
+        assertEquals(ShownOn("extInput:hdmi?port=2", airplay = true), mac.shownOn)
+        assertTrue(mac.airplay)
+        assertEquals(listOf("mac-a"), list.computers.map { it.id })
+        // Written back, it says what it is now, and reads the same again.
+        val written = json.encodeToString(DeviceList.serializer(), list)
+        assertTrue("\"kind\":\"COMPUTER\"" in written && "\"os\":\"MACOS\"" in written, written)
+        assertTrue("\"MAC\"" !in written, written)
+        assertEquals(list, json.decodeFromString(DeviceList.serializer(), written))
+    }
+
+    @Test
+    fun `windows and linux type on the pc tables, french azerty by default, and never over airplay`() {
+        for (os in listOf(ComputerOs.WINDOWS, ComputerOs.LINUX)) {
+            val pc = Device("pc", "Desk", DeviceKind.COMPUTER, listOf(DeviceLink.Bluetooth("00:11:22:33:44:88")), ShownOn("extInput:hdmi?port=4", airplay = false), os)
+            assertEquals(listOf(KeyLayout.FR_AZERTY, KeyLayout.US), pc.layouts())
+            assertEquals(KeyLayout.FR_AZERTY, pc.layout())
+            assertEquals(KeyLayout.FR_AZERTY, pc.withLink(DeviceLink.Bluetooth("00:11:22:33:44:88", "MAC_FR")).layout(), "a mac layout never types to a pc")
+            assertEquals(KeyLayout.US, pc.withLink(DeviceLink.Bluetooth("00:11:22:33:44:88", "US")).layout())
+            assertTrue(!pc.airplay)
+            assertTrue(!pc.copy(shownOn = ShownOn()).airplay, "airplay is a mac's only, whatever was stored")
+            // AltGr is allowed on a PC: @ is AltGr+0 on the French AZERTY.
+            assertTrue(pc.layout()!!.strokes('@')!!.single().modifiers != 0)
+            // Same meanings as on a Mac: Back is Esc, OK is Enter, digits mean nothing.
+            assertEquals(HidAction.Key(KeyStroke(KeyUsage.ESCAPE)), Targeting.route(V2Key.BACK, pc, true, true).action)
+            assertEquals(HidAction.Key(KeyStroke(KeyUsage.ENTER)), Targeting.route(V2Key.DPAD_CENTER, pc, true, true).action)
+            assertEquals(KeyAvailability.NOT_ON_COMPUTER, Targeting.route(V2Key.NUM_1, pc, true, true).availability)
+            assertEquals(json.decodeFromString(DeviceList.serializer(), json.encodeToString(DeviceList.serializer(), DeviceList(listOf(pc)))).devices.single(), pc)
+        }
+    }
+
+    @Test
+    fun `macos keeps the apple tables, apple french by default, and the tv only its own`() {
+        assertEquals(listOf(KeyLayout.MAC_FR, KeyLayout.MAC_US), work.layouts())
+        assertEquals(KeyLayout.MAC_FR, work.layout())
+        assertEquals(KeyLayout.MAC_FR, work.withLink(DeviceLink.Bluetooth("00:11:22:33:44:55", "FR_AZERTY")).layout())
+        assertEquals(KeyLayout.US, tv.layout())
+        assertEquals(KeyLayout.FR_AZERTY, tv.withLink(DeviceLink.Bluetooth("00:11:22:33:44:99", "FR_AZERTY")).layout())
+        assertEquals(KeyLayout.US, tv.withLink(DeviceLink.Bluetooth("00:11:22:33:44:99", "MAC_FR")).layout())
+        assertNull(bar.layout())
     }
 
     @Test
@@ -88,16 +143,16 @@ class DevicesTest {
         val other = Device("tv2", "Other", DeviceKind.TV)
         val list = room.put(other)
         assertEquals(listOf("tv2", "bar", "mac-a", "mac-b"), list.devices.map { it.id })
-        val third = room.put(Device("mac-c", "Third", DeviceKind.MAC))
-        assertEquals(3, third.macs.size)
+        val third = room.put(Device("mac-c", "Third", DeviceKind.COMPUTER))
+        assertEquals(3, third.computers.size)
         assertEquals(listOf("tv", "bar", "mac-b"), room.remove("mac-a").devices.map { it.id })
     }
 
     @Test
     fun `each kind accepts only its links`() {
         assertTrue(DeviceKinds.accepts(DeviceKind.TV, DeviceLink.Bluetooth("x")))
-        assertTrue(DeviceKinds.accepts(DeviceKind.MAC, DeviceLink.Bluetooth("x")))
-        assertTrue(!DeviceKinds.accepts(DeviceKind.MAC, DeviceLink.Google("x")))
+        assertTrue(DeviceKinds.accepts(DeviceKind.COMPUTER, DeviceLink.Bluetooth("x")))
+        assertTrue(!DeviceKinds.accepts(DeviceKind.COMPUTER, DeviceLink.Google("x")))
         assertTrue(!DeviceKinds.accepts(DeviceKind.SOUNDBAR, DeviceLink.Bluetooth("x")))
         assertTrue(!DeviceKinds.accepts(DeviceKind.SOUNDBAR, DeviceLink.SonyIp("x")))
     }
@@ -110,8 +165,8 @@ class DevicesTest {
         assertEquals("tv", Targeting.auto(null, room)?.id)
         assertEquals("mac-a", Targeting.auto(null, DeviceList(listOf(work)))?.id)
         assertNull(Targeting.auto(null, DeviceList()))
-        assertEquals("mac-a", Targeting.macOnInput("extInput:hdmi?port=2", room)?.id)
-        assertNull(Targeting.macOnInput(null, DeviceList(listOf(work.copy(shownOn = ShownOn(null))))))
+        assertEquals("mac-a", Targeting.computerOnInput("extInput:hdmi?port=2", room)?.id)
+        assertNull(Targeting.computerOnInput(null, DeviceList(listOf(work.copy(shownOn = ShownOn(null))))))
     }
 
     @Test
@@ -127,15 +182,15 @@ class DevicesTest {
 
     @Test
     fun `the hid role goes to the targeted mac, the tv only with its lan down, else a mac stays ready`() {
-        assertEquals("mac-b", Targeting.hidHost(room, home, tvLanUp = true, lastMac = "mac-a")?.id)
-        assertEquals("mac-a", Targeting.hidHost(room, tv, tvLanUp = true, lastMac = "mac-a")?.id)
-        assertEquals("mac-b", Targeting.hidHost(room, tv, tvLanUp = true, lastMac = "mac-b")?.id)
-        assertEquals("mac-a", Targeting.hidHost(room, tv, tvLanUp = true, lastMac = null)?.id)
+        assertEquals("mac-b", Targeting.hidHost(room, home, tvLanUp = true, lastComputer = "mac-a")?.id)
+        assertEquals("mac-a", Targeting.hidHost(room, tv, tvLanUp = true, lastComputer = "mac-a")?.id)
+        assertEquals("mac-b", Targeting.hidHost(room, tv, tvLanUp = true, lastComputer = "mac-b")?.id)
+        assertEquals("mac-a", Targeting.hidHost(room, tv, tvLanUp = true, lastComputer = null)?.id)
         val tvBt = tv.withLink(DeviceLink.Bluetooth("00:11:22:33:44:77"))
-        assertEquals("tv", Targeting.hidHost(room.put(tvBt), tvBt, tvLanUp = false, lastMac = "mac-a")?.id)
-        assertEquals("mac-a", Targeting.hidHost(room, tv, tvLanUp = false, lastMac = null)?.id, "a tv without bluetooth can't hold it")
-        assertNull(Targeting.hidHost(DeviceList(listOf(tv, bar)), tv, tvLanUp = true, lastMac = null))
-        assertEquals("mac-a", Targeting.hidHost(room, work.withoutLink<DeviceLink.Bluetooth>(), tvLanUp = true, lastMac = null)?.id)
+        assertEquals("tv", Targeting.hidHost(room.put(tvBt), tvBt, tvLanUp = false, lastComputer = "mac-a")?.id)
+        assertEquals("mac-a", Targeting.hidHost(room, tv, tvLanUp = false, lastComputer = null)?.id, "a tv without bluetooth can't hold it")
+        assertNull(Targeting.hidHost(DeviceList(listOf(tv, bar)), tv, tvLanUp = true, lastComputer = null))
+        assertEquals("mac-a", Targeting.hidHost(room, work.withoutLink<DeviceLink.Bluetooth>(), tvLanUp = true, lastComputer = null)?.id)
     }
 
     @Test
@@ -147,7 +202,7 @@ class DevicesTest {
             assertEquals(KeyAvailability.LINK_DOWN, Targeting.route(key, work, false, true).availability)
         }
         for (key in listOf(V2Key.MEDIA_REWIND, V2Key.CAPTIONS, V2Key.MEDIA_AUDIO_TRACK, V2Key.NUM_5, V2Key.CHANNEL_UP, V2Key.PROG_RED, V2Key.ASSIST)) {
-            assertEquals(KeyAvailability.NOT_ON_MAC, Targeting.route(key, work, true, true).availability, "key $key")
+            assertEquals(KeyAvailability.NOT_ON_COMPUTER, Targeting.route(key, work, true, true).availability, "key $key")
         }
         assertEquals(KeyAvailability.LINK_DOWN, Targeting.route(V2Key.DPAD_UP, work, true, hidConnected = false).availability)
     }

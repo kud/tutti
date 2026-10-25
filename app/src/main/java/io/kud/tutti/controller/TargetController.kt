@@ -10,6 +10,7 @@ import io.kud.tutti.platform.bluetooth.HidPhase
 import io.kud.tutti.platform.bluetooth.HidState
 import io.kud.tutti.platform.data.TuttiStore
 import io.kud.tutti.platform.security.SecureStore
+import io.kud.tutti.protocol.devices.ComputerOs
 import io.kud.tutti.protocol.devices.Device
 import io.kud.tutti.protocol.devices.DeviceKind
 import io.kud.tutti.protocol.devices.DeviceLink
@@ -46,7 +47,7 @@ enum class DeviceVia { GOOGLE_TV, SONY_IP, BLUETOOTH, NETWORK, NONE }
 data class TargetDevice(val id: String, val name: String, val kind: DeviceKind, val via: DeviceVia)
 
 /**
- * The remote's target, for the UI (stage 1: one TV, one bar, any number of Macs). Keys ask
+ * The remote's target, for the UI (stage 1: one TV, one bar, any number of computers). Keys ask
  * [route]/[availability]; the chip reads [target]; the sheet lists [present].
  */
 data class TargetState(
@@ -60,8 +61,8 @@ data class TargetState(
     val target: TargetDevice? = null,
     /** The target was chosen by hand; it holds until the TV's input changes. */
     val manual: Boolean = false,
-    /** The Mac the TV is showing on its input right now, for the now-showing card's « Contrôler le Mac ». */
-    val macOnInput: TargetDevice? = null,
+    /** The computer the TV is showing on its input right now, for the now-showing card's « Contrôler <nom> ». */
+    val computerOnInput: TargetDevice? = null,
     val tvLanUp: Boolean = false,
     val hidPhase: HidPhase = HidPhase.STOPPED,
     /** The device the HID connection is up with, if any. */
@@ -103,7 +104,7 @@ class TargetController @Inject constructor(
 ) {
     private val scope = controller.scope
     private val choice = MutableStateFlow(TargetChoice())
-    private val lastMac = MutableStateFlow<String?>(null)
+    private val lastComputer = MutableStateFlow<String?>(null)
     private val remoteShown = MutableStateFlow(false)
     private val appForeground = MutableStateFlow(false)
     private val hasGyroscope = context.getSystemService(SensorManager::class.java)?.getDefaultSensor(Sensor.TYPE_GYROSCOPE) != null
@@ -130,12 +131,12 @@ class TargetController @Inject constructor(
             tvView.collect { (_, _, app) -> _foreground.update { it.seen(app, System.currentTimeMillis()) } }
         }
         scope.launch {
-            state.collect { s -> if (s.target?.kind == DeviceKind.MAC) lastMac.value = s.target.id }
+            state.collect { s -> if (s.target?.kind == DeviceKind.COMPUTER) lastComputer.value = s.target.id }
         }
         // The one HID connection follows Targeting.hidHost, only while the remote is in front.
         scope.launch {
-            combine(state, remoteShown, appForeground, lastMac) { s, shown, fg, mac ->
-                if (!shown || !fg) null else Targeting.hidHost(s.list, s.target?.let { s.list[it.id] }, s.tvLanUp, mac)?.bluetooth?.address ?: ""
+            combine(state, remoteShown, appForeground, lastComputer) { s, shown, fg, last ->
+                if (!shown || !fg) null else Targeting.hidHost(s.list, s.target?.let { s.list[it.id] }, s.tvLanUp, last)?.bluetooth?.address ?: ""
             }.distinctUntilChanged().collect { address ->
                 when (address) {
                     null, "" -> hid.release(HOLDER)
@@ -163,7 +164,7 @@ class TargetController @Inject constructor(
             present = targets,
             target = target?.let(::view),
             manual = c.manual != null && target?.id == c.manual,
-            macOnInput = Targeting.macOnInput(input, list)?.let(::view),
+            computerOnInput = Targeting.computerOnInput(input, list)?.let(::view),
             tvLanUp = lanUp,
             hidPhase = h.phase,
             hidConnectedTo = connectedTo,
@@ -266,20 +267,23 @@ class TargetController @Inject constructor(
 
     // region settings › devices
 
-    /** Bonded Bluetooth hosts that look like computers, for "add a Mac" (needs the role held to refresh). */
+    /** Bonded Bluetooth hosts that look like computers, for "add a computer" (needs the role held to refresh). */
     val bonded: StateFlow<List<io.kud.tutti.platform.bluetooth.HidHost>> =
         hid.state.map { s -> s.bonded.filter { it.isComputer || !it.isTv } }.stateIn(scope, SharingStarted.Eagerly, emptyList())
 
-    /** Adds a Mac and returns its id. [hdmiInput]: the TV input it is shown on (a Sony uri), if any. */
-    suspend fun addMac(name: String, address: String, hdmiInput: String?, layout: KeyLayout? = null): String {
-        val id = "mac-" + UUID.randomUUID().toString().take(8)
+    /**
+     * Adds a computer and returns its id. [hdmiInput]: the TV input it is shown on (a Sony uri), if
+     * any; AirPlay is offered for a computer only. The layout starts at the system's default.
+     */
+    suspend fun addComputer(name: String, address: String, os: ComputerOs, hdmiInput: String?): String {
+        val id = "computer-" + UUID.randomUUID().toString().take(8)
         store.updateDeviceList {
-            it.put(Device(id, name, DeviceKind.MAC, listOf(DeviceLink.Bluetooth(address, layout?.name)), ShownOn(hdmiInput)))
+            it.put(Device(id, name, DeviceKind.COMPUTER, listOf(DeviceLink.Bluetooth(address, os.defaultLayout.name)), ShownOn(hdmiInput, airplay = os.airplay), os))
         }
         return id
     }
 
-    suspend fun setMacInput(id: String, hdmiInput: String?) =
+    suspend fun setComputerInput(id: String, hdmiInput: String?) =
         store.updateDeviceList { list -> list.update(id) { it.copy(shownOn = (it.shownOn ?: ShownOn()).copy(hdmiInput = hdmiInput)) } }
 
     suspend fun setLayout(id: String, layout: KeyLayout) = store.updateDeviceList { list ->

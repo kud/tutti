@@ -186,15 +186,15 @@ fun RemoteScreen(
         target.remoteShown(true)
         onDispose { target.remoteShown(false) }
     }
-    val onMac = targets.target?.kind == DeviceKind.MAC
-    // Keys go through the router whenever a key may leave the LAN: a Mac target, or the TV over Bluetooth.
-    val routed = onMac || targets.link == RemoteLink.BLUETOOTH
-    val macUnavailable = stringResource(R.string.mac_unavailable)
+    val onComputer = targets.target?.kind == DeviceKind.COMPUTER
+    // Keys go through the router whenever a key may leave the LAN: a computer target, or the TV over Bluetooth.
+    val routed = onComputer || targets.link == RemoteLink.BLUETOOTH
+    val computerUnavailable = stringResource(R.string.computer_unavailable)
     val notOverBluetooth = stringResource(R.string.target_not_over_bluetooth)
     val linkDown = stringResource(R.string.target_link_down)
-    val macMeanings = macMeaningWords()
+    val computerMeanings = computerMeaningWords()
     fun keyDown(code: Int): Boolean = routed && targets.availability(code) != KeyAvailability.AVAILABLE
-    fun keyMeaning(code: Int): String? = if (onMac && !keyDown(code)) macMeanings(code) else null
+    fun keyMeaning(code: Int): String? = if (onComputer && !keyDown(code)) computerMeanings(code) else null
 
     // The pad on a Bluetooth target: trackpad, D-pad or gyro, remembered per target id for the
     // session; the TV on its LAN keeps the stored mode (Iris, 2026-10-25).
@@ -228,7 +228,7 @@ fun RemoteScreen(
             messages?.show(gyroDropped)
         }
     }
-    // Typing on a Mac (or the TV over Bluetooth) goes through the target's layout; what it can't type is said.
+    // Typing on a computer (or the TV over Bluetooth) goes through the target's layout; what it can't type is said.
     val untypable = stringResource(R.string.target_typing_unsupported)
     fun typeText(text: String) {
         if (!routed) {
@@ -248,7 +248,7 @@ fun RemoteScreen(
         }
         val why = when (target.key(code).availability) {
             KeyAvailability.AVAILABLE -> return
-            KeyAvailability.NOT_ON_MAC -> macUnavailable
+            KeyAvailability.NOT_ON_COMPUTER -> computerUnavailable
             KeyAvailability.NOT_OVER_BLUETOOTH -> notOverBluetooth
             KeyAvailability.LINK_DOWN -> linkDown
         }
@@ -494,22 +494,22 @@ fun RemoteScreen(
                                     // The TV alone; the bar plays on (CEC may still move it to the TV input).
                                     onWakeTv = { controller.power(PowerTarget.TV, on = true) },
                                     waking = state.waking,
-                                    onOpen = when (cardTap(shown, targets.macOnInput != null)) {
+                                    onOpen = when (cardTap(shown, targets.computerOnInput != null)) {
                                         CardTap.PLAYBACK -> {
                                             {
                                                 haptics.click()
                                                 playbackFor = shown
                                             }
                                         }
-                                        CardTap.CONTROL_MAC -> {
+                                        CardTap.CONTROL_COMPUTER -> {
                                             {
                                                 haptics.click()
-                                                targets.macOnInput?.let { target.setTarget(it.id) }
+                                                targets.computerOnInput?.let { target.setTarget(it.id) }
                                             }
                                         }
                                         CardTap.NONE -> null
                                     },
-                                    opensMac = cardTap(shown, targets.macOnInput != null) == CardTap.CONTROL_MAC,
+                                    controls = targets.computerOnInput?.name?.takeIf { cardTap(shown, true) == CardTap.CONTROL_COMPUTER },
                                     onActions = cardActionsApp(shown)?.let {
                                         {
                                             haptics.longPress()
@@ -633,7 +633,7 @@ fun RemoteScreen(
                                 size = ROW_BUTTON,
                                 onKey = ::sendKey,
                                 keyDown = ::keyDown,
-                                keyDownReason = macUnavailable,
+                                keyDownReason = computerUnavailable,
                                 keyMeaning = ::keyMeaning,
                             )
                         }

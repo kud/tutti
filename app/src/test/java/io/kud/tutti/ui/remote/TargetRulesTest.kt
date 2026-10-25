@@ -9,7 +9,7 @@ import org.junit.Test
 
 class TargetRulesTest {
     private val tv = TargetRow("tv", "BRAVIA", TargetKind.TV, RemoteLink.LAN, current = true)
-    private val mac = TargetRow("mac", "Laptop", TargetKind.MAC, RemoteLink.BLUETOOTH, current = false)
+    private val mac = TargetRow("mac", "Laptop", TargetKind.COMPUTER, RemoteLink.BLUETOOTH, current = false)
 
     @Test
     fun `no chip with the tv alone, a chip once a mac is present`() {

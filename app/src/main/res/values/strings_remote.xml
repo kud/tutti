@@ -104,13 +104,12 @@
     <string name="target_link_none">Not connected</string>
     <string name="link_bluetooth">Bluetooth</string>
     <string name="link_indicator_bluetooth">Keys go over Bluetooth</string>
-    <string name="card_control_mac">Control the Mac</string>
-    <string name="mac_unavailable">Not available on the Mac</string>
-    <string name="mac_meaning_back">Escape on the Mac</string>
-    <string name="mac_meaning_arrow">arrow key on the Mac</string>
-    <string name="mac_meaning_ok">Return on the Mac</string>
-    <string name="mac_meaning_media">media key on the Mac</string>
-    <string name="mac_meaning_keyboard">types on the Mac</string>
+    <string name="card_control_computer">Control %1$s</string>
+    <string name="computer_unavailable">Not available on the computer</string>
+    <string name="computer_meaning_back">Escape on the computer</string>
+    <string name="computer_meaning_arrow">arrow key on the computer</string>
+    <string name="computer_meaning_ok">Enter on the computer</string>
+    <string name="computer_meaning_media">media key on the computer</string>
     <!-- Pointing pad for Bluetooth targets -->
     <string name="pad_mode_gyro">Gyro pointer</string>
     <string name="pad_switch_gyro">Switch to the gyro pointer</string>

@@ -18,8 +18,8 @@ data class TargetChoice(val manual: String? = null, val inputAtChoice: String? =
 enum class KeyAvailability {
     AVAILABLE,
 
-    /** No Mac meaning (Iris, 2026-10-25: rewind, subtitles, digits, channels, colours…). */
-    NOT_ON_MAC,
+    /** No computer meaning (Iris, 2026-10-25: rewind, subtitles, digits, channels, colours…). */
+    NOT_ON_COMPUTER,
 
     /** The TV over Bluetooth only (its LAN is down): power, inputs, settings can't go that way. */
     NOT_OVER_BLUETOOTH,
@@ -37,9 +37,9 @@ data class KeyRoute(val availability: KeyAvailability, val link: RemoteLink, val
 /** The remote's target, per device: pure rules the controller reads. */
 object Targeting {
     /**
-     * Keys that keep their Google TV meaning while a Mac is the target (Iris, 2026-10-25): Home,
-     * Apps, Settings, inputs, Power. They leave the Mac's input on purpose and the target follows.
-     * Volume is the room's (the bar, else the TV), never a Mac's.
+     * Keys that keep their Google TV meaning while a computer is the target (Iris, 2026-10-25):
+     * Home, Apps, Settings, inputs, Power. They leave the computer's input on purpose and the target
+     * follows. Volume is the room's (the bar, else the TV), never a computer's.
      */
     val TV_MEANING: Set<Int> = setOf(
         V2Key.HOME, V2Key.ALL_APPS, V2Key.SETTINGS, V2Key.POWER, V2Key.APP_SWITCH,
@@ -47,16 +47,16 @@ object Targeting {
         V2Key.VOLUME_UP, V2Key.VOLUME_DOWN, V2Key.VOLUME_MUTE,
     )
 
-    /** Digits have a HID usage but no remote meaning on a Mac (Iris, 2026-10-25). */
-    private val NOT_FOR_MAC: Set<Int> = (V2Key.NUM_0..V2Key.NUM_9).toSet()
+    /** Digits have a HID usage but no remote meaning on a computer (Iris, 2026-10-25). */
+    private val NOT_FOR_COMPUTER: Set<Int> = (V2Key.NUM_0..V2Key.NUM_9).toSet()
 
-    /** The Mac shown on [input], if one is marked for it. */
-    fun macOnInput(input: String?, devices: DeviceList): Device? =
-        if (input == null) null else devices.macs.firstOrNull { it.shownOn?.hdmiInput == input }
+    /** The computer shown on [input], if one is marked for it. */
+    fun computerOnInput(input: String?, devices: DeviceList): Device? =
+        if (input == null) null else devices.computers.firstOrNull { it.shownOn?.hdmiInput == input }
 
-    /** The target that follows the TV: the Mac on its input, else the TV, else the first Mac. */
+    /** The target that follows the TV: the computer on its input, else the TV, else the first computer. */
     fun auto(input: String?, devices: DeviceList): Device? =
-        macOnInput(input, devices) ?: devices.tv ?: devices.macs.firstOrNull()
+        computerOnInput(input, devices) ?: devices.tv ?: devices.computers.firstOrNull()
 
     /** A manual [choice] holds while the input is the one it was made on and the device still exists. */
     fun current(choice: TargetChoice, input: String?, devices: DeviceList): Device? =
@@ -68,31 +68,31 @@ object Targeting {
 
     /**
      * Who holds the one HID connection while the remote is in front, generalising [HidRoute.hidHost]
-     * to several Macs: the target when it is a Mac; the TV when it is the target with its LAN down;
-     * otherwise a Mac stays ready, so switching to it is only routing ([lastMac] first). Null: let
+     * to several computers: the target when it is a computer; the TV when it is the target with its
+     * LAN down; otherwise a computer stays ready, so switching to it is only routing ([lastComputer] first). Null: let
      * the role go. Only devices with a Bluetooth address can hold it.
      */
-    fun hidHost(devices: DeviceList, target: Device?, tvLanUp: Boolean, lastMac: String?): Device? {
+    fun hidHost(devices: DeviceList, target: Device?, tvLanUp: Boolean, lastComputer: String?): Device? {
         fun Device?.paired() = this?.takeIf { it.bluetooth != null }
-        if (target?.kind == DeviceKind.MAC) target.paired()?.let { return it }
+        if (target?.kind == DeviceKind.COMPUTER) target.paired()?.let { return it }
         if (target?.kind == DeviceKind.TV && !tvLanUp) target.paired()?.let { return it }
-        return lastMac?.let { devices[it] }?.takeIf { it.kind == DeviceKind.MAC }.paired()
-            ?: devices.macs.firstOrNull { it.bluetooth != null }
+        return lastComputer?.let { devices[it] }?.takeIf { it.kind == DeviceKind.COMPUTER }.paired()
+            ?: devices.computers.firstOrNull { it.bluetooth != null }
     }
 
     /**
      * Where [v2Key] goes for [target]. [hidConnected]: the HID link is up to that target.
-     * TV-meaning keys go to the TV over its LAN even while a Mac is targeted.
+     * TV-meaning keys go to the TV over its LAN even while a computer is targeted.
      */
     fun route(v2Key: Int, target: Device?, tvLanUp: Boolean, hidConnected: Boolean): KeyRoute {
         val kind = target?.kind?.hidTarget ?: HidTarget.TV
-        if (kind == HidTarget.MAC) {
+        if (kind == HidTarget.COMPUTER) {
             if (v2Key in TV_MEANING) {
                 return if (tvLanUp) KeyRoute(KeyAvailability.AVAILABLE, RemoteLink.LAN, toTv = true)
                 else KeyRoute(KeyAvailability.LINK_DOWN, RemoteLink.NONE, toTv = true)
             }
-            val action = HidRoute.action(v2Key, HidTarget.MAC)?.takeIf { v2Key !in NOT_FOR_MAC }
-                ?: return KeyRoute(KeyAvailability.NOT_ON_MAC, RemoteLink.NONE, toTv = false)
+            val action = HidRoute.action(v2Key, HidTarget.COMPUTER)?.takeIf { v2Key !in NOT_FOR_COMPUTER }
+                ?: return KeyRoute(KeyAvailability.NOT_ON_COMPUTER, RemoteLink.NONE, toTv = false)
             return if (hidConnected) KeyRoute(KeyAvailability.AVAILABLE, RemoteLink.BLUETOOTH, toTv = false, action)
             else KeyRoute(KeyAvailability.LINK_DOWN, RemoteLink.NONE, toTv = false, action)
         }
@@ -106,9 +106,9 @@ object Targeting {
     }
 
     /**
-     * The input to preselect when adding a Mac: "plug the Mac in (or wake it)", and the HDMI input
-     * whose `connected` flipped to true since [before] is the one. Macs send no HDMI-CEC name, so
-     * this, confirmed by hand, is how a Mac is tied to its input. Null when none or several flipped.
+     * The input to preselect when adding a computer: "plug it in (or wake it)", and the HDMI input
+     * whose `connected` flipped to true since [before] is the one. Computers send no HDMI-CEC name, so
+     * this, confirmed by hand, is how a computer is tied to its input. Null when none or several flipped.
      */
     fun newlyConnected(before: List<ExternalInput>, after: List<ExternalInput>): String? {
         val was = before.filter { it.connected }.map { it.uri }.toSet()

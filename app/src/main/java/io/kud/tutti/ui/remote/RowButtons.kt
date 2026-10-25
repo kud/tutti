@@ -94,10 +94,10 @@ fun LiveRowButton(
     size: Dp,
     /** Where a key goes: the remote's target router ([RemoteScreen]); the TV by default. */
     onKey: (Int) -> Unit = controller::key,
-    /** The key is down for the target (a TV-only key while the Mac is targeted): bumps, says [keyDownReason]. */
+    /** The key is down for the target (a TV-only key while the computer is targeted): bumps, says [keyDownReason]. */
     keyDown: (Int) -> Boolean = { false },
     keyDownReason: String? = null,
-    /** What the key means on the target, for TalkBack ("Escape on the Mac"); null keeps the TV's. */
+    /** What the key means on the target, for TalkBack ("Escape on the computer"); null keeps the TV's. */
     keyMeaning: (Int) -> String? = { null },
 ) {
     // One rule for every control (controlLink): a TV key goes down with the TV's link, Mute with

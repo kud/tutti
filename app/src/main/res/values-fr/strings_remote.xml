@@ -100,13 +100,12 @@
     <string name="target_link_none">Non connecté</string>
     <string name="link_bluetooth">Bluetooth</string>
     <string name="link_indicator_bluetooth">Les touches passent par Bluetooth</string>
-    <string name="card_control_mac">Contrôler le Mac</string>
-    <string name="mac_unavailable">Indisponible sur le Mac</string>
-    <string name="mac_meaning_back">Échap sur le Mac</string>
-    <string name="mac_meaning_arrow">flèche sur le Mac</string>
-    <string name="mac_meaning_ok">Entrée sur le Mac</string>
-    <string name="mac_meaning_media">touche média du Mac</string>
-    <string name="mac_meaning_keyboard">tape sur le Mac</string>
+    <string name="card_control_computer">Contrôler %1$s</string>
+    <string name="computer_unavailable">Indisponible sur l’ordinateur</string>
+    <string name="computer_meaning_back">Échap sur l’ordinateur</string>
+    <string name="computer_meaning_arrow">flèche sur l’ordinateur</string>
+    <string name="computer_meaning_ok">Entrée sur l’ordinateur</string>
+    <string name="computer_meaning_media">touche média de l’ordinateur</string>
     <!-- Pavé de pointage des cibles Bluetooth -->
     <string name="pad_mode_gyro">Pointeur gyroscopique</string>
     <string name="pad_switch_gyro">Passer au pointeur gyroscopique</string>
