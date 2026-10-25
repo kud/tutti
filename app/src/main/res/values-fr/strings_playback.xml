@@ -17,4 +17,5 @@
     <string name="app_actions_close_confirm_title">Fermer toutes les apps de la TV ?</string>
     <string name="app_actions_close_confirm_text">La TV ne sait fermer que toutes ses apps à la fois, %1$s comprise.</string>
     <string name="app_actions_close_confirm">Fermer les apps</string>
+    <string name="scrub_label">Glissez pour reculer ou avancer</string>
 </resources>

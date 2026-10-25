@@ -85,6 +85,8 @@ Long press, on an app only (« aller sur home de l'app ou kill l'app »): a `Tut
 
 Voice and Night ride along (Iris, 2026-10-25, benchmark item 5): with a bar set up, the playback sheet carries the bar's "Voice" and "Night" under the track keys, the Son sheet's own tiles (`SoundTile`), so each says On or Off in words with its mark, takes the down dress with the reason when the bar is out of reach, and pins to the dock on a long press like the Son sheet's. Sonos keeps dialogue and night on the "now playing" screen, and people lost them when they moved; the Son sheet keeps them too.
 
+The scrub strip (Iris, 2026-10-25, benchmark idea 2) sits under them: one 56 dp strip, "Drag to move back or forward" between the rewind and fast-forward glyphs. A sideways drag sends one rewind or fast-forward key per 32 dp of travel (`ScrubTrack`, `scrubKey`, tested), the transport row's own keys, with one select haptic per key, so the thumb counts the steps; ticks along its bottom edge follow the finger. Like the pad's skip it names no duration, and it shows no target position: nothing tutti reads says where playback is, and Cast stays read-only (architecture.md). TalkBack hears one control with "Rewind" and "Fast forward" actions; with the TV's link down it takes the down dress and ignores drags.
+
 ### Now-showing card: what Cast reports playing (Iris, 2026-10-25)
 
 Shown only when the TV reports it over Cast (architecture § 7). YouTube does; Netflix doesn't. When nothing is reported, nothing new appears and the card reads as before.

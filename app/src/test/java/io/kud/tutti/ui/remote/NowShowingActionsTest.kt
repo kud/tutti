@@ -76,4 +76,30 @@ class NowShowingActionsTest {
         assertEquals(listOf(AppAction.PIN), appActions(pinnedAt = null, pskSet = false))
         assertEquals(listOf(AppAction.UNPIN, AppAction.CLOSE_APPS), appActions(pinnedAt = 3, pskSet = true))
     }
+
+    @Test
+    fun `the scrub strip sends the transport row's rewind and fast forward`() {
+        assertEquals(V2Key.MEDIA_FAST_FORWARD, scrubKey(1))
+        assertEquals(V2Key.MEDIA_REWIND, scrubKey(-1))
+        assertTrue(scrubKey(1) in PLAYBACK_TRANSPORT && scrubKey(-1) in PLAYBACK_TRANSPORT)
+    }
+
+    @Test
+    fun `one scrub step per step of travel, either way`() {
+        val track = ScrubTrack(10f)
+        assertTrue(track.move(9f).isEmpty())
+        assertEquals(listOf(1), track.move(2f))
+        assertEquals(listOf(1, 1), track.move(20f))
+        // Back over a little travel sends nothing, then steps back.
+        assertTrue(track.move(-9f).isEmpty())
+        assertEquals(listOf(-1), track.move(-10f))
+        track.reset()
+        assertEquals(listOf(-1, -1, -1), track.move(-35f))
+    }
+
+    @Test
+    fun `a wobble on the scrub strip sends nothing`() {
+        val track = ScrubTrack(10f)
+        repeat(20) { assertTrue(track.move(if (it % 2 == 0) 6f else -6f).isEmpty()) }
+    }
 }

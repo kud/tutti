@@ -942,6 +942,7 @@ fun RemoteScreen(
                 }
             },
             cast = castNowPlaying,
+            onScrub = { code -> sendKey(code) },
         )
     }
     actionsFor?.let { opened ->
