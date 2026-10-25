@@ -41,4 +41,13 @@ class OverlayRailTest {
         assertEquals(50, rail.limit)
         assertFalse(rail.atLimit(up = true))
     }
+
+    @Test
+    fun `the overlay can't ask, so its drag stops at the high-volume guard`() {
+        val rail = overlayRail(QuickState(volumeLimit = 100, guardLine = 30, level = AudioLevel(VolumeTarget.BAR, 30, 100, muted = false)))
+        assertEquals(30, rail.limit)
+        assertTrue(rail.atLimit(up = true))
+        // The cap still wins when it is lower.
+        assertEquals(20, overlayRail(QuickState(volumeLimit = 20, guardLine = 30, level = AudioLevel(VolumeTarget.BAR, 10, 20, muted = false))).limit)
+    }
 }

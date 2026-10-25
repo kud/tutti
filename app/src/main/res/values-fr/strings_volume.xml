@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="volume_open_sheet">Niveau précis</string>
+    <string name="volume_sheet_title">Volume</string>
+    <string name="volume_sheet_now">Actuellement %1$d</string>
+    <string name="volume_sheet_now_unknown">Niveau pas encore indiqué</string>
+    <string name="volume_sheet_new">Nouveau niveau</string>
+    <string name="volume_sheet_set">Régler à %1$d</string>
+    <string name="volume_sheet_already">Déjà à %1$d</string>
+    <string name="volume_sheet_down">Baisser d’un cran</string>
+    <string name="volume_sheet_up">Monter d’un cran</string>
+    <string name="volume_sheet_guard_note">Au-delà de %1$d, tutti vous demande d’abord.</string>
+    <string name="volume_sheet_unreachable">%1$s injoignable : impossible de régler le niveau pour l’instant.</string>
+    <string name="volume_sheet_no_bar">Aucune barre de son ajoutée : le rail et cette feuille règlent la barre.</string>
+    <string name="volume_presets_title">Niveaux enregistrés</string>
+    <string name="volume_preset_empty">Enregistrer %1$d ici</string>
+    <string name="volume_preset_empty_unknown">Vide</string>
+    <string name="volume_preset_label">Niveau enregistré %1$d</string>
+    <string name="volume_preset_replace">Remplacer par %1$d</string>
+    <string name="volume_preset_remove">Retirer</string>
+    <string name="volume_presets_hint">Appui long sur un niveau pour le remplacer ou le retirer.</string>
+    <string name="volume_cap_title">Plafond pour ce soir</string>
+    <string name="volume_cap_explain">Le volume reste en dessous depuis partout, scènes comprises, jusque-là.</string>
+    <string name="volume_cap_active">Pas plus fort que %1$d jusqu’à %2$s</string>
+    <string name="volume_cap_remove">Retirer le plafond</string>
+    <string name="volume_cap_level">Plafond</string>
+    <string name="volume_cap_down">Baisser le plafond</string>
+    <string name="volume_cap_up">Monter le plafond</string>
+    <string name="volume_cap_one_hour">1 heure</string>
+    <string name="volume_cap_three_hours">3 heures</string>
+    <string name="volume_cap_until">Jusqu’à %1$s</string>
+    <string name="volume_cap_set">Plafonner à %1$d</string>
+    <string name="volume_cap_scene">La scène %1$s le plafonne à %2$d.</string>
+    <string name="volume_guard_title">Attention, le volume devient élevé</string>
+    <string name="volume_guard_body">Monter au-delà de %1$d ? Le volume passera à %2$d.</string>
+    <string name="volume_guard_go">Monter à %1$d</string>
+    <string name="volume_guard_stay">Rester à %1$d</string>
+    <string name="settings_volume_title">Volume</string>
+    <string name="settings_guard">Garde-fou du volume</string>
+    <string name="settings_guard_summary">Au-delà de %1$d, l’app vous demande d’abord ; le widget, la notification et les Réglages rapides s’y arrêtent.</string>
+    <string name="settings_guard_off_summary">Désactivé : le volume monte jusqu’au plafond sans demander.</string>
+    <string name="settings_guard_level">Seuil</string>
+    <string name="settings_guard_level_value">%1$d sur 100</string>
+    <string name="settings_guard_down">Baisser le seuil</string>
+    <string name="settings_guard_up">Monter le seuil</string>
+    <string name="quick_guard_held">Au-delà de %1$d : ouvrez tutti</string>
+    <string name="quick_guard_held_short">max %1$d sans l’app</string>
+
+    <string name="scene_applied">Scène « %1$s » appliquée</string>
+    <string name="scene_undo">Annuler</string>
+    <string name="scene_undo_menu">Annuler la dernière scène</string>
+    <string name="scene_undone">Scène « %1$s » annulée</string>
+    <string name="scene_undone_generic">Scène annulée</string>
+    <string name="scene_undo_failed">Annulation incomplète : certains réglages ne sont pas revenus</string>
+    <string name="scene_apply">Appliquer</string>
+    <string name="scene_options">Options de la scène</string>
+
+    <string name="power_sleep">Minuterie de veille</string>
+    <string name="power_sleep_detail">Chaque appui passe au palier suivant ; la TV l’affiche.</string>
+    <string name="power_sleep_down">Le contrôle IP ne répond pas</string>
+    <string name="power_sleep_standby">La TV est en veille</string>
+    <string name="power_sheet_tv_solo">La TV</string>
+    <string name="power_long_label_tv">Éteindre la TV ou régler sa minuterie de veille</string>
+</resources>

@@ -53,8 +53,15 @@ data class QuickState(
     val power: Boolean = false,
     /** Bar volume, 0–100. 0 while unknown: surfaces that must not show a made-up 0 read [level]. */
     val volume: Int = 0,
-    /** Effective ceiling: 100, or the active scene's volume cap (Nuit: 20). */
+    /** Effective ceiling: 100, or the active cap (a scene's, Nuit: 20, or the cap for tonight). */
     val volumeLimit: Int = 100,
+    /**
+     * The bar's high-volume guard, where it stops a quick surface (they can't ask): null when it
+     * stops nothing right now. Going above needs the app.
+     */
+    val guardLine: Int? = null,
+    /** A quick press was just stopped at [guardLine]: the surfaces say going above needs the app. */
+    val guardHeld: Boolean = false,
     val muted: Boolean = false,
     val activeSceneId: String? = null,
     /** The active scene was applied, then changed by hand ("modifiée"). */
@@ -119,10 +126,13 @@ fun overlayRail(state: QuickState): OverlayRail {
     val reported = state.level
     return when (reported?.target) {
         VolumeTarget.TV -> OverlayRail(reported.level.coerceIn(0, reported.max), reported.max, reported.max)
-        VolumeTarget.BAR -> OverlayRail(reported.level.coerceIn(0, BAR_RANGE), BAR_RANGE, state.volumeLimit.coerceIn(0, BAR_RANGE))
-        null -> OverlayRail(null, BAR_RANGE, state.volumeLimit.coerceIn(0, BAR_RANGE))
+        VolumeTarget.BAR -> OverlayRail(reported.level.coerceIn(0, BAR_RANGE), BAR_RANGE, barLimit(state))
+        null -> OverlayRail(null, BAR_RANGE, barLimit(state))
     }
 }
+
+/** The overlay's drag stops at the cap, or at the high-volume guard while it is armed: it can't ask. */
+private fun barLimit(state: QuickState): Int = minOf(state.volumeLimit, state.guardLine ?: BAR_RANGE).coerceIn(0, BAR_RANGE)
 
 /** The bar's scale (TuttiController.MAX_VOLUME). */
 private const val BAR_RANGE = 100

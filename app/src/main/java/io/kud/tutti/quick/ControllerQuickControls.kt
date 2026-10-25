@@ -5,6 +5,7 @@ import io.kud.tutti.controller.TuttiController
 import io.kud.tutti.controller.TuttiEvent
 import io.kud.tutti.controller.TuttiUiState
 import io.kud.tutti.controller.SceneStatus
+import io.kud.tutti.controller.VolumeSource
 import io.kud.tutti.protocol.atv.V2Key
 import io.kud.tutti.quick.notification.tvStepsTo
 import kotlin.math.abs
@@ -53,7 +54,7 @@ class ControllerQuickControls @Inject constructor(
 
     private suspend fun step(delta: Int) = held {
         if (onBar()) {
-            controller.volumeStep(delta)
+            controller.volumeStep(delta, VolumeSource.QUICK)
         } else {
             controller.key(if (delta > 0) V2Key.VOLUME_UP else V2Key.VOLUME_DOWN)
         }
@@ -61,7 +62,7 @@ class ControllerQuickControls @Inject constructor(
 
     override suspend fun setVolume(level: Int) = held {
         if (onBar()) {
-            controller.setVolume(level)
+            controller.setVolume(level, VolumeSource.QUICK)
         } else {
             // The remote link has no absolute volume: walk there in key presses, bounded.
             val tv = state.value.level ?: return@held
@@ -127,6 +128,8 @@ class ControllerQuickControls @Inject constructor(
             power = powered == true,
             volume = volume ?: 0,
             volumeLimit = volumeCap ?: 100,
+            guardLine = volumeGuardLine.takeIf { hasBar },
+            guardHeld = volumeGuardNotice && hasBar && volumeGuardLine != null,
             muted = muted,
             activeSceneId = active?.scene?.id,
             activeSceneModified = active?.status == SceneStatus.MODIFIED,

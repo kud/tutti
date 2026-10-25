@@ -175,7 +175,28 @@ fun TuttiApp(controller: TuttiController, discovery: TvDiscovery, diagnostics: D
             when (event) {
                 is TuttiEvent.SceneFinished -> {
                     if (event.failedSteps == 0) haptics.doublePulse() else haptics.reject()
-                    if (event.detail != null) problems.report(context.getString(R.string.scene_failed_steps), event.detail)
+                    if (event.detail != null) {
+                        problems.report(context.getString(R.string.scene_failed_steps), event.detail)
+                    } else if (event.undoable) {
+                        // One step back in one gesture (Iris's gesture audit): the message carries Undo,
+                        // and the pill's menu keeps it until the undo goes stale.
+                        val name = controller.state.value.scenes.firstOrNull { it.scene.id == event.sceneId }?.scene?.name
+                        if (name != null) {
+                            messages.show(
+                                context.getString(R.string.scene_applied, name),
+                                actionLabel = context.getString(R.string.scene_undo),
+                                onAction = { controller.undoLastScene() },
+                            )
+                        }
+                    }
+                }
+                is TuttiEvent.SceneUndone -> {
+                    if (event.failedSteps == 0) haptics.confirm() else haptics.reject()
+                    if (event.detail != null) {
+                        problems.report(context.getString(R.string.scene_undo_failed), event.detail)
+                    } else {
+                        messages.show(event.sceneName?.let { context.getString(R.string.scene_undone, it) } ?: context.getString(R.string.scene_undone_generic))
+                    }
                 }
                 TuttiEvent.VolumeLimit -> haptics.bump()
                 is TuttiEvent.ActionFailed -> problems.report(context.getString(R.string.error_action_failed), event.detail)

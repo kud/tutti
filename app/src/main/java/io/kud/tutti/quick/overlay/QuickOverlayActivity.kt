@@ -273,6 +273,8 @@ private fun Header(state: QuickState, onPower: () -> Unit) {
 
 @Composable
 private fun statusLine(state: QuickState): String {
+    // Stopped at the high-volume guard: the overlay can't ask, so it says where to go.
+    if (state.guardHeld && state.guardLine != null) return stringResource(R.string.quick_guard_held, state.guardLine)
     val base = when {
         !state.connected -> stringResource(R.string.quick_status_disconnected)
         !state.power -> stringResource(R.string.quick_status_off)

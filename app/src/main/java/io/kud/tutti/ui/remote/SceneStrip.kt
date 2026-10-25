@@ -31,6 +31,18 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.clickable
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
+import io.kud.tutti.ui.common.TuttiMenu
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -52,12 +64,21 @@ fun contentOn(color: Color): Color = if (color.luminance() > 0.45f) Color.Black 
 @Composable
 fun tonalOf(seed: Color): Color = seed.copy(alpha = 0.24f).compositeOver(MaterialTheme.colorScheme.surfaceContainer)
 
+/**
+ * The strip of scene pills. A tap applies; a long press opens the pill's menu (Iris's gesture
+ * audit, 2026-10-25), the most useful first: "Undo the last scene" on the pill of the scene that
+ * can still be undone ([undoSceneId]), then "Apply", "Edit scene" and "Pin to the dock" last.
+ * Each row is also a TalkBack action on the pill.
+ */
 @Composable
 fun SceneStrip(
     scenes: List<SceneUi>,
     onApply: (String) -> Unit,
     onEdit: (String) -> Unit,
     modifier: Modifier = Modifier,
+    undoSceneId: String? = null,
+    onUndo: () -> Unit = {},
+    onPin: ((String) -> Unit)? = null,
 ) {
     LazyRow(
         modifier = modifier,
@@ -65,7 +86,95 @@ fun SceneStrip(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         items(scenes, key = { it.scene.id }) { ui ->
-            ScenePill(ui, onClick = { onApply(ui.scene.id) }, onLongClick = { onEdit(ui.scene.id) })
+            val id = ui.scene.id
+            SceneWithMenu(
+                ui = ui,
+                undoable = id == undoSceneId,
+                onApply = { onApply(id) },
+                onUndo = onUndo,
+                onEdit = { onEdit(id) },
+                onPin = onPin?.let { pin -> { pin(id) } },
+            )
+        }
+    }
+}
+
+/** The rows of a pill's menu, in order: the most useful first, Edit and Pin last. */
+enum class SceneMenuRow { UNDO, APPLY, EDIT, PIN }
+
+/** Which rows a pill's menu offers (tested): Undo only on the scene that can still be undone. */
+fun sceneMenu(undoable: Boolean, canPin: Boolean): List<SceneMenuRow> = buildList {
+    if (undoable) add(SceneMenuRow.UNDO)
+    add(SceneMenuRow.APPLY)
+    add(SceneMenuRow.EDIT)
+    if (canPin) add(SceneMenuRow.PIN)
+}
+
+@Composable
+private fun SceneWithMenu(
+    ui: SceneUi,
+    undoable: Boolean,
+    onApply: () -> Unit,
+    onUndo: () -> Unit,
+    onEdit: () -> Unit,
+    onPin: (() -> Unit)?,
+) {
+    var menu by remember { mutableStateOf(false) }
+    val haptics = io.kud.tutti.ui.common.rememberHaptics()
+    val rows = sceneMenu(undoable, onPin != null)
+    val labels = rows.associateWith { row ->
+        when (row) {
+            SceneMenuRow.UNDO -> stringResource(R.string.scene_undo_menu)
+            SceneMenuRow.APPLY -> stringResource(R.string.scene_apply)
+            SceneMenuRow.EDIT -> stringResource(R.string.editor_edit)
+            SceneMenuRow.PIN -> stringResource(R.string.apps_pin_action)
+        }
+    }
+    fun run(row: SceneMenuRow) {
+        menu = false
+        when (row) {
+            SceneMenuRow.UNDO -> onUndo()
+            SceneMenuRow.APPLY -> onApply()
+            SceneMenuRow.EDIT -> onEdit()
+            SceneMenuRow.PIN -> onPin?.invoke()
+        }
+    }
+    Box {
+        ScenePill(
+            ui,
+            onClick = onApply,
+            onLongClick = {
+                haptics.longPress()
+                menu = true
+            },
+            longClickLabel = stringResource(R.string.scene_options),
+            // TalkBack: the tap applies; every other row is a named action, so nothing needs the long press.
+            modifier = Modifier.semantics {
+                customActions = rows.filter { it != SceneMenuRow.APPLY }.map { row ->
+                    CustomAccessibilityAction(labels.getValue(row)) { run(row); true }
+                }
+            },
+        )
+        TuttiMenu(expanded = menu, onDismissRequest = { menu = false }) {
+            for (row in rows) {
+                DropdownMenuItem(
+                    text = { Text(labels.getValue(row), fontWeight = if (row == rows.first()) FontWeight.Medium else null) },
+                    leadingIcon = {
+                        Icon(
+                            painterResource(
+                                when (row) {
+                                    SceneMenuRow.UNDO -> R.drawable.ic_back
+                                    SceneMenuRow.APPLY -> R.drawable.ic_play
+                                    SceneMenuRow.EDIT -> R.drawable.ic_edit
+                                    SceneMenuRow.PIN -> R.drawable.ic_add
+                                },
+                            ),
+                            contentDescription = null,
+                        )
+                    },
+                    onClick = { run(row) },
+                )
+            }
         }
     }
 }
@@ -96,7 +205,7 @@ fun SceneStepTicks(progress: Float?) {
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun ScenePill(ui: SceneUi, onClick: () -> Unit, onLongClick: () -> Unit, modifier: Modifier = Modifier) {
+fun ScenePill(ui: SceneUi, onClick: () -> Unit, onLongClick: () -> Unit, modifier: Modifier = Modifier, longClickLabel: String? = null) {
     val seed = Color(ui.scene.color)
     val tonal = tonalOf(seed)
     val container by animateColorAsState(
@@ -128,7 +237,7 @@ fun ScenePill(ui: SceneUi, onClick: () -> Unit, onLongClick: () -> Unit, modifie
             .combinedClickable(
                 interactionSource = interaction,
                 indication = rememberTuttiIndication(shape, layerColor = content),
-                onLongClickLabel = stringResource(R.string.editor_edit),
+                onLongClickLabel = longClickLabel ?: stringResource(R.string.editor_edit),
                 onLongClick = onLongClick,
                 onClick = onClick,
             )
@@ -160,4 +269,50 @@ fun ScenePill(ui: SceneUi, onClick: () -> Unit, onLongClick: () -> Unit, modifie
             Text(stringResource(R.string.scene_modified), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
+}
+
+/** Which dock slot takes the scene; each row says what it replaces, as the Apps sheet's pin dialog does. */
+@Composable
+internal fun ScenePinDialog(
+    sceneName: String,
+    state: io.kud.tutti.controller.TuttiUiState,
+    onPick: (Int) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.apps_pin_title, sceneName)) },
+        text = {
+            androidx.compose.foundation.layout.Column(
+                Modifier.verticalScroll(androidx.compose.foundation.rememberScrollState()),
+            ) {
+                val pages = state.dock.pages
+                for (index in 0 until pages.size * io.kud.tutti.platform.data.DockConfig.PAGE_SIZE) {
+                    val page = index / io.kud.tutti.platform.data.DockConfig.PAGE_SIZE
+                    val offset = index % io.kud.tutti.platform.data.DockConfig.PAGE_SIZE
+                    if (pages.size > 1 && offset == 0) {
+                        Text(
+                            stringResource(R.string.apps_pin_page, page + 1),
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(start = 8.dp, top = if (page > 0) 8.dp else 0.dp, bottom = 2.dp),
+                        )
+                    }
+                    val current = state.dock.slot(index).primary
+                    val what = current?.let { io.kud.tutti.ui.common.actionLabel(it, state) } ?: stringResource(R.string.apps_slot_empty)
+                    Text(
+                        stringResource(R.string.apps_slot, offset + 1, what),
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable { onPick(index) }
+                            .padding(vertical = 14.dp, horizontal = 8.dp),
+                    )
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = { androidx.compose.material3.TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
+    )
 }

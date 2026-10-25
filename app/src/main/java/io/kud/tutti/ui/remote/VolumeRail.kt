@@ -45,7 +45,9 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -56,6 +58,7 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import io.kud.tutti.R
 import io.kud.tutti.controller.TuttiController
@@ -102,8 +105,13 @@ fun VolumeRail(
     onStep: (Int) -> Unit,
     onMute: () -> Unit,
     modifier: Modifier = Modifier,
+    /** The high-volume guard's line while it can stop a change ([TuttiUiState.volumeGuardLine]): the rail's soft wall. */
+    guardLine: Int? = null,
+    /** A tap on the level's number opens the volume sheet (exact level, saved levels, cap for tonight). */
+    onOpenLevel: (() -> Unit)? = null,
 ) {
     val haptics = rememberHaptics()
+    val currentGuard by rememberUpdatedState(guardLine)
     var dragLevel by remember { mutableStateOf<Int?>(null) }
     var railHeight by remember { mutableIntStateOf(0) }
     val currentVolume by rememberUpdatedState(volume)
@@ -130,6 +138,8 @@ fun VolumeRail(
     val capColor = scheme.tertiary
     val hatch = onFill.copy(alpha = HATCH_ALPHA)
     val label = stringResource(R.string.volume_label)
+    val openLabel = stringResource(R.string.volume_open_sheet)
+    val openLevel by rememberUpdatedState(onOpenLevel)
     val state = when {
         !connected -> stringResource(R.string.volume_state_disconnected)
         shown == null -> stringResource(R.string.volume_state_unknown)
@@ -144,7 +154,7 @@ fun VolumeRail(
         stepBy(delta)
         // An unknown level: the controller asks the bar for it; nothing to tick yet.
         val now = currentVolume ?: return@step
-        val ceiling = currentCap ?: TuttiController.MAX_VOLUME
+        val ceiling = wallFor(currentCap, currentGuard, now)
         val next = VolumeSteps.step(now, delta, ceiling)
         if (VolumeSteps.ticks(next, ceiling)) {
             haptics.tick()
@@ -185,6 +195,9 @@ fun VolumeRail(
                             setVolume(target.roundToInt())
                             true
                         }
+                        if (onOpenLevel != null) {
+                            customActions = listOf(CustomAccessibilityAction(openLabel) { openLevel?.invoke(); true })
+                        }
                     } else {
                         disabled()
                     }
@@ -203,11 +216,13 @@ fun VolumeRail(
                     if (!connected) return@pointerInput
                     var start = 0
                     var travelled = 0f
+                    var asked = 0
                     detectVerticalDragGestures(
                         onDragStart = {
                             start = currentVolume ?: 0
                             travelled = 0f
                             dragLevel = start
+                            asked = start
                         },
                         onDragEnd = {
                             dragLevel = null
@@ -221,11 +236,19 @@ fun VolumeRail(
                             change.consume()
                             travelled -= dy
                             val ceiling = currentCap ?: TuttiController.MAX_VOLUME
-                            val level = VolumeSteps.level(start, travelled / size.height, TuttiController.MAX_VOLUME * SENSITIVITY, ceiling)
+                            val wanted = VolumeSteps.level(start, travelled / size.height, TuttiController.MAX_VOLUME * SENSITIVITY, ceiling)
+                            // The guard's line is a wall the finger can't drag through: the rail stops on
+                            // it and the controller asks (it hears every level the finger asks for).
+                            val wall = wallFor(ceiling, currentGuard, start)
+                            val level = minOf(wanted, wall)
+                            if (wanted != asked && wanted > wall) {
+                                asked = wanted
+                                setVolume(wanted)
+                            }
                             if (level != dragLevel) {
                                 dragLevel = level
                                 onCap = currentCap != null && level == ceiling
-                                if (VolumeSteps.ticks(level, ceiling)) {
+                                if (VolumeSteps.ticks(level, wall)) {
                                     haptics.tick()
                                 } else if (!reduced) {
                                     // Against a wall: stretch away from it and spring back.
@@ -235,7 +258,10 @@ fun VolumeRail(
                                         stretch.animateTo(1f, Motion.snappy())
                                     }
                                 }
-                                setVolume(level)
+                                if (wanted <= wall) {
+                                    asked = level
+                                    setVolume(level)
+                                }
                             }
                         },
                     )
@@ -269,6 +295,22 @@ fun VolumeRail(
             // fill's edge, onSurface above and the fill's ink below, so a number the edge crosses
             // stays whole and legible.
             if (connected) {
+                // The number is a door (Iris's gesture audit): a tap opens the volume sheet. A 48 dp
+                // target round it, its own button to TalkBack, and a quiet underline says it opens.
+                if (onOpenLevel != null) {
+                    Box(
+                        Modifier
+                            .align(Alignment.TopCenter)
+                            .padding(top = KEY_INSET + KEY_TARGET)
+                            .size(KEY_TARGET)
+                            .semantics {
+                                role = Role.Button
+                                contentDescription = openLabel
+                                stateDescription = state
+                            }
+                            .pointerInput(Unit) { detectTapGestures { openLevel?.invoke() } },
+                    )
+                }
                 val text = shown?.toString() ?: NO_LEVEL
                 val topPx = with(density) { READOUT_TOP.toPx() }
                 val edge = railHeight * (1f - fraction) - topPx
@@ -277,6 +319,7 @@ fun VolumeRail(
                         text = text,
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.SemiBold,
+                        textDecoration = if (onOpenLevel != null && shown != null) TextDecoration.Underline else null,
                         color = when {
                             shown == null -> scheme.onSurfaceVariant
                             onFillPart -> onFill
@@ -441,6 +484,15 @@ private const val NO_LEVEL = "…"
 /** A step key while the bar is unreachable: dimmed, on top of losing its disc. */
 private const val OFF_ALPHA = 0.38f
 
+
+/**
+ * Where a step or a drag stops: the ceiling, or the high-volume guard's line while the level is
+ * at or under it (the controller then asks before going on).
+ */
+internal fun wallFor(ceiling: Int?, guard: Int?, from: Int): Int {
+    val top = ceiling ?: TuttiController.MAX_VOLUME
+    return if (guard != null && from <= guard && guard < top) guard else top
+}
 
 /** One full rail height covers 60 steps: precise without being slow. */
 private const val SENSITIVITY = 0.6f

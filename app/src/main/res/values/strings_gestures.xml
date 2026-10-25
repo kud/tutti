@@ -22,7 +22,7 @@
     <string name="gestures_kind_tap">Tap</string>
 
     <string name="gesture_power_long">Choose what turns off</string>
-    <string name="gesture_power_long_detail">Long press Power: the TV, the soundbar or both.</string>
+    <string name="gesture_power_long_detail">Long press Power: the TV, the soundbar or both, and the TV\'s sleep timer.</string>
     <string name="gesture_now_showing_long">App actions</string>
     <string name="gesture_now_showing_long_detail">Long press the On the TV card: pin the app, or close the TV\'s apps.</string>
     <string name="gesture_pad_hold">Keep moving</string>
@@ -37,6 +37,8 @@
     <string name="gesture_volume_drag_detail">Drag anywhere on the volume rail.</string>
     <string name="gesture_volume_hold">Keep turning</string>
     <string name="gesture_volume_hold_detail">Hold + or − and the volume keeps stepping.</string>
+    <string name="gesture_volume_number">Exact level</string>
+    <string name="gesture_volume_number_detail">Tap the number on the volume rail: an exact level, saved levels, a cap for tonight.</string>
     <string name="gesture_key_long">Your own action</string>
     <string name="gesture_key_long_detail">Long press Home, Back or Play: the action you gave it; Play asks for one the first time.</string>
     <string name="gesture_mic_hold">Speak to the TV</string>
@@ -45,8 +47,8 @@
     <string name="gesture_pin_long_detail">Long press a pin: its second action, then Edit.</string>
     <string name="gesture_dock_swipe">Next page of pins</string>
     <string name="gesture_dock_swipe_detail">Swipe the dock sideways once it has two pages.</string>
-    <string name="gesture_scene_long">Edit a scene</string>
-    <string name="gesture_scene_long_detail">Long press a scene in the strip.</string>
+    <string name="gesture_scene_long">Undo, edit or pin a scene</string>
+    <string name="gesture_scene_long_detail">Long press a scene in the strip: undo the last one, edit it, or pin it to the dock.</string>
     <string name="gesture_bar_input_long">Input menu</string>
     <string name="gesture_bar_input_long_detail">Long press a soundbar input: rename it, hide it or pin it to the dock.</string>
     <string name="gesture_bluetooth_long">Pair a device</string>

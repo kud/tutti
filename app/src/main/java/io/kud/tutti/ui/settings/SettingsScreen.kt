@@ -223,6 +223,10 @@ fun SettingsScreen(
                 )
             }
 
+            SettingsGroup(stringResource(R.string.settings_volume_title)) {
+                VolumeGuardRows(state.prefs, onChange = controller::setVolumeGuard)
+            }
+
             SettingsGroup(stringResource(R.string.settings_shortcuts)) {
                 LinkRow(
                     title = stringResource(R.string.layout_entry),

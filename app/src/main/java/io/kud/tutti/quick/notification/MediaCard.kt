@@ -111,6 +111,8 @@ data class MediaCard(
     /** Null while the level is unknown: never shown as 0. */
     val level: AudioLevel?,
     val remote: RemoteVolume?,
+    /** The high-volume guard's line, when a quick press was just stopped there; null otherwise. */
+    val guardHeld: Int? = null,
 ) {
     val muted: Boolean get() = level?.muted == true
 }
@@ -124,6 +126,7 @@ fun cardFor(state: QuickState): MediaCard = MediaCard(
     devices = listOfNotNull(state.tvName, state.barName).joinToString(" · "),
     level = state.level,
     remote = remoteVolumeFor(state.level),
+    guardHeld = state.guardLine?.takeIf { state.guardHeld },
 )
 
 /**

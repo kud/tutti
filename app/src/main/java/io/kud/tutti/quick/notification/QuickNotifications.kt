@@ -200,7 +200,9 @@ object QuickNotifications {
                 context.getString(if (bar) R.string.quick_level_bar else R.string.quick_level_tv, level.level)
             }
         }
-        return listOfNotNull(card.devices.ifEmpty { null }, level).joinToString(" · ")
+        // Stopped at the high-volume guard: say that going above needs the app.
+        val guard = card.guardHeld?.let { context.getString(R.string.quick_guard_held, it) }
+        return listOfNotNull(card.devices.ifEmpty { null }, level, guard).joinToString(" · ")
     }
 
     /** The TV app's own icon when tutti has cached it, else tutti's mark. */

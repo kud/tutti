@@ -135,8 +135,14 @@ sealed interface PairingUi {
 enum class PairingError { UNREACHABLE, BAD_CODE, REFUSED }
 
 sealed interface TuttiEvent {
-    /** A scene finished applying: double pulse. [detail] says which steps failed, when any did. */
-    data class SceneFinished(val sceneId: String, val failedSteps: Int, val detail: String? = null) : TuttiEvent
+    /**
+     * A scene finished applying: double pulse. [detail] says which steps failed, when any did.
+     * [undoable]: what it changed can still be put back ([TuttiController.undoLastScene]).
+     */
+    data class SceneFinished(val sceneId: String, val failedSteps: Int, val detail: String? = null, val undoable: Boolean = false) : TuttiEvent
+
+    /** The last scene was undone: [failedSteps] of its restoring steps did not apply. */
+    data class SceneUndone(val sceneName: String?, val failedSteps: Int, val detail: String? = null) : TuttiEvent
 
     /** Volume hit 0, 100 or the active scene's cap: soft bump. */
     data object VolumeLimit : TuttiEvent
@@ -186,8 +192,23 @@ data class TuttiUiState(
     val profiles: List<AppProfile> = emptyList(),
     /** Soundbar volume 0..100, optimistic. */
     val volume: Int? = null,
-    /** Ceiling from the active scene (e.g. Nuit: 20). */
+    /**
+     * The effective ceiling: the lower of the active scene's cap (Nuit: 20) and the cap for tonight
+     * ([tonightCap]); null when nothing caps the volume.
+     */
     val volumeCap: Int? = null,
+    /** The active scene's own cap, for the volume sheet's words. */
+    val sceneVolumeCap: Int? = null,
+    /** The cap for tonight, while it lasts. */
+    val tonightCap: io.kud.tutti.platform.data.TonightCap? = null,
+    /** Where the high-volume guard stops a change right now, or null ([VolumeRules.guardLine]). */
+    val volumeGuardLine: Int? = null,
+    /** The guard's question, while it waits for an answer. */
+    val volumeAsk: VolumeAsk? = null,
+    /** A quick surface was stopped at the guard: they say going above needs the app. */
+    val volumeGuardNotice: Boolean = false,
+    /** The last scene can still be undone ([io.kud.tutti.protocol.scenes.SceneUndo]); null once stale. */
+    val sceneUndo: io.kud.tutti.protocol.scenes.SceneUndo? = null,
     val powered: Boolean? = null,
     /** Power was pressed with a device out of reach: waking it and waiting for it to answer. */
     val waking: Boolean = false,

@@ -91,7 +91,12 @@ class MessageCopyTest {
             "keyboard_dictation_unavailable",
             "editor_capture_empty",
             "problem_copied",
+            "scene_applied",
+            "scene_undone",
+            "scene_undone_generic",
+            "scene_undo_failed",
             // Actions.
+            "scene_undo",
             "unlock_show_how",
             "problem_copy",
         )

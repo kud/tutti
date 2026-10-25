@@ -231,18 +231,30 @@ private fun VolumeRow(state: QuickState) {
             onClick = op(QuickWidgetAction.OP_VOLUME_DOWN),
             enabled = enabled,
         )
-        Text(
-            // Unknown until reported, never a made-up 0 (design.md, Quick access).
-            text = state.level?.takeIf { state.connected }?.level?.toString() ?: "–",
-            modifier = GlanceModifier.defaultWeight(),
-            style = TextStyle(
-                color = GlanceTheme.colors.onSurface,
-                fontSize = 22.sp,
-                fontWeight = FontWeight.Medium,
-                textAlign = TextAlign.Center,
-            ),
-            maxLines = 1,
-        )
+        Column(modifier = GlanceModifier.defaultWeight(), horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                // Unknown until reported, never a made-up 0 (design.md, Quick access).
+                text = state.level?.takeIf { state.connected }?.level?.toString() ?: "–",
+                modifier = GlanceModifier.fillMaxWidth(),
+                style = TextStyle(
+                    color = GlanceTheme.colors.onSurface,
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Medium,
+                    textAlign = TextAlign.Center,
+                ),
+                maxLines = 1,
+            )
+            // Stopped at the high-volume guard: the widget can't ask, so it says where to go.
+            val line = state.guardLine
+            if (state.guardHeld && line != null) {
+                Text(
+                    text = context.getString(R.string.quick_guard_held_short, line),
+                    modifier = GlanceModifier.fillMaxWidth(),
+                    style = TextStyle(color = GlanceTheme.colors.onSurfaceVariant, fontSize = 11.sp, textAlign = TextAlign.Center),
+                    maxLines = 1,
+                )
+            }
+        }
         CircleIconButton(
             imageProvider = ImageProvider(R.drawable.quick_ic_add),
             contentDescription = context.getString(R.string.quick_action_volume_up),

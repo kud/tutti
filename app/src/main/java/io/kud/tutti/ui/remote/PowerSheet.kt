@@ -22,6 +22,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -49,6 +50,26 @@ fun powerChoices(hasTv: Boolean, tvPowered: Boolean?, hasBar: Boolean, barPowere
 }
 
 /**
+ * The TV's sleep timer row in the Power sheet: shown only when the TV lists an IRCC sleep key
+ * (`Ircc.sleepTimerCode`, name unverified on the XR80), and [reason] says why a tap can't reach it
+ * now (IP control down, the TV on standby). No state: Sony documents no getter for the timer, so
+ * the TV's own screen shows the step each tap chose, never tutti.
+ */
+data class SleepTimerRow(val reason: String?)
+
+/**
+ * The sleep timer row, or null to hide it (no sleep key known). TV controls go down with their link
+ * (design.md, State): this one rides IP control, so it is down unless REST answers, and a TV on
+ * standby has no timer to set.
+ */
+fun sleepTimerRow(sleepCode: String?, restOnline: Boolean, tvPowered: Boolean?, downReason: String, standbyReason: String): SleepTimerRow? = when {
+    sleepCode == null -> null
+    !restOnline -> SleepTimerRow(downReason)
+    tvPowered == false -> SleepTimerRow(standbyReason)
+    else -> SleepTimerRow(null)
+}
+
+/**
  * Which device a Power is for, as a modal sheet (Erwann, 2026-10-24: « proposer une modale qui
  * propose quel device »): a sheet rather than a dialog because it is a choice among actions, like
  * every other picker here, and it lands under the thumb rather than mid-screen. One row per
@@ -60,7 +81,11 @@ fun PowerSheet(
     choices: List<PowerChoice>,
     onChoose: (PowerChoice) -> Unit,
     onDismiss: () -> Unit,
+    sleep: SleepTimerRow? = null,
+    onSleep: () -> Unit = {},
 ) {
+    // With the TV alone, "TV only" would imply a soundbar that isn't there.
+    val solo = choices.none { it.target == PowerTarget.BAR }
     TuttiSheet(onDismissRequest = onDismiss) {
         val scroll = rememberScrollState()
         PinnedHeader(
@@ -80,7 +105,7 @@ fun PowerSheet(
             ) {
                 for (choice in choices) {
                     val (icon, name) = when (choice.target) {
-                        PowerTarget.TV -> R.drawable.ic_tv to stringResource(R.string.power_sheet_tv)
+                        PowerTarget.TV -> R.drawable.ic_tv to stringResource(if (solo) R.string.power_sheet_tv_solo else R.string.power_sheet_tv)
                         PowerTarget.BAR -> R.drawable.ic_speaker to stringResource(R.string.power_sheet_bar)
                         PowerTarget.BOTH -> R.drawable.ic_power to stringResource(R.string.power_sheet_both)
                     }
@@ -94,32 +119,65 @@ fun PowerSheet(
                     )
                     PowerRow(icon, name, action) { onChoose(choice) }
                 }
+                // The sleep timer stays open after a tap: each press moves the TV to its next step,
+                // and the TV's screen shows which (Iris's gesture audit, item 6).
+                if (sleep != null) {
+                    val detail = sleep.reason ?: stringResource(R.string.power_sleep_detail)
+                    PowerRow(R.drawable.ic_bedtime, stringResource(R.string.power_sleep), detail, enabled = sleep.reason == null, down = sleep.reason != null, onClick = onSleep)
+                }
             }
         }
     }
 }
 
 @Composable
-private fun PowerRow(@DrawableRes icon: Int, name: String, action: String, onClick: () -> Unit) {
+private fun PowerRow(
+    @DrawableRes icon: Int,
+    name: String,
+    action: String,
+    enabled: Boolean = true,
+    down: Boolean = false,
+    onClick: () -> Unit,
+) {
+    val dash = androidx.compose.runtime.remember { androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(12f, 8f)) }
+    val outline = MaterialTheme.colorScheme.outline
     Row(
         Modifier
             .fillMaxWidth()
             .heightIn(min = 64.dp)
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(16.dp))
-            .clickable(role = Role.Button, onClickLabel = action, onClick = onClick)
+            .then(
+                // Down wears the remote's one down dress: no fill, a dashed ring, the reason in words.
+                if (down) {
+                    Modifier.drawBehind {
+                        drawRoundRect(
+                            outline,
+                            style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.5.dp.toPx(), pathEffect = dash),
+                            cornerRadius = androidx.compose.ui.geometry.CornerRadius(16.dp.toPx()),
+                        )
+                    }
+                } else {
+                    Modifier.background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(16.dp))
+                },
+            )
+            .clickable(enabled = enabled, role = Role.Button, onClickLabel = action, onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
-            Modifier.size(40.dp).background(MaterialTheme.colorScheme.secondaryContainer, RoundedCornerShape(12.dp)),
+            Modifier.size(40.dp).then(if (down) Modifier else Modifier.background(MaterialTheme.colorScheme.secondaryContainer, RoundedCornerShape(12.dp))),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(painterResource(icon), contentDescription = null, tint = MaterialTheme.colorScheme.onSecondaryContainer, modifier = Modifier.size(22.dp))
+            Icon(
+                painterResource(icon),
+                contentDescription = null,
+                tint = if (down) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSecondaryContainer,
+                modifier = Modifier.size(22.dp),
+            )
         }
         Spacer(Modifier.width(16.dp))
         Column(Modifier.weight(1f)) {
             Text(name, style = MaterialTheme.typography.titleMedium, maxLines = 1)
-            Text(action, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+            Text(action, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2)
         }
     }
 }

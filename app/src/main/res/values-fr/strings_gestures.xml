@@ -21,7 +21,7 @@
     <string name="gestures_kind_tap">Tap</string>
 
     <string name="gesture_power_long">Choisir ce qui s’éteint</string>
-    <string name="gesture_power_long_detail">Appui long sur Power : la TV, la barre ou les deux.</string>
+    <string name="gesture_power_long_detail">Appui long sur Power : la TV, la barre ou les deux, et la minuterie de veille de la TV.</string>
     <string name="gesture_now_showing_long">Actions de l’app</string>
     <string name="gesture_now_showing_long_detail">Appui long sur la carte « Sur la TV » : épingler l’app, ou fermer les apps de la TV.</string>
     <string name="gesture_pad_hold">Continuer d’avancer</string>
@@ -36,6 +36,8 @@
     <string name="gesture_volume_drag_detail">Glissez n’importe où sur le rail de volume.</string>
     <string name="gesture_volume_hold">Continuer de monter</string>
     <string name="gesture_volume_hold_detail">Maintenez + ou − : le volume continue de changer.</string>
+    <string name="gesture_volume_number">Niveau précis</string>
+    <string name="gesture_volume_number_detail">Touchez le chiffre du rail de volume : niveau exact, niveaux enregistrés, plafond pour ce soir.</string>
     <string name="gesture_key_long">Votre propre action</string>
     <string name="gesture_key_long_detail">Appui long sur Accueil, Retour ou Lecture : l’action que vous lui avez donnée ; Lecture la demande la première fois.</string>
     <string name="gesture_mic_hold">Parler à la TV</string>
@@ -44,8 +46,8 @@
     <string name="gesture_pin_long_detail">Appui long sur une épingle : sa seconde action, puis Modifier.</string>
     <string name="gesture_dock_swipe">Page d’épingles suivante</string>
     <string name="gesture_dock_swipe_detail">Balayez le dock sur le côté dès qu’il a deux pages.</string>
-    <string name="gesture_scene_long">Modifier une scène</string>
-    <string name="gesture_scene_long_detail">Appui long sur une scène du bandeau.</string>
+    <string name="gesture_scene_long">Annuler, modifier ou épingler une scène</string>
+    <string name="gesture_scene_long_detail">Appui long sur une scène du bandeau : annuler la dernière, la modifier ou l’épingler au dock.</string>
     <string name="gesture_bar_input_long">Menu de l’entrée</string>
     <string name="gesture_bar_input_long_detail">Appui long sur une entrée de la barre : la renommer, la masquer ou l’épingler au dock.</string>
     <string name="gesture_bluetooth_long">Associer un appareil</string>

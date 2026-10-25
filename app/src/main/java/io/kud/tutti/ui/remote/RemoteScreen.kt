@@ -109,6 +109,9 @@ fun RemoteScreen(
     var powerSheet by remember { mutableStateOf(false) }
     // The "?" in the top bar: every hidden gesture (discoverability rule 2).
     var gesturesSheet by remember { mutableStateOf(false) }
+    // Iris's gesture audit (2026-10-25): the volume sheet (the rail's number), a scene pinned from its menu.
+    var volumeSheet by remember { mutableStateOf(false) }
+    var pinningScene by remember { mutableStateOf<String?>(null) }
     // The now-showing card's sheets (Erwann, 2026-10-25), each holding what the card showed when
     // opened, so a blip that changes the card never yanks the sheet away.
     var playbackFor by remember { mutableStateOf<CardShowing?>(null) }
@@ -322,9 +325,10 @@ fun RemoteScreen(
                             icon = R.drawable.ic_power,
                             contentDescription = stringResource(if (state.waking) R.string.power_waking else R.string.action_power),
                             onClick = { controller.power() },
-                            // TV only, soundbar only or both (Erwann, 2026-10-24); only with the two set up.
-                            onLongClick = { powerSheet = true }.takeIf { state.devices.tv != null && state.devices.bar != null },
-                            onLongClickLabel = stringResource(R.string.power_long_label),
+                            // TV only, soundbar only or both (Erwann, 2026-10-24), and the TV's sleep timer:
+                            // with a TV set up, alone or with the bar (Iris's gesture audit, 2026-10-25).
+                            onLongClick = { powerSheet = true }.takeIf { state.devices.tv != null },
+                            onLongClickLabel = stringResource(if (state.devices.bar != null) R.string.power_long_label else R.string.power_long_label_tv),
                             feedback = FeedbackEvent.SELECT,
                             active = state.powered == true,
                             size = 52.dp,
@@ -352,6 +356,12 @@ fun RemoteScreen(
                         scenes = state.scenes,
                         onApply = { controller.applyScene(it) },
                         onEdit = onEditScene,
+                        undoSceneId = state.sceneUndo?.sceneId,
+                        onUndo = {
+                            haptics.confirm()
+                            controller.undoLastScene()
+                        },
+                        onPin = { pinningScene = it },
                         modifier = Modifier.padding(vertical = 4.dp),
                     )
                 }
@@ -458,6 +468,11 @@ fun RemoteScreen(
                                 onStep = controller::volumeStep,
                                 onMute = controller::toggleMute,
                                 modifier = Modifier.semantics { traversalIndex = 1f },
+                                guardLine = state.volumeGuardLine,
+                                onOpenLevel = {
+                                    haptics.click()
+                                    volumeSheet = true
+                                },
                             )
                         }
                         Row(
@@ -536,7 +551,20 @@ fun RemoteScreen(
     }
 
     if (powerSheet) {
+        // The sleep key comes from the TV's IRCC list, which only TV settings load: ask once.
+        LaunchedEffect(Unit) { controller.loadSleepTimer() }
         PowerSheet(
+            sleep = sleepTimerRow(
+                sleepCode = state.tv.settings.sleepCode,
+                restOnline = state.links.rest == Link.ONLINE,
+                tvPowered = tvPowered(state),
+                downReason = stringResource(R.string.power_sleep_down),
+                standbyReason = stringResource(R.string.power_sleep_standby),
+            ),
+            onSleep = {
+                haptics.click()
+                controller.pressSleepTimer()
+            },
             choices = powerChoices(
                 hasTv = state.devices.tv != null,
                 tvPowered = tvPowered(state),
@@ -551,6 +579,46 @@ fun RemoteScreen(
             },
             onDismiss = { powerSheet = false },
         )
+    }
+
+    if (volumeSheet) {
+        VolumeSheet(
+            state = state,
+            onSet = { controller.setVolume(it) },
+            onSavePreset = controller::saveVolumePreset,
+            onCap = controller::setTonightCap,
+            onClearCap = controller::clearTonightCap,
+            onDismiss = { volumeSheet = false },
+        )
+    }
+    // The high-volume guard's question, over the remote or the volume sheet alike.
+    state.volumeAsk?.let { ask ->
+        VolumeGuardDialog(
+            ask = ask,
+            onGo = {
+                haptics.confirm()
+                controller.confirmLoud()
+            },
+            onStay = {
+                haptics.select()
+                controller.stayBelowGuard()
+            },
+        )
+    }
+    pinningScene?.let { id ->
+        val scene = state.scenes.firstOrNull { it.scene.id == id }?.scene
+        if (scene != null) {
+            ScenePinDialog(
+                sceneName = scene.name,
+                state = state,
+                onPick = { slot ->
+                    haptics.longPress()
+                    controller.assignDock(slot, DockAction.RunScene(id), state.dock.slot(slot).secondary)
+                    pinningScene = null
+                },
+                onDismiss = { pinningScene = null },
+            )
+        }
     }
 
     val liveCard = cardShowing(state)

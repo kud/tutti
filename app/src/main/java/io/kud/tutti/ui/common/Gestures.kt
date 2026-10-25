@@ -66,6 +66,7 @@ object Gestures {
         // Volume.
         GestureEntry("volume_drag", GestureSurface.VOLUME, GestureKind.DRAG, R.string.gesture_volume_drag, R.string.gesture_volume_drag_detail),
         GestureEntry("volume_hold", GestureSurface.VOLUME, GestureKind.HOLD, R.string.gesture_volume_hold, R.string.gesture_volume_hold_detail),
+        GestureEntry("volume_number", GestureSurface.VOLUME, GestureKind.TAP, R.string.gesture_volume_number, R.string.gesture_volume_number_detail),
         // Round keys.
         GestureEntry("back_long", GestureSurface.KEYS, GestureKind.LONG_PRESS, R.string.gesture_back_long, R.string.gesture_back_long_detail),
         GestureEntry("home_long", GestureSurface.KEYS, GestureKind.LONG_PRESS, R.string.gesture_home_long, R.string.gesture_home_long_detail),

@@ -63,11 +63,35 @@ data class AppPrefs(
     val barInputNames: Map<String, String> = emptyMap(),
     /** Bar inputs left out of the Son sheet's row, by value; the current input always shows. */
     val hiddenBarInputs: Set<String> = emptySet(),
+    /**
+     * The high-volume guard (Erwann, 2026-10-25): a change from the app that would take the bar past
+     * [volumeGuardLevel] stops there and asks first; the quick surfaces stop there and say so.
+     */
+    val volumeGuard: Boolean = true,
+    /** On the bar's own 0–100 scale (`main.volumestep`). */
+    val volumeGuardLevel: Int = DEFAULT_VOLUME_GUARD,
+    /** The volume sheet's saved levels: three slots, null when empty. */
+    val volumePresets: List<Int?> = emptyList(),
+    /** "Cap for tonight": a ceiling on the bar's volume until a time, set from the volume sheet. */
+    val tonightCap: TonightCap? = null,
 ) {
     /** The old switch on reads as [VibrationLevel.ALL], off as [VibrationLevel.OFF]. */
     val vibrationLevel: VibrationLevel
         get() = vibration ?: if (haptics) VibrationLevel.ALL else VibrationLevel.OFF
 }
+
+/**
+ * A ceiling on the bar's volume until [until] (wall-clock epoch ms), enforced like a scene's cap;
+ * the lower of the two wins. Cleared once the time has passed.
+ */
+@Serializable
+data class TonightCap(val level: Int, val until: Long)
+
+/**
+ * 30 on the bar's 0–100 scale (Erwann, 2026-10-25: « 30 ou 40, il faudrait étudier, mais 30 c'est
+ * pas mal »): about a third of the travel, already loud for a Bar 9 in a living room at night.
+ */
+const val DEFAULT_VOLUME_GUARD = 30
 
 /**
  * The round buttons the row under the pad can hold. [MUTE] stays only so stored rows still decode:

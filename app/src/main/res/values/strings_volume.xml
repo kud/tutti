@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The volume sheet (tap the rail's number), the high-volume guard, the cap for tonight. -->
+    <string name="volume_open_sheet">Exact level</string>
+    <string name="volume_sheet_title">Volume</string>
+    <string name="volume_sheet_now">Now %1$d</string>
+    <string name="volume_sheet_now_unknown">Level not reported yet</string>
+    <string name="volume_sheet_new">New level</string>
+    <string name="volume_sheet_set">Set to %1$d</string>
+    <string name="volume_sheet_already">Already at %1$d</string>
+    <string name="volume_sheet_down">Lower by one</string>
+    <string name="volume_sheet_up">Raise by one</string>
+    <string name="volume_sheet_guard_note">Above %1$d, tutti asks first.</string>
+    <string name="volume_sheet_unreachable">%1$s unreachable: the level can\'t be set now.</string>
+    <string name="volume_sheet_no_bar">No soundbar added: the rail and this sheet drive the bar.</string>
+    <string name="volume_presets_title">Saved levels</string>
+    <string name="volume_preset_empty">Save %1$d here</string>
+    <string name="volume_preset_empty_unknown">Empty</string>
+    <string name="volume_preset_label">Saved level %1$d</string>
+    <string name="volume_preset_replace">Replace with %1$d</string>
+    <string name="volume_preset_remove">Remove</string>
+    <string name="volume_presets_hint">Long press a saved level to replace or remove it.</string>
+    <string name="volume_cap_title">Cap for tonight</string>
+    <string name="volume_cap_explain">The volume stays at or under it from everywhere, scenes included, until then.</string>
+    <string name="volume_cap_active">No louder than %1$d until %2$s</string>
+    <string name="volume_cap_remove">Remove the cap</string>
+    <string name="volume_cap_level">Cap</string>
+    <string name="volume_cap_down">Lower the cap</string>
+    <string name="volume_cap_up">Raise the cap</string>
+    <string name="volume_cap_one_hour">1 hour</string>
+    <string name="volume_cap_three_hours">3 hours</string>
+    <string name="volume_cap_until">Until %1$s</string>
+    <string name="volume_cap_set">Cap at %1$d</string>
+    <string name="volume_cap_scene">The scene %1$s caps it at %2$d.</string>
+    <string name="volume_guard_title">The volume is getting loud</string>
+    <string name="volume_guard_body">Go above %1$d? The volume will go to %2$d.</string>
+    <string name="volume_guard_go">Go to %1$d</string>
+    <string name="volume_guard_stay">Stay at %1$d</string>
+    <string name="settings_volume_title">Volume</string>
+    <string name="settings_guard">High-volume guard</string>
+    <string name="settings_guard_summary">Above %1$d, the app asks first; the widget, notification and Quick Settings stop there.</string>
+    <string name="settings_guard_off_summary">Off: the volume goes up to the cap without asking.</string>
+    <string name="settings_guard_level">Threshold</string>
+    <string name="settings_guard_level_value">%1$d of 100</string>
+    <string name="settings_guard_down">Lower the threshold</string>
+    <string name="settings_guard_up">Raise the threshold</string>
+    <string name="quick_guard_held">Above %1$d: open tutti</string>
+    <string name="quick_guard_held_short">max %1$d without the app</string>
+
+    <!-- Undo the last scene. -->
+    <string name="scene_applied">%1$s applied</string>
+    <string name="scene_undo">Undo</string>
+    <string name="scene_undo_menu">Undo the last scene</string>
+    <string name="scene_undone">%1$s undone</string>
+    <string name="scene_undone_generic">Scene undone</string>
+    <string name="scene_undo_failed">Undo incomplete: some settings didn\'t come back</string>
+    <string name="scene_apply">Apply</string>
+    <string name="scene_options">Scene options</string>
+
+    <!-- The Power sheet's sleep timer. -->
+    <string name="power_sleep">Sleep timer</string>
+    <string name="power_sleep_detail">Each tap moves to the next step; the TV shows it.</string>
+    <string name="power_sleep_down">IP control isn\'t answering</string>
+    <string name="power_sleep_standby">The TV is on standby</string>
+    <string name="power_sheet_tv_solo">The TV</string>
+    <string name="power_long_label_tv">Turn off the TV or set its sleep timer</string>
+</resources>

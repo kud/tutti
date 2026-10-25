@@ -79,6 +79,7 @@ import io.kud.tutti.protocol.scenes.SceneKey
 import io.kud.tutti.protocol.scenes.SceneMatch
 import io.kud.tutti.protocol.scenes.SceneRunner
 import io.kud.tutti.protocol.scenes.SceneStep
+import io.kud.tutti.protocol.scenes.SceneUndo
 import io.kud.tutti.protocol.scenes.SceneValue
 import io.kud.tutti.protocol.theatre.BarHttpClient
 import io.kud.tutti.protocol.theatre.FeatureKind
@@ -182,6 +183,12 @@ class TuttiController @Inject constructor(
     private val voiceZoom = MutableStateFlow(false)
     private val progress = MutableStateFlow<Map<String, SceneRun>>(emptyMap())
     private val activeSceneId = MutableStateFlow<String?>(null)
+    /** One level of "undo the last scene", taken just before a scene runs ([SceneUndo]). */
+    private val sceneUndo = MutableStateFlow<SceneUndo?>(null)
+    /** The high-volume guard's runtime: unlocked, its pending question, the quick surfaces' notice. */
+    private val guard = MutableStateFlow(GuardRuntime())
+    /** Bumped when a cap for tonight runs out, so the state drops it on time. */
+    private val capClock = MutableStateFlow(0)
     private val pairing = MutableStateFlow<PairingUi>(PairingUi.Idle)
     private val overrides = MutableStateFlow(Overrides())
     /** App launches, optimistic ([LaunchQueue]): what is in flight and the app shown meanwhile. */
@@ -206,6 +213,10 @@ class TuttiController @Inject constructor(
     val events: SharedFlow<TuttiEvent> = mutableEvents.asSharedFlow()
 
     private data class Overrides(val volume: Int? = null, val powered: Boolean? = null)
+
+    private data class GuardRuntime(val unlocked: Boolean = false, val ask: VolumeAsk? = null, val notice: Boolean = false)
+
+    private data class VolumeExtra(val guard: GuardRuntime, val undo: SceneUndo?, val capClock: Int)
 
     private data class Stored(
         val devices: io.kud.tutti.platform.data.Devices,
@@ -242,8 +253,10 @@ class TuttiController @Inject constructor(
 
     private data class Quad(val overrides: Overrides, val waking: Boolean, val linkNotes: LinkNotes, val launches: LaunchBook)
 
-    val state: StateFlow<TuttiUiState> = combine(stored, live, extra, library, combine(pskSet, technical, ::Pair)) { s, l, e, a, k ->
-        build(s, l, e).copy(apps = a.first, appIcons = a.second, linkNotes = e.linkNotes, pskSet = k.first, technical = k.second)
+    private val volumeExtra = combine(guard, sceneUndo, capClock) { g, u, c -> VolumeExtra(g, u, c) }
+
+    val state: StateFlow<TuttiUiState> = combine(stored, live, extra, library, combine(pskSet, technical, volumeExtra, ::Triple)) { s, l, e, a, k ->
+        build(s, l, e, k.third).copy(apps = a.first, appIcons = a.second, linkNotes = e.linkNotes, pskSet = k.first, technical = k.second)
     }
         .stateIn(scope, SharingStarted.Eagerly, TuttiUiState())
 
@@ -297,6 +310,27 @@ class TuttiController @Inject constructor(
         scope.launch {
             // The app before the one in front, for long-press Back (AppHistory).
             atv.state.map { it.currentApp }.distinctUntilChanged().collect { app -> appHistory.update { it.seen(app) } }
+        }
+        scope.launch {
+            // The high-volume guard re-arms once the bar is below its line again, or once the bar's
+            // link drops (a new session); a quick surface's notice goes with it.
+            state.map { Triple(it.volume, it.bar.connected, VolumeRules.threshold(it.prefs.volumeGuardLevel)) }.distinctUntilChanged().collect { (level, connected, line) ->
+                guard.update { g ->
+                    val unlocked = connected && VolumeRules.stillUnlocked(g.unlocked, level, line)
+                    val notice = g.notice && connected && (level == null || level >= line)
+                    if (unlocked == g.unlocked && notice == g.notice) g else g.copy(unlocked = unlocked, notice = notice)
+                }
+            }
+        }
+        scope.launch {
+            // A cap for tonight ends on time, and is then forgotten.
+            store.prefs.map { it.tonightCap }.distinctUntilChanged().collectLatest { cap ->
+                if (cap == null) return@collectLatest
+                val left = cap.until - System.currentTimeMillis()
+                if (left > 0) delay(left)
+                capClock.update { it + 1 }
+                store.updatePrefs { prefs -> if (prefs.tonightCap == cap) prefs.copy(tonightCap = null) else prefs }
+            }
         }
         scope.launch {
             // Per-app profiles: "Quand Netflix est au premier plan, appliquer Cinéma" (while connected).
@@ -688,7 +722,7 @@ class TuttiController @Inject constructor(
 
     // region state
 
-    private fun build(s: Stored, l: Live, e: Extra): TuttiUiState {
+    private fun build(s: Stored, l: Live, e: Extra, v: VolumeExtra): TuttiUiState {
         val snapshot = snapshotOf(l.tv, l.remote, l.bar)
         val active = e.activeSceneId
         val scenes = s.scenes.map { scene ->
@@ -704,7 +738,10 @@ class TuttiController @Inject constructor(
                 }
             }
         }
-        val cap = s.scenes.firstOrNull { it.id == active }?.settings?.get(SceneKey.VOLUME_CAP)?.let { (it as? SceneValue.Level)?.value }
+        val sceneCap = s.scenes.firstOrNull { it.id == active }?.settings?.get(SceneKey.VOLUME_CAP)?.let { (it as? SceneValue.Level)?.value }
+        val wall = System.currentTimeMillis()
+        val tonight = VolumeRules.tonightActive(s.prefs.tonightCap, wall)
+        val cap = VolumeRules.cap(sceneCap, tonight, wall, MAX_VOLUME)
         val tvPowered = l.remote.powered ?: when (l.tv.power) {
             PowerStatus.ACTIVE -> true
             PowerStatus.STANDBY -> false
@@ -717,6 +754,8 @@ class TuttiController @Inject constructor(
             tvPowered == false || barPowered == false -> false
             else -> null
         }
+        val volume = volumeShown(e.overrides.volume, l.bar.liveLevel(TheatreFeature.VOLUME), s.prefs.lastBarVolume, l.bar.connected)
+        val guardState = VolumeGuardState(s.prefs.volumeGuard, VolumeRules.threshold(s.prefs.volumeGuardLevel), v.guard.unlocked)
         return TuttiUiState(
             loaded = true,
             devices = s.devices,
@@ -729,8 +768,14 @@ class TuttiController @Inject constructor(
             voiceZoomAvailable = l.voiceZoom,
             scenes = scenes,
             profiles = s.profiles,
-            volume = volumeShown(e.overrides.volume, l.bar.liveLevel(TheatreFeature.VOLUME), s.prefs.lastBarVolume, l.bar.connected),
+            volume = volume,
             volumeCap = cap,
+            sceneVolumeCap = sceneCap,
+            tonightCap = tonight,
+            volumeGuardLine = VolumeRules.guardLine(guardState, volume, cap ?: MAX_VOLUME).takeIf { l.bar.connected },
+            volumeAsk = v.guard.ask,
+            volumeGuardNotice = v.guard.notice,
+            sceneUndo = v.undo?.takeIf { !it.stale(SystemClock.elapsedRealtime(), active, powered) },
             powered = powered,
             waking = e.waking,
             pairing = e.pairing,
@@ -1334,22 +1379,95 @@ class TuttiController @Inject constructor(
 
     // region bar
 
-    /** Absolute soundbar volume, clamped to the active scene's cap. Sent at most every 60 ms, latest wins. */
-    fun setVolume(level: Int) {
-        val ceiling = state.value.volumeCap ?: MAX_VOLUME
-        val clamped = level.coerceIn(0, ceiling)
-        if (clamped == 0 || clamped == ceiling) mutableEvents.tryEmit(TuttiEvent.VolumeLimit)
+    /** Absolute soundbar volume from the app: see [setVolume] with a source. */
+    fun setVolume(level: Int) = setVolume(level, VolumeSource.APP)
+
+    /**
+     * Absolute soundbar volume, clamped to the ceiling (the active scene's cap and the cap for
+     * tonight, the lower wins) and stopped at the high-volume guard ([VolumeRules.decide]): from the
+     * app it asks ([TuttiUiState.volumeAsk]), elsewhere it says going above needs the app. Sent at
+     * most every 60 ms, latest wins.
+     */
+    fun setVolume(level: Int, source: VolumeSource) {
+        val s = state.value
+        val ceiling = s.volumeCap ?: MAX_VOLUME
+        // The newest level asked for, not the state's, which may lag a burst of presses by a frame.
+        val current = overrides.value.volume ?: s.volume
+        val line = VolumeRules.threshold(s.prefs.volumeGuardLevel)
+        val armed = VolumeGuardState(s.prefs.volumeGuard, line, guard.value.unlocked)
+        when (val decision = VolumeRules.decide(current, level, ceiling, armed, source)) {
+            is VolumeDecision.Send -> sendVolume(decision.level, ceiling, line)
+            is VolumeDecision.Held -> {
+                // The guard is a wall too: the bump, and the level stops exactly on it.
+                mutableEvents.tryEmit(TuttiEvent.VolumeLimit)
+                decision.send?.let { sendVolume(it, ceiling, line, bump = false) }
+                if (decision.ask) {
+                    guard.update { it.copy(ask = VolumeAsk(decision.threshold, decision.wanted)) }
+                } else {
+                    // The quick surfaces read the notice and say going above needs the app.
+                    guard.update { it.copy(notice = true) }
+                }
+            }
+        }
+    }
+
+    private fun sendVolume(clamped: Int, ceiling: Int, line: Int, bump: Boolean = true) {
+        if (bump && (clamped == 0 || clamped == ceiling)) mutableEvents.tryEmit(TuttiEvent.VolumeLimit)
+        // Below the line again: the guard re-arms at once, before a lagging state could let a step through.
+        if (clamped < line) guard.update { if (it.unlocked || it.notice) it.copy(unlocked = false, notice = false) else it }
         setOverride { it.copy(volume = clamped) }
         volumeTarget.trySend(clamped)
     }
 
-    fun volumeStep(delta: Int) {
+    /** "Go above": the guard opens until the level is below its line again, and the asked level goes. */
+    fun confirmLoud() {
+        val ask = guard.value.ask ?: return
+        guard.update { it.copy(unlocked = true, ask = null, notice = false) }
+        setVolume(ask.wanted, VolumeSource.APP)
+    }
+
+    /** "Stay": the level stays on the line. */
+    fun stayBelowGuard() {
+        guard.update { it.copy(ask = null) }
+    }
+
+    fun volumeStep(delta: Int) = volumeStep(delta, VolumeSource.APP)
+
+    fun volumeStep(delta: Int, source: VolumeSource) {
         // Level not known yet (the bar has not reported it): ask for it rather than guess a level to set.
         // The bar hasn't reported its level this session: ask for it, and step from the level
         // shown meanwhile (possibly last session's) rather than doing nothing.
         if (theatre.state.value.level(TheatreFeature.VOLUME) == null) scope.launch { theatre.get(TheatreFeature.VOLUME) }
-        val current = state.value.volume ?: return
-        setVolume(current + delta)
+        val current = overrides.value.volume ?: state.value.volume ?: return
+        setVolume(current + delta, source)
+    }
+
+    /** The high-volume guard's settings (Settings › Volume). */
+    fun setVolumeGuard(enabled: Boolean, level: Int) {
+        scope.launch { store.updatePrefs { it.copy(volumeGuard = enabled, volumeGuardLevel = VolumeRules.threshold(level)) } }
+    }
+
+    /**
+     * A cap for tonight at [level] until [until] (wall clock): enforced like a scene's cap, the lower
+     * wins. A louder bar comes down to it at once.
+     */
+    fun setTonightCap(level: Int, until: Long) {
+        val cap = io.kud.tutti.platform.data.TonightCap(level.coerceIn(0, MAX_VOLUME), until)
+        scope.launch { store.updatePrefs { it.copy(tonightCap = cap) } }
+        val current = overrides.value.volume ?: state.value.volume
+        if (current != null && current > cap.level && theatre.state.value.connected) {
+            setOverride { it.copy(volume = cap.level) }
+            volumeTarget.trySend(cap.level)
+        }
+    }
+
+    fun clearTonightCap() {
+        scope.launch { store.updatePrefs { it.copy(tonightCap = null) } }
+    }
+
+    /** A saved level in the volume sheet: [level] in [slot], or null to empty it. */
+    fun saveVolumePreset(slot: Int, level: Int?) {
+        scope.launch { store.updatePrefs { it.copy(volumePresets = VolumeRules.withPreset(it.volumePresets, slot, level)) } }
     }
 
     fun toggleMute() {
@@ -1472,8 +1590,12 @@ class TuttiController @Inject constructor(
 
     fun applyScene(sceneId: String) {
         val scene = state.value.scenes.firstOrNull { it.scene.id == sceneId }?.scene ?: return
+        val before = snapshot()
+        // One level of undo, taken before anything moves; a newer scene replaces it.
+        sceneUndo.value = SceneUndo.capture(scene, before, activeSceneId.value, SystemClock.elapsedRealtime())
+        scheduleUndoExpiry()
         activeSceneId.value = sceneId
-        val steps = SceneEngine.plan(scene, snapshot())
+        val steps = SceneEngine.plan(scene, before)
         sceneJob?.cancel()
         sceneJob = scope.launch {
             var failed = emptyList<SceneStep>()
@@ -1496,8 +1618,42 @@ class TuttiController @Inject constructor(
             } else {
                 failureDetail("scene: apply", outcome = "${failed.size} of ${steps.size} steps failed", steps = failed.map { "failed $it" })
             }
-            mutableEvents.emit(TuttiEvent.SceneFinished(sceneId, failed.size, detail))
+            val undoable = sceneUndo.value?.sceneId == sceneId && activeSceneId.value == sceneId
+            mutableEvents.emit(TuttiEvent.SceneFinished(sceneId, failed.size, detail, undoable))
         }
+    }
+
+    private var undoExpiryJob: Job? = null
+
+    private fun scheduleUndoExpiry() {
+        val undo = sceneUndo.value ?: return
+        undoExpiryJob?.cancel()
+        undoExpiryJob = scope.launch {
+            delay(SceneUndo.WINDOW_MS)
+            sceneUndo.compareAndSet(undo, null)
+        }
+    }
+
+    /**
+     * Puts back what the last scene changed ([SceneUndo]), and the scene that was active before it.
+     * One level: the undo is spent. A run still going is stopped first. Restoring is a scene run of
+     * its own (the ceiling applies, the volume guard doesn't: it returns to a level he had).
+     */
+    fun undoLastScene(): Boolean {
+        val undo = state.value.sceneUndo ?: return false
+        sceneUndo.value = null
+        undoExpiryJob?.cancel()
+        sceneJob?.cancel()
+        val name = state.value.scenes.firstOrNull { it.scene.id == undo.sceneId }?.scene?.name
+        activeSceneId.value = undo.previousSceneId
+        val steps = undo.plan(snapshot())
+        sceneJob = scope.launch {
+            var failed = emptyList<SceneStep>()
+            SceneRunner(actuator).run(steps).collect { failed = it.failed }
+            val detail = if (failed.isEmpty()) null else failureDetail("scene: undo", outcome = "${failed.size} of ${steps.size} steps failed", steps = failed.map { "failed $it" })
+            mutableEvents.emit(TuttiEvent.SceneUndone(name, failed.size, detail))
+        }
+        return true
     }
 
     /** "Capturer l'état actuel": every known value, each one a removable chip. */
@@ -1545,7 +1701,14 @@ class TuttiController @Inject constructor(
             is SceneStep.TvApp -> launchDirect(step.appPackage)
             is SceneStep.PictureMode -> bravia?.setPictureSetting("pictureMode", step.mode) is BraviaResult.Ok
             is SceneStep.Bar -> {
-                theatre.set(step.feature, step.value)
+                // The cap for tonight binds scenes too: the lower cap wins.
+                val tonight = VolumeRules.tonightActive(store.prefs.first().tonightCap, System.currentTimeMillis())
+                val value = if (step.feature == TheatreFeature.VOLUME && tonight != null) {
+                    step.value.toIntOrNull()?.let { minOf(it, tonight.level).toString() } ?: step.value
+                } else {
+                    step.value
+                }
+                theatre.set(step.feature, value)
                 theatre.state.value.connected
             }
             is SceneStep.LaunchApp -> launchDirect(step.appPackage)
@@ -1928,6 +2091,15 @@ class TuttiController @Inject constructor(
                 actionFailed("tv setting: sound output = $value", outcomeOf(result))
             }
         }
+    }
+
+    /**
+     * The Power sheet's sleep timer needs the TV's IRCC list ([TvSettingsState.sleepCode]), which
+     * only TV settings load: ask for it once when the sheet opens and it isn't known yet.
+     */
+    fun loadSleepTimer() {
+        val settings = tv.value.settings
+        if (!settings.loaded && !settings.loading && links.value.rest == Link.ONLINE) loadTvSettings()
     }
 
     /** One press of the TV's own sleep-timer key: the TV cycles its steps and shows the choice. */
