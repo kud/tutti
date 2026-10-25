@@ -61,6 +61,7 @@ import io.kud.tutti.protocol.bravia.BraviaClient
 import io.kud.tutti.protocol.bravia.BraviaError
 import io.kud.tutti.protocol.bravia.BraviaResult
 import io.kud.tutti.protocol.bravia.BraviaService
+import io.kud.tutti.protocol.bravia.CookieRenewal
 import io.kud.tutti.protocol.bravia.IpRegistration
 import io.kud.tutti.protocol.bravia.PowerStatus
 import io.kud.tutti.protocol.bravia.Registration
@@ -697,14 +698,15 @@ class TuttiController @Inject constructor(
      */
     private suspend fun keepCookieFresh(client: BraviaClient, refused: Boolean = false): Boolean {
         val current = ipCookie ?: return true
-        if (ipCode.value == IpCodeStatus.RENEW) return false
         val now = System.currentTimeMillis()
-        if (!refused && !IpRegistration.needsRenewal(current, now)) return true
-        if (!refused && now - renewTriedAt < RENEW_RETRY_MS && !IpRegistration.expired(current, now)) return true
-        // Refused again right after a renewal the TV accepted: the cookie it kept is no good either.
-        if (refused && now - renewTriedAt < REFUSED_AFTER_RENEW_MS) {
-            ipCode.value = IpCodeStatus.RENEW
-            return false
+        val awaiting = ipCode.value == IpCodeStatus.RENEW
+        when (CookieRenewal.decide(current, awaitingCode = awaiting, refused = refused, nowMs = now, lastTriedAtMs = renewTriedAt)) {
+            CookieRenewal.Step.Keep -> return true
+            CookieRenewal.Step.NeedCode -> {
+                if (!awaiting) ipCode.value = IpCodeStatus.RENEW
+                return false
+            }
+            CookieRenewal.Step.Renew -> Unit
         }
         renewTriedAt = now
         return when (val renewed = client.renew(current, nowMs = now)) {
@@ -720,7 +722,7 @@ class TuttiController @Inject constructor(
                     false
                 }
             }
-            is BraviaResult.Failure -> !refused && !IpRegistration.expired(current, now)
+            is BraviaResult.Failure -> CookieRenewal.keepAfterUnreachable(current, refused, now)
         }
     }
 
@@ -2383,8 +2385,6 @@ class TuttiController @Inject constructor(
         private const val LINGER_MS = 30_000L
         private const val MIN_BACKOFF_MS = 1_000L
         private const val MAX_BACKOFF_MS = 30_000L
-        private const val RENEW_RETRY_MS = 6 * 60 * 60 * 1000L
-        private const val REFUSED_AFTER_RENEW_MS = 60_000L
         private const val READY_TIMEOUT_MS = 8_000L
         private const val POLL_BAR_MS = 20_000L
         private const val REASK_EVERY_POLLS = 3
