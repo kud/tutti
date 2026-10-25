@@ -43,7 +43,8 @@ private class Raster(val image: ImageBitmap, val crop: Boolean, val fill: Int?)
  *    adaptive layers full bleed;
  * 2. the TV's own launcher art ([iconPath]): a square icon cropped edge to edge, a banner fitted to
  *    the width on its corners' shared colour, and skipped when its corners disagree (Iris);
- * 3. the brand's official logo on its brand colour ([brandFace]);
+ * 3. the brand's official logo on its brand colour, or the app's own Play Store icon cropped edge to
+ *    edge ([brandFace]);
  * 4. the app's first letter.
  * The picture fills whatever the tile measures, never a fixed size inside it: a caller stretching
  * the tile (the Apps grid's aspectRatio) once left an inset square with the tile showing round it.
@@ -100,9 +101,9 @@ fun AppIcon(
             brand != null -> Image(
                 painterResource(brand.drawable),
                 contentDescription = null,
-                contentScale = ContentScale.Fit,
+                contentScale = if (brand.crop) ContentScale.Crop else ContentScale.Fit,
                 colorFilter = brand.glyph?.let { ColorFilter.tint(Color(it)) },
-                modifier = Modifier.fillMaxSize(minOf(brand.scale, 1f)),
+                modifier = Modifier.fillMaxSize(if (brand.crop) 1f else minOf(brand.scale, 1f)),
             )
             else -> Text(
                 text = name.trim().take(1).uppercase().ifEmpty { "·" },

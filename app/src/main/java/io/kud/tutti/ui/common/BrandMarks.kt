@@ -7,9 +7,13 @@ import io.kud.tutti.protocol.atv.AppCatalog
 /**
  * How an official logo becomes a coloured tile (Erwann, 2026-10-25: "tout en couleur partout").
  * [fill] covers the whole tile; [glyph] tints a single-colour mark (null keeps the logo's own
- * colours); [scale] is the logo's share of the tile along its longer side (Arte's mark stands upright).
+ * colours); [scale] is the logo's share of the tile along its longer side. [crop] marks the app's own
+ * Play Store icon: a full square, drawn edge to edge and cropped like the phone's icon.
  */
-class BrandFace(@DrawableRes val drawable: Int, val fill: Int, val glyph: Int?, val scale: Float)
+class BrandFace(@DrawableRes val drawable: Int, val fill: Int, val glyph: Int?, val scale: Float, val crop: Boolean = false)
+
+/** The app's own 512 px Play Store icon, full bleed; [ground] is its edge colour, behind the corners. */
+private fun playIcon(@DrawableRes drawable: Int, ground: Long) = BrandFace(drawable, ground.toInt(), null, 1f, crop = true)
 
 /** A Simple Icons mark on its own brand hex, in white or near-black, whichever reads (Iris: 56%). */
 private fun mark(@DrawableRes drawable: Int, hex: Long): BrandFace? {
@@ -20,11 +24,11 @@ private fun mark(@DrawableRes drawable: Int, hex: Long): BrandFace? {
 
 /**
  * Official logos, keyed by [AppCatalog] id: Simple Icons marks with their recorded brand hex, and
- * full-colour logos from svgl and Wikimedia Commons in their own colours. Every path is the source's
- * own, unaltered; we only scale it, and tint the single-colour marks as a whole. Never draw, trace or
- * redraw a logo: a catalog app with no logo from a recorded source keeps its letter tile until one
- * is found. Canal+, TF1+, M6+ and Arte are interim Commons reproductions, not brand-supplied files,
- * kept until the brand's own SVG can be fetched (Erwann, 2026-10-25). Provenance: docs/brand-icons.md.
+ * full-colour logos from svgl and Wikimedia Commons in their own colours, and the app's own Play Store
+ * icon where the logo alone didn't match the app. Every path or pixel is the source's own, unaltered;
+ * we only scale it, and tint the single-colour marks as a whole. Never draw, trace or redraw a logo:
+ * a catalog app with no logo from a recorded source keeps its letter tile until one is found.
+ * Provenance: docs/brand-icons.md.
  */
 private val faces: Map<String, BrandFace?> = mapOf(
     "netflix" to mark(R.drawable.brand_netflix, 0xFFE50914),
@@ -46,16 +50,16 @@ private val faces: Map<String, BrandFace?> = mapOf(
     "primevideo" to BrandFace(R.drawable.logo_primevideo, BrandColours.WHITE, null, 0.8f),
     "disney" to BrandFace(R.drawable.logo_disneyplus, BrandColours.WHITE, null, 0.8f),
     "putio" to BrandFace(R.drawable.logo_putio, 0xFF323232.toInt(), null, 1f),
-    // Official files on Wikimedia Commons: france.tv's black wordmark wants a light ground, Molotov's
-    // white and amber one a dark ground. The grounds are the app's neutrals, not brand colours.
+    // An official file on Wikimedia Commons: france.tv's black wordmark wants a light ground (a
+    // neutral, not a brand colour).
     "francetv" to BrandFace(R.drawable.logo_francetv, BrandColours.WHITE, null, 0.8f),
-    "molotov" to BrandFace(R.drawable.logo_molotov, BrandColours.NEAR_BLACK, null, 0.8f),
-    // Interim Commons reproductions (Erwann, 2026-10-25). Canal+'s black box is its own ground, so the
-    // tile is that black; TF1+'s navy and M6+'s black M want a light ground; Arte's orange reads on dark.
-    "canal" to BrandFace(R.drawable.logo_canalplus, 0xFF000000.toInt(), null, 0.8f),
-    "tf1" to BrandFace(R.drawable.logo_tf1plus, BrandColours.WHITE, null, 0.8f),
-    "m6" to BrandFace(R.drawable.logo_m6plus, BrandColours.WHITE, null, 0.8f),
-    "arte" to BrandFace(R.drawable.logo_arte, BrandColours.NEAR_BLACK, null, 0.8f),
+    // The app's own Play Store icon, byte for byte (Erwann, 2026-10-25): the Commons reproductions
+    // and Molotov's old wordmark didn't match the apps. Cropped edge to edge like the phone's icon.
+    "molotov" to playIcon(R.drawable.play_molotov, 0xFFFFC107),
+    "canal" to playIcon(R.drawable.play_canalplus, 0xFF2F2F2F),
+    "tf1" to playIcon(R.drawable.play_tf1plus, 0xFF1937FF),
+    "m6" to playIcon(R.drawable.play_m6plus, 0xFF000000),
+    "arte" to playIcon(R.drawable.play_arte, 0xFFFC4700),
 )
 
 fun brandFace(packageName: String?): BrandFace? =
