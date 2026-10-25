@@ -9,6 +9,13 @@ data class AppEntry(
      * Android TV Remote integration (its "Launching apps" table, 2026-10); never guessed.
      */
     val links: List<String> = emptyList(),
+    /**
+     * The phone app's own package, where it differs from [packageName], for the phone-icon
+     * fallback (`PhoneIcons`). Only names whose Google Play page (gl=FR) shows "Phone" among the
+     * devices it installs on; never guessed. When the TV package itself installs on phones it
+     * already counts, so this stays empty.
+     */
+    val phonePackages: List<String> = emptyList(),
 ) {
     /** Every link to try, in order: the deep links, then the Play Store launch link as fallback. */
     val launchLinks: List<String> get() = links + marketLink(packageName)
@@ -29,13 +36,15 @@ data class AppEntry(
 /**
  * Curated Google TV apps, the ones a BRAVIA in France is likely to carry. Every package name was
  * checked on its Google Play page (gl=FR) and shows "TV" among the devices it installs on
- * (2026-10-23). Started from kud/gtv (src/apps.ts).
+ * (2026-10-23). Started from kud/gtv (src/apps.ts). The phone packages were checked the same way
+ * (2026-10-25): every TV package not listed with one also shows "Phone" on its own page, except
+ * Prime Video's, Spotify's and Put.io's, which are TV only; Put.io's phone app is not verified.
  */
 object AppCatalog {
     val apps: List<AppEntry> = listOf(
-        AppEntry("netflix", "Netflix", "com.netflix.ninja", listOf("netflix://")),
-        AppEntry("youtube", "YouTube", "com.google.android.youtube.tv", listOf("https://www.youtube.com", "vnd.youtube.launch://")),
-        AppEntry("primevideo", "Prime Video", "com.amazon.amazonvideo.livingroom", listOf("https://app.primevideo.com")),
+        AppEntry("netflix", "Netflix", "com.netflix.ninja", listOf("netflix://"), phonePackages = listOf("com.netflix.mediaclient")),
+        AppEntry("youtube", "YouTube", "com.google.android.youtube.tv", listOf("https://www.youtube.com", "vnd.youtube.launch://"), phonePackages = listOf("com.google.android.youtube")),
+        AppEntry("primevideo", "Prime Video", "com.amazon.amazonvideo.livingroom", listOf("https://app.primevideo.com"), phonePackages = listOf("com.amazon.avod.thirdpartyclient")),
         AppEntry("disney", "Disney+", "com.disney.disneyplus", listOf("https://www.disneyplus.com")),
         AppEntry("appletv", "Apple TV", "com.apple.atve.androidtv.appletv"),
         AppEntry("canal", "Canal+", "com.canal.android.canal"),
@@ -51,11 +60,11 @@ object AppCatalog {
         AppEntry("mubi", "MUBI", "com.mubi"),
         AppEntry("crunchyroll", "Crunchyroll", "com.crunchyroll.crunchyroid"),
         AppEntry("twitch", "Twitch", "tv.twitch.android.app", listOf("twitch://home")),
-        AppEntry("spotify", "Spotify", "com.spotify.tv.android"),
+        AppEntry("spotify", "Spotify", "com.spotify.tv.android", phonePackages = listOf("com.spotify.music")),
         AppEntry("deezer", "Deezer", "deezer.android.app"),
         // Dedicated Android TV packages, distinct from the phone apps.
-        AppEntry("ytmusic", "YouTube Music", "com.google.android.youtube.tvmusic"),
-        AppEntry("jellyfin", "Jellyfin", "org.jellyfin.androidtv"),
+        AppEntry("ytmusic", "YouTube Music", "com.google.android.youtube.tvmusic", phonePackages = listOf("com.google.android.apps.youtube.music")),
+        AppEntry("jellyfin", "Jellyfin", "org.jellyfin.androidtv", phonePackages = listOf("org.jellyfin.mobile")),
         AppEntry("plex", "Plex", "com.plexapp.android", listOf("plex://")),
         AppEntry("kodi", "Kodi", "org.xbmc.kodi"),
         AppEntry("vlc", "VLC", "org.videolan.vlc"),

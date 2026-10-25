@@ -922,7 +922,7 @@ class TuttiController @Inject constructor(
     }
 
     /** Per-app icon outcomes this session, for the diagnostic report: package names and URL shapes, never a host. */
-    fun iconReport(): List<String> = iconBook.value.report().map { Redact.text(it) }
+    fun iconReport(shown: (String) -> String? = { null }): List<String> = iconBook.value.report(shown).map { Redact.text(it) }
 
     private suspend fun <T> withContextIO(block: () -> T): T = kotlinx.coroutines.withContext(Dispatchers.IO) { block() }
 

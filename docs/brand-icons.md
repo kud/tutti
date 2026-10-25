@@ -5,10 +5,11 @@ The app buttons (the app keys in More, the Apps sheet, the action picker and Doc
 ## Order
 
 1. **The TV's launcher art**, once fetched over IP control (`state.appIcons`). It is the app's own icon, in its own colours. Only ever from the TV itself (`AppIcons.plan`): a blank icon URL counts as none; one naming another address of the TV (loopback, a second interface, a LAN name) is aimed back at the configured, pinned host; an internet host is never fetched. An HTTP icon on a pinned TV with port 80 shut is asked over HTTPS at the same path, a 401/403 once more with the PSK, and anything that is not an image is not cached. A failed icon is asked again on later polls, 30 s, 2 min, 10 min, 30 min, then hourly (`IconBook`); the diagnostic lists each app still without one and why.
-2. **The brand's official mark** from [Simple Icons](https://github.com/simple-icons/simple-icons), for the apps in `AppCatalog` it covers.
-3. **The app's first letter**, for everything else.
+2. **The same app's icon on this phone**, through `PackageManager` (`PhoneIconBitmaps`), when the phone has it installed. Matched by package only (`PhoneIcons`, protocol, tested): the TV package itself, since many apps ship one package to phones and TVs, then the catalog entry's verified phone package (`AppEntry.phonePackages`). Never by name: a label match ("Arte", "TV", "Music") would sooner or later put another app's coloured logo on a tile, and a wrong logo is worse than the honest letter. Visibility is `<queries>` for MAIN/LAUNCHER intents, never `QUERY_ALL_PACKAGES`: an app outside the catalog has a package known only at run time, which per-package entries can't cover. tutti asks only about the candidates, never lists what is installed, and nothing leaves the phone. Rasterised once off the main thread at the tile's size and cached in memory; an adaptive icon is drawn full bleed, both layers cropped to the 72/108 safe zone and clipped by the tile's corner (Iris, 2026-10-25, see `design.md`), a legacy one fitted. The diagnostic's line for each app without a TV icon ends with what its tile shows instead (`shown: phone`, `mark` or `letter`), never which phone package matched.
+3. **The brand's official mark** from [Simple Icons](https://github.com/simple-icons/simple-icons), for the apps in `AppCatalog` it covers.
+4. **The app's first letter**, for everything else.
 
-All three sit on the same `surfaceContainerHighest` tile. The mark is drawn monochrome in `onSurface` (near-black in light, near-white in dark) at 60% of the tile: it reads by shape, never by colour, holds contrast on any dynamic palette, and keeps a row of mixed sources calm. The button around it always carries the app's name as text.
+All four sit on the same `surfaceContainerHighest` tile. The phone and TV icons are the app's own, in colour. The mark is drawn monochrome in `onSurface` (near-black in light, near-white in dark) at 60% of the tile: it reads by shape, never by colour, holds contrast on any dynamic palette, and keeps a row of mixed sources calm. The button around it always carries the app's name as text.
 
 ## Rules
 
@@ -41,8 +42,23 @@ Release **16.35.0** (`https://raw.githubusercontent.com/simple-icons/simple-icon
 
 ## Not in Simple Icons (letter tile)
 
-Prime Video, Disney+, Canal+, france.tv, TF1+, M6+, Arte, Molotov, Put.io. Simple Icons 16.35.0 carries none of them, and neither did its `develop` branch on 2026-10-23 (no `primevideo`, `amazonprime`, `disneyplus`, `canalplus`, `francetv`, `tf1`, `m6`, `arte`, `molotov` or `putio` icon, and no matching title in `data/simple-icons.json`). Once fetched over IP control, the TV's own icon covers them; until then they keep the letter tile, Prime Video's in the All keys sheet included. Check again when picking a new release.
+Prime Video, Disney+, Canal+, france.tv, TF1+, M6+, Arte, Molotov, Put.io. Simple Icons 16.35.0 carries none of them, and neither did its `develop` branch on 2026-10-23 (no `primevideo`, `amazonprime`, `disneyplus`, `canalplus`, `francetv`, `tf1`, `m6`, `arte`, `molotov` or `putio` icon, and no matching title in `data/simple-icons.json`). Once fetched over IP control, the TV's own icon covers them; until then the phone's icon does when the same app is installed on it, and otherwise they keep the letter tile, Prime Video's in the All keys sheet included. Check again when picking a new release.
 
 ## Guidelines and single-colour rendering
 
 Each mark is drawn in one colour, `onSurface`: near-black in light, near-white in dark. Black or white single-colour versions are the usual fallback brand guidelines allow when the brand colour can't be used, but the linked guidelines have not yet been read line by line (most are JavaScript pages that would not load for review). If one turns out to forbid a single-colour mark, draw that mark in its brand hex on the same tile and note it here.
+
+## Phone packages
+
+Checked on each app's Google Play page (`hl=en&gl=FR`) on 2026-10-25, by the devices it lists. Where the TV package also lists "Phone", it is the phone app too and needs no entry.
+
+| App | TV package | Phone package | |
+| --- | --- | --- | --- |
+| Netflix | `com.netflix.ninja` | `com.netflix.mediaclient` | verified |
+| YouTube | `com.google.android.youtube.tv` | `com.google.android.youtube` | verified |
+| Prime Video | `com.amazon.amazonvideo.livingroom` (TV only) | `com.amazon.avod.thirdpartyclient` | verified |
+| Spotify | `com.spotify.tv.android` (TV only) | `com.spotify.music` | verified |
+| YouTube Music | `com.google.android.youtube.tvmusic` | `com.google.android.apps.youtube.music` | verified |
+| Jellyfin | `org.jellyfin.androidtv` | `org.jellyfin.mobile` | verified |
+| Disney+, Apple TV, Canal+, HBO Max, france.tv, TF1+, M6+, Arte, Molotov, Paramount+, MUBI, Crunchyroll, Twitch, Deezer, Plex, Kodi, VLC | same as TV | same as TV | TV package lists Phone |
+| Put.io | `io.put.putio` (TV only) | none known | not verified: no phone package found, so only the TV package is asked |

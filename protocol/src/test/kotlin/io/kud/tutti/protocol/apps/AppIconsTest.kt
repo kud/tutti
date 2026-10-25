@@ -121,4 +121,20 @@ class AppIconsTest {
         assertFalse(report.any { it.contains("192.168") })
         assertEquals(listOf("nothing tried this session"), IconBook().report())
     }
+
+    @Test
+    fun `the report says what each tile shows instead, phone included`() {
+        val book = IconBook()
+            .record("org.example.one", null, "none", IconAttempt(IconOutcome.BLANK), 0)
+            .record("org.example.two", null, "none", IconAttempt(IconOutcome.BLANK), 0)
+            .record("org.example.three", null, "none", IconAttempt(IconOutcome.CACHED), 0)
+        val shown = mapOf("org.example.one" to "phone", "org.example.three" to "phone")
+        assertEquals(
+            listOf(
+                "org.example.one: tv listed no icon, none, tries 1; shown: phone",
+                "org.example.two: tv listed no icon, none, tries 1",
+            ),
+            book.report { shown[it] }.drop(1),
+        )
+    }
 }

@@ -6,6 +6,7 @@ import android.net.NetworkCapabilities
 import android.os.Build
 import dagger.hilt.android.qualifiers.ApplicationContext
 import io.kud.tutti.controller.TuttiController
+import io.kud.tutti.platform.data.PhoneIconBitmaps
 import io.kud.tutti.platform.discovery.DiscoveredTv
 import io.kud.tutti.platform.discovery.TvDiscovery
 import io.kud.tutti.platform.net.OkHttpBraviaTransport
@@ -22,6 +23,9 @@ import io.kud.tutti.protocol.grpc.CloudPlaneState
 import io.kud.tutti.protocol.net.Redact
 import io.kud.tutti.protocol.net.TcpConnector
 import io.kud.tutti.protocol.net.TlsConnector
+import io.kud.tutti.ui.common.brandMark
+import javax.inject.Inject
+import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -32,8 +36,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
-import javax.inject.Inject
-import javax.inject.Singleton
 
 data class DiagnosticUi(
     val steps: List<StepResult> = DiagnosticSteps.initial(),
@@ -157,10 +159,18 @@ class Diagnostics @Inject constructor(
     /**
      * What became of each TV app icon this session: a count per outcome, then one line per app
      * without one (package, outcome, the URL's scheme, port, path head and how its host relates
-     * to the TV). Never a host or a header; scrubbed by the controller and again by the report.
+     * to the TV), and what its tile shows instead: the phone's own icon, the brand mark or the
+     * letter. Never a host or a header, nor which phone package matched; scrubbed by the
+     * controller and again by the report.
      */
     private fun appIcons(): List<Pair<String, String>> {
-        val lines = controller.iconReport()
+        val lines = controller.iconReport { pkg ->
+            when {
+                runCatching { PhoneIconBitmaps.has(context, pkg) }.getOrDefault(false) -> "phone"
+                brandMark(pkg) != null -> "mark"
+                else -> "letter"
+            }
+        }
         return listOf("app icons" to lines.first()) +
             lines.drop(1).mapIndexed { i, line -> "app icon %02d".format(i + 1) to line }
     }

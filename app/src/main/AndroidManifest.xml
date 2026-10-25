@@ -16,8 +16,16 @@
     <!-- ===== quick access: permissions (end) ===== -->
 
     <!-- Lets "Recalibrer dans BRAVIA Connect" see whether Sony's app is installed. -->
+    <!-- Launchable apps: an app tile with no TV icon borrows the icon of the same app on this
+         phone (PhoneIconBitmaps), matched by exact package. A TV app outside the catalog has a
+         package known only at run time, so per-package entries can't cover it; this is the narrow
+         form, never QUERY_ALL_PACKAGES. tutti asks only about candidate packages, never lists. -->
     <queries>
         <package android:name="jp.co.sony.hes.home" />
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
     </queries>
 
     <application

@@ -124,14 +124,18 @@ data class IconBook(val entries: Map<String, Entry> = emptyMap()) {
         return copy(entries = entries + (packageName to Entry(key, shape, attempt, failures, next)))
     }
 
-    /** One line per outcome with its count, then one per app not cached; no URL host ever appears. */
-    fun report(): List<String> {
+    /**
+     * One line per outcome with its count, then one per app not cached; no URL host ever appears.
+     * [shown] names what the tile wears instead (phone, mark, letter), appended when known.
+     */
+    fun report(shown: (String) -> String? = { null }): List<String> {
         if (entries.isEmpty()) return listOf("nothing tried this session")
         val counts = entries.values.groupingBy { it.last.outcome }.eachCount()
         val summary = IconOutcome.entries.filter { it in counts }.joinToString { "${it.label} ${counts[it]}" }
         val missing = entries.toSortedMap().filterValues { it.last.outcome != IconOutcome.CACHED }.map { (pkg, e) ->
             val detail = e.last.detail?.let { " ($it)" }.orEmpty()
-            "$pkg: ${e.last.outcome.label}$detail, ${e.shape}, tries ${e.failures}"
+            val instead = shown(pkg)?.let { "; shown: $it" }.orEmpty()
+            "$pkg: ${e.last.outcome.label}$detail, ${e.shape}, tries ${e.failures}$instead"
         }
         return listOf(summary) + missing
     }
