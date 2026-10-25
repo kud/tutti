@@ -5,6 +5,8 @@
     <string name="card_app_actions_open">App actions</string>
     <string name="playback_label">Playback</string>
     <string name="playback_note">Each app on the TV decides what these keys do.</string>
+    <!-- Said by TalkBack when a sheet key that opens a TV menu closes its sheet. -->
+    <string name="sheet_key_tv_menu">Sent to the TV. Use the pad in its menu.</string>
     <string name="app_actions_label">App actions</string>
     <string name="app_actions_pin">Pin to the dock</string>
     <string name="app_actions_pin_detail">Choose which pin it takes</string>

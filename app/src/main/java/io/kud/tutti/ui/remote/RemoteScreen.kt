@@ -258,19 +258,30 @@ fun RemoteScreen(
     LaunchedEffect(input.open, routed) { if (input.open && routed) target.textReset() }
 
     /** One key, wherever it belongs. A key that goes nowhere bumps and says why; glyphs never change. */
-    fun sendKey(code: Int) {
+    fun sendKey(code: Int): Boolean {
         if (!routed) {
             controller.key(code)
-            return
+            return true
         }
         val why = when (target.key(code).availability) {
-            KeyAvailability.AVAILABLE -> return
+            KeyAvailability.AVAILABLE -> return true
             KeyAvailability.NOT_ON_COMPUTER -> computerUnavailable
             KeyAvailability.NOT_OVER_BLUETOOTH -> notOverBluetooth
             KeyAvailability.LINK_DOWN -> linkDown
         }
         haptics.bump()
         messages?.show(why)
+        return false
+    }
+    // A key that opens a menu on the TV closes its sheet, so the pad is in view to drive that
+    // menu (keyClosesSheet); TalkBack hears where to go next, since the sheet vanished under it.
+    val tvMenuSay = stringResource(R.string.sheet_key_tv_menu)
+    fun sheetKey(code: Int, close: () -> Unit) {
+        val sent = sendKey(code)
+        if (!keyClosesSheet(code)) return
+        close()
+        @Suppress("DEPRECATION")
+        if (sent) view.announceForAccessibility(tvMenuSay)
     }
     val standbyWords = stringResource(R.string.key_tv_standby)
     val wakeWords = stringResource(R.string.card_wake_tv_short)
@@ -864,7 +875,7 @@ fun RemoteScreen(
             downReason = controlLinkReason(state.controlLink(Owner.TV), Owner.TV, state),
             onKey = { code ->
                 haptics.click()
-                sendKey(code)
+                sheetKey(code) { playbackFor = null }
             },
             onDismiss = { playbackFor = null },
         )
@@ -933,9 +944,7 @@ fun RemoteScreen(
             onDismiss = { sheet2 = null },
         )
         RemoteSheet.KEYS -> MoreKeysSheet(
-            onKey = {
-                sendKey(it)
-            },
+            onKey = { code -> sheetKey(code) { sheet2 = null } },
             onDismiss = { sheet2 = null },
             pin = KeyPin(enabled = !state.controlLink(Owner.TV).down) { code, name -> keysPinner.request(DockAction.Key(code), name) },
             downReason = controlLinkReason(state.controlLink(Owner.TV), Owner.TV, state),

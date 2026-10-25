@@ -4,6 +4,8 @@
     <string name="card_app_actions_open">Actions de l\'app</string>
     <string name="playback_label">Lecture</string>
     <string name="playback_note">Chaque app de la TV décide de l\'effet de ces touches.</string>
+    <!-- Said by TalkBack when a sheet key that opens a TV menu closes its sheet. -->
+    <string name="sheet_key_tv_menu">Envoyé à la TV. Utilisez le pavé dans son menu.</string>
     <string name="app_actions_label">Actions de l\'app</string>
     <string name="app_actions_pin">Épingler au dock</string>
     <string name="app_actions_pin_detail">Choisissez son emplacement</string>
