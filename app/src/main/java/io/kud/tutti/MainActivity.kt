@@ -64,6 +64,7 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var diagnostics: Diagnostics
 
     @Inject lateinit var hid: io.kud.tutti.platform.bluetooth.HidLink
+    @Inject lateinit var target: io.kud.tutti.controller.TargetController
 
     @Inject lateinit var store: TuttiStore
 
@@ -141,9 +142,12 @@ class MainActivity : ComponentActivity() {
     override fun onStart() {
         super.onStart()
         controller.retain()
+        target.appForeground(true)
     }
 
     override fun onStop() {
+        // The HID role is never held in the background.
+        target.appForeground(false)
         controller.release()
         super.onStop()
     }

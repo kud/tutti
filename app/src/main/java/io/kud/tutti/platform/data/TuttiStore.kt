@@ -6,6 +6,8 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import io.kud.tutti.protocol.apps.KnownApp
+import io.kud.tutti.protocol.devices.DeviceList
+import io.kud.tutti.protocol.devices.DeviceMigration
 import io.kud.tutti.protocol.scenes.AppProfile
 import io.kud.tutti.protocol.scenes.Scene
 import io.kud.tutti.protocol.scenes.SceneJson
@@ -30,7 +32,17 @@ class TuttiStore @Inject constructor(
     @Named(TUTTI) private val store: DataStore<Preferences>,
     @ApplicationContext private val context: Context,
 ) {
-    val devices: Flow<Devices> = field(DEVICES, Devices.serializer(), StoreJson) { Devices() }
+    /**
+     * Every configured device (version 2, key `devices_v2`). Until [migrateDevices] has written it,
+     * it reads as the migration of the version-1 `devices` key, so nothing ever sees an empty list
+     * in between.
+     */
+    val deviceList: Flow<DeviceList> = store.data
+        .map { prefs -> readList(prefs) ?: DeviceList() }
+        .distinctUntilChanged()
+
+    /** The TV and the bar as the rest of the app reads them: a view of [deviceList]. */
+    val devices: Flow<Devices> = deviceList.map(DeviceViews::legacy).distinctUntilChanged()
     val prefs: Flow<AppPrefs> = field(PREFS, AppPrefs.serializer(), StoreJson) { AppPrefs() }
     val dock: Flow<DockConfig> = field(DOCK, DockConfig.serializer(), StoreJson) { DockConfig() }
     val scenes: Flow<List<Scene>> = field(SCENES, ListSerializer(Scene.serializer()), SceneJson) { StarterScenes.all }
@@ -39,7 +51,39 @@ class TuttiStore @Inject constructor(
     val apps: Flow<List<KnownApp>> = field(APPS, ListSerializer(KnownApp.serializer()), StoreJson) { emptyList() }
     val profiles: Flow<List<AppProfile>> = field(PROFILES, ListSerializer(AppProfile.serializer()), SceneJson) { emptyList() }
 
-    suspend fun updateDevices(transform: (Devices) -> Devices) = update(DEVICES, Devices.serializer(), StoreJson, Devices(), transform)
+    suspend fun updateDevices(transform: (Devices) -> Devices) = updateDeviceList { list ->
+        DeviceViews.applyLegacy(list, transform(DeviceViews.legacy(list)))
+    }
+
+    /**
+     * One edit writes the list and, for one release, the version-1 `devices` key it implies, so a
+     * downgrade still finds its TV and bar.
+     */
+    suspend fun updateDeviceList(transform: (DeviceList) -> DeviceList) {
+        store.edit { prefs ->
+            val next = transform(readList(prefs) ?: DeviceList())
+            prefs[DEVICES_V2] = StoreJson.encodeToString(DeviceList.serializer(), next)
+            prefs[DEVICES] = StoreJson.encodeToString(Devices.serializer(), DeviceViews.legacy(next))
+        }
+    }
+
+    /** Writes the migrated list once (idempotent). The old `devices` key is left in place. */
+    suspend fun migrateDevices() {
+        store.edit { prefs ->
+            if (prefs[DEVICES_V2] != null) return@edit
+            val migrated = readList(prefs) ?: return@edit
+            prefs[DEVICES_V2] = StoreJson.encodeToString(DeviceList.serializer(), migrated)
+        }
+    }
+
+    private fun readList(prefs: Preferences): DeviceList? {
+        val current = prefs[DEVICES_V2]?.let { runCatching { StoreJson.decodeFromString(DeviceList.serializer(), it) }.getOrNull() }
+        return DeviceMigration.migrate(current, prefs[DEVICES], legacyHidHost())
+    }
+
+    /** The host the version-1 Bluetooth screen remembered (`bluetooth_hid`), always the TV. */
+    private fun legacyHidHost(): String? =
+        context.getSharedPreferences("bluetooth_hid", Context.MODE_PRIVATE).getString("host", null)
 
     suspend fun updatePrefs(transform: (AppPrefs) -> AppPrefs) = update(PREFS, AppPrefs.serializer(), StoreJson, AppPrefs(), transform)
 
@@ -88,6 +132,7 @@ class TuttiStore @Inject constructor(
     companion object {
         const val TUTTI = "tutti"
         private val DEVICES = stringPreferencesKey("devices")
+        private val DEVICES_V2 = stringPreferencesKey("devices_v2")
         private val PREFS = stringPreferencesKey("prefs")
         private val DOCK = stringPreferencesKey("dock")
         private val SCENES = stringPreferencesKey("scenes")

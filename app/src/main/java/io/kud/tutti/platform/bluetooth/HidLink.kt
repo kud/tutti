@@ -48,7 +48,7 @@ enum class HidPhase {
     CONNECTED,
 }
 
-data class HidHost(val address: String, val name: String, val isTv: Boolean)
+data class HidHost(val address: String, val name: String, val isTv: Boolean, val isComputer: Boolean = false)
 
 data class HidState(
     val support: HidSupport = HidSupport.UNKNOWN,
@@ -82,6 +82,12 @@ class HidLink @Inject constructor(@ApplicationContext private val context: Conte
     private var proxy: BluetoothHidDevice? = null
     private var wanted = false
     private var connected: BluetoothDevice? = null
+
+    /** Who wants the role now: the Bluetooth screen, the remote in front. Registered while any does. */
+    private val holders = mutableSetOf<String>()
+
+    /** The host the remote wants connected ([hold]); null leaves the choice to the last one used. */
+    @Volatile private var desired: String? = null
 
     init {
         if (adapter == null || !context.packageManager.hasSystemFeature(PackageManager.FEATURE_BLUETOOTH)) {
@@ -124,7 +130,43 @@ class HidLink @Inject constructor(@ApplicationContext private val context: Conte
     }
 
     /** The Bluetooth screen came to the front. */
-    fun start() {
+    fun start() = acquire(SCREEN)
+
+    /** The Bluetooth screen left. */
+    fun stop() = release(SCREEN)
+
+    /** [tag] wants the HID role (the remote in front, the Bluetooth screen). */
+    @Synchronized
+    fun acquire(tag: String) {
+        holders += tag
+        register()
+    }
+
+    /** [tag] no longer needs it; the role is given back once nobody does. Never kept in the background. */
+    @Synchronized
+    fun release(tag: String) {
+        holders -= tag
+        if (holders.isEmpty()) unregister()
+    }
+
+    /**
+     * Points the one HID connection at [address] (a device's Bluetooth link): disconnects the
+     * current host first, then connects, since Android keeps one host at a time. Null keeps what
+     * is connected. Effective only while the role is held.
+     */
+    fun hold(address: String?) {
+        desired = address
+        val current = connected
+        when {
+            address == null || proxy == null -> Unit
+            current?.address == address -> Unit
+            current != null -> disconnect() // onConnectionStateChanged reconnects to [desired].
+            _state.value.phase == HidPhase.CONNECTING && _state.value.host?.address == address -> Unit
+            else -> reconnect(address)
+        }
+    }
+
+    private fun register() {
         wanted = true
         val adapter = adapter ?: return
         if (!hasConnect()) return _state.update { it.copy(phase = HidPhase.NEEDS_PERMISSION) }
@@ -136,8 +178,8 @@ class HidLink @Inject constructor(@ApplicationContext private val context: Conte
         if (!asked) _state.update { it.copy(support = HidSupport.UNSUPPORTED, phase = HidPhase.STOPPED) }
     }
 
-    /** The Bluetooth screen left: give the role back so another app (or none) can have it. */
-    fun stop() {
+    /** Nobody needs the role: give it back so another app (or none) can have it. */
+    private fun unregister() {
         wanted = false
         val p = proxy ?: return _state.update { it.copy(phase = HidPhase.STOPPED) }
         if (hasConnect()) runCatching { p.unregisterApp() }
@@ -208,7 +250,7 @@ class HidLink @Inject constructor(@ApplicationContext private val context: Conte
     private fun host(device: BluetoothDevice): HidHost {
         val name = runCatching { device.name }.getOrNull()?.takeIf { it.isNotBlank() } ?: device.address
         val major = runCatching { device.bluetoothClass?.majorDeviceClass }.getOrNull()
-        return HidHost(device.address, name, major == BluetoothClass.Device.Major.AUDIO_VIDEO)
+        return HidHost(device.address, name, major == BluetoothClass.Device.Major.AUDIO_VIDEO, major == BluetoothClass.Device.Major.COMPUTER)
     }
 
     private val callback = object : BluetoothHidDevice.Callback() {
@@ -220,7 +262,7 @@ class HidLink @Inject constructor(@ApplicationContext private val context: Conte
                 return
             }
             _state.update { it.copy(support = HidSupport.SUPPORTED, phase = HidPhase.READY) }
-            val target = pluggedDevice?.address ?: prefs.getString(KEY_HOST, null)
+            val target = desired ?: pluggedDevice?.address ?: prefs.getString(KEY_HOST, null)
             if (target != null) reconnect(target)
         }
 
@@ -236,6 +278,9 @@ class HidLink @Inject constructor(@ApplicationContext private val context: Conte
                 BluetoothProfile.STATE_DISCONNECTED -> {
                     if (connected == device) connected = null
                     _state.update { if (it.phase == HidPhase.STOPPED || it.phase == HidPhase.BUSY) it else it.copy(phase = HidPhase.READY) }
+                    // A host switch: the old one is gone, now the one the remote wants.
+                    val next = desired
+                    if (next != null && next != device.address && proxy != null && connected == null) main.post { reconnect(next) }
                 }
             }
         }
@@ -269,6 +314,7 @@ class HidLink @Inject constructor(@ApplicationContext private val context: Conte
 
     private companion object {
         const val KEY_HOST = "host"
+        const val SCREEN = "bluetooth-screen"
         const val PROBE_MS = 3_000L
     }
 }
