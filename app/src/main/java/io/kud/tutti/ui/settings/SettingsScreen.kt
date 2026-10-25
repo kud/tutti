@@ -369,9 +369,13 @@ fun SettingsScreen(
         }, onDismiss = { pskDialog = false })
     }
     forget?.let { target ->
+        // Named, so the dialog says which device goes (Iris, 2026-10-25).
+        val name = if (target == Forget.TV) state.devices.tv?.name else state.devices.bar?.name
         AlertDialog(
             onDismissRequest = { forget = null },
-            title = { Text(stringResource(R.string.settings_forget_title)) },
+            title = {
+                Text(if (name.isNullOrBlank()) stringResource(R.string.settings_forget_title) else stringResource(R.string.settings_forget_named, name))
+            },
             text = {
                 Text(stringResource(if (target == Forget.TV) R.string.settings_forget_tv_detail else R.string.settings_forget_bar_detail))
             },

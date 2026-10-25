@@ -10,7 +10,12 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -21,8 +26,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -37,11 +42,12 @@ import io.kud.tutti.platform.diagnostic.Diagnostics
 import io.kud.tutti.platform.discovery.TvDiscovery
 import io.kud.tutti.protocol.apps.AppsScreenVerdict
 import io.kud.tutti.protocol.net.WakeAttempt
+import io.kud.tutti.ui.about.AboutScreen
 import io.kud.tutti.ui.common.LocalDeveloperMode
 import io.kud.tutti.ui.common.LocalMessages
 import io.kud.tutti.ui.common.LocalProblems
-import io.kud.tutti.ui.common.Messages
 import io.kud.tutti.ui.common.LocalReducedMotion
+import io.kud.tutti.ui.common.Messages
 import io.kud.tutti.ui.common.Problems
 import io.kud.tutti.ui.common.rememberHaptics
 import io.kud.tutti.ui.motion.Motion
@@ -49,12 +55,11 @@ import io.kud.tutti.ui.onboarding.OnboardingScreen
 import io.kud.tutti.ui.remote.RemoteScreen
 import io.kud.tutti.ui.scenes.SceneEditorScreen
 import io.kud.tutti.ui.scenes.ScenesScreen
-import io.kud.tutti.ui.about.AboutScreen
 import io.kud.tutti.ui.settings.BarSettingsScreen
 import io.kud.tutti.ui.settings.DiagnosticScreen
 import io.kud.tutti.ui.settings.SettingsScreen
-import io.kud.tutti.ui.settings.TvSettingsScreen
 import io.kud.tutti.ui.settings.TechnicalScreen
+import io.kud.tutti.ui.settings.TvSettingsScreen
 import io.kud.tutti.ui.settings.UnlockScreen
 
 /** Three places, opening on the remote; two levels deep at most. */
@@ -242,7 +247,15 @@ fun TuttiApp(controller: TuttiController, discovery: TvDiscovery, diagnostics: D
     CompositionLocalProvider(LocalProblems provides problems, LocalDeveloperMode provides state.prefs.developerMode) {
         val reducedMotion = LocalReducedMotion.current
         val slide = with(LocalDensity.current) { SCREEN_SLIDE.roundToPx() }
-        Box(Modifier.fillMaxSize()) {
+        // Sideways, a camera cutout sits at one side: every screen keeps clear of it rather than the app
+        // locking portrait (Iris, 2026-10-25), so auto-rotate never hides a control. Upright, the status
+        // bar already covers it and this pads nothing.
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background)
+                .windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal)),
+        ) {
                 AnimatedContent(
                     targetState = stack.last(),
                     transitionSpec = { screenTransition(forward, reducedMotion, slide) },

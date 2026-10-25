@@ -179,3 +179,5 @@ Each thing has one name in each language, everywhere: screens, TalkBack, the not
 - Counts use plurals in both languages; French `one` covers 0 and 1.
 - Failure marks are `ic_warning`, never ✕: ✕ means close or remove.
 - Every choice in a picker is a 48 dp target with a name TalkBack reads; a chosen colour also wears a tick.
+- Landscape is supported, not locked: the app pads the display cutout's sides, so no control sits under a camera hole. Indeterminate bars (`BusyBar`) stand still at a third under reduced motion, like the spinners' still arc.
+- The Forget dialog names the device it forgets.

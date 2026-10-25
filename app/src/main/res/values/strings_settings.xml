@@ -8,6 +8,7 @@
     <string name="settings_psk">PSK</string>
     <string name="settings_forget">Forget device</string>
     <string name="settings_forget_title">Forget this device?</string>
+    <string name="settings_forget_named">Forget %1$s?</string>
     <string name="settings_forget_tv_detail">The pairing, the PSK and the TV’s certificate pin will be erased from this phone.</string>
     <string name="settings_forget_bar_detail">The bar will be removed from the app.</string>
     <string name="settings_add_device">Add a device</string>

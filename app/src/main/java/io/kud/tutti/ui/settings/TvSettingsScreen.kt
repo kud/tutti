@@ -11,7 +11,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
@@ -36,6 +35,7 @@ import io.kud.tutti.controller.TuttiController
 import io.kud.tutti.controller.TuttiController.TvSettingGroup
 import io.kud.tutti.controller.TuttiUiState
 import io.kud.tutti.protocol.bravia.TvSetting
+import io.kud.tutti.ui.common.BusyBar
 import io.kud.tutti.ui.common.ChoiceRow
 import io.kud.tutti.ui.common.ProblemNote
 import io.kud.tutti.ui.common.LocalRowSurface
@@ -76,7 +76,7 @@ fun TvSettingsScreen(state: TuttiUiState, controller: TuttiController, onBack: (
                 RestExplainer(rest, note = state.linkNotes.rest, onEnterPsk = { pskDialog = true }, onOpenUnlock = onOpenUnlock)
                 return@Column
             }
-            if (settings.loading) LinearProgressIndicator(Modifier.fillMaxWidth())
+            if (settings.loading) BusyBar(Modifier.fillMaxWidth())
 
             if (settings.picture.isNotEmpty() || settings.scene != null) SettingsGroup(stringResource(R.string.tv_picture)) {
                 settings.picture.forEach { TvSettingRow(it, TvSettingGroup.PICTURE, controller) }
@@ -188,7 +188,7 @@ fun TvSettingsScreen(state: TuttiUiState, controller: TuttiController, onBack: (
 
 @Composable
 private fun RestExplainer(rest: Link, note: String?, onEnterPsk: () -> Unit, onOpenUnlock: () -> Unit) {
-    if (rest == Link.CONNECTING) LinearProgressIndicator(Modifier.fillMaxWidth())
+    if (rest == Link.CONNECTING) BusyBar(Modifier.fillMaxWidth())
     val (title, body) = when (rest) {
         Link.CONNECTING -> R.string.tv_rest_connecting to null
         Link.UNAUTHORIZED -> R.string.tv_rest_unauthorized_title to R.string.tv_rest_unauthorized_body

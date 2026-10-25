@@ -8,6 +8,7 @@
     <string name="settings_psk">Clé PSK</string>
     <string name="settings_forget">Oublier l’appareil</string>
     <string name="settings_forget_title">Oublier l’appareil ?</string>
+    <string name="settings_forget_named">Oublier %1$s ?</string>
     <string name="settings_forget_tv_detail">L’association, la clé PSK et l’empreinte du certificat de la TV seront effacées de ce téléphone.</string>
     <string name="settings_forget_bar_detail">La barre sera retirée de l’app.</string>
     <string name="settings_add_device">Ajouter un appareil</string>
