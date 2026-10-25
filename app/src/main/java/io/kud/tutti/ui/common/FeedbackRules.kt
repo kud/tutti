@@ -13,9 +13,6 @@ enum class FeedbackEvent {
     /** A D-pad direction, a touchpad or volume step, a scene apply step, a drag slot crossed. */
     STEP,
 
-    /** A key released under "3D relief": a lighter echo of [KEY]'s click. */
-    KEY_UP,
-
     /** A toggle or selection changed: a tile, a switch, the pad mode. */
     SELECT,
 
@@ -36,7 +33,7 @@ enum class FeedbackEvent {
 }
 
 /** The haptic a [FeedbackEvent] plays; [Feedback] maps each to an API-guarded constant. */
-enum class HapticPattern { CLICK, RELEASE, TICK, SELECT, LONG_PRESS, BUMP, CONFIRM, REJECT, DOUBLE_PULSE }
+enum class HapticPattern { CLICK, TICK, SELECT, LONG_PRESS, BUMP, CONFIRM, REJECT, DOUBLE_PULSE }
 
 /** What one event plays, after the user's settings: a haptic or none, and the platform click or not. */
 data class FeedbackPlan(val haptic: HapticPattern?, val sound: Boolean)
@@ -51,7 +48,6 @@ data class FeedbackPlan(val haptic: HapticPattern?, val sound: Boolean)
 object FeedbackRules {
     fun haptic(event: FeedbackEvent): HapticPattern = when (event) {
         FeedbackEvent.KEY -> HapticPattern.CLICK
-        FeedbackEvent.KEY_UP -> HapticPattern.RELEASE
         FeedbackEvent.STEP -> HapticPattern.TICK
         FeedbackEvent.SELECT -> HapticPattern.SELECT
         FeedbackEvent.LONG_PRESS -> HapticPattern.LONG_PRESS
@@ -62,8 +58,7 @@ object FeedbackRules {
     }
 
     /** Kept under "Essentials only". */
-    fun isEssential(event: FeedbackEvent): Boolean =
-        event != FeedbackEvent.KEY && event != FeedbackEvent.KEY_UP && event != FeedbackEvent.STEP
+    fun isEssential(event: FeedbackEvent): Boolean = event != FeedbackEvent.KEY && event != FeedbackEvent.STEP
 
     fun plan(event: FeedbackEvent, level: VibrationLevel, keySounds: Boolean): FeedbackPlan {
         val haptic = when (level) {

@@ -68,12 +68,6 @@ import io.kud.tutti.ui.intro.LocalIntroAnchors
 import io.kud.tutti.ui.intro.TouchpadAnchor
 import io.kud.tutti.ui.motion.Motion
 import io.kud.tutti.ui.motion.snappyOrFade
-import androidx.compose.ui.graphics.drawscope.withTransform
-import io.kud.tutti.ui.relief.LocalRelief
-import io.kud.tutti.ui.relief.ReliefDepth
-import io.kud.tutti.ui.relief.ReliefScene
-import io.kud.tutti.ui.relief.ReliefPress
-import io.kud.tutti.ui.relief.Slabber
 import kotlin.math.abs
 import kotlin.math.min
 import kotlinx.coroutines.Job
@@ -125,9 +119,6 @@ fun Pad(
     // D-pad press feedback: the zone under the finger lights from press to release, then fades.
     var pressedZone by remember { mutableStateOf<Int?>(null) }
     val pressAlpha = remember { Animatable(0f) }
-    // "3D relief": the pressed quarter (or OK) travels down like a real key and springs back.
-    val reliefSink = remember { Animatable(0f) }
-    val reliefOn by rememberUpdatedState(LocalRelief.current != null)
     // OK held: a ring runs inside the moat from 150 ms to the long-press timeout, linear, so it
     // tells the time honestly. Reduced motion: no sweep, it appears whole at the timeout.
     val okRing = remember { Animatable(0f) }
@@ -221,7 +212,6 @@ fun Pad(
                         // On down, in the frame: OK is a key (click), a direction a step (tick).
                         haptics.perform(if (zone == V2Key.DPAD_CENTER) FeedbackEvent.KEY else FeedbackEvent.STEP)
                         pressAlpha.snapTo(1f)
-                        val landing = if (reliefOn) scope.launch { ReliefPress.down(reliefSink, reducedNow) } else null
                         val timeout = viewConfiguration.longPressTimeoutMillis
                         val ring = if (zone != V2Key.DPAD_CENTER) {
                             null
@@ -255,13 +245,6 @@ fun Pad(
                         repeater?.cancel()
                         if (repeater != null && released && repeats == 0) key(zone)
                         scope.launch { pressAlpha.animateTo(0f, tween(durationMillis = 180)) }
-                        if (landing != null) {
-                            if (released) haptics.perform(FeedbackEvent.KEY_UP)
-                            scope.launch {
-                                landing.join()
-                                ReliefPress.up(reliefSink, reducedNow)
-                            }
-                        }
                         if (ring != null) {
                             ring.cancel()
                             scope.launch { okRing.animateTo(0f, tween(durationMillis = Motion.FADE_OUT)) }
@@ -374,8 +357,6 @@ fun Pad(
                 pressed = pressAlpha.value,
                 reduced = reducedMotion,
                 okRing = okRing.value,
-                relief = LocalRelief.current,
-                sink = reliefSink.value,
                 modifier = Modifier
                     .align(Alignment.Center)
                     .size(faceSide)
@@ -409,19 +390,8 @@ fun Pad(
  * long-press sweep, drawn in the moat round OK.
  */
 @Composable
-internal fun DpadFace(
-    pressedZone: Int?,
-    pressed: Float,
-    modifier: Modifier = Modifier,
-    reduced: Boolean = false,
-    okRing: Float = 0f,
-    relief: ReliefScene? = null,
-    sink: Float = 0f,
-) {
+internal fun DpadFace(pressedZone: Int?, pressed: Float, modifier: Modifier = Modifier, reduced: Boolean = false, okRing: Float = 0f) {
     val scheme = MaterialTheme.colorScheme
-    // "3D relief": the disc is a ring-shaped slab (its outside and its hole both have walls) and
-    // OK a taller one standing in the hole. Off, every offset below is zero and nothing extra draws.
-    val slabs = remember(relief != null) { if (relief != null) DpadSlabs() else null }
     val disc = scheme.surfaceContainerHighest
     val chevron = scheme.onSurfaceVariant
     val chevronPressed = scheme.onSurface
@@ -437,46 +407,9 @@ internal fun DpadFace(
         val ringWidth = outer - inner
         val ringMid = (outer + inner) / 2f
 
-        var ringTop = Offset.Zero
-        var ringScale = 1f
-        val quarters = slabs?.disc
-        if (relief != null && slabs != null) {
-            // Only the held quarter goes down; the rest of the disc stands.
-            val held = if (pressedZone != null && pressedZone != V2Key.DPAD_CENTER) quarterOf(pressedZone) else -1
-            for (q in 0..3) {
-                val s = if (q == held) sink else 0f
-                slabs.disc.quarterSink[q] = s
-                slabs.hole.quarterSink[q] = s
-            }
-            val depth = ReliefDepth.DISC.toPx()
-            slabs.disc.polygon.setRoundRect(center.x - outer, center.y - outer, outer * 2f, outer * 2f, outer)
-            ringTop = slabs.disc.drawUnder(this, relief, depth, disc)
-            ringScale = slabs.disc.scale
-            slabs.hole.polygon.setRoundRect(center.x - inner, center.y - inner, inner * 2f, inner * 2f, inner)
-            slabs.hole.drawUnder(this, relief, depth, disc, hole = true)
-        }
+        drawCircle(disc, radius = ringMid, style = Stroke(width = ringWidth))
 
-        if (quarters != null && quarters.split()) {
-            // One arc per quarter, each at its own height.
-            for (q in 0..3) placed(quarters.quarterTop(q), quarters.quarterScale(q)) {
-                drawArc(
-                    color = disc,
-                    startAngle = -45f + 90f * q,
-                    sweepAngle = 90f,
-                    useCenter = false,
-                    topLeft = center - Offset(ringMid, ringMid),
-                    size = Size(ringMid * 2f, ringMid * 2f),
-                    style = Stroke(width = ringWidth),
-                )
-            }
-        } else {
-            placed(ringTop, ringScale) { drawCircle(disc, radius = ringMid, style = Stroke(width = ringWidth)) }
-        }
-
-        if (pressedZone != null && pressedZone != V2Key.DPAD_CENTER && pressed > 0f) placed(
-            quarters?.quarterTop(quarterOf(pressedZone)) ?: ringTop,
-            quarters?.quarterScale(quarterOf(pressedZone)) ?: ringScale,
-        ) {
+        if (pressedZone != null && pressedZone != V2Key.DPAD_CENTER && pressed > 0f) {
             drawArc(
                 color = ringLayer.copy(alpha = PRESSED_LAYER * pressed),
                 startAngle = sweepStart(pressedZone),
@@ -491,32 +424,11 @@ internal fun DpadFace(
         // OK tightens to 0.94 under the finger; the disc itself never scales.
         val okPressed = if (pressedZone == V2Key.DPAD_CENTER && !reduced) pressed else 0f
         val okRadius = (inner - moat) * (1f - (1f - OK_SCALE) * okPressed)
-        // The chevrons first: OK's shadow may fall over the ring, never under a chevron.
-        val arm = ringWidth * 0.18f
-        for (code in DIRECTIONS) {
-            val lit = if (code == pressedZone) pressed else 0f
-            // Position and weight carry the press, not hue: the chevron steps 3 dp out and gets bolder.
-            val stroke = Stroke(width = (3.5f + 1.5f * lit).dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
-            val travel = if (reduced) 0f else CHEVRON_TRAVEL.toPx() * lit
-            placed(quarters?.quarterTop(quarterOf(code)) ?: ringTop, quarters?.quarterScale(quarterOf(code)) ?: ringScale) {
-                drawChevron(code, ringMid + travel, arm, lerp(chevron, chevronPressed, lit), stroke)
-            }
-        }
-        quarters?.drawOver(this)
-
-        var okTop = Offset.Zero
-        var okScale = 1f
-        if (relief != null && slabs != null) {
-            val okSink = if (pressedZone == V2Key.DPAD_CENTER) sink else 0f
-            slabs.ok.polygon.setRoundRect(center.x - okRadius, center.y - okRadius, okRadius * 2f, okRadius * 2f, okRadius)
-            okTop = slabs.ok.drawUnder(this, relief, ReliefDepth.OK.toPx(), centre, sink = okSink)
-            okScale = slabs.ok.scale
-        }
-        placed(okTop, okScale) { drawCircle(centre, radius = okRadius) }
-        if (pressedZone == V2Key.DPAD_CENTER && pressed > 0f) placed(okTop, okScale) {
+        drawCircle(centre, radius = okRadius)
+        if (pressedZone == V2Key.DPAD_CENTER && pressed > 0f) {
             drawCircle(centreLayer.copy(alpha = PRESSED_LAYER * pressed), radius = okRadius)
         }
-        if (okRing > 0f) placed(okTop, okScale) {
+        if (okRing > 0f) {
             val ringRadius = inner - moat / 2f
             drawArc(
                 color = ringColor,
@@ -528,35 +440,17 @@ internal fun DpadFace(
                 style = Stroke(width = OK_RING_WIDTH.toPx(), cap = StrokeCap.Round),
             )
         }
-        slabs?.ok?.drawOver(this)
+
+        val arm = ringWidth * 0.18f
+        for (code in DIRECTIONS) {
+            val lit = if (code == pressedZone) pressed else 0f
+            // Position and weight carry the press, not hue: the chevron steps 3 dp out and gets bolder.
+            val stroke = Stroke(width = (3.5f + 1.5f * lit).dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
+            val travel = if (reduced) 0f else CHEVRON_TRAVEL.toPx() * lit
+            drawChevron(code, ringMid + travel, arm, lerp(chevron, chevronPressed, lit), stroke)
+        }
     }
 }
-
-/** The D-pad's three slabs under "3D relief": the disc's outside, its hole, and OK. */
-private class DpadSlabs {
-    val disc = Slabber(segmentsPerCorner = 10)
-    val hole = Slabber(segmentsPerCorner = 8)
-    val ok = Slabber(segmentsPerCorner = 8)
-}
-
-/**
- * Draws [block] moved by [by] and scaled by [scale] about the centre (a top face nearer the eye);
- * with neither (relief off) it draws exactly as before, untransformed.
- */
-private inline fun DrawScope.placed(by: Offset, scale: Float, block: DrawScope.() -> Unit) {
-    if (by == Offset.Zero && scale == 1f) {
-        block()
-    } else {
-        withTransform({
-            translate(by.x, by.y)
-            scale(scale, scale, center)
-        }, block)
-    }
-}
-
-/** A direction's quarter of the disc, as [Slabber.quarterSink] counts them: 0 right, 1 down, 2 left, 3 up. */
-private fun quarterOf(code: Int): Int = (((sweepStart(code) + 45f) / 90f).toInt() + 4) % 4
-
 
 /** One chevron, [distance] from [centre] (the face's own centre by default); the launch intro draws them too. */
 internal fun DrawScope.drawChevron(code: Int, distance: Float, arm: Float, color: Color, stroke: Stroke, centre: Offset = center) {

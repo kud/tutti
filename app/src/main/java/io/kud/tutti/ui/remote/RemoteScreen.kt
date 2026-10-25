@@ -36,7 +36,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
@@ -71,8 +70,6 @@ import io.kud.tutti.ui.common.TonalRoundButton
 import io.kud.tutti.ui.common.rememberHaptics
 import io.kud.tutti.ui.motion.Motion
 import io.kud.tutti.ui.motion.rememberWaiting
-import io.kud.tutti.ui.relief.LocalRelief
-import io.kud.tutti.ui.relief.rememberReliefScene
 import kotlinx.coroutines.delay
 
 private sealed interface PickerTarget {
@@ -89,6 +86,7 @@ private sealed interface PickerTarget {
  * Back / Home / Play / Mic / Keyboard (mute is the rail's foot), and the 4-slot dock. Every tap gives its haptic first,
  * then hands the action to the controller, which updates state before the network.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RemoteScreen(
     state: TuttiUiState,
@@ -99,26 +97,6 @@ fun RemoteScreen(
     onAddBar: () -> Unit = {},
     editing: Boolean = false,
     onEditingChange: (Boolean) -> Unit = {},
-) {
-    // "3D relief" (prototype): the keys become slabs seen from an eye that follows the phone's
-    // tilt. Off, or while editing the layout, nothing is provided and every key draws as before.
-    val relief = rememberReliefScene(state.prefs.relief && !editing)
-    CompositionLocalProvider(LocalRelief provides relief) {
-        RemoteContent(state, controller, onOpenScenes, onOpenSettings, onEditScene, onAddBar, editing, onEditingChange)
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun RemoteContent(
-    state: TuttiUiState,
-    controller: TuttiController,
-    onOpenScenes: () -> Unit,
-    onOpenSettings: () -> Unit,
-    onEditScene: (String) -> Unit,
-    onAddBar: () -> Unit,
-    editing: Boolean,
-    onEditingChange: (Boolean) -> Unit,
 ) {
     val haptics = rememberHaptics()
     val layout = state.prefs.layout

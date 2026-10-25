@@ -11,7 +11,6 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -48,7 +47,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.layout.layout
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -83,11 +81,6 @@ import io.kud.tutti.ui.common.actionIcon
 import io.kud.tutti.ui.common.actionLabel
 import io.kud.tutti.ui.common.pinGlyphRes
 import io.kud.tutti.ui.common.slotLabel
-import io.kud.tutti.ui.relief.LocalRelief
-import io.kud.tutti.ui.relief.rememberReliefPress
-import io.kud.tutti.ui.relief.ReliefCorner
-import io.kud.tutti.ui.relief.ReliefDepth
-import io.kud.tutti.ui.relief.relief
 
 /**
  * The bottom row: two fixed doors, Apps and Keys (the rest of the remote), then his pins, four to
@@ -122,19 +115,12 @@ fun Dock(
                 DoorTile(R.drawable.ic_dialpad, stringResource(R.string.dock_keys), onKeys, Modifier.width(tile))
                 Spacer(Modifier.width(0.dp))
                 val pageDescription = stringResource(R.string.dock_page_desc, pager.currentPage + 1, pages.size)
-                // "3D relief": a pager clips its sides, which would cut the outer pins' walls,
-                // tops and shadows. It is measured RELIEF_BLEED wider each side and drawn back in
-                // place, the pages inset by the same padding, so the pins stay exactly where they
-                // were; the wider spacing keeps the next page out of the bleed.
-                val bleed = if (LocalRelief.current != null) RELIEF_BLEED else 0.dp
                 HorizontalPager(
                     state = pager,
                     userScrollEnabled = pages.size > 1,
-                    contentPadding = PaddingValues(horizontal = bleed),
-                    pageSpacing = GAP + bleed * 2,
+                    pageSpacing = GAP,
                     modifier = Modifier
                         .width(tile * 4 + GAP * 3)
-                        .then(if (bleed > 0.dp) Modifier.bleed(bleed) else Modifier)
                         .then(if (pages.size > 1) Modifier.semantics { stateDescription = pageDescription } else Modifier),
                 ) { page ->
                     Row(horizontalArrangement = Arrangement.spacedBy(GAP)) {
@@ -262,7 +248,6 @@ private fun PinTile(
             label = label,
             press = press,
             shape = shape,
-            corner = corner,
             stateText = toggleStateText(toggle, state),
             modifier = Modifier.combinedClickable(
                 interactionSource = press.interaction,
@@ -355,19 +340,13 @@ private fun Tile(
     modifier: Modifier,
     outer: Modifier = Modifier.fillMaxWidth(),
     shape: Shape = TileShape,
-    /** The corner of [shape], for the "3D relief" slab under it. */
-    corner: Dp = TILE_CORNER,
     stateText: String? = null,
     icon: @Composable (Color) -> Unit,
 ) {
-    val relief = LocalRelief.current
-    val reliefCorner = remember(corner) { ReliefCorner.of(corner) }
-    val reliefPress = rememberReliefPress(press.interaction, relief != null)
     Column(
         modifier = outer
             .height(64.dp)
             .pressScale(press.state)
-            .relief(relief, ReliefDepth.TILE, side = { background }, corner = reliefCorner, press = { reliefPress?.value ?: 0f })
             .clip(shape)
             .background(background, shape)
             .then(modifier)
@@ -451,17 +430,4 @@ private fun PinStateBadge(toggle: PinToggle, color: Color, cutout: Color, modifi
 }
 
 private val GAP = 6.dp
-private val TILE_CORNER = 20.dp
-private val TileShape = RoundedCornerShape(TILE_CORNER)
-
-/** Measures [by] wider on each side and draws back in place, reporting the original width. */
-private fun Modifier.bleed(by: Dp): Modifier = layout { measurable, constraints ->
-    val extra = by.roundToPx()
-    val placeable = measurable.measure(
-        constraints.copy(minWidth = constraints.minWidth + extra * 2, maxWidth = constraints.maxWidth + extra * 2),
-    )
-    layout(placeable.width - extra * 2, placeable.height) { placeable.place(-extra, 0) }
-}
-
-/** Room for a pin's relief beyond the pager's sides: about the top's reach plus the shadow's. */
-private val RELIEF_BLEED = 12.dp
+private val TileShape = RoundedCornerShape(20.dp)
