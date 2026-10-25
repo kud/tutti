@@ -26,6 +26,7 @@ import io.kud.tutti.controller.TuttiController
 import io.kud.tutti.controller.TuttiUiState
 import io.kud.tutti.platform.data.DockAction
 import io.kud.tutti.platform.data.DockConfig
+import io.kud.tutti.ui.common.actionLabel
 import io.kud.tutti.ui.common.rememberHaptics
 
 /**
