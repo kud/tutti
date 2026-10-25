@@ -840,14 +840,14 @@ internal fun codeStepOrphaned(step: IntroStep, pairing: PairingUi, pairPressed: 
 
 /**
  * The TV's pre-shared key, for picture, sound output and inputs over its IP control. Save needs a
- * key that could be one ([pskLooksValid]); taking a stored key away is its own button, shown only
+ * key that could be one ([io.kud.tutti.controller.PskRules.valid]); taking a stored key away is its own button, shown only
  * when [hasKey], so an empty Save can never erase it.
  */
 @Composable
 fun PskDialog(hasKey: Boolean, onSave: (String?) -> Unit, onDismiss: () -> Unit) {
     var psk by remember { mutableStateOf("") }
     var shown by remember { mutableStateOf(false) }
-    val valid = pskLooksValid(psk)
+    val valid = io.kud.tutti.controller.PskRules.valid(psk)
     val colors = MaterialTheme.colorScheme
     AlertDialog(
         onDismissRequest = onDismiss,
