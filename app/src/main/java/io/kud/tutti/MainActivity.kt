@@ -7,6 +7,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import io.kud.tutti.platform.data.TuttiStore
+import io.kud.tutti.platform.display.EveningDimmer
 import io.kud.tutti.platform.shortcuts.ACTION_KEYBOARD
 import io.kud.tutti.platform.shortcuts.ACTION_SCENE
 import io.kud.tutti.platform.shortcuts.EXTRA_SCENE_ID
@@ -85,6 +86,12 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 store.scenes.distinctUntilChanged().collect { publishLauncherShortcuts(this@MainActivity, it) }
+            }
+        }
+        // "Salle obscure": the window dims in the evening while the TV is on, only while in front.
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                EveningDimmer(window, contentResolver).follow(controller.state)
             }
         }
         setContent {

@@ -80,6 +80,8 @@ data class AppPrefs(
     val volumePresets: List<Int?> = emptyList(),
     /** "Cap for tonight": a ceiling on the bar's volume until a time, set from the volume sheet. */
     val tonightCap: TonightCap? = null,
+    /** "Salle obscure": tutti's window dims in the evening while the TV is on (`EveningDim`). Off by default. */
+    val eveningDim: Boolean = false,
 ) {
     /** The old switch on reads as [VibrationLevel.ALL], off as [VibrationLevel.OFF]. */
     val vibrationLevel: VibrationLevel

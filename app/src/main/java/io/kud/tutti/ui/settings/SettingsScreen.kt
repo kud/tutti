@@ -288,6 +288,13 @@ fun SettingsScreen(
                     onCheckedChange = controller::setTrueBlack,
                     icon = R.drawable.ic_bedtime,
                 )
+                SwitchRow(
+                    label = stringResource(R.string.settings_evening_dim),
+                    supporting = stringResource(R.string.settings_evening_dim_detail),
+                    checked = state.prefs.eveningDim,
+                    onCheckedChange = controller::setEveningDim,
+                    icon = R.drawable.ic_visibility_off,
+                )
                 QuickNotificationSetting(icon = R.drawable.ic_bolt)
             }
 

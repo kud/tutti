@@ -2429,6 +2429,10 @@ class TuttiController @Inject constructor(
         scope.launch { store.updatePrefs { it.copy(trueBlack = enabled) } }
     }
 
+    fun setEveningDim(enabled: Boolean) {
+        scope.launch { store.updatePrefs { it.copy(eveningDim = enabled) } }
+    }
+
     fun setPadMode(mode: PadMode) {
         scope.launch { store.updatePrefs { it.copy(padMode = mode) } }
     }
