@@ -42,9 +42,9 @@ Release **16.35.0** (`https://raw.githubusercontent.com/simple-icons/simple-icon
 | Kodi | `kodi` | `brand_kodi` | `#17B2E7` | https://kodi.tv | none listed |
 | VLC | `vlcmediaplayer` | `brand_vlcmediaplayer` | `#FF8800` | https://code.videolan.org/videolan/vlc/-/blob/1ce7f686ee17a028d2d79627ae69f22d905f2e23/extras/package/macosx/asset_sources/vlc_app_icon.svg | none listed |
 
-## Not in Simple Icons (letter tile)
+## Not in Simple Icons
 
-Prime Video, Disney+, Canal+, france.tv, TF1+, M6+, Arte, Molotov, Put.io. Simple Icons 16.35.0 carries none of them, and neither did its `develop` branch on 2026-10-23 (no `primevideo`, `amazonprime`, `disneyplus`, `canalplus`, `francetv`, `tf1`, `m6`, `arte`, `molotov` or `putio` icon, and no matching title in `data/simple-icons.json`). Once fetched over IP control, the TV's own icon covers them; until then the phone's icon does when the same app is installed on it, and otherwise they keep the letter tile, Prime Video's in the All keys sheet included. Check again when picking a new release.
+Prime Video, Disney+, Canal+, france.tv, TF1+, M6+, Arte, Molotov, Put.io. Simple Icons 16.35.0 carries none of them, and neither did its `develop` branch on 2026-10-23 (no `primevideo`, `amazonprime`, `disneyplus`, `canalplus`, `francetv`, `tf1`, `m6`, `arte`, `molotov` or `putio` icon, and no matching title in `data/simple-icons.json`). Once fetched over IP control, the TV's own icon covers them; until then the phone's icon does when the same app is installed on it, and otherwise the full-colour logo below, or the letter tile for the four not sourced yet. Check again when picking a new release.
 
 ## Guidelines and single-colour rendering
 
@@ -75,6 +75,21 @@ From [svgl](https://github.com/pheralb/svgl) at commit `f9b726cee1d1f3c697a18c88
 | Disney+ | `disneyplus.svg` | `logo_disneyplus` | white (same) |
 | Put.io | `putio.svg` | `logo_putio` | its own `#323232` square |
 
+## Full-colour logos (Wikimedia Commons)
+
+Taken only where the Commons file's own source is the brand's file, fetched 2026-10-25 from `https://upload.wikimedia.org/wikipedia/commons/<path>` and checked against the SHA-1 Commons records. Commons tags them public domain (below the threshold of originality); they remain their owners' trademarks, used only to identify the app a button opens. Converted by the same one-off script, extended for inherited group fill and opacity (`fillAlpha`) and for radial gradients written as `translate rotate(180) scale` (a unit circle, so the rotation changes nothing).
+
+| App | Commons file | SHA-1 | Its source | Drawable | Ground |
+| --- | --- | --- | --- | --- | --- |
+| france.tv | `File:France.tv_-_logo_2022.svg` (`e/e0/…`) | `d977356a10eec0a933e1f5eaba2cbbcdecb8954d` | `https://www.france.tv/images/france-tv-black.svg` (France Télévisions) | `logo_francetv` | white (black wordmark) |
+| Molotov | `File:Logo_Molotov.tv.svg` (`2/2a/…`) | `b060115a9acd6b320d759fe8c6376b7da8aa3989` | molotov.tv | `logo_molotov` | near-black `#1C1B1F` (white and amber wordmark) |
+
+france.tv's fourth gradient (`paint3`) is an ellipse (scale 1260 x 2540) centred about 12,300 units off the drawing; VectorDrawable has no elliptical radial, so it is written as a circle of the larger radius. Every point of its path lies more than five radii out under either form, so both paint the last stop, `#FF5A5A`, and the result is identical. The grounds are tutti's neutrals, not brand colours: neither file carries a background.
+
 ## Not sourced yet
 
-Canal+, france.tv, TF1+, M6+, Arte and Molotov keep their letter tile. Simple Icons, svgl, SVG Logos (gilbarbara) and the Iconify sets checked carry no official logo for them; Custom Brand Icons (CC BY-NC-SA, community traced) and Arcticons (redrawn line art) are not the official logos, and tv-logo/tv-logos holds channel PNGs (TF1, M6, Arte, Canal+), not the streaming brands, under personal-use terms.
+Canal+, TF1+, M6+ and Arte keep their letter tile. Checked 2026-10-25:
+
+- Simple Icons, svgl, SVG Logos (gilbarbara), theSVG 3.4.2 and every Iconify set carry no official logo for them. Custom Brand Icons (CC BY-NC-SA, community traced) and Arcticons (redrawn line art) are not the official logos; tv-logo/tv-logos holds channel PNGs under personal-use terms.
+- Wikimedia Commons has files for all four, but none from the brand's own file: `Logo_Canal+_1995.svg` is "own work based on" an earlier Commons file, `Logo_TF1+.svg` is a CC0 "reproduction" by a contributor, `M6+_(2024).svg` cites logos.fandom.com, and `Arte_Logo_2017.svg` an unknown source. A reproduction is a tracing by someone else, so they stay out.
+- The brands' own sites (canalplus.com, groupe-canalplus.com, tf1.fr, tf1plus.fr, groupe-tf1.fr, m6.fr, m6plus.fr, 6play.fr, groupem6.fr, arte.tv) and Google Play's icon host (`play-lh.googleusercontent.com`) were refused by the session's network policy, so their header SVGs, manifests and app icons could not be read.

@@ -45,6 +45,10 @@ private val faces: Map<String, BrandFace?> = mapOf(
     "primevideo" to BrandFace(R.drawable.logo_primevideo, BrandColours.WHITE, null, 0.8f),
     "disney" to BrandFace(R.drawable.logo_disneyplus, BrandColours.WHITE, null, 0.8f),
     "putio" to BrandFace(R.drawable.logo_putio, 0xFF323232.toInt(), null, 1f),
+    // Official files on Wikimedia Commons: france.tv's black wordmark wants a light ground, Molotov's
+    // white and amber one a dark ground. The grounds are the app's neutrals, not brand colours.
+    "francetv" to BrandFace(R.drawable.logo_francetv, BrandColours.WHITE, null, 0.8f),
+    "molotov" to BrandFace(R.drawable.logo_molotov, BrandColours.NEAR_BLACK, null, 0.8f),
 )
 
 fun brandFace(packageName: String?): BrandFace? =
