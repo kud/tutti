@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- TF1+ logo, Wikimedia Commons File:Logo_TF1+.svg (SHA-1 1b5f46360a55a00d9361e34e43d9047e8be7144d), fetched 2026-10-25.
+     Interim: a contributor's Commons reproduction, not a brand-supplied file. Trademark of TF1.
+     Its skewed bounding-box radial gradient is drawn by clipping to the unchanged path.
+     Paths copied unchanged; only scaled at use. Provenance: docs/brand-icons.md -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="24.00dp"
+    android:height="5.64dp"
+    android:viewportWidth="1663.004"
+    android:viewportHeight="390.836">
+    <group android:translateX="24491.004" android:translateY="-10587.258">
+        <group android:translateX="18600.5" android:translateY="16831.584">
+            <group>
+                <clip-path android:pathData="M-41648.488-6016.584H-41805.5v-61h157.016v-149.057l63.309-13.94v163h156.68v61h-156.68v147.8l-63.309,15.292Zm-468.281,163.094v-340.647l177.207-50.19v390.837Zm-472.812,0v-390.837h313.246v98.1h-144.57v70.5H-42317v98.088h-103.906v124.151Zm-414.832,0v-255.958h-87.09v-134.879h342.367v134.879h-87.09v255.958Z" />
+                <group android:translateX="-43731.76108" android:translateY="-5877.329179" android:rotation="167.3245629">
+                    <group android:scaleX="864.5081459" android:scaleY="336.7052609">
+                        <group android:rotation="127.1666105">
+                            <path
+                                android:pathData="M-49.937,-49.0H50.063V51.0H-49.937Z">
+                                <aapt:attr name="android:fillColor">
+                                    <gradient android:type="radial" android:centerX="0.063" android:centerY="1" android:gradientRadius="1.848">
+                                        <item android:offset="0" android:color="#FF050131" />
+                                        <item android:offset="1" android:color="#FF020379" />
+                                    </gradient>
+                                </aapt:attr>
+                            </path>
+                        </group>
+                    </group>
+                </group>
+            </group>
+        </group>
+    </group>
+</vector>

@@ -4,7 +4,6 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
@@ -103,7 +102,7 @@ fun AppIcon(
                 contentDescription = null,
                 contentScale = ContentScale.Fit,
                 colorFilter = brand.glyph?.let { ColorFilter.tint(Color(it)) },
-                modifier = if (brand.scale >= 1f) Modifier.fillMaxSize() else Modifier.fillMaxWidth(brand.scale),
+                modifier = Modifier.fillMaxSize(minOf(brand.scale, 1f)),
             )
             else -> Text(
                 text = name.trim().take(1).uppercase().ifEmpty { "·" },
