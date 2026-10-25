@@ -35,7 +35,54 @@ class FakeBraviaTv(
 ) : AutoCloseable {
     @Volatile var power: String = "active"
     @Volatile var volume: Int = 12
+    @Volatile var muted: Boolean = false
     @Volatile var authFailureStatus: Int = 403
+
+    /** `off`, `low`, `high` or `pictureOff`: the screen dark with the sound on. */
+    @Volatile var powerSaving: String = "off"
+
+    /** Wake-on-LAN, the menu's "Remote start" (unverified equivalence). */
+    @Volatile var wol: Boolean = false
+
+    /** What is on screen: an input uri, or null inside an app, where the TV reports no content. */
+    @Volatile var playing: String? = "extInput:hdmi?port=1"
+
+    /** Whether something is plugged in and on behind each HDMI port, as `connection` reports it. */
+    val hdmiConnected: MutableMap<Int, Boolean> = ConcurrentHashMap(mapOf(1 to true, 2 to false, 3 to false, 4 to true))
+
+    /** Each port's user label (the TV's "Edit inputs"), empty when unset. */
+    val hdmiLabels: MutableMap<Int, String> = ConcurrentHashMap(mapOf(4 to "Computer"))
+
+    /** `getApplicationList`: title to uri, invented apps. */
+    val apps: MutableList<Pair<String, String>> = CopyOnWriteArrayList(
+        listOf(
+            "Example Video" to "com.sony.dtv.com.example.video.com.example.video.MainActivity",
+            "Example Music" to "com.sony.dtv.com.example.music.com.example.music.MainActivity",
+        ),
+    )
+
+    /** Uris `setActiveApp` launched, in order. */
+    val launched = CopyOnWriteArrayList<String>()
+
+    /** How many times `terminateApps` closed everything. */
+    val terminated = java.util.concurrent.atomic.AtomicInteger(0)
+
+    /** `getRemoteControllerInfo`'s IRCC keys: invented codes. */
+    val irccKeys: MutableList<Pair<String, String>> = CopyOnWriteArrayList(
+        listOf("Home" to "AAAAAQAAAAEAAABgAw==", "SleepTimer" to "AAAAAQAAAAEAAAA2Aw==", "Netflix" to "AAAAAgAAABoAAAB8Aw=="),
+    )
+
+    /** IRCC codes received on `/sony/ircc`, in order. */
+    val ircc = CopyOnWriteArrayList<String>()
+
+    /** Picture settings by target; brightness is a range, the mode a choice. */
+    val picture: MutableMap<String, String> = ConcurrentHashMap(mapOf("pictureMode" to "standard", "brightness" to "25"))
+
+    /** The sound output (`speaker`, `audioSystem`, …), write-and-read on this model. */
+    @Volatile var outputTerminal: String = "audioSystem"
+
+    /** Scene select for the current input. */
+    @Volatile var scene: String = "auto"
 
     /** The 4-digit code this TV "shows"; null when "Normal" authentication is off. */
     @Volatile var code: String? = null
@@ -85,6 +132,12 @@ class FakeBraviaTv(
         https.close()
     }
 
+    private companion object {
+        val POWER_SAVING_MODES = setOf("off", "low", "high", "pictureOff")
+        val OUTPUT_TERMINALS = listOf("speaker", "speaker_hdmi", "hdmi", "audioSystem")
+        val PICTURE_MODES = listOf("standard", "cinema", "game", "vivid")
+    }
+
     inner class Port(name: String, tls: ClientIdentity?) : SimServer(name) {
         private val tlsServer = tls?.let { identity ->
             object : TlsSimServer("$name-tls", identity, needClientAuth = false) {
@@ -112,7 +165,7 @@ class FakeBraviaTv(
                 if (request.headers.containsKey("cookie") || request.headers.containsKey("authorization")) credentialSeen.incrementAndGet()
                 if (!link.received()) continue
                 var setCookie: String? = null
-                val (status, bytes, type) = if (request.method == "GET") file(request) else answer(request).let { (status, body, cookie) ->
+                val (status, bytes, type) = if (request.method == "GET") file(request) else if (request.path == "/sony/ircc") irccAnswer(request) else answer(request).let { (status, body, cookie) ->
                     setCookie = cookie
                     Triple(status, body.encodeToByteArray(), "application/json")
                 }
@@ -153,6 +206,18 @@ class FakeBraviaTv(
         if (filesNeedPsk && !authorised(request)) return Triple(authFailureStatus, ByteArray(0), "text/plain")
         val bytes = files[request.path] ?: return Triple(404, "<html>Not Found</html>".encodeToByteArray(), "text/html")
         return Triple(200, bytes, "image/png")
+    }
+
+    /** `/sony/ircc`: a SOAP envelope carrying one `IRCCCode`, authenticated like the RPCs. */
+    private fun irccAnswer(request: Request): Triple<Int, ByteArray, String> {
+        calls += "X_SendIRCC"
+        if (!authorised(request)) return Triple(authFailureStatus, ByteArray(0), "text/xml")
+        val code = Regex("<IRCCCode>([^<]*)</IRCCCode>").find(request.body)?.groupValues?.get(1)
+            ?: return Triple(500, ByteArray(0), "text/xml")
+        ircc += code
+        val ok = """<?xml version="1.0"?><s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Body>""" +
+            """<u:X_SendIRCCResponse xmlns:u="urn:schemas-sony-com:service:IRCC:1"></u:X_SendIRCCResponse></s:Body></s:Envelope>"""
+        return Triple(200, ok.encodeToByteArray(), "text/xml")
     }
 
     private fun authorised(request: Request): Boolean {
@@ -220,11 +285,49 @@ class FakeBraviaTv(
                 put("model", "K-00SIM00")
                 put("macAddr", "02:00:00:00:00:01")
             })
+            "system" to "getPowerSavingMode" -> ok(buildJsonObject { put("mode", powerSaving) })
+            "system" to "setPowerSavingMode" -> {
+                val mode = params?.get("mode")?.jsonPrimitive?.contentOrNull
+                if (mode !in POWER_SAVING_MODES) return error(3, "Illegal Argument")
+                powerSaving = mode!!
+                ok()
+            }
+            "system" to "getWolMode" -> ok(buildJsonObject { put("enabled", wol) })
+            "system" to "setWolMode" -> {
+                wol = params?.get("enabled")?.jsonPrimitive?.booleanOrNull ?: return error(3, "Illegal Argument")
+                ok()
+            }
+            "system" to "getNetworkSettings" -> ok(buildJsonArray {
+                add(buildJsonObject {
+                    put("netif", "eth0")
+                    put("hwAddr", "02:00:00:00:00:02")
+                    put("ipAddrV4", "")
+                })
+                add(buildJsonObject {
+                    put("netif", "wlan0")
+                    put("hwAddr", "02:00:00:00:00:01")
+                    put("ipAddrV4", "127.0.0.1")
+                })
+            })
+            "system" to "getRemoteControllerInfo" -> ok(
+                buildJsonObject {
+                    put("bundled", true)
+                    put("type", "IR_REMOTE_BUNDLE_TYPE_AEP_N")
+                },
+                buildJsonArray {
+                    irccKeys.forEach { (name, value) ->
+                        add(buildJsonObject {
+                            put("name", name)
+                            put("value", value)
+                        })
+                    }
+                },
+            )
             "audio" to "getVolumeInformation" -> ok(buildJsonArray {
                 add(buildJsonObject {
                     put("target", "speaker")
                     put("volume", volume)
-                    put("mute", false)
+                    put("mute", muted)
                     put("minVolume", 0)
                     put("maxVolume", 100)
                 })
@@ -233,20 +336,130 @@ class FakeBraviaTv(
                 params?.get("volume")?.jsonPrimitive?.contentOrNull?.toIntOrNull()?.let { volume = it }
                 ok()
             }
-            "avContent" to "getPlayingContentInfo" -> ok(buildJsonObject {
-                put("uri", "extInput:hdmi?port=1")
-                put("source", "extInput:hdmi")
-                put("title", "HDMI 1")
+            "audio" to "setAudioMute" -> {
+                muted = params?.get("status")?.jsonPrimitive?.booleanOrNull ?: return error(3, "Illegal Argument")
+                ok()
+            }
+            "audio" to "getSoundSettings" -> ok(buildJsonArray {
+                add(setting("outputTerminal", outputTerminal, OUTPUT_TERMINALS))
             })
+            "audio" to "setSoundSettings" -> {
+                val (target, value) = firstSetting(params) ?: return error(3, "Illegal Argument")
+                if (target != "outputTerminal" || value !in OUTPUT_TERMINALS) return error(3, "Illegal Argument")
+                outputTerminal = value
+                ok()
+            }
+            "video" to "getPictureQualitySettings" -> {
+                val target = params?.get("target")?.jsonPrimitive?.contentOrNull.orEmpty()
+                ok(buildJsonArray {
+                    if (target.isEmpty() || target == "pictureMode") add(setting("pictureMode", picture["pictureMode"], PICTURE_MODES))
+                    if (target.isEmpty() || target == "brightness") add(buildJsonObject {
+                        put("target", "brightness")
+                        put("currentValue", picture["brightness"])
+                        put("isAvailable", true)
+                        putJsonArray("candidate") {
+                            add(buildJsonObject {
+                                put("min", 0)
+                                put("max", 50)
+                                put("step", 1)
+                            })
+                        }
+                    })
+                })
+            }
+            "video" to "setPictureQualitySettings" -> {
+                val (target, value) = firstSetting(params) ?: return error(3, "Illegal Argument")
+                val valid = when (target) {
+                    "pictureMode" -> value in PICTURE_MODES
+                    "brightness" -> value.toIntOrNull() in 0..50
+                    else -> false
+                }
+                if (!valid) return error(3, "Illegal Argument")
+                picture[target] = value
+                ok()
+            }
+            "videoScreen" to "getSceneSetting" -> ok(setting("sceneSetting", scene, listOf("auto", "auto24pSync", "general")))
+            "videoScreen" to "setSceneSetting" -> {
+                scene = params?.get("value")?.jsonPrimitive?.contentOrNull ?: return error(3, "Illegal Argument")
+                ok()
+            }
+            "avContent" to "getPlayingContentInfo" -> {
+                val uri = playing ?: return error(7, "Illegal State")
+                val port = uri.substringAfter("port=").toIntOrNull()
+                ok(buildJsonObject {
+                    put("uri", uri)
+                    put("source", uri.substringBefore('?'))
+                    put("title", "HDMI $port")
+                })
+            }
+            "avContent" to "getCurrentExternalInputsStatus" -> ok(buildJsonArray {
+                hdmiConnected.keys.sorted().forEach { port ->
+                    add(buildJsonObject {
+                        put("uri", "extInput:hdmi?port=$port")
+                        put("title", "HDMI $port")
+                        put("label", hdmiLabels[port].orEmpty())
+                        put("icon", "meta:hdmi")
+                        put("connection", hdmiConnected[port] == true)
+                        put("status", if (hdmiConnected[port] == true) "true" else "false")
+                    })
+                }
+            })
+            "avContent" to "setPlayContent" -> {
+                val uri = params?.get("uri")?.jsonPrimitive?.contentOrNull ?: return error(3, "Illegal Argument")
+                val port = uri.removePrefix("extInput:hdmi?port=").toIntOrNull()
+                if (port == null || port !in hdmiConnected) return error(3, "Illegal Argument")
+                playing = uri
+                ok()
+            }
+            "appControl" to "getApplicationList" -> ok(buildJsonArray {
+                apps.forEach { (title, uri) ->
+                    add(buildJsonObject {
+                        put("title", title)
+                        put("uri", uri)
+                        put("icon", "")
+                    })
+                }
+            })
+            "appControl" to "setActiveApp" -> {
+                val uri = params?.get("uri")?.jsonPrimitive?.contentOrNull ?: return error(3, "Illegal Argument")
+                if (apps.none { it.second == uri }) return error(3, "Illegal Argument")
+                launched += uri
+                playing = null
+                ok()
+            }
+            "appControl" to "terminateApps" -> {
+                terminated.incrementAndGet()
+                ok()
+            }
             else -> error(12, "No Such Method")
         }
     }
 
+    private fun setting(target: String, current: String?, values: List<String>) = buildJsonObject {
+        put("target", target)
+        put("currentValue", current)
+        put("isAvailable", true)
+        putJsonArray("candidate") { values.forEach { add(buildJsonObject { put("value", it) }) } }
+    }
+
+    private fun firstSetting(params: JsonObject?): Pair<String, String>? {
+        val first = (params?.get("settings") as? JsonArray)?.firstOrNull() as? JsonObject ?: return null
+        val target = first["target"]?.jsonPrimitive?.contentOrNull ?: return null
+        val value = first["value"]?.jsonPrimitive?.contentOrNull ?: return null
+        return target to value
+    }
+
     private fun supportedApis(): JsonArray = buildJsonArray {
         val methods = mapOf(
-            "system" to listOf("getPowerStatus", "setPowerStatus", "getSystemInformation"),
-            "audio" to listOf("getVolumeInformation", "setAudioVolume"),
-            "avContent" to listOf("getPlayingContentInfo"),
+            "system" to listOf(
+                "getPowerStatus", "setPowerStatus", "getSystemInformation", "getPowerSavingMode", "setPowerSavingMode",
+                "getWolMode", "setWolMode", "getNetworkSettings", "getRemoteControllerInfo",
+            ),
+            "audio" to listOf("getVolumeInformation", "setAudioVolume", "setAudioMute", "getSoundSettings", "setSoundSettings"),
+            "avContent" to listOf("getPlayingContentInfo", "getCurrentExternalInputsStatus", "setPlayContent"),
+            "appControl" to listOf("getApplicationList", "setActiveApp", "terminateApps"),
+            "video" to listOf("getPictureQualitySettings", "setPictureQualitySettings"),
+            "videoScreen" to listOf("getSceneSetting", "setSceneSetting"),
         )
         methods.forEach { (service, names) ->
             add(buildJsonObject {
