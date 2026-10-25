@@ -1,6 +1,6 @@
 # tutti
 
-Native Android app that replaces Sony BRAVIA Connect day to day for one living room: a Sony BRAVIA 8 (K-xxXR80, Google TV, EU) and a BRAVIA Theatre Bar 9 (HT-A9000). The remote is the heart of it. Scope: the living room's remote for the BRAVIA, the Theatre Bar and the Mac when it is shown on the TV, never a general-purpose Bluetooth keyboard or trackpad (Erwann, 2026-10-25: « L'idée de tutti est d'être une remote control pour TV et Mac sur TV, pas un trackpad générique. »). Design direction: `docs/design.md`. Protocols and threat model: `docs/architecture.md`.
+Native Android app that replaces Sony BRAVIA Connect day to day for one living room: a Sony BRAVIA 8 (K-xxXR80, Google TV, EU) and a BRAVIA Theatre Bar 9 (HT-A9000). The remote is the heart of it. Scope: the living room's remote for the BRAVIA, the Theatre Bar and the computer shown on the TV (Erwann, 2026-10-25: a Mac, Windows or Linux), never a general-purpose Bluetooth keyboard or trackpad (Erwann, 2026-10-25: « L'idée de tutti est d'être une remote control pour TV et Mac sur TV, pas un trackpad générique. »). Design direction: `docs/design.md`. Protocols and threat model: `docs/architecture.md`.
 
 The name (tutti) lives only in `gradle.properties` (`app.name`, `app.label`, `app.applicationId`). Kotlin packages stay `io.kud.tutti.*` whatever the product is called.
 

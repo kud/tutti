@@ -1,6 +1,6 @@
 # Design direction (Iris)
 
-Scope: tutti is the living room's remote for the BRAVIA, the Theatre Bar and the Mac when it is shown on the TV (Erwann, 2026-10-25). Not a general-purpose Bluetooth keyboard or trackpad (« L'idée de tutti est d'être une remote control pour TV et Mac sur TV, pas un trackpad générique. »): two Bluetooth targets, the TV and the Mac, and no trackpad feature beyond what controlling the Mac on the TV needs.
+Scope: tutti is the living room's remote for the BRAVIA, the Theatre Bar and the computer shown on the TV (Erwann, 2026-10-25; « c'est pas qu'un Mac, ça peut être n'importe quel type d'ordi »: macOS, Windows or Linux). Not a general-purpose Bluetooth keyboard or trackpad (« L'idée de tutti est d'être une remote control pour TV et Mac sur TV, pas un trackpad générique. »): two kinds of Bluetooth target, the TV and the computer, and no trackpad feature beyond what controlling the computer on the TV needs.
 
 The app replaces BRAVIA Connect day to day, with a Google TV–grade remote at its heart. Setup and room calibration stay in BRAVIA Connect.
 
@@ -185,6 +185,8 @@ The first build, kept until the fold lands: a screen of its own (Settings › Bl
 - A footnote says plainly that only one app at a time can be a Bluetooth keyboard and that tutti holds the role only while the screen is open.
 
 ### Devices, stage 1 (Maya, 2026-10-25)
+
+**Any computer, not only a Mac (Erwann, 2026-10-25).** Wherever this section and the bullets above say "the Mac", read "the computer": the kind is « Ordinateur » with a system, macOS, Windows or Linux. Words: a label that names one device uses its own name (the card's « Contrôler Work »); a generic one says « l'ordinateur » (« Indisponible sur l'ordinateur », TalkBack's « Échap sur l'ordinateur »). Glyph `ic_laptop` for all. The add flow asks the system right after « Ordinateur » (macOS / Windows / Linux, each row saying its default keyboard), and that choice sets the pairing words (macOS: Réglages Système › Bluetooth; Windows: Paramètres › Bluetooth et appareils › Ajouter un appareil; Linux: the desktop's Bluetooth settings, GNOME or KDE) and the default layout: Français Apple on macOS, AZERTY français on Windows and Linux (Américain (Mac) and QWERTY américain the alternatives). « Aucune entrée (AirPlay seulement) » is offered for a Mac only; elsewhere it is « Aucune entrée pour l'instant ». Key meanings are the same on every system.
 
 - One TV, one bar, any number of Macs. The remote's chip and sheet list the targets (the bar never is one); in stage 1 every configured target counts as present, the sheet filters by presence in stage 2.
 - A key that can't act says why in words, one reason each: « Indisponible sur le Mac », « Indisponible en Bluetooth » (the TV with its LAN down: power, inputs, settings), « Liaison coupée ». TV-meaning keys (Home, Apps, Settings, inputs, Power, volume) still reach the TV over its LAN while a Mac is the target.
