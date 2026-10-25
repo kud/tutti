@@ -10,6 +10,19 @@ import io.kud.tutti.protocol.scenes.SceneValue.Text
  * documented candidates and are unverified on the XR80; the editor offers the TV's own list.
  */
 object StarterScenes {
+    /**
+     * The scene offered when a computer is added with its TV input (Iris's top 10, item 10): wake the
+     * TV and switch to that input. [name] is already in the phone's language ("Mac on the TV");
+     * one per computer, so adding it twice replaces it rather than stacking copies.
+     */
+    fun computerOnTv(computerId: String, name: String, input: String): Scene = Scene(
+        id = "computer-tv-$computerId",
+        name = name,
+        color = 0xFF4A90A4,
+        glyph = "computer",
+        settings = mapOf(SceneKey.TV_INPUT to Text(input)),
+    )
+
     val all: List<Scene> = listOf(
         Scene(
             id = "starter-cinema",

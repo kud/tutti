@@ -24,6 +24,7 @@ val SceneGlyphs: List<String> = listOf("movie", "tv", "bedtime", "music_note", "
 fun glyphRes(name: String): Int = when (name) {
     "movie" -> R.drawable.ic_movie
     "tv" -> R.drawable.ic_tv
+    "computer" -> R.drawable.ic_laptop
     "bedtime" -> R.drawable.ic_bedtime
     "music_note" -> R.drawable.ic_music
     "sports_soccer" -> R.drawable.ic_sport

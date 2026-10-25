@@ -121,7 +121,7 @@ fun TargetChip(current: TargetRow, onOpen: () -> Unit, modifier: Modifier = Modi
  * by colour alone. TalkBack reads each as a radio button. A tap points the remote and closes.
  */
 @Composable
-fun TargetSheet(rows: List<TargetRow>, onPick: (TargetRow) -> Unit, onDismiss: () -> Unit) {
+fun TargetSheet(rows: List<TargetRow>, onPick: (TargetRow) -> Unit, onDismiss: () -> Unit, onShowOnTv: (TargetRow) -> Unit = {}) {
     TuttiSheet(onDismissRequest = onDismiss) {
         Text(
             stringResource(R.string.target_sheet_title),
@@ -131,13 +131,13 @@ fun TargetSheet(rows: List<TargetRow>, onPick: (TargetRow) -> Unit, onDismiss: (
                 .semantics { heading() },
         )
         Column(Modifier.padding(bottom = 16.dp)) {
-            for (row in rows) TargetSheetRow(row) { onPick(row) }
+            for (row in rows) TargetSheetRow(row, onShowOnTv = { onShowOnTv(row) }) { onPick(row) }
         }
     }
 }
 
 @Composable
-private fun TargetSheetRow(row: TargetRow, onClick: () -> Unit) {
+private fun TargetSheetRow(row: TargetRow, onShowOnTv: () -> Unit = {}, onClick: () -> Unit) {
     val words = linkWords(row.link)
     Row(
         Modifier
@@ -152,6 +152,12 @@ private fun TargetSheetRow(row: TargetRow, onClick: () -> Unit) {
         Column(Modifier.weight(1f)) {
             Text(row.name, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(words, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        // One gesture for "the Mac on the TV": wake, switch input, target it (item 10).
+        if (row.showOnTv) {
+            androidx.compose.material3.TextButton(onClick = onShowOnTv, modifier = Modifier.heightIn(min = 48.dp)) {
+                Text(stringResource(R.string.target_show_on_tv), maxLines = 1)
+            }
         }
         if (row.current) {
             Icon(painterResource(R.drawable.ic_check), null, Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary)

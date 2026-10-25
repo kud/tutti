@@ -44,7 +44,8 @@ import javax.inject.Singleton
 enum class DeviceVia { GOOGLE_TV, SONY_IP, BLUETOOTH, NETWORK, NONE }
 
 /** One device as the remote shows it. */
-data class TargetDevice(val id: String, val name: String, val kind: DeviceKind, val via: DeviceVia)
+/** [hdmiInput]: the TV input a computer is shown on (a Sony uri), when known. */
+data class TargetDevice(val id: String, val name: String, val kind: DeviceKind, val via: DeviceVia, val hdmiInput: String? = null)
 
 /**
  * The remote's target, for the UI (stage 1: one TV, one bar, any number of computers). Keys ask
@@ -154,7 +155,7 @@ class TargetController @Inject constructor(
     private fun build(list: DeviceList, input: String?, lanUp: Boolean, c: TargetChoice, h: HidState): TargetState {
         val connected = h.host?.address?.takeIf { h.phase == HidPhase.CONNECTED }
         val connectedTo = list.devices.firstOrNull { connected != null && it.bluetooth?.address == connected }?.id
-        fun view(d: Device): TargetDevice = TargetDevice(d.id, d.name, d.kind, via(d, lanUp, connectedTo))
+        fun view(d: Device): TargetDevice = TargetDevice(d.id, d.name, d.kind, via(d, lanUp, connectedTo), d.shownOn?.hdmiInput)
         val target = Targeting.current(c, input, list)
         val link = when {
             target == null -> RemoteLink.NONE
@@ -198,6 +199,20 @@ class TargetController @Inject constructor(
     fun appForeground(foreground: Boolean) {
         appForeground.value = foreground
     }
+
+    /**
+     * "Show on the TV": wake the TV if it sleeps, switch to the computer's input, then point the
+     * remote at it. The target is set after the switch, since a choice made before it would be
+     * dropped by the input change it holds against.
+     */
+    fun showOnTv(id: String) {
+        val input = state.value.devices.firstOrNull { it.id == id }?.hdmiInput ?: return
+        scope.launch { if (controller.showOnTv(input)) setTarget(id) }
+    }
+
+    /** The starter scene for a computer just added with its input, under [name] in the phone's language. */
+    fun addComputerScene(computerId: String, name: String, input: String) =
+        controller.saveScene(io.kud.tutti.protocol.scenes.StarterScenes.computerOnTv(computerId, name, input))
 
     /** A hand-picked target, holding until the TV's input changes. Null goes back to following the TV. */
     fun setTarget(id: String?) {

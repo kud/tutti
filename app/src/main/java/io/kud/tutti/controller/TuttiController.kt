@@ -1262,6 +1262,23 @@ class TuttiController @Inject constructor(
         }
     }
 
+    /**
+     * Wakes the TV when it isn't known to be on (the scene's own wake, bar included), then switches
+     * to [uri]. True once the TV took the input.
+     */
+    suspend fun showOnTv(uri: String): Boolean {
+        val s = state.value
+        val powered = s.remote.powered ?: when (s.tv.power) {
+            PowerStatus.ACTIVE -> true
+            PowerStatus.STANDBY -> false
+            PowerStatus.UNKNOWN -> null
+        }
+        if (powered != true) actuator.perform(SceneStep.WakeUp)
+        val ok = actuator.perform(SceneStep.TvInput(uri))
+        if (ok) tv.update { it.copy(input = uri) } else actionFailed("show computer on the tv: $uri", outcomeOf(null))
+        return ok
+    }
+
     fun switchInput(uri: String) {
         scope.launch {
             tv.update { it.copy(input = uri) }

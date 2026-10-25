@@ -16,7 +16,17 @@ data class TargetRow(
     val kind: TargetKind,
     val link: RemoteLink,
     val current: Boolean,
+    /** A computer whose TV input isn't showing: the row offers "Show on the TV" ([showOnTvOffered]). */
+    val showOnTv: Boolean = false,
 )
+
+/**
+ * "Computer on the TV" in one gesture (Iris's top 10, item 10): offered for a computer with a known
+ * TV input when that input isn't on screen, or the TV is off. Switching needs IP control
+ * (setPlayContent), so without it the row offers nothing rather than a button that can't work.
+ */
+fun showOnTvOffered(computer: Boolean, hdmiInput: String?, tvInput: String?, tvPowered: Boolean?, ipControl: Boolean): Boolean =
+    computer && ipControl && hdmiInput != null && (tvInput != hdmiInput || tvPowered == false)
 
 /**
  * The chip shows only when there is a choice: with the TV alone present the remote simply is the

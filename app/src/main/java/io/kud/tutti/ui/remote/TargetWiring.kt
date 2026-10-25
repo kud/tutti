@@ -17,8 +17,9 @@ internal fun DeviceVia.remoteLink(): RemoteLink = when (this) {
 }
 
 /** The engine's present devices as the sheet's rows, the current target ticked. */
-internal fun targetRows(state: TargetState): List<TargetRow> = state.present.map { d ->
+internal fun targetRows(state: TargetState, tvInput: String? = null, tvPowered: Boolean? = null, ipControl: Boolean = false): List<TargetRow> = state.present.map { d ->
     TargetRow(
+        showOnTv = showOnTvOffered(d.kind == DeviceKind.COMPUTER, d.hdmiInput, tvInput, tvPowered, ipControl),
         id = d.id,
         name = d.name,
         kind = if (d.kind == DeviceKind.COMPUTER) TargetKind.COMPUTER else TargetKind.TV,

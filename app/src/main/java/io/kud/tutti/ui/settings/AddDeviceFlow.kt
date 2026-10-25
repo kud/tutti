@@ -97,6 +97,7 @@ internal fun AddDeviceFlow(
     var inputTouched by remember { mutableStateOf(false) }
     var name by remember { mutableStateOf("") }
     var failed by remember { mutableStateOf(false) }
+    var addedId by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     // The TV reports an input's `connected` only when asked: ask again while the computer is being
     // plugged in or woken, so the input that comes on can be seen (and only then).
@@ -179,11 +180,27 @@ internal fun AddDeviceFlow(
                         failed = false
                         scope.launch {
                             runCatching { targets.addComputer(name.trim().ifEmpty { host.name }, host.address, os, input) }
-                                .onSuccess { step = AddStep.DONE }
+                                .onSuccess { id ->
+                                    addedId = id
+                                    step = AddStep.DONE
+                                }
                                 .onFailure { failed = true }
                         }
                     })
-                    AddStep.DONE -> DoneStep(name.trim().ifEmpty { picked?.name.orEmpty() }, input?.let { inputName(it, inputs) }, layoutName(os.defaultLayout), onClose)
+                    AddStep.DONE -> {
+                        val shownName = name.trim().ifEmpty { picked?.name.orEmpty() }
+                        val sceneName = stringResource(R.string.devices_scene_name, shownName)
+                        val id = addedId
+                        val uri = input
+                        DoneStep(
+                            shownName,
+                            input?.let { inputName(it, inputs) },
+                            layoutName(os.defaultLayout),
+                            onDone = onClose,
+                            sceneName = if (id != null && uri != null) sceneName else null,
+                            onAddScene = { if (id != null && uri != null) targets.addComputerScene(id, sceneName, uri) },
+                        )
+                    }
                 }
             }
         }
@@ -374,13 +391,28 @@ private fun NameStep(name: String, failed: Boolean, onName: (String) -> Unit, on
 }
 
 @Composable
-private fun DoneStep(name: String, input: String?, layout: String, onDone: () -> Unit) {
+private fun DoneStep(name: String, input: String?, layout: String, onDone: () -> Unit, sceneName: String? = null, onAddScene: () -> Unit = {}) {
+    var sceneAdded by remember { mutableStateOf(false) }
     StepHeader(
         null,
         stringResource(R.string.devices_done_title, name),
         if (input != null) stringResource(R.string.devices_done_input, input, name, layout) else stringResource(R.string.devices_done_no_input, layout),
     )
     Column(Modifier.padding(horizontal = 32.dp)) {
+        // The starter scene « Mac sur la TV », offered once, never added behind his back (item 10).
+        if (sceneName != null) {
+            androidx.compose.material3.OutlinedButton(
+                onClick = {
+                    onAddScene()
+                    sceneAdded = true
+                },
+                enabled = !sceneAdded,
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+            ) {
+                Text(if (sceneAdded) stringResource(R.string.devices_scene_added, sceneName) else stringResource(R.string.devices_scene_add, sceneName))
+            }
+            androidx.compose.foundation.layout.Spacer(Modifier.heightIn(min = 8.dp))
+        }
         Button(onClick = onDone, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text(stringResource(R.string.devices_done)) }
     }
 }

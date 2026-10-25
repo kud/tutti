@@ -705,9 +705,14 @@ fun RemoteScreen(
 
     if (targetSheet) {
         TargetSheet(
-            rows = targetRows(targets),
+            rows = targetRows(targets, tvInput = state.tv.input, tvPowered = tvPowered(state), ipControl = state.ipControlSet),
             onPick = { row ->
                 target.setTarget(row.id)
+                targetSheet = false
+            },
+            onShowOnTv = { row ->
+                haptics.select()
+                target.showOnTv(row.id)
                 targetSheet = false
             },
             onDismiss = { targetSheet = false },
