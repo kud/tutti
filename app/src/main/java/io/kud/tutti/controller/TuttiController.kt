@@ -75,6 +75,7 @@ import io.kud.tutti.protocol.scenes.SceneStep
 import io.kud.tutti.protocol.scenes.SceneValue
 import io.kud.tutti.protocol.theatre.BarHttpClient
 import io.kud.tutti.protocol.theatre.FeatureKind
+import io.kud.tutti.protocol.theatre.SilenceWatch
 import io.kud.tutti.protocol.theatre.TheatreClient
 import io.kud.tutti.protocol.theatre.TheatreFeature
 import io.kud.tutti.protocol.theatre.TheatreState
@@ -410,13 +411,21 @@ class TuttiController @Inject constructor(
                     coroutineScope {
                         val probe = launch { voiceZoom.value = theatre.probe(TheatreFeature.VOICE_ZOOM) }
                         val poll = launch {
-                            // DRC and Auto Volume never notify; polling also proves the link is alive.
+                            // DRC and Auto Volume never notify; polling also proves the link is alive:
+                            // a bar that died without closing the socket answers nothing (SilenceWatch).
                             var polls = 0
+                            val watch = SilenceWatch()
                             while (isActive) {
                                 delay(POLL_BAR_MS)
+                                val before = theatre.heard
                                 theatre.get(TheatreFeature.DRC)
                                 theatre.get(TheatreFeature.AUTO_VOLUME)
                                 theatre.get(TheatreFeature.POWER)
+                                if (watch.afterPoll(before, theatre.heard)) {
+                                    linkNotes.update { it.copy(bar = failureDetail("soundbar: poll", outcome = "two polls in a row went unanswered")) }
+                                    theatre.disconnect()
+                                    break
+                                }
                                 // Every third poll, ask again (paced) for what the bar has neither
                                 // reported nor refused: a missed answer is not a missing feature.
                                 if (++polls % REASK_EVERY_POLLS == 0) theatre.refreshMissing()
@@ -454,7 +463,8 @@ class TuttiController @Inject constructor(
         var handshakeFailures = 0
         try {
             while (scope.isActive) {
-                links.update { it.copy(tv = Link.CONNECTING) }
+                // Once the TV has refused our certificate twice, it keeps reading "pair again" between tries.
+                if (!HandshakeRule.needsPairing(handshakeFailures)) links.update { it.copy(tv = Link.CONNECTING) }
                 val outcome = try {
                     atv.connect(device.host, identity, pin)
                     if (withTimeoutOrNull(READY_TIMEOUT_MS) { atv.state.first { it.ready } } != null) {
@@ -468,17 +478,22 @@ class TuttiController @Inject constructor(
                 } catch (e: Exception) {
                     tvLastConnect = ErrorClass.of(e)
                     linkNotes.update { it.copy(tv = failureDetail("tv remote: connect (TLS 6466)", outcome = "handshake failures in a row: $handshakeFailures", error = e)) }
-                    when {
-                        e.hasCause<PinMismatchException>() -> Link.NEEDS_PAIRING
-                        e is ConnectException || e is SocketTimeoutException || e is NoRouteToHostException -> Link.UNREACHABLE
-                        e is SSLException -> if (++handshakeFailures >= 2) Link.NEEDS_PAIRING else Link.UNREACHABLE
-                        else -> Link.UNREACHABLE
+                    if (e.hasCause<PinMismatchException>()) {
+                        Link.NEEDS_PAIRING
+                    } else {
+                        // Only the TV refusing our certificate counts towards "pair again"; a reset,
+                        // timeout or closed port is the network, and clears the count.
+                        handshakeFailures = HandshakeRule.next(handshakeFailures, e)
+                        if (HandshakeRule.needsPairing(handshakeFailures)) Link.NEEDS_PAIRING else Link.UNREACHABLE
                     }
                 }
                 if (outcome == Link.NEEDS_PAIRING) {
                     atv.disconnect()
                     links.update { it.copy(tv = Link.NEEDS_PAIRING) }
-                    return
+                    if (!HandshakeRule.needsPairing(handshakeFailures)) return
+                    // Refused certificates may be a TV still waking its TLS stack: keep trying, slowly.
+                    backoff(HandshakeRule.RETRY_MS)
+                    continue
                 }
                 if (outcome == Link.ONLINE) {
                     handshakeFailures = 0

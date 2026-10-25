@@ -228,7 +228,13 @@ class TheatreClient(
         }
     }
 
+    private val linesHeard = AtomicInteger(0)
+
+    /** Lines received since this client was made: a poll that moves it was answered. */
+    val heard: Int get() = linesHeard.get()
+
     private fun onLine(line: String) {
+        linesHeard.incrementAndGet()
         val message = TheatreCodec.decode(line)
         if (message is TheatreInbound.Result) {
             val waiting = message.id?.let { probes[it] }
