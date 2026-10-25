@@ -92,6 +92,13 @@ fun LiveRowButton(
     onKeyboard: () -> Unit,
     onSecondary: (SecondaryButton) -> Unit,
     size: Dp,
+    /** Where a key goes: the remote's target router ([RemoteScreen]); the TV by default. */
+    onKey: (Int) -> Unit = controller::key,
+    /** The key is down for the target (a TV-only key while the Mac is targeted): bumps, says [keyDownReason]. */
+    keyDown: (Int) -> Boolean = { false },
+    keyDownReason: String? = null,
+    /** What the key means on the target, for TalkBack ("Escape on the Mac"); null keeps the TV's. */
+    keyMeaning: (Int) -> String? = { null },
 ) {
     // One rule for every control (controlLink): a TV key goes down with the TV's link, Mute with
     // the bar's, connecting and out of reach alike, and a down key bumps and sends nothing.
@@ -153,9 +160,9 @@ fun LiveRowButton(
             val secondary = button.secondary()
             TonalRoundButton(
                 icon = rowButtonIcon(button),
-                contentDescription = rowButtonLabel(button),
-                onClick = { controller.key(key) },
-                unreachable = tv.down,
+                contentDescription = listOfNotNull(rowButtonLabel(button), keyMeaning(key), keyDownReason.takeIf { keyDown(key) }).joinToString(", "),
+                onClick = { onKey(key) },
+                unreachable = tv.down || keyDown(key),
                 onLongClick = secondary?.let { { onSecondary(it) } },
                 // Names the second action: read aloud by TalkBack, and tagged over the key when it lands.
                 // His own action when he chose one, else the key's default (RowGestures).

@@ -24,6 +24,9 @@ import kotlin.math.min
  * All values are dp. [available] is the height between the scene pills (or the header) and the
  * round-key row; [padWidth] is the pad's own width, the rail and its gap already taken off.
  */
+/** The pointing pad's click row and its gap, in dp, added to the pad's height ([PointerPad]). */
+internal const val POINTER_CLICK_ROW = 56f
+
 internal data class PadPlacement(
     /** The room above the pad, between the pills and the pad's top: the card centres in it. */
     val cardRoom: Float,
@@ -37,9 +40,10 @@ internal data class CardFit(val size: CardSize, val height: Float)
 
 internal enum class CardSize { FULL, LINE, HIDDEN }
 
-internal fun placePad(available: Float, padWidth: Float, size: PadSize, fontScale: Float = 1f): PadPlacement {
+internal fun placePad(available: Float, padWidth: Float, size: PadSize, fontScale: Float = 1f, pointer: Boolean = false): PadPlacement {
     val room = max(0f, available - PAD_MIN_ABOVE - PAD_BELOW)
-    val height = min(room, padWidth * padRatio(size))
+    // The pointing pad carries its click row under the surface: it gets that height on top, the card gives way.
+    val height = min(room, padWidth * padRatio(size) + if (pointer) POINTER_CLICK_ROW else 0f)
     val below = min(PAD_BELOW, max(0f, available - height))
     val cardRoom = max(0f, available - height - below)
     return PadPlacement(cardRoom = cardRoom, card = cardFor(cardRoom, fontScale), height = height, below = below)

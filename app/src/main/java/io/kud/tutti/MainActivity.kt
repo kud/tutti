@@ -107,7 +107,7 @@ class MainActivity : ComponentActivity() {
                     LocalReducedMotion provides reducedMotion,
                     LocalIntroAnchors provides remember { IntroAnchors() },
                 ) {
-                    TuttiApp(controller, discovery, diagnostics, hid, state)
+                    TuttiApp(controller, discovery, diagnostics, hid, state, target)
                     LaunchIntroOverlay(
                         intro,
                         firstLaunch = if (state.loaded) state.devices.isEmpty && !state.prefs.onboarded else null,

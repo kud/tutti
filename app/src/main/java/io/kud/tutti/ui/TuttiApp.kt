@@ -145,7 +145,14 @@ private val StackSaver = listSaver<SnapshotStateList<Screen>, String>(
 )
 
 @Composable
-fun TuttiApp(controller: TuttiController, discovery: TvDiscovery, diagnostics: Diagnostics, hid: HidLink, state: TuttiUiState) {
+fun TuttiApp(
+    controller: TuttiController,
+    discovery: TvDiscovery,
+    diagnostics: Diagnostics,
+    hid: HidLink,
+    state: TuttiUiState,
+    target: io.kud.tutti.controller.TargetController,
+) {
     val stack = rememberSaveable(saver = StackSaver) { mutableStateListOf<Screen>(Screen.Remote) }
     // The remote's edit mode is a state of the remote screen, not a screen of its own.
     var editingLayout by remember { mutableStateOf(false) }
@@ -304,6 +311,7 @@ fun TuttiApp(controller: TuttiController, discovery: TvDiscovery, diagnostics: D
                         Screen.Remote -> RemoteScreen(
                             state = state,
                             controller = controller,
+                            target = target,
                             onOpenScenes = { push(Screen.Scenes) },
                             onOpenSettings = { push(Screen.Settings) },
                             onEditScene = { push(Screen.SceneEditor(it)) },

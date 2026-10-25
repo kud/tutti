@@ -59,7 +59,13 @@ import io.kud.tutti.R
 import androidx.compose.runtime.saveable.rememberSaveable
 import io.kud.tutti.controller.Link
 import io.kud.tutti.controller.PowerTarget
+import io.kud.tutti.controller.TargetController
 import io.kud.tutti.controller.TuttiController
+import io.kud.tutti.protocol.devices.DeviceKind
+import io.kud.tutti.protocol.devices.KeyAvailability
+import io.kud.tutti.protocol.hid.RemoteLink
+import io.kud.tutti.platform.data.PadMode
+import androidx.compose.runtime.mutableStateMapOf
 import io.kud.tutti.ui.common.LocalMessages
 import io.kud.tutti.controller.TuttiUiState
 import io.kud.tutti.platform.data.DockAction
@@ -92,6 +98,7 @@ private sealed interface PickerTarget {
 fun RemoteScreen(
     state: TuttiUiState,
     controller: TuttiController,
+    target: TargetController,
     onOpenScenes: () -> Unit,
     onOpenSettings: () -> Unit,
     onEditScene: (String) -> Unit,
@@ -171,6 +178,83 @@ fun RemoteScreen(
     // sleeps, so a pad press says so and sends nothing; the card's button or Power wakes it.
     val alone = barAlone(state)
     val messages = LocalMessages.current
+    // The target engine (TargetController): the chip, the sheet and where each key goes.
+    val targets by target.state.collectAsState()
+    var targetSheet by remember { mutableStateOf(false) }
+    // The remote is on screen: with the app in front, the HID connection may be held.
+    DisposableEffect(target) {
+        target.remoteShown(true)
+        onDispose { target.remoteShown(false) }
+    }
+    val onMac = targets.target?.kind == DeviceKind.MAC
+    // Keys go through the router whenever a key may leave the LAN: a Mac target, or the TV over Bluetooth.
+    val routed = onMac || targets.link == RemoteLink.BLUETOOTH
+    val macUnavailable = stringResource(R.string.mac_unavailable)
+    val notOverBluetooth = stringResource(R.string.target_not_over_bluetooth)
+    val linkDown = stringResource(R.string.target_link_down)
+    val macMeanings = macMeaningWords()
+    fun keyDown(code: Int): Boolean = routed && targets.availability(code) != KeyAvailability.AVAILABLE
+    fun keyMeaning(code: Int): String? = if (onMac && !keyDown(code)) macMeanings(code) else null
+
+    // The pad on a Bluetooth target: trackpad, D-pad or gyro, remembered per target id for the
+    // session; the TV on its LAN keeps the stored mode (Iris, 2026-10-25).
+    val padTarget = targets.target?.id.orEmpty()
+    val padModesByTarget = remember { mutableStateMapOf<String, PadMode>() }
+    val padBefore = remember { mutableStateMapOf<String, PadMode>() }
+    val rememberedMode = padModesByTarget[padTarget] ?: PadMode.TOUCHPAD
+    val previousMode = padBefore[padTarget] ?: PadMode.TOUCHPAD
+    val btMode = padModeShown(rememberedMode, bluetooth = routed, gyroPossible = targets.gyroPossible, previous = previousMode)
+    val pointerPad = routed && btMode != PadMode.DPAD
+    val gyroWhy = when (gyroBlock(targets.hasGyroscope, targets.gyroPossible)) {
+        GyroBlock.NO_SENSOR -> stringResource(R.string.gyro_no_sensor)
+        GyroBlock.LINK_DOWN -> stringResource(R.string.gyro_link_down)
+        GyroBlock.NONE -> null
+    }
+    fun pickPadMode(mode: PadMode) {
+        if (mode == PadMode.GYRO && gyroWhy != null) {
+            haptics.bump()
+            messages?.show(gyroWhy)
+            return
+        }
+        if (rememberedMode != PadMode.GYRO) padBefore[padTarget] = rememberedMode
+        padModesByTarget[padTarget] = mode
+    }
+    // The link dropped under the gyro pointer: back to the mode before it, said once.
+    val droppedTo = stringResource(if (previousMode == PadMode.DPAD) R.string.pad_mode_dpad else R.string.pad_mode_touchpad)
+    val gyroDropped = stringResource(R.string.gyro_dropped, droppedTo.lowercase())
+    LaunchedEffect(rememberedMode == PadMode.GYRO && routed && !targets.gyroPossible) {
+        if (rememberedMode == PadMode.GYRO && routed && !targets.gyroPossible) {
+            padModesByTarget[padTarget] = previousMode
+            messages?.show(gyroDropped)
+        }
+    }
+    // Typing on a Mac (or the TV over Bluetooth) goes through the target's layout; what it can't type is said.
+    val untypable = stringResource(R.string.target_typing_unsupported)
+    fun typeText(text: String) {
+        if (!routed) {
+            controller.text(text)
+            return
+        }
+        val missed = target.text(text)
+        if (missed.isNotEmpty()) messages?.show(String.format(untypable, missed.joinToString(" ")))
+    }
+    LaunchedEffect(input.open, routed) { if (input.open && routed) target.textReset() }
+
+    /** One key, wherever it belongs. A key that goes nowhere bumps and says why; glyphs never change. */
+    fun sendKey(code: Int) {
+        if (!routed) {
+            controller.key(code)
+            return
+        }
+        val why = when (target.key(code).availability) {
+            KeyAvailability.AVAILABLE -> return
+            KeyAvailability.NOT_ON_MAC -> macUnavailable
+            KeyAvailability.NOT_OVER_BLUETOOTH -> notOverBluetooth
+            KeyAvailability.LINK_DOWN -> linkDown
+        }
+        haptics.bump()
+        messages?.show(why)
+    }
     val standbyWords = stringResource(R.string.key_tv_standby)
     val wakeWords = stringResource(R.string.card_wake_tv_short)
     fun tvAsleepAlone(): Boolean {
@@ -281,12 +365,12 @@ fun RemoteScreen(
                     phase = InputRules.phase(input, tvReachable),
                     tvName = state.devices.tv?.name.orEmpty(),
                     volume = state.volume.takeIf { state.bar.connected },
-                    onText = controller::text,
+                    onText = ::typeText,
                     onEnter = {
                         input = InputRules.enter(input, SystemClock.uptimeMillis())
-                        controller.key(V2Key.ENTER)
+                        sendKey(V2Key.ENTER)
                     },
-                    onKey = controller::key,
+                    onKey = ::sendKey,
                     onLongSelect = { controller.longPress(V2Key.DPAD_CENTER) },
                     onLeave = { input = InputRules.leave(input) },
                     onTypingChange = { controller.typing = it },
@@ -307,6 +391,17 @@ fun RemoteScreen(
                 ) {
                     // The chip's "On the TV" line steps aside while the card below says it.
                     SystemChip(state, onClick = onOpenSettings, modifier = Modifier.weight(1f), showNow = !cardShown)
+                    val rows = targetRows(targets)
+                    if (linkIndicatorShown(targets.link)) {
+                        Spacer(Modifier.width(4.dp))
+                        LinkIndicator(targets.link)
+                    }
+                    if (targetChipShown(rows)) {
+                        currentTarget(rows)?.let { current ->
+                            Spacer(Modifier.width(4.dp))
+                            TargetChip(current, onOpen = { targetSheet = true })
+                        }
+                    }
                     Spacer(Modifier.width(4.dp))
                     TopBarOverflow(
                         onScenes = onOpenScenes,
@@ -377,7 +472,7 @@ fun RemoteScreen(
                         .padding(horizontal = if (large) 8.dp else 16.dp),
                 ) {
                     BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
-                        val place = placePad(maxHeight.value, (maxWidth - railGap - RAIL_WIDTH).value, layout.padSize, LocalDensity.current.fontScale)
+                        val place = placePad(maxHeight.value, (maxWidth - railGap - RAIL_WIDTH).value, layout.padSize, LocalDensity.current.fontScale, pointer = pointerPad)
                         val shown = showing?.takeIf { place.card.size != CardSize.HIDDEN }
                         SideEffect { cardShown = shown != null }
                         // The card centres in the room above the pad (Erwann, 2026-10-24: the band
@@ -399,14 +494,22 @@ fun RemoteScreen(
                                     // The TV alone; the bar plays on (CEC may still move it to the TV input).
                                     onWakeTv = { controller.power(PowerTarget.TV, on = true) },
                                     waking = state.waking,
-                                    onOpen = if (cardOpensPlayback(shown)) {
-                                        {
-                                            haptics.click()
-                                            playbackFor = shown
+                                    onOpen = when (cardTap(shown, targets.macOnInput != null)) {
+                                        CardTap.PLAYBACK -> {
+                                            {
+                                                haptics.click()
+                                                playbackFor = shown
+                                            }
                                         }
-                                    } else {
-                                        null
+                                        CardTap.CONTROL_MAC -> {
+                                            {
+                                                haptics.click()
+                                                targets.macOnInput?.let { target.setTarget(it.id) }
+                                            }
+                                        }
+                                        CardTap.NONE -> null
                                     },
+                                    opensMac = cardTap(shown, targets.macOnInput != null) == CardTap.CONTROL_MAC,
                                     onActions = cardActionsApp(shown)?.let {
                                         {
                                             haptics.longPress()
@@ -423,17 +526,35 @@ fun RemoteScreen(
                         val density = LocalDensity.current
                         val padLink = state.controlLink(Owner.TV)
                         val padReason = controlLinkReason(padLink, Owner.TV, state)
+                        val pointer = @Composable { m: Modifier ->
+                            PointerPad(
+                                mode = btMode,
+                                onMove = { target.move(it) },
+                                onClick = target::click,
+                                onNextMode = { pickPadMode(nextPadMode(btMode, bluetooth = true)) },
+                                onPickMode = ::pickPadMode,
+                                modifier = m.semantics { traversalIndex = 0f },
+                                stripOnLeft = !padOnRight,
+                                down = targets.link == RemoteLink.NONE,
+                                downReason = linkDown,
+                                gyroReason = gyroWhy,
+                            )
+                        }
                         val pad = @Composable { m: Modifier ->
-                            Pad(
-                                down = padLink.down,
-                                downReason = padReason,
-                                mode = state.prefs.padMode,
-                                onKey = { if (!tvAsleepAlone()) controller.key(it) },
+                            if (pointerPad) pointer(m) else Pad(
+                                down = if (routed) targets.link == RemoteLink.NONE else padLink.down,
+                                downReason = if (routed) linkDown else padReason,
+                                mode = if (routed) PadMode.DPAD else state.prefs.padMode,
+                                onKey = { if (routed || !tvAsleepAlone()) sendKey(it) },
                                 onLongSelect = { if (!tvAsleepAlone()) controller.longPress(V2Key.DPAD_CENTER) },
-                                onPlayPause = { if (!tvAsleepAlone()) controller.key(V2Key.MEDIA_PLAY_PAUSE) },
+                                onPlayPause = { if (routed || !tvAsleepAlone()) sendKey(V2Key.MEDIA_PLAY_PAUSE) },
                                 onVolumeStep = controller::volumeStep,
-                                onSkip = { if (!tvAsleepAlone()) controller.key(skipKey(it)) },
-                                onModeChange = controller::setPadMode,
+                                onSkip = { if (routed || !tvAsleepAlone()) sendKey(skipKey(it)) },
+                                onModeChange = if (routed) {
+                                    { pickPadMode(it) }
+                                } else {
+                                    controller::setPadMode
+                                },
                                 volume = state.volume.takeIf { state.bar.connected },
                                 volumeCap = state.volumeCap,
                                 switchOnLeft = layout.hand.switchOnLeft,
@@ -510,6 +631,10 @@ fun RemoteScreen(
                                 onKeyboard = { input = InputRules.keyboardKey(input) },
                                 onSecondary = ::secondary,
                                 size = ROW_BUTTON,
+                                onKey = ::sendKey,
+                                keyDown = ::keyDown,
+                                keyDownReason = macUnavailable,
+                                keyMeaning = ::keyMeaning,
                             )
                         }
                     }
@@ -529,7 +654,12 @@ fun RemoteScreen(
                         // tile's bump, and the pin's dashed badge already says why.
                         when (pinToggle(slot.primary, state.bar, state.devices.bar != null)) {
                             PinToggle.Unreachable, PinToggle.NoBar -> haptics.bump()
-                            else -> slot.primary?.let(controller::run)
+                            else -> when (val action = slot.primary) {
+                                // A pinned key follows the target like the remote's own keys.
+                                is DockAction.Key -> if (routed && !action.long) sendKey(action.keyCode) else controller.run(action)
+                                null -> Unit
+                                else -> controller.run(action)
+                            }
                         }
                     },
                     onEdit = { index ->
@@ -545,6 +675,17 @@ fun RemoteScreen(
                 Spacer(Modifier.height(12.dp))
             }
         }
+    }
+
+    if (targetSheet) {
+        TargetSheet(
+            rows = targetRows(targets),
+            onPick = { row ->
+                target.setTarget(row.id)
+                targetSheet = false
+            },
+            onDismiss = { targetSheet = false },
+        )
     }
 
     if (powerSheet) {
@@ -627,7 +768,7 @@ fun RemoteScreen(
             downReason = controlLinkReason(state.controlLink(Owner.TV), Owner.TV, state),
             onKey = { code ->
                 haptics.click()
-                controller.key(code)
+                sendKey(code)
             },
             onDismiss = { playbackFor = null },
         )
@@ -697,7 +838,7 @@ fun RemoteScreen(
         )
         RemoteSheet.KEYS -> MoreKeysSheet(
             onKey = {
-                controller.key(it)
+                sendKey(it)
             },
             onDismiss = { sheet2 = null },
             pin = KeyPin(enabled = !state.controlLink(Owner.TV).down) { code, name -> keysPinner.request(DockAction.Key(code), name) },

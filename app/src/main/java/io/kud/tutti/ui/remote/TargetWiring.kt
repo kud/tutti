@@ -1,0 +1,44 @@
+package io.kud.tutti.ui.remote
+
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.res.stringResource
+import io.kud.tutti.R
+import io.kud.tutti.controller.DeviceVia
+import io.kud.tutti.controller.TargetState
+import io.kud.tutti.protocol.atv.V2Key
+import io.kud.tutti.protocol.devices.DeviceKind
+import io.kud.tutti.protocol.hid.RemoteLink
+
+/** How a device's keys travel, in the sheet's three words: the TV's two LAN planes and the bar's are all "the network". */
+internal fun DeviceVia.remoteLink(): RemoteLink = when (this) {
+    DeviceVia.GOOGLE_TV, DeviceVia.SONY_IP, DeviceVia.NETWORK -> RemoteLink.LAN
+    DeviceVia.BLUETOOTH -> RemoteLink.BLUETOOTH
+    DeviceVia.NONE -> RemoteLink.NONE
+}
+
+/** The engine's present devices as the sheet's rows, the current target ticked. */
+internal fun targetRows(state: TargetState): List<TargetRow> = state.present.map { d ->
+    TargetRow(
+        id = d.id,
+        name = d.name,
+        kind = if (d.kind == DeviceKind.MAC) TargetKind.MAC else TargetKind.TV,
+        link = d.via.remoteLink(),
+        current = d.id == state.target?.id,
+    )
+}
+
+/** What a remote key does on the Mac, for TalkBack beside the unchanged glyph; null for keys with no Mac meaning. */
+internal fun macMeaning(code: Int): Int? = when (code) {
+    V2Key.BACK -> R.string.mac_meaning_back
+    V2Key.DPAD_UP, V2Key.DPAD_DOWN, V2Key.DPAD_LEFT, V2Key.DPAD_RIGHT -> R.string.mac_meaning_arrow
+    V2Key.DPAD_CENTER, V2Key.ENTER -> R.string.mac_meaning_ok
+    V2Key.MEDIA_PLAY_PAUSE, V2Key.MEDIA_NEXT, V2Key.MEDIA_PREVIOUS, V2Key.MEDIA_REWIND, V2Key.MEDIA_FAST_FORWARD -> R.string.mac_meaning_media
+    else -> null
+}
+
+@Composable
+internal fun macMeaningWords(): (Int) -> String? {
+    val words = listOf(R.string.mac_meaning_back, R.string.mac_meaning_arrow, R.string.mac_meaning_ok, R.string.mac_meaning_media)
+        .associateWith { stringResource(it) }
+    return { code -> macMeaning(code)?.let(words::get) }
+}

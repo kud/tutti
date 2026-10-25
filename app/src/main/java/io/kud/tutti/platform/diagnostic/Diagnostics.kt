@@ -58,6 +58,7 @@ class Diagnostics @Inject constructor(
     private val tls: TlsConnector,
     private val tcp: TcpConnector,
     private val discovery: TvDiscovery,
+    private val target: dagger.Lazy<io.kud.tutti.controller.TargetController>,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val mutableState = MutableStateFlow(DiagnosticUi())
@@ -151,6 +152,8 @@ class Diagnostics @Inject constructor(
             // Feature names only, never values: the model and firmware stay out of the report.
             // Routes tried, link sent, foreground package seen; already through Redact.
             "last app launch" to (controller.lastLaunchTrace ?: "none this session"),
+            // AirPlay check: the TV's recent foreground packages, oldest first; packages only, no times.
+            "tv foreground" to target.get().foregroundLog.value.entries.joinToString { it.first }.ifEmpty { "none this session" },
             "bar settings" to "answered ${ui.bar.confirmed.size}, refused ${ui.bar.refused.sorted().joinToString().ifEmpty { "none" }}, " +
                 "silent ${ui.bar.silent.sorted().joinToString().ifEmpty { "none" }}",
         ) + appIcons() + liveBarWire()
