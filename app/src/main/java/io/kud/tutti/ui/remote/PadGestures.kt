@@ -114,3 +114,40 @@ internal fun skipKey(delta: Int, fallback: Boolean = SKIP_KEYS_FALLBACK): Int = 
 
 internal const val SKIP_KEYS_FALLBACK = false
 
+
+/** What one finger on OK asks of the TV's key at each moment of its touch. */
+internal enum class OkHoldEffect { NONE, HOLD, RELEASE }
+
+/**
+ * OK held on the pad, in both modes (Erwann, 2026-10-25: « le long press ne marche pas sur le
+ * centre du D-pad »): a physical remote's OK held is the key held, so apps open their own menu on
+ * it (YouTube's "Go to channel"). A tap stays a plain short OK, sent by the pad's tap path; this
+ * only decides the hold. The long-press timeout with the finger still puts the key down ([HOLD]);
+ * the lift, a second finger, a move that turns it into something else or a cancelled touch lifts
+ * it ([RELEASE]), exactly once. One per touch; pure, so the order of events is tested.
+ */
+internal class OkHold {
+    private var held = false
+    private var spent = false
+
+    /** True while the TV's key is down. */
+    val holding: Boolean get() = held
+
+    /** The long-press timeout passed with one still finger on OK. */
+    fun timeout(): OkHoldEffect {
+        if (held || spent) return OkHoldEffect.NONE
+        held = true
+        return OkHoldEffect.HOLD
+    }
+
+    /** A second finger or a move took the touch elsewhere: no hold from here on. */
+    fun interrupt(): OkHoldEffect = end()
+
+    /** The finger lifted, or the touch was cancelled. */
+    fun end(): OkHoldEffect {
+        spent = true
+        if (!held) return OkHoldEffect.NONE
+        held = false
+        return OkHoldEffect.RELEASE
+    }
+}

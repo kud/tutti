@@ -86,7 +86,8 @@ import kotlinx.coroutines.launch
  * The pad: one large quiet surface, no grid lines. Touchpad (swipe steps) or D-pad (a disc with
  * a chevron at each point and an OK centre); [PadModeSwitch], a quiet glyph in its top corner facing the rail
  * ([switchOnLeft]: top-left when the pad stands on the right), switches in one tap.
- * Tap = OK; long press = held Select for the TV.
+ * Tap = OK; OK held = the TV's OK held, down at the long-press timeout and up on release
+ * ([OkHold]), as a physical remote holds it, so apps open their long-press menus.
  * A held direction repeats on the [KeyRepeat] schedule, on the D-pad and under a finger resting after a swipe step.
  * A fast swipe flings: steps carry on after the lift and slow down ([PadFling]); a new touch stops them.
  * Two-finger gestures, in both modes: tap = play/pause, vertical drag = bar volume, horizontal
@@ -101,7 +102,8 @@ import kotlinx.coroutines.launch
 fun Pad(
     mode: PadMode,
     onKey: (Int) -> Unit,
-    onLongSelect: () -> Unit,
+    /** OK held: true when the key should go down on the TV, false when it comes up (once each). */
+    onSelectHold: (Boolean) -> Unit,
     onPlayPause: () -> Unit,
     onVolumeStep: (Int) -> Unit,
     /** Two-finger horizontal drag: -1 skips back, +1 forward ([skipKey]). Null: the drag does nothing. */
@@ -129,7 +131,7 @@ fun Pad(
     val glowAlpha = remember { Animatable(0f) }
     var glow by remember { mutableStateOf(Offset.Unspecified) }
     val key by rememberUpdatedState(onKey)
-    val longSelect by rememberUpdatedState(onLongSelect)
+    val selectHold by rememberUpdatedState(onSelectHold)
     val playPause by rememberUpdatedState(onPlayPause)
     val volumeStep by rememberUpdatedState(onVolumeStep)
     val skip by rememberUpdatedState(onSkip)
@@ -236,9 +238,9 @@ fun Pad(
                     flash(at)
                     key(V2Key.DPAD_CENTER)
                 },
-                onLong = {
-                    haptics.longPress()
-                    longSelect()
+                onHold = { down ->
+                    if (down) haptics.longPress()
+                    selectHold(down)
                 },
                 onTwoFingerTap = {
                     haptics.select()
@@ -257,6 +259,9 @@ fun Pad(
     } else {
         Modifier.pointerInput(haptics, switchable, switchOnLeft) {
             val corner = if (switchable) PAD_SWITCH_ZONE.dp.toPx() else 0f
+            // OK held: the press that is on OK now, so the long press can put the key down and
+            // the release (or a cancel: two fingers, the pad going down) bring it up.
+            var okHold: OkHold? = null
             fun zoneAt(at: Offset): Int? = dpadZone(at, size.width.toFloat(), size.height.toFloat(), corner, switchOnLeft)
             fun cornerAt(at: Offset): Boolean = inPadSwitchCorner(at.x, at.y, size.width.toFloat(), corner, switchOnLeft)
             detectTapGestures(
@@ -301,7 +306,15 @@ fun Pad(
                                 }
                             }
                         }
-                        val released = tryAwaitRelease()
+                        val hold = if (zone == V2Key.DPAD_CENTER) OkHold().also { okHold = it } else null
+                        val released = try {
+                            tryAwaitRelease()
+                        } finally {
+                            if (hold != null) {
+                                if (hold.end() == OkHoldEffect.RELEASE) selectHold(false)
+                                if (okHold === hold) okHold = null
+                            }
+                        }
                         repeater?.cancel()
                         if (repeater != null && released && repeats == 0) key(zone)
                         scope.launch { pressAlpha.animateTo(0f, tween(durationMillis = 180)) }
@@ -319,9 +332,9 @@ fun Pad(
                     if (zone == null && cornerAt(at)) switchTo(PadMode.TOUCHPAD)
                 },
                 onLongPress = { at ->
-                    if (zoneAt(at) == V2Key.DPAD_CENTER) {
+                    if (zoneAt(at) == V2Key.DPAD_CENTER && okHold?.timeout() == OkHoldEffect.HOLD) {
                         haptics.longPress()
-                        longSelect()
+                        selectHold(true)
                     }
                 },
             )
@@ -340,6 +353,7 @@ fun Pad(
 
     val dpadLabel = stringResource(R.string.pad_dpad_label)
     val okLabel = stringResource(R.string.pad_ok)
+    val okHoldLabel = stringResource(R.string.pad_ok_hold)
     val playPauseLabel = stringResource(R.string.action_play_pause)
     val volumeUpLabel = stringResource(R.string.volume_up)
     val volumeDownLabel = stringResource(R.string.volume_down)
@@ -368,6 +382,14 @@ fun Pad(
             }
             // The two-finger gestures too, named for what they do (the audit's rule 5).
             val gestureActions = buildList {
+                // OK held, as a finger holds it: down then up, the controller keeps it down long enough.
+                add(
+                    CustomAccessibilityAction(okHoldLabel) {
+                        selectHold(true)
+                        selectHold(false)
+                        true
+                    },
+                )
                 add(CustomAccessibilityAction(playPauseLabel) { playPause(); true })
                 add(CustomAccessibilityAction(volumeUpLabel) { volumeStep(1); true })
                 add(CustomAccessibilityAction(volumeDownLabel) { volumeStep(-1); true })
@@ -668,7 +690,8 @@ private const val HALO_ALPHA = 0.16f
 /**
  * One gesture at a time: a swipe emits a D-pad step every [STEP_DP] along its dominant axis,
  * and a finger that rests after a step (within touch slop) repeats it on the [KeyRepeat] schedule
- * until it moves or lifts; a still finger held past the long-press timeout is a long Select; two fingers become
+ * until it moves or lifts; a still finger held past the long-press timeout holds OK down on the TV
+ * until it lifts or a second finger lands ([OkHold]); two fingers become
  * play/pause (tap) or bar volume (vertical drag, one step per [VOLUME_STEP_DP]).
  */
 private suspend fun PointerInputScope.touchpadGestures(
@@ -677,7 +700,7 @@ private suspend fun PointerInputScope.touchpadGestures(
     onSwitch: () -> Unit,
     onStep: (Int) -> Unit,
     onTap: (Offset) -> Unit,
-    onLong: () -> Unit,
+    onHold: (Boolean) -> Unit,
     onTwoFingerTap: () -> Unit,
     onTwoFingerStep: (TwoFingerStep) -> Unit,
     onDown: (Offset) -> Unit,
@@ -693,6 +716,7 @@ private suspend fun PointerInputScope.touchpadGestures(
         var fling: Job? = null
         awaitEachGesture {
             val down = awaitFirstDown(requireUnconsumed = false)
+            val hold = OkHold()
             // A touch that stops a fling only stops it: no OK, as a finger stops a scrolling list.
             val stoppedFling = fling?.isActive == true
             fling?.cancel()
@@ -722,55 +746,64 @@ private suspend fun PointerInputScope.touchpadGestures(
                 restAt = at
                 repeater = launch { KeyRepeat.run { onStep(code) } }
             }
-            while (true) {
-                val event: PointerEvent? = if (!moved && !longFired && pointers == 1) {
-                    val remaining = (longPressMillis - (lastUptime - down.uptimeMillis)).coerceAtLeast(1L)
-                    withTimeoutOrNull(remaining) { awaitPointerEvent() }
-                } else {
-                    awaitPointerEvent()
-                }
-                if (event == null) {
-                    longFired = true
-                    if (!startedInCorner) onLong()
-                    continue
-                }
-                val pressed = event.changes.filter { it.pressed }
-                if (pressed.isEmpty()) break
-                if (pressed.size > 1) stopRepeat()
-                lastUptime = event.changes.first().uptimeMillis
-                if (pressed.size > pointers) pointers = pressed.size
-                if (pointers >= 2) {
-                    val dx = pressed.map { it.positionChange().x }.average().toFloat()
-                    val dy = pressed.map { it.positionChange().y }.average().toFloat()
-                    twoFinger.move(dx, dy).forEach(onTwoFingerStep)
-                    if (twoFinger.moved) moved = true
-                } else if (!longFired) {
-                    val change = pressed.first()
-                    val delta = change.positionChange()
-                    velocity.addPosition(change.uptimeMillis, change.position)
-                    // Leaving the corner's slop turns its press into a swipe: the icon lets go.
-                    if (startedInCorner && !moved && (travel + delta).getDistance() > slop) onCornerPress(false)
-                    onMove(change.position)
-                    travel += delta
-                    accumulated += delta
-                    if (!moved && travel.getDistance() > slop) moved = true
-                    // Moving again ends the repeat; the travel goes on counting steps as before.
-                    if (restAt.isSpecified && (change.position - restAt).getDistance() > slop) stopRepeat()
-                    if (moved) {
-                        if (abs(accumulated.x) >= stepPx && abs(accumulated.x) >= abs(accumulated.y)) {
-                            val right = accumulated.x > 0
-                            step(if (right) V2Key.DPAD_RIGHT else V2Key.DPAD_LEFT, change.position)
-                            accumulated = Offset(accumulated.x - if (right) stepPx else -stepPx, 0f)
-                        } else if (abs(accumulated.y) >= stepPx && abs(accumulated.y) > abs(accumulated.x)) {
-                            val downwards = accumulated.y > 0
-                            step(if (downwards) V2Key.DPAD_DOWN else V2Key.DPAD_UP, change.position)
-                            accumulated = Offset(0f, accumulated.y - if (downwards) stepPx else -stepPx)
+            try {
+                while (true) {
+                    val event: PointerEvent? = if (!moved && !longFired && pointers == 1) {
+                        val remaining = (longPressMillis - (lastUptime - down.uptimeMillis)).coerceAtLeast(1L)
+                        withTimeoutOrNull(remaining) { awaitPointerEvent() }
+                    } else {
+                        awaitPointerEvent()
+                    }
+                    if (event == null) {
+                        longFired = true
+                        if (!startedInCorner && hold.timeout() == OkHoldEffect.HOLD) onHold(true)
+                        continue
+                    }
+                    val pressed = event.changes.filter { it.pressed }
+                    if (pressed.isEmpty()) break
+                    if (pressed.size > 1) {
+                        stopRepeat()
+                        // A second finger is a two-finger gesture: a held OK comes up first.
+                        if (hold.interrupt() == OkHoldEffect.RELEASE) onHold(false)
+                    }
+                    lastUptime = event.changes.first().uptimeMillis
+                    if (pressed.size > pointers) pointers = pressed.size
+                    if (pointers >= 2) {
+                        val dx = pressed.map { it.positionChange().x }.average().toFloat()
+                        val dy = pressed.map { it.positionChange().y }.average().toFloat()
+                        twoFinger.move(dx, dy).forEach(onTwoFingerStep)
+                        if (twoFinger.moved) moved = true
+                    } else if (!longFired) {
+                        val change = pressed.first()
+                        val delta = change.positionChange()
+                        velocity.addPosition(change.uptimeMillis, change.position)
+                        // Leaving the corner's slop turns its press into a swipe: the icon lets go.
+                        if (startedInCorner && !moved && (travel + delta).getDistance() > slop) onCornerPress(false)
+                        onMove(change.position)
+                        travel += delta
+                        accumulated += delta
+                        if (!moved && travel.getDistance() > slop) moved = true
+                        // Moving again ends the repeat; the travel goes on counting steps as before.
+                        if (restAt.isSpecified && (change.position - restAt).getDistance() > slop) stopRepeat()
+                        if (moved) {
+                            if (abs(accumulated.x) >= stepPx && abs(accumulated.x) >= abs(accumulated.y)) {
+                                val right = accumulated.x > 0
+                                step(if (right) V2Key.DPAD_RIGHT else V2Key.DPAD_LEFT, change.position)
+                                accumulated = Offset(accumulated.x - if (right) stepPx else -stepPx, 0f)
+                            } else if (abs(accumulated.y) >= stepPx && abs(accumulated.y) > abs(accumulated.x)) {
+                                val downwards = accumulated.y > 0
+                                step(if (downwards) V2Key.DPAD_DOWN else V2Key.DPAD_UP, change.position)
+                                accumulated = Offset(0f, accumulated.y - if (downwards) stepPx else -stepPx)
+                            }
                         }
                     }
+                    event.changes.forEach { it.consume() }
                 }
-                event.changes.forEach { it.consume() }
+                stopRepeat()
+            } finally {
+                // Lifted, or the touch was cancelled (the pad went down, the screen left): never leave OK held.
+                if (hold.end() == OkHoldEffect.RELEASE) onHold(false)
             }
-            stopRepeat()
             onUp()
             if (startedInCorner) onCornerPress(false)
             // A one-finger swipe lifted at speed carries on (PadFling); a finger that rested before

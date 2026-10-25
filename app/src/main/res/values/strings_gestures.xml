@@ -27,8 +27,8 @@
     <string name="gesture_now_showing_long_detail">Long press the On the TV card: pin the app, or close the TV\'s apps.</string>
     <string name="gesture_pad_hold">Keep moving</string>
     <string name="gesture_pad_hold_detail">Leave your finger on the pad after a swipe and the step repeats.</string>
-    <string name="gesture_pad_long">Long OK</string>
-    <string name="gesture_pad_long_detail">Long press the pad or OK: the TV\'s own long press, for an app\'s options.</string>
+    <string name="gesture_pad_long">Hold OK</string>
+    <string name="gesture_pad_long_detail">Keep your finger on OK, or still on the touchpad: the TV gets OK held, as from its own remote, and apps open their options (on YouTube, go to the channel).</string>
     <string name="gesture_pad_two_tap">Play or pause</string>
     <string name="gesture_pad_two_tap_detail">Tap the pad with two fingers, touchpad or D-pad.</string>
     <string name="gesture_pad_two_vertical">Soundbar volume</string>

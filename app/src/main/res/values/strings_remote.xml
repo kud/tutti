@@ -28,6 +28,7 @@
     <string name="pad_switch_dpad">Switch to D-pad</string>
     <string name="pad_dpad_label">D-pad</string>
     <string name="pad_ok">OK</string>
+    <string name="pad_ok_hold">Hold OK</string>
     <string name="pad_up">Up</string>
     <string name="pad_down">Down</string>
     <string name="pad_left">Left</string>

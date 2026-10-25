@@ -169,9 +169,22 @@ class AtvRemote(
         return send(message)
     }
 
-    /** Long press: Select held, for the TV's own long-press menus. */
-    suspend fun longPress(keyCode: Int): Boolean =
-        sendKey(keyCode, KeyDirection.START_LONG) && sendKey(keyCode, KeyDirection.END_LONG)
+    /**
+     * A fixed long press, for the TV's own long-press menus: the key goes down, stays down for
+     * [KeyHold.MIN_HOLD_MS] so the TV sees it held, then comes up. A held finger uses [holdKey]
+     * and [releaseKey] instead, so the key stays down as long as the finger does.
+     */
+    suspend fun longPress(keyCode: Int): Boolean {
+        if (!holdKey(keyCode)) return false
+        delay(KeyHold.MIN_HOLD_MS)
+        return releaseKey(keyCode)
+    }
+
+    /** The key goes down on the TV (START_LONG) and stays down until [releaseKey]. */
+    suspend fun holdKey(keyCode: Int): Boolean = sendKey(keyCode, KeyDirection.START_LONG)
+
+    /** The key held by [holdKey] comes up (END_LONG). */
+    suspend fun releaseKey(keyCode: Int): Boolean = sendKey(keyCode, KeyDirection.END_LONG)
 
     private val typing = ArrayDeque<RemoteMessage>()
     private val typingLock = Mutex()

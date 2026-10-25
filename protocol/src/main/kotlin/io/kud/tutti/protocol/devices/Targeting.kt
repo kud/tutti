@@ -34,8 +34,41 @@ enum class KeyAvailability {
  */
 data class KeyRoute(val availability: KeyAvailability, val link: RemoteLink, val toTv: Boolean, val action: HidAction? = null)
 
+/**
+ * How a held key (OK held on the pad) goes out on its route (Erwann, 2026-10-25: « le long press
+ * ne marche pas sur le centre du D-pad »).
+ */
+enum class HoldPlan {
+    /** The TV on its LAN: remote v2 START_LONG on hold, END_LONG on release, a real held key. */
+    REMOTE,
+
+    /**
+     * The TV over Bluetooth: the keyboard report stays pressed until release. Android repeats a
+     * held HID key and flags its long press, as it does for the remote's own OK.
+     */
+    HID,
+
+    /**
+     * A computer: one plain press. A held Enter would auto-repeat on the computer (a burst of
+     * Enters), and nothing there opens a menu on a long Enter.
+     */
+    PLAIN,
+
+    /** Nowhere to go; the route says why, as a tap's does. */
+    NONE,
+}
+
 /** The remote's target, per device: pure rules the controller reads. */
 object Targeting {
+    /** How [route]'s key is held: see [HoldPlan]. */
+    fun hold(route: KeyRoute): HoldPlan = when {
+        route.availability != KeyAvailability.AVAILABLE -> HoldPlan.NONE
+        route.link == RemoteLink.LAN -> HoldPlan.REMOTE
+        route.link == RemoteLink.BLUETOOTH && route.toTv && route.action is HidAction.Key -> HoldPlan.HID
+        route.link == RemoteLink.BLUETOOTH && route.action != null -> HoldPlan.PLAIN
+        else -> HoldPlan.NONE
+    }
+
     /**
      * Keys that keep their Google TV meaning while a computer is the target (Iris, 2026-10-25):
      * Home, Apps, Settings, inputs, Power. They leave the computer's input on purpose and the target

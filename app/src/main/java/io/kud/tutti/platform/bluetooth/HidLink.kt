@@ -220,6 +220,14 @@ class HidLink @Inject constructor(@ApplicationContext private val context: Conte
 
     fun key(usage: Int) = type(listOf(KeyStroke(usage)))
 
+    /** [stroke] goes down and stays down, as a held key, until [releaseKeys]. */
+    fun press(stroke: KeyStroke) = send { p, d ->
+        p.sendReport(d, HidDescriptor.KEYBOARD_ID, HidReports.keyboard(stroke.modifiers, listOf(stroke.usage)))
+    }
+
+    /** Every keyboard key comes up. */
+    fun releaseKeys() = send { p, d -> p.sendReport(d, HidDescriptor.KEYBOARD_ID, HidReports.keyboardReleased()) }
+
     fun move(steps: List<MouseStep>, buttons: Int = 0) {
         if (steps.isEmpty()) return
         send { p, d -> steps.forEach { p.sendReport(d, HidDescriptor.MOUSE_ID, HidReports.mouse(buttons, it.dx, it.dy, it.wheel)) } }

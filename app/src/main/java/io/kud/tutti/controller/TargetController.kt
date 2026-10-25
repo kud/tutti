@@ -3,6 +3,7 @@ package io.kud.tutti.controller
 import android.content.Context
 import android.hardware.Sensor
 import android.hardware.SensorManager
+import android.os.SystemClock
 import android.util.Log
 import dagger.hilt.android.qualifiers.ApplicationContext
 import io.kud.tutti.platform.bluetooth.HidLink
@@ -10,12 +11,14 @@ import io.kud.tutti.platform.bluetooth.HidPhase
 import io.kud.tutti.platform.bluetooth.HidState
 import io.kud.tutti.platform.data.TuttiStore
 import io.kud.tutti.platform.security.SecureStore
+import io.kud.tutti.protocol.atv.KeyHold
 import io.kud.tutti.protocol.devices.ComputerOs
 import io.kud.tutti.protocol.devices.Device
 import io.kud.tutti.protocol.devices.DeviceKind
 import io.kud.tutti.protocol.devices.DeviceLink
 import io.kud.tutti.protocol.devices.DeviceList
 import io.kud.tutti.protocol.devices.ForegroundLog
+import io.kud.tutti.protocol.devices.HoldPlan
 import io.kud.tutti.protocol.devices.KeyAvailability
 import io.kud.tutti.protocol.devices.KeyRoute
 import io.kud.tutti.protocol.devices.ShownOn
@@ -24,8 +27,12 @@ import io.kud.tutti.protocol.devices.Targeting
 import io.kud.tutti.protocol.hid.HidAction
 import io.kud.tutti.protocol.hid.HidRoute
 import io.kud.tutti.protocol.hid.KeyLayout
+import io.kud.tutti.protocol.hid.KeyStroke
 import io.kud.tutti.protocol.hid.MouseStep
 import io.kud.tutti.protocol.hid.RemoteLink
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -36,6 +43,8 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -236,6 +245,69 @@ class TargetController @Inject constructor(
             RemoteLink.NONE -> Unit
         }
         return route
+    }
+
+    /**
+     * OK held on the pad, wherever it belongs ([Targeting.hold]): the TV on its LAN holds the
+     * remote key, the TV over Bluetooth holds the keyboard report, a computer gets one plain
+     * press. Returns the route, so the UI bumps a hold that went nowhere as it does a tap.
+     */
+    fun holdKey(v2Key: Int): KeyRoute {
+        val route = state.value.route(v2Key)
+        when (Targeting.hold(route)) {
+            HoldPlan.REMOTE -> {
+                heldOn = HoldPlan.REMOTE
+                controller.holdKey(v2Key)
+            }
+            HoldPlan.HID -> {
+                val stroke = (route.action as HidAction.Key).stroke
+                heldOn = HoldPlan.HID
+                scope.launch(start = CoroutineStart.UNDISPATCHED) { hidOrder.withLock { hidHoldNow(stroke) } }
+            }
+            HoldPlan.PLAIN -> key(v2Key)
+            HoldPlan.NONE -> Unit
+        }
+        return route
+    }
+
+    /** The finger left: whatever [holdKey] put down comes up. */
+    fun releaseKey() {
+        when (heldOn) {
+            HoldPlan.REMOTE -> controller.releaseKey()
+            HoldPlan.HID -> scope.launch(start = CoroutineStart.UNDISPATCHED) { hidOrder.withLock { hidReleaseNow() } }
+            else -> Unit
+        }
+        heldOn = null
+    }
+
+    private var heldOn: HoldPlan? = null
+    private val hidOrder = Mutex()
+    private var hidSince: Long? = null
+    private var hidCap: Job? = null
+
+    private suspend fun hidHoldNow(stroke: KeyStroke) {
+        hidReleaseNow()
+        hid.press(stroke)
+        val since = SystemClock.uptimeMillis()
+        hidSince = since
+        hidCap = scope.launch {
+            delay(KeyHold.MAX_HOLD_MS)
+            hidOrder.withLock {
+                if (hidSince == since) {
+                    hidCap = null
+                    hidReleaseNow()
+                }
+            }
+        }
+    }
+
+    private suspend fun hidReleaseNow() {
+        val since = hidSince ?: return
+        hidSince = null
+        hidCap?.cancel()
+        hidCap = null
+        delay(KeyHold.releaseDelay(since, SystemClock.uptimeMillis()))
+        hid.releaseKeys()
     }
 
     private var typed = ""

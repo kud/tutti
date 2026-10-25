@@ -117,7 +117,7 @@ fun InputView(
     onText: (String) -> Unit,
     onEnter: () -> Unit,
     onKey: (Int) -> Unit,
-    onLongSelect: () -> Unit,
+    onSelectHold: (Boolean) -> Unit,
     onLeave: () -> Unit,
     onTypingChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
@@ -414,7 +414,7 @@ fun InputView(
                 Pad(
                     mode = PadMode.DPAD,
                     onKey = onKey,
-                    onLongSelect = onLongSelect,
+                    onSelectHold = onSelectHold,
                     onPlayPause = { onKey(V2Key.MEDIA_PLAY_PAUSE) },
                     onVolumeStep = {},
                     onSkip = { onKey(skipKey(it)) },

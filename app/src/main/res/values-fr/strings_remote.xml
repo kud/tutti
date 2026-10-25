@@ -28,6 +28,7 @@
     <string name="pad_switch_dpad">Passer en croix directionnelle</string>
     <string name="pad_dpad_label">Croix directionnelle</string>
     <string name="pad_ok">OK</string>
+    <string name="pad_ok_hold">Maintenir OK</string>
     <string name="pad_up">Haut</string>
     <string name="pad_down">Bas</string>
     <string name="pad_left">Gauche</string>

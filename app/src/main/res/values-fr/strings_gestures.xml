@@ -26,8 +26,8 @@
     <string name="gesture_now_showing_long_detail">Appui long sur la carte « Sur la TV » : épingler l’app, ou fermer les apps de la TV.</string>
     <string name="gesture_pad_hold">Continuer d’avancer</string>
     <string name="gesture_pad_hold_detail">Laissez le doigt sur le pad après un glissé : le pas se répète.</string>
-    <string name="gesture_pad_long">OK long</string>
-    <string name="gesture_pad_long_detail">Appui long sur le pad ou OK : l’appui long de la TV, pour les options d’une app.</string>
+    <string name="gesture_pad_long">Maintenir OK</string>
+    <string name="gesture_pad_long_detail">Gardez le doigt sur OK, ou immobile sur le touchpad : la TV reçoit OK maintenu, comme avec sa propre télécommande, et les apps ouvrent leurs options (sur YouTube, aller à la chaîne).</string>
     <string name="gesture_pad_two_tap">Lecture ou pause</string>
     <string name="gesture_pad_two_tap_detail">Touchez le pad avec deux doigts, en touchpad comme en D-pad.</string>
     <string name="gesture_pad_two_vertical">Volume de la barre</string>

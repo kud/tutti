@@ -52,6 +52,7 @@ import io.kud.tutti.protocol.atv.AtvPairing
 import io.kud.tutti.protocol.atv.AtvRemote
 import io.kud.tutti.protocol.atv.ClientDeviceInfo
 import io.kud.tutti.protocol.atv.HardwareKey
+import io.kud.tutti.protocol.atv.KeyHold
 import io.kud.tutti.protocol.atv.KeyMap
 import io.kud.tutti.protocol.atv.PairingFailure
 import io.kud.tutti.protocol.atv.PairingResult
@@ -911,9 +912,60 @@ class TuttiController @Inject constructor(
         }
     }
 
-    /** Long-press Select is reserved for the TV: a held key. */
+    /** Long-press Select is reserved for the TV: a held key, for [KeyHold.MIN_HOLD_MS] (TalkBack, pins). */
     fun longPress(keyCode: Int) {
         scope.launch { sendTvKey(keyCode, long = true) }
+    }
+
+    /**
+     * A key held by a finger (OK held on the pad): down on the TV now (START_LONG), up on
+     * [releaseKey] (END_LONG), never before [KeyHold.MIN_HOLD_MS] nor after [KeyHold.MAX_HOLD_MS].
+     * Hold and release run in the order they were made, so a quick hold-and-lift never lifts first.
+     * A hold the link can't carry is dropped and said, as a long press is ([TvLinkRule.whileDown]).
+     */
+    fun holdKey(keyCode: Int) {
+        scope.launch(start = CoroutineStart.UNDISPATCHED) { holdOrder.withLock { holdNow(keyCode) } }
+    }
+
+    /** The finger left: the held key comes up. Nothing when nothing is held. */
+    fun releaseKey() {
+        scope.launch(start = CoroutineStart.UNDISPATCHED) { holdOrder.withLock { releaseNow() } }
+    }
+
+    private val holdOrder = Mutex()
+    private var holding: HeldTvKey? = null
+    private var holdCap: Job? = null
+
+    private class HeldTvKey(val keyCode: Int, val since: Long)
+
+    private suspend fun holdNow(keyCode: Int) {
+        releaseNow()
+        if (atv.state.value.ready && atv.holdKey(keyCode)) {
+            val held = HeldTvKey(keyCode, SystemClock.uptimeMillis())
+            holding = held
+            holdCap = scope.launch {
+                delay(KeyHold.MAX_HOLD_MS)
+                // Not cancelled by the release it makes: it is the cap job itself.
+                holdOrder.withLock {
+                    if (holding === held) {
+                        holdCap = null
+                        releaseNow()
+                    }
+                }
+            }
+            return
+        }
+        val current = links.value
+        mutableEvents.tryEmit(TuttiEvent.KeyNotSent(TvLinkRule.whileDown(keyCode, long = true, current.tv, current.tvShown)))
+    }
+
+    private suspend fun releaseNow() {
+        val held = holding ?: return
+        holding = null
+        holdCap?.cancel()
+        holdCap = null
+        delay(KeyHold.releaseDelay(held.since, SystemClock.uptimeMillis()))
+        atv.releaseKey(held.keyCode)
     }
 
     /** Bumped by every held key, so only the newest one waiting is sent. */

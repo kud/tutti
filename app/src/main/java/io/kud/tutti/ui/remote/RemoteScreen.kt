@@ -273,6 +273,30 @@ fun RemoteScreen(
         messages?.show(why)
         return false
     }
+    /**
+     * OK held on the pad ([OkHold]): down puts the key down where it belongs (the TV's remote key,
+     * the TV's Bluetooth key, or one plain Enter on a computer: [Targeting.hold]); up lifts it on
+     * whichever path holds it, so a route that changed mid-hold never leaves OK down.
+     */
+    fun holdSelect(down: Boolean) {
+        if (!down) {
+            target.releaseKey()
+            controller.releaseKey()
+            return
+        }
+        if (!routed) {
+            controller.holdKey(V2Key.DPAD_CENTER)
+            return
+        }
+        val why = when (target.holdKey(V2Key.DPAD_CENTER).availability) {
+            KeyAvailability.AVAILABLE -> return
+            KeyAvailability.NOT_ON_COMPUTER -> computerUnavailable
+            KeyAvailability.NOT_OVER_BLUETOOTH -> notOverBluetooth
+            KeyAvailability.LINK_DOWN -> linkDown
+        }
+        haptics.bump()
+        messages?.show(why)
+    }
     // A key that opens a menu on the TV closes its sheet, so the pad is in view to drive that
     // menu (keyClosesSheet); TalkBack hears where to go next, since the sheet vanished under it.
     val tvMenuSay = stringResource(R.string.sheet_key_tv_menu)
@@ -399,7 +423,7 @@ fun RemoteScreen(
                         sendKey(V2Key.ENTER)
                     },
                     onKey = ::sendKey,
-                    onLongSelect = { controller.longPress(V2Key.DPAD_CENTER) },
+                    onSelectHold = ::holdSelect,
                     onLeave = { input = InputRules.leave(input) },
                     onTypingChange = { controller.typing = it },
                     modifier = Modifier.statusBarsPadding().navigationBarsPadding().imePadding(),
@@ -581,7 +605,7 @@ fun RemoteScreen(
                                 downReason = if (routed) linkDown else padReason,
                                 mode = if (routed) PadMode.DPAD else state.prefs.padMode,
                                 onKey = { if (routed || !tvAsleepAlone()) sendKey(it) },
-                                onLongSelect = { if (!tvAsleepAlone()) controller.longPress(V2Key.DPAD_CENTER) },
+                                onSelectHold = { down -> if (!down || routed || !tvAsleepAlone()) holdSelect(down) },
                                 onPlayPause = { if (routed || !tvAsleepAlone()) sendKey(V2Key.MEDIA_PLAY_PAUSE) },
                                 onVolumeStep = controller::volumeStep,
                                 onSkip = { if (routed || !tvAsleepAlone()) sendKey(skipKey(it)) },
