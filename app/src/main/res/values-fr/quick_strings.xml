@@ -26,9 +26,9 @@
     <string name="quick_volume_unknown">Niveau non signalé</string>
 
     <string name="quick_notification_channel">Télécommande rapide</string>
-    <string name="quick_notification_channel_description">Ce qui passe sur la TV, lecture/pause, volume et sourdine tant que la TV est allumée.</string>
-    <string name="quick_notification_volume_down">Vol. −</string>
-    <string name="quick_notification_volume_up">Vol. +</string>
+    <string name="quick_notification_channel_description">La TV dans le lecteur multimédia d’Android tant qu’elle est allumée : ce qui passe, précédent, lecture/pause, suivant et sourdine.</string>
+    <string name="quick_notification_previous">Précédent</string>
+    <string name="quick_notification_next">Suivant</string>
     <string name="quick_notification_mute">Couper le son</string>
     <string name="quick_notification_unmute">Rétablir le son</string>
     <string name="quick_notification_play_pause">Lecture/pause</string>
@@ -38,8 +38,8 @@
     <string name="quick_level_bar_muted">Barre en sourdine</string>
     <string name="quick_level_tv_muted">TV en sourdine</string>
 
-    <string name="quick_pref_notification_title">Notification de contrôle</string>
-    <string name="quick_pref_notification_summary">Lecture/pause, volume et sourdine, aussi sur l’écran verrouillé, et Éteindre une fois déverrouillé, tant que la TV est allumée. Les touches de volume du téléphone règlent alors la barre, ou la TV.</string>
+    <string name="quick_pref_notification_title">Commandes multimédias</string>
+    <string name="quick_pref_notification_summary">La TV dans le lecteur multimédia d’Android, aussi sur l’écran verrouillé, tant qu’elle est allumée : précédent, lecture/pause, suivant et sourdine, et Éteindre une fois déverrouillé. Les touches de volume du téléphone règlent alors la barre, ou la TV.</string>
     <string name="quick_pref_notification_denied">Notifications bloquées dans les réglages Android</string>
 
     <string name="quick_widget_preview_showing">YouTube · Cinéma</string>

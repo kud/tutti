@@ -3,6 +3,7 @@ package io.kud.tutti.quick.notification
 import io.kud.tutti.protocol.atv.V2Key
 import io.kud.tutti.quick.AudioLevel
 import io.kud.tutti.quick.QuickNowShowing
+import io.kud.tutti.quick.QuickPlayback
 import io.kud.tutti.quick.QuickScene
 import io.kud.tutti.quick.QuickState
 import io.kud.tutti.quick.VolumeTarget
@@ -93,12 +94,21 @@ class MediaCardTest {
     // region actions
 
     @Test
-    fun `buttons map to commands`() {
+    fun `buttons map to the TV's media keys and the bar's mute`() {
+        assertEquals(MediaCommand.TvKey(V2Key.MEDIA_PREVIOUS), commandFor(MediaAction.PREVIOUS))
         assertEquals(MediaCommand.TvKey(V2Key.MEDIA_PLAY_PAUSE), commandFor(MediaAction.PLAY_PAUSE))
-        assertEquals(MediaCommand.Step(-1), commandFor(MediaAction.VOLUME_DOWN))
+        assertEquals(MediaCommand.TvKey(V2Key.MEDIA_NEXT), commandFor(MediaAction.NEXT))
         assertEquals(MediaCommand.ToggleMute, commandFor(MediaAction.MUTE))
-        assertEquals(MediaCommand.Step(+1), commandFor(MediaAction.VOLUME_UP))
         assertEquals(MediaCommand.TurnOff, commandFor(MediaAction.TURN_OFF))
+    }
+
+    @Test
+    fun `the compact view is the media player's previous, play-pause and next`() {
+        assertArrayEquals(intArrayOf(0, 1, 2), COMPACT_ACTIONS)
+        assertEquals(
+            listOf(MediaAction.PREVIOUS, MediaAction.PLAY_PAUSE, MediaAction.NEXT),
+            COMPACT_ACTIONS.map { MediaAction.entries[it] },
+        )
     }
 
     @Test
@@ -120,12 +130,19 @@ class MediaCardTest {
     }
 
     @Test
-    fun `the compact view is play-pause, volume down and mute`() {
-        assertArrayEquals(intArrayOf(0, 1, 2), COMPACT_ACTIONS)
-        assertEquals(
-            listOf(MediaAction.PLAY_PAUSE, MediaAction.VOLUME_DOWN, MediaAction.MUTE),
-            COMPACT_ACTIONS.map { MediaAction.entries[it] },
-        )
+    fun `reported playback leads the title, and only a known length gives a position`() {
+        val state = QuickState(nowShowing = QuickNowShowing("com.example.video", "Video", null))
+        val bare = cardFor(state)
+        assertEquals("Video", bare.titleText())
+        assertTrue(bare.playing())
+        assertNull(bare.position())
+        val paused = cardFor(state.copy(playback = QuickPlayback(title = "Episode 3", playing = false, positionMs = 60_000)))
+        assertEquals("Episode 3", paused.titleText())
+        assertFalse(paused.playing())
+        assertNull(paused.position())
+        val timed = cardFor(state.copy(playback = QuickPlayback(positionMs = 60_000, durationMs = 1_800_000)))
+        assertEquals("Video", timed.titleText())
+        assertEquals(60_000L, timed.position())
     }
 
     // endregion

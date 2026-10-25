@@ -28,9 +28,9 @@
     <string name="quick_volume_unknown">Level not reported</string>
 
     <string name="quick_notification_channel">Quick remote</string>
-    <string name="quick_notification_channel_description">What the TV is showing, play/pause, volume and mute while the TV is on.</string>
-    <string name="quick_notification_volume_down">Vol. −</string>
-    <string name="quick_notification_volume_up">Vol. +</string>
+    <string name="quick_notification_channel_description">The TV in Android’s media player while it is on: what’s showing, previous, play/pause, next and mute.</string>
+    <string name="quick_notification_previous">Previous</string>
+    <string name="quick_notification_next">Next</string>
     <string name="quick_notification_mute">Mute</string>
     <string name="quick_notification_unmute">Unmute</string>
     <string name="quick_notification_play_pause">Play/pause</string>
@@ -41,8 +41,8 @@
     <string name="quick_level_bar_muted">Bar muted</string>
     <string name="quick_level_tv_muted">TV muted</string>
 
-    <string name="quick_pref_notification_title">Control notification</string>
-    <string name="quick_pref_notification_summary">Play/pause, volume and mute, on the lock screen too, and Turn off once unlocked, while the TV is on. Meanwhile the phone’s volume keys drive the bar, or the TV.</string>
+    <string name="quick_pref_notification_title">Media controls</string>
+    <string name="quick_pref_notification_summary">The TV in Android’s media player, on the lock screen too, while the TV is on: previous, play/pause, next and mute, and Turn off once unlocked. Meanwhile the phone’s volume keys drive the bar, or the TV.</string>
     <string name="quick_pref_notification_denied">Notifications are blocked in Android settings</string>
 
     <!-- The widget picker's preview (layout/quick_widget_preview.xml): an example, not live state. -->

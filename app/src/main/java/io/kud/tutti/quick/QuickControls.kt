@@ -43,6 +43,12 @@ interface QuickControls {
     /** Play/pause on the TV, over the remote link. */
     suspend fun playPause() {}
 
+    /** One of the TV's media keys (previous, next) over the remote link, under the TV-link rules. */
+    suspend fun mediaKey(keyCode: Int) {}
+
+    /** Absolute seek, offered only when [QuickPlayback.canSeek]; nothing implements it over the remote link. */
+    suspend fun seekTo(positionMs: Long) {}
+
     /**
      * Turns the room off (TV and bar), never on: the notification's "Turn off", offered only
      * while the TV is on and only once the phone is unlocked.
@@ -87,6 +93,11 @@ data class QuickState(
     val tvConfigured: Boolean = false,
     /** What the now-showing card says, for the widget and the overlay; null without a TV. */
     val showing: QuickShowing? = null,
+    /**
+     * What plays inside the app on the TV, when something reports it (Cast "now playing", Maya):
+     * fed into the one MediaSession (QuickNotifications), never a second one. Null while unknown.
+     */
+    val playback: QuickPlayback? = null,
     /** Configured device names, for the notification's subtitle. */
     val tvName: String? = null,
     val barName: String? = null,
@@ -121,6 +132,18 @@ fun audioLevelOf(barConfigured: Boolean, barVolume: Int?, barMax: Int, barMuted:
     } else {
         if (tvVolume == null || tvMax == null || tvMax <= 0) null else AudioLevel(VolumeTarget.TV, tvVolume, tvMax, tvMuted)
     }
+
+/** What plays inside the TV's app, as far as it is known. Any field may be missing. */
+data class QuickPlayback(
+    val title: String? = null,
+    val artist: String? = null,
+    /** False when known paused; null when nobody says (the TV's own keys don't). */
+    val playing: Boolean? = null,
+    val positionMs: Long? = null,
+    val durationMs: Long? = null,
+    /** An absolute seek can be sent ([QuickControls.seekTo]). */
+    val canSeek: Boolean = false,
+)
 
 /** The TV's foreground app: its label from the app catalogue, and the icon tutti has cached for it. */
 data class QuickNowShowing(val packageName: String, val label: String?, val iconPath: String?)

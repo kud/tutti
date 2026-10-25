@@ -87,6 +87,8 @@ class ControllerQuickControls @Inject constructor(
 
     override suspend fun playPause() = held(onTv = true) { controller.key(V2Key.MEDIA_PLAY_PAUSE) }
 
+    override suspend fun mediaKey(keyCode: Int) = held(onTv = true) { controller.key(keyCode) }
+
     /** The bar takes volume whenever one is configured, else the TV (CLAUDE.md: one rule for every surface). */
     private fun onBar(): Boolean = controller.state.value.devices.bar != null
 

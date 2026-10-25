@@ -25,6 +25,7 @@ import androidx.core.graphics.drawable.toBitmap
 import io.kud.tutti.MainActivity
 import io.kud.tutti.R
 import io.kud.tutti.platform.data.IconBitmaps
+import io.kud.tutti.protocol.atv.V2Key
 import io.kud.tutti.quick.QuickControls
 import io.kud.tutti.quick.QuickPreferences
 import io.kud.tutti.quick.QuickRuntime
@@ -40,16 +41,19 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.withContext
 
 /**
- * The ongoing media-style control notification: what the TV is showing, then
- * play/pause, volume −, mute and volume +, on the lock screen too, and "Turn off"
- * once the phone is unlocked. Shown only
+ * The room in Android's own media player (the shade's media carousel and the lock
+ * screen's media controls): what the TV is showing, previous, play/pause and next as
+ * the TV's media keys, mute, and "Turn off" once the phone is unlocked; volume is the
+ * session's remote VolumeProvider. One MediaSession for the whole app, owned here:
+ * anything that knows what plays (Cast) feeds [io.kud.tutti.quick.QuickState.playback]
+ * rather than opening a session of its own. The notification exists only to carry it. Shown only
  * while the TV is on, the controller is connected and the user has it enabled.
  *
  * Backed by a framework [MediaSession] (no androidx.media dependency: minSdk 29
  * has everything, and [Notification.MediaStyle] is the platform's own):
  * - Android 13+ draws the media controls from the session, not from the
- *   notification's actions, so the volume buttons are also PlaybackState custom
- *   actions; with no skip actions they fill the previous/next slots.
+ *   notification's actions: previous and next are the session's skip actions,
+ *   mute and Turn off its custom actions.
  * - A remote [VolumeProvider] (absolute, 0..the device's max) makes the phone's
  *   volume keys drive the bar, or the TV with no bar, whenever the session is
  *   active: by default for as long as the notification shows ([VOLUME_KEYS]).
@@ -138,6 +142,14 @@ object QuickNotifications {
 
                 override fun onPause() = send(context, commandFor(MediaAction.PLAY_PAUSE))
 
+                override fun onSkipToPrevious() = send(context, commandFor(MediaAction.PREVIOUS))
+
+                override fun onSkipToNext() = send(context, commandFor(MediaAction.NEXT))
+
+                override fun onSeekTo(pos: Long) {
+                    QuickRuntime.act(context) { seekTo(pos) }
+                }
+
                 override fun onCustomAction(action: String, extras: Bundle?) {
                     val media = QuickNotificationReceiver.mediaAction(action) ?: return
                     // Offered only while unlocked; a tap racing the lock is dropped, never sent locked.
@@ -149,40 +161,34 @@ object QuickNotifications {
 
     private fun updateSession(context: Context, live: Live, card: MediaCard, icon: Bitmap) {
         val session = live.session
-        // What Cast reports playing (only while the remote is in front, architecture § 7) takes
-        // the title, the artist or channel and the position; without it, today's fields stay.
-        val cast = card.cast
-        val metadata = MediaMetadata.Builder()
-            .putBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON, icon)
-        if (cast == null) {
-            metadata
+        // What Cast reports playing (only while the remote is in front, architecture § 7) arrives
+        // as card.playback, so it takes the title, the artist or channel and the position.
+        session.setMetadata(
+            MediaMetadata.Builder()
                 .putString(MediaMetadata.METADATA_KEY_TITLE, title(context, card))
                 .putString(MediaMetadata.METADATA_KEY_ARTIST, subtitle(context, card))
-        } else {
-            metadata
-                .putString(MediaMetadata.METADATA_KEY_TITLE, cast.title)
-                .putString(MediaMetadata.METADATA_KEY_ARTIST, cast.secondary ?: title(context, card))
-            cast.durationSec?.let { metadata.putLong(MediaMetadata.METADATA_KEY_DURATION, (it * 1000).toLong()) }
-        }
-        session.setMetadata(metadata.build())
-        val playback = cast?.let { castPlayback(it, System.currentTimeMillis(), SystemClock.elapsedRealtime()) }
+                .putBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON, icon)
+                // The media player draws the artwork large; the app's icon, else tutti's mark.
+                .putBitmap(MediaMetadata.METADATA_KEY_ART, icon)
+                .apply { card.playback?.durationMs?.let { putLong(MediaMetadata.METADATA_KEY_DURATION, it) } }
+                .build(),
+        )
+        val seek = card.playback?.canSeek == true && card.position() != null
         session.setPlaybackState(
             PlaybackState.Builder()
-                .apply {
-                    if (playback == null) {
-                        // Without Cast the TV does not report play/pause: PLAYING keeps this the
-                        // session the volume keys go to, and the button is a toggle either way.
-                        setState(PlaybackState.STATE_PLAYING, PlaybackState.PLAYBACK_POSITION_UNKNOWN, 0f)
-                    } else {
-                        // Cast runs only while the remote is in front, where the activity takes
-                        // the volume keys itself, so a paused state costs the keys nothing.
-                        setState(playback.state, playback.positionMs, playback.speed, playback.updateTime)
-                    }
-                }
-                // Transport stays on the Remote v2 keys: no seek action, tutti never sends a Cast command.
-                .setActions(PlaybackState.ACTION_PLAY_PAUSE or PlaybackState.ACTION_PLAY or PlaybackState.ACTION_PAUSE)
-                .addCustomAction(customAction(context, MediaAction.VOLUME_DOWN, card))
-                .addCustomAction(customAction(context, MediaAction.VOLUME_UP, card))
+                // The TV does not report play/pause: PLAYING keeps this the session the
+                // volume keys go to, and the button is a toggle either way.
+                .setState(
+                    if (card.playing()) PlaybackState.STATE_PLAYING else PlaybackState.STATE_PAUSED,
+                    card.position() ?: PlaybackState.PLAYBACK_POSITION_UNKNOWN,
+                    if (card.position() != null && card.playing()) 1f else 0f,
+                )
+                .setActions(
+                    PlaybackState.ACTION_PLAY_PAUSE or PlaybackState.ACTION_PLAY or PlaybackState.ACTION_PAUSE or
+                        PlaybackState.ACTION_SKIP_TO_PREVIOUS or PlaybackState.ACTION_SKIP_TO_NEXT or
+                        (if (seek) PlaybackState.ACTION_SEEK_TO else 0L),
+                )
+                // Previous and next take the player's skip slots; mute and Turn off the two after them.
                 .addCustomAction(customAction(context, MediaAction.MUTE, card))
                 .apply { if (card.turnOff) addCustomAction(customAction(context, MediaAction.TURN_OFF, card)) }
                 .build(),
@@ -214,10 +220,17 @@ object QuickNotifications {
     }
 
     private fun title(context: Context, card: MediaCard): String =
-        card.appLabel ?: card.sceneName ?: context.getString(R.string.app_name)
+        card.titleText() ?: context.getString(R.string.app_name)
 
-    /** "BRAVIA 8 · Bar 9 · Bar vol. 10": the devices, then whose level it is. */
+    /**
+     * "BRAVIA 8 · Bar 9 · Bar vol. 10": the devices, then whose level it is. With something playing
+     * reported (Cast), its artist leads, then the app.
+     */
     private fun subtitle(context: Context, card: MediaCard): String {
+        card.playback?.takeIf { it.title != null }?.let { playing ->
+            val lead = listOfNotNull(playing.artist, card.appLabel).joinToString(" · ")
+            if (lead.isNotEmpty()) return lead
+        }
         val level = card.level?.let { level ->
             val bar = level.target == VolumeTarget.BAR
             if (level.muted) {
@@ -239,20 +252,20 @@ object QuickNotifications {
     }
 
     private fun actionIcon(action: MediaAction, card: MediaCard): Int = when (action) {
+        MediaAction.PREVIOUS -> R.drawable.ic_skip_previous
         MediaAction.PLAY_PAUSE -> R.drawable.ic_play_pause
-        MediaAction.VOLUME_DOWN -> R.drawable.quick_ic_remove
+        MediaAction.NEXT -> R.drawable.ic_skip_next
         // The icon shows the state (a struck speaker while muted); the label says what a tap does.
         MediaAction.MUTE -> if (card.muted) R.drawable.quick_ic_volume_off else R.drawable.quick_ic_volume_up
-        MediaAction.VOLUME_UP -> R.drawable.quick_ic_add
         MediaAction.TURN_OFF -> R.drawable.quick_ic_power
     }
 
     private fun actionLabel(context: Context, action: MediaAction, card: MediaCard): String = context.getString(
         when (action) {
+            MediaAction.PREVIOUS -> R.string.quick_notification_previous
             MediaAction.PLAY_PAUSE -> R.string.quick_notification_play_pause
-            MediaAction.VOLUME_DOWN -> R.string.quick_notification_volume_down
+            MediaAction.NEXT -> R.string.quick_notification_next
             MediaAction.MUTE -> if (card.muted) R.string.quick_notification_unmute else R.string.quick_notification_mute
-            MediaAction.VOLUME_UP -> R.string.quick_notification_volume_up
             MediaAction.TURN_OFF -> R.string.quick_notification_turn_off
         },
     )
@@ -352,7 +365,7 @@ internal suspend fun QuickControls.perform(command: MediaCommand) {
         MediaCommand.ToggleMute -> toggleMute()
         MediaCommand.Mute -> if (state.value.level?.muted != true) toggleMute()
         MediaCommand.Unmute -> if (state.value.level?.muted == true) toggleMute()
-        is MediaCommand.TvKey -> playPause()
+        is MediaCommand.TvKey -> if (command.keyCode == V2Key.MEDIA_PLAY_PAUSE) playPause() else mediaKey(command.keyCode)
         MediaCommand.TurnOff -> powerOff()
     }
 }

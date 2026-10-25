@@ -22,8 +22,8 @@ class QuickNotificationReceiver : BroadcastReceiver() {
     }
 
     companion object {
-        const val ACTION_VOLUME_UP = "io.kud.tutti.quick.action.VOLUME_UP"
-        const val ACTION_VOLUME_DOWN = "io.kud.tutti.quick.action.VOLUME_DOWN"
+        const val ACTION_PREVIOUS = "io.kud.tutti.quick.action.PREVIOUS"
+        const val ACTION_NEXT = "io.kud.tutti.quick.action.NEXT"
         const val ACTION_MUTE = "io.kud.tutti.quick.action.MUTE"
         const val ACTION_PLAY_PAUSE = "io.kud.tutti.quick.action.PLAY_PAUSE"
         /** The session's custom action only; the notification's button starts QuickTurnOffActivity. */
@@ -32,10 +32,10 @@ class QuickNotificationReceiver : BroadcastReceiver() {
 
         /** One string per button, shared by the notification's intents and the session's custom actions. */
         fun intentAction(action: MediaAction): String = when (action) {
+            MediaAction.PREVIOUS -> ACTION_PREVIOUS
             MediaAction.PLAY_PAUSE -> ACTION_PLAY_PAUSE
-            MediaAction.VOLUME_DOWN -> ACTION_VOLUME_DOWN
+            MediaAction.NEXT -> ACTION_NEXT
             MediaAction.MUTE -> ACTION_MUTE
-            MediaAction.VOLUME_UP -> ACTION_VOLUME_UP
             MediaAction.TURN_OFF -> ACTION_TURN_OFF
         }
 

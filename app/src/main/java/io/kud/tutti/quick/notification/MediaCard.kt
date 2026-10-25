@@ -5,6 +5,7 @@ import io.kud.tutti.protocol.atv.V2Key
 import io.kud.tutti.protocol.cast.CastNowPlaying
 import io.kud.tutti.protocol.cast.CastPlayerState
 import io.kud.tutti.quick.AudioLevel
+import io.kud.tutti.quick.QuickPlayback
 import io.kud.tutti.quick.QuickState
 import io.kud.tutti.quick.VolumeTarget
 
@@ -15,17 +16,15 @@ import io.kud.tutti.quick.VolumeTarget
  */
 
 /**
- * The buttons, in the order they sit on the expanded notification. [TURN_OFF] is last, never in
- * the collapsed view, and only ever runs once the phone is unlocked ([turnOffInSession]).
+ * The buttons, in the order they sit on the expanded notification: Android's own media
+ * player layout (Erwann, 2026-10-25: « en tant que contrôle je préfère un format média »).
+ * Previous, play/pause and next are the TV's media keys; volume is the session's remote
+ * VolumeProvider (the phone's keys and the system slider), not buttons. [TURN_OFF] is last,
+ * never in the collapsed view, and only ever runs once the phone is unlocked ([turnOffInSession]).
  */
-enum class MediaAction { PLAY_PAUSE, VOLUME_DOWN, MUTE, VOLUME_UP, TURN_OFF }
+enum class MediaAction { PREVIOUS, PLAY_PAUSE, NEXT, MUTE, TURN_OFF }
 
-/**
- * Indexes into [MediaAction.entries] for the collapsed view (Android 12 and older):
- * play/pause, volume down and mute. Down rather than up because turning it down
- * is the urgent one (an advert, someone asleep); up is one key press away while
- * the session is active.
- */
+/** Indexes into [MediaAction.entries] for the collapsed view (Android 12 and older): previous, play/pause, next. */
 val COMPACT_ACTIONS = intArrayOf(0, 1, 2)
 
 /** What a button or a volume key asks of the room. Sent through [io.kud.tutti.quick.QuickControls]. */
@@ -42,10 +41,10 @@ sealed interface MediaCommand {
 }
 
 fun commandFor(action: MediaAction): MediaCommand = when (action) {
+    MediaAction.PREVIOUS -> MediaCommand.TvKey(V2Key.MEDIA_PREVIOUS)
     MediaAction.PLAY_PAUSE -> MediaCommand.TvKey(V2Key.MEDIA_PLAY_PAUSE)
-    MediaAction.VOLUME_DOWN -> MediaCommand.Step(-1)
+    MediaAction.NEXT -> MediaCommand.TvKey(V2Key.MEDIA_NEXT)
     MediaAction.MUTE -> MediaCommand.ToggleMute
-    MediaAction.VOLUME_UP -> MediaCommand.Step(+1)
     MediaAction.TURN_OFF -> MediaCommand.TurnOff
 }
 
@@ -134,6 +133,8 @@ data class MediaCard(
     val cast: CastNowPlaying? = null,
     /** The session offers "Turn off" (the phone is unlocked; see [turnOffInSession]). */
     val turnOff: Boolean = false,
+    /** What is playing inside the app, when something reports it (Cast); null otherwise. */
+    val playback: QuickPlayback? = null,
 ) {
     val muted: Boolean get() = level?.muted == true
 }
@@ -150,7 +151,17 @@ fun cardFor(state: QuickState, locked: Boolean = true): MediaCard = MediaCard(
     guardHeld = state.guardLine?.takeIf { state.guardHeld },
     cast = state.cast,
     turnOff = turnOffInSession(locked),
+    playback = state.playback ?: state.cast?.let { castQuickPlayback(it, System.currentTimeMillis()) },
 )
+
+/** The session's title: what is playing, else the TV's app, else the scene; null for the app's own name. */
+fun MediaCard.titleText(): String? = playback?.title ?: appLabel ?: sceneName
+
+/** The session's state: paused only when something says so; the TV alone never reports it, so a toggle reads "playing". */
+fun MediaCard.playing(): Boolean = playback?.playing != false
+
+/** A position and speed for the system's progress bar, only with a known position and length. */
+fun MediaCard.position(): Long? = playback?.takeIf { it.durationMs != null }?.positionMs
 
 /**
  * Android sheds notification updates past about five a second per app, silently,
@@ -162,6 +173,21 @@ fun postDelay(now: Long, lastPost: Long?, interval: Long): Long {
     if (lastPost == null) return 0
     return (lastPost + interval - now).coerceAtLeast(0)
 }
+
+/**
+ * What Cast reports, as the media player's playback: the title, the artist or channel, paused or
+ * not, and the position run forward to [nowMs]. Never seekable: Cast stays read-only (architecture § 7).
+ */
+fun castQuickPlayback(cast: CastNowPlaying, nowMs: Long): QuickPlayback = QuickPlayback(
+    title = cast.title,
+    artist = cast.secondary,
+    playing = when (cast.state) {
+        CastPlayerState.PLAYING, CastPlayerState.BUFFERING -> true
+        CastPlayerState.PAUSED, CastPlayerState.IDLE -> false
+    },
+    positionMs = cast.positionAt(nowMs)?.let { (it * 1000).toLong() },
+    durationMs = cast.durationSec?.let { (it * 1000).toLong() },
+)
 
 /** The session's playback fields while Cast reports something: framework state, position, speed, update time. */
 data class CastPlayback(val state: Int, val positionMs: Long, val speed: Float, val updateTime: Long, val durationMs: Long?)
