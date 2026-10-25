@@ -237,3 +237,23 @@ private fun bluetooth(input: ConnInput, id: String, address: String?, controllab
     }
     return ConnLine(ConnLink.BLUETOOTH, words, action)
 }
+
+/** One line of the sheet: the device it sits under and its link. */
+data class ConnFocus(val deviceId: String, val link: ConnLink)
+
+/**
+ * The line the device pill's trouble points at (Erwann, 2026-10-25, Iris's top 10, item 6): a tap
+ * on a pill that says something is wrong lands on that line, its one next step ready, rather than
+ * on Settings in general. Only the TV and the bar, the devices the pill speaks for. Worst first:
+ * a fault with a step, any fault, a step not done yet (IP control, no TV), then a link on its way.
+ * Nothing when all is well: the sheet then simply opens at the top.
+ */
+fun problemLine(devices: List<ConnDevice>): ConnFocus? {
+    val room = devices.filter { it.kind != DeviceKind.COMPUTER }
+    fun pick(match: (ConnDevice, ConnLine) -> Boolean): ConnFocus? =
+        room.firstNotNullOfOrNull { d -> d.lines.firstOrNull { match(d, it) }?.let { ConnFocus(d.id, it.link) } }
+    return pick { _, l -> l.words.mark == ConnMark.PROBLEM && l.action != null }
+        ?: pick { _, l -> l.words.mark == ConnMark.PROBLEM }
+        ?: pick { d, l -> l.words == ConnWords.NOT_SET_UP || (l.words == ConnWords.NOT_ADDED && d.kind == DeviceKind.TV) }
+        ?: pick { _, l -> l.words.mark == ConnMark.WORKING }
+}

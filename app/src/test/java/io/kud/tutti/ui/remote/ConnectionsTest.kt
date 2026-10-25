@@ -91,4 +91,18 @@ class ConnectionsTest {
         assertEquals(ConnMark.PROBLEM, busy.words.mark)
         assertNull(busy.action)
     }
+
+    @Test
+    fun thePillsTroubleLandsOnItsLine() {
+        assertNull(problemLine(connections(room)))
+        assertEquals(ConnFocus("tv", ConnLink.SONY_IP), problemLine(connections(room.copy(ipSet = false, rest = Link.ABSENT))))
+        assertEquals(ConnFocus("tv", ConnLink.SONY_IP), problemLine(connections(room.copy(ipSet = false, ipRenew = true))))
+        // A fault with a step wins over a step not done yet, the bar's included.
+        val both = room.copy(ipSet = false, bar = Link.UNREACHABLE)
+        assertEquals(ConnFocus("bar", ConnLink.NETWORK), problemLine(connections(both)))
+        assertEquals(ConnFocus("tv", ConnLink.GOOGLE_TV), problemLine(connections(room.copy(tvShown = TvShown(Link.CONNECTING)))))
+        // Standby is no trouble, and a computer isn't the pill's to speak for.
+        assertNull(problemLine(connections(room.copy(tvAsleep = true, rest = Link.UNREACHABLE))))
+        assertNull(problemLine(connections(room.copy(hidPhase = HidPhase.BLUETOOTH_OFF))))
+    }
 }

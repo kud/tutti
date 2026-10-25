@@ -1,7 +1,14 @@
 package io.kud.tutti.ui.remote
 
 import androidx.annotation.DrawableRes
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -113,6 +120,8 @@ private fun actionLabel(action: ConnAction): String = stringResource(
 @Composable
 fun ConnectionsSheet(
     devices: List<ConnDevice>,
+    /** The line the pill's trouble points at ([problemLine]): brought into view and set apart. */
+    focus: ConnFocus? = null,
     onAction: (ConnDevice, ConnAction) -> Unit,
     onOpenSettings: () -> Unit,
     onDismiss: () -> Unit,
@@ -134,7 +143,7 @@ fun ConnectionsSheet(
             )
         }
         Column(Modifier.verticalScroll(rememberScrollState()).padding(top = 8.dp, bottom = 8.dp)) {
-            for (device in devices) DeviceBlock(device) { onAction(device, it) }
+            for (device in devices) DeviceBlock(device, focus) { onAction(device, it) }
             HorizontalDivider(Modifier.padding(horizontal = 24.dp, vertical = 8.dp), color = MaterialTheme.colorScheme.outlineVariant)
             val settings = stringResource(R.string.settings_title)
             Row(
@@ -155,7 +164,7 @@ fun ConnectionsSheet(
 }
 
 @Composable
-private fun DeviceBlock(device: ConnDevice, onAction: (ConnAction) -> Unit) {
+private fun DeviceBlock(device: ConnDevice, focus: ConnFocus?, onAction: (ConnAction) -> Unit) {
     val name = device.name ?: stringResource(
         when (device.kind) {
             DeviceKind.TV -> R.string.conn_device_tv
@@ -186,11 +195,16 @@ private fun DeviceBlock(device: ConnDevice, onAction: (ConnAction) -> Unit) {
             }
         }
     }
-    for (line in device.lines) LinkLine(device.kind, line, onAction)
+    for (line in device.lines) LinkLine(device.kind, line, focus == ConnFocus(device.id, line.link), onAction)
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun LinkLine(kind: DeviceKind, line: ConnLine, onAction: (ConnAction) -> Unit) {
+private fun LinkLine(kind: DeviceKind, line: ConnLine, focused: Boolean, onAction: (ConnAction) -> Unit) {
+    // The pill's trouble: this line comes into view on a tonal band, its step at the thumb. The
+    // glyph and words already say what is wrong; the band only says "this one".
+    val bring = remember { BringIntoViewRequester() }
+    if (focused) LaunchedEffect(Unit) { bring.bringIntoView() }
     val title = stringResource(R.string.conn_line, linkName(line.link), stateWords(line.words))
     val what = gives(kind, line.link)
     val said = stringResource(R.string.conn_line_said, linkName(line.link), stateWords(line.words), what)
@@ -198,7 +212,16 @@ private fun LinkLine(kind: DeviceKind, line: ConnLine, onAction: (ConnAction) ->
         Modifier
             .fillMaxWidth()
             .heightIn(min = 56.dp)
-            .padding(start = 64.dp, end = 12.dp),
+            .bringIntoViewRequester(bring)
+            .padding(start = 52.dp, end = 4.dp)
+            .then(
+                if (focused) {
+                    Modifier.background(MaterialTheme.colorScheme.surfaceContainerHighest, RoundedCornerShape(12.dp))
+                } else {
+                    Modifier
+                },
+            )
+            .padding(start = 12.dp, end = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Row(

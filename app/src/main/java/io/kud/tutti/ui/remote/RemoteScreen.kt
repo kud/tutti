@@ -682,8 +682,11 @@ fun RemoteScreen(
     }
 
     if (connectionsSheet) {
+        // A pill that says something is wrong lands on that device's line (problemLine).
+        val connDevices = connections(connInput(state, targets))
         ConnectionsSheet(
-            devices = connections(connInput(state, targets)),
+            devices = connDevices,
+            focus = problemLine(connDevices),
             onAction = { device, action ->
                 connectionsSheet = false
                 when (action) {
