@@ -5,6 +5,8 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitVerticalTouchSlopOrCancellation
+import androidx.compose.foundation.gestures.verticalDrag
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -26,16 +28,23 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import io.kud.tutti.ui.motion.Motion
 import io.kud.tutti.ui.motion.snappyOrFade
@@ -58,8 +67,8 @@ fun Modifier.belowStatusBar(topPx: Int): Modifier = layout { measurable, constra
 
 /**
  * Every modal sheet in tutti: opens fully expanded, grows up to just under the status bar and no
- * further, and leaves scrolling to its content (a `verticalScroll` or a lazy list), whose nested
- * scroll still hands a downward drag at the top back to the sheet. It carries its own
+ * further, and leaves scrolling to its content (a `verticalScroll` or a lazy list) under a
+ * [PinnedHeader], which keeps every drag below the header for the body. It carries its own
  * [MessageHost], since a message from the app root would draw under the sheet's window.
  *
  * The bars are read here, in the activity's window, and the sheet's own insets are switched off so
@@ -102,7 +111,13 @@ fun TuttiSheet(onDismissRequest: () -> Unit, content: @Composable ColumnScope.()
  * A sheet's pinned header (design.md, Sheets: "the title, and a search where there is one, stays
  * put; only the body scrolls"). [header] is drawn above [body], which takes the room left and
  * scrolls on its own; once it has scrolled ([scrolled]), a hairline shows under the header.
- * The body's own scroll still hands a downward drag at its top back to the sheet.
+ *
+ * Only the top moves the sheet (Erwann, 2026-10-25: a drag between the tiles slid the whole Apps
+ * sheet when he meant to scroll). Below the header nothing reaches the sheet's own drag: the body
+ * keeps a pull-down at its top to itself ([KeepPullDown]), and a vertical drag that no scrollable
+ * took, in a gap or under a short body, is swallowed ([holdBelow]). The handle and the header
+ * still drag it; the scrim, back and the handle's TalkBack actions still close it. Upward drags
+ * are untouched, so the Son sheet's peek still opens from anywhere on it.
  *
  * A slot inside the sheet's content rather than a parameter of [TuttiSheet]: the header's state
  * (the picker's search, its chips) belongs to the content, and the Son sheet, which is not a
@@ -115,10 +130,40 @@ fun PinnedHeader(
     header: @Composable ColumnScope.() -> Unit,
     body: @Composable ColumnScope.() -> Unit,
 ) {
-    Column(modifier) {
-        header()
-        SheetHeaderRule(scrolled)
-        Column(Modifier.weight(1f, fill = false), content = body)
+    var headerBottom by remember { mutableIntStateOf(0) }
+    Column(modifier.holdBelow { headerBottom }) {
+        Column(Modifier.onSizeChanged { headerBottom = it.height }) {
+            header()
+            SheetHeaderRule(scrolled)
+        }
+        Column(Modifier.weight(1f, fill = false).nestedScroll(KeepPullDown), content = body)
+    }
+}
+
+/**
+ * Keeps what the body's scroll leaves of a downward drag or fling (the pull-down at its top) from
+ * reaching the sheet, which would slide it shut. Upward leftovers pass, as before.
+ */
+private object KeepPullDown : NestedScrollConnection {
+    override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset =
+        if (available.y > 0f) Offset(0f, available.y) else Offset.Zero
+
+    override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity =
+        if (available.y > 0f) Velocity(0f, available.y) else Velocity.Zero
+}
+
+/**
+ * Below [top] (px from this node's top), takes any vertical drag that no child took once it passes
+ * touch slop, so the sheet's own drag, which waits on the same slop further out, never starts there.
+ * Taps and horizontal drags are left alone; a drag starting above [top] is the header's, the sheet's.
+ */
+private fun Modifier.holdBelow(top: () -> Int): Modifier = pointerInput(Unit) {
+    awaitEachGesture {
+        val down = awaitFirstDown(requireUnconsumed = false)
+        if (down.position.y < top()) return@awaitEachGesture
+        val drag = awaitVerticalTouchSlopOrCancellation(down.id) { change, _ -> change.consume() }
+            ?: return@awaitEachGesture
+        verticalDrag(drag.id) { it.consume() }
     }
 }
 

@@ -139,7 +139,8 @@ fun AppsSheetContent(
     ) {
         LazyVerticalGrid(
             columns = GridCells.Adaptive(minSize = 96.dp),
-            modifier = Modifier.fillMaxWidth(),
+            // Down to the sheet's foot, so a drag under the last row scrolls too (design.md, Sheets).
+            modifier = Modifier.fillMaxWidth().fillMaxHeight(),
             state = grid,
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 24.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),

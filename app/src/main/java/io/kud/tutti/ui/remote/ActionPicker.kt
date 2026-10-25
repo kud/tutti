@@ -218,7 +218,8 @@ fun ActionPickerContent(
         },
     ) {
         LazyColumn(
-            modifier = Modifier.fillMaxWidth(),
+            // Down to the sheet's foot, so a drag under a short result list still lands on the list.
+            modifier = Modifier.fillMaxWidth().fillMaxHeight(),
             state = list,
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),

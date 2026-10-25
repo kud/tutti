@@ -128,7 +128,7 @@ fun ExplainSheet(section: SoundSection, layout: SoundSheetLayout, onDismiss: () 
                 )
             },
         ) {
-            Column(Modifier.verticalScroll(scroll).padding(horizontal = 24.dp).padding(top = 8.dp, bottom = 24.dp)) {
+            Column(Modifier.fillMaxWidth().verticalScroll(scroll).padding(horizontal = 24.dp).padding(top = 8.dp, bottom = 24.dp)) {
                 features.forEachIndexed { index, feature ->
                     val text = explanation(feature) ?: return@forEachIndexed
                     if (index > 0) Spacer(Modifier.height(16.dp))
