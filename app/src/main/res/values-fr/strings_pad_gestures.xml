@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="pad_skip_back">Reculer de 10 secondes</string>
+    <string name="pad_skip_forward">Avancer de 10 secondes</string>
+    <string name="pad_skip_back_tag">−%1$d s</string>
+    <string name="pad_skip_forward_tag">+%1$d s</string>
+    <string name="row_long_previous_app">App précédente</string>
+    <string name="row_long_recent_apps">Apps récentes</string>
+    <string name="row_long_default_said">Appui long : %1$s</string>
+    <string name="row_long_change">Changer</string>
+    <string name="row_long_no_previous">Pas encore d\'app précédente</string>
+    <string name="keyboard_long_paste">Coller sur la TV</string>
+    <string name="keyboard_long_paste_empty">Le presse-papiers est vide</string>
+    <string name="keyboard_long_paste_no_field">Aucun champ de texte ouvert sur la TV</string>
+    <string name="keyboard_long_paste_done">Collé sur la TV</string>
+    <string name="gesture_pad_fling">Défilement lancé</string>
+    <string name="gesture_pad_fling_detail">Glissez vite sur le touchpad et lâchez : il continue d\'avancer en ralentissant. Touchez le pad pour l\'arrêter.</string>
+    <string name="gesture_pad_two_horizontal">Reculer ou avancer de 10 s</string>
+    <string name="gesture_pad_two_horizontal_detail">Glissez vers la gauche ou la droite sur le pad avec deux doigts, en touchpad comme en D-pad.</string>
+    <string name="gesture_back_long">App précédente</string>
+    <string name="gesture_back_long_detail">Appui long sur Retour pour revenir à l\'app d\'avant ; vous pouvez lui donner une autre action.</string>
+    <string name="gesture_home_long">Apps récentes</string>
+    <string name="gesture_home_long_detail">Appui long sur Accueil pour ouvrir les apps récentes de la TV ; vous pouvez lui donner une autre action.</string>
+    <string name="gesture_keyboard_long">Coller sur la TV</string>
+    <string name="gesture_keyboard_long_detail">Appui long sur Clavier pour coller le presse-papiers du téléphone dans le champ de texte ouvert sur la TV.</string>
+</resources>

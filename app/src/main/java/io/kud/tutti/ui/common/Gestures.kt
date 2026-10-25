@@ -61,10 +61,15 @@ object Gestures {
         GestureEntry("pad_long", GestureSurface.PAD, GestureKind.LONG_PRESS, R.string.gesture_pad_long, R.string.gesture_pad_long_detail),
         GestureEntry("pad_two_tap", GestureSurface.PAD, GestureKind.TWO_FINGER_TAP, R.string.gesture_pad_two_tap, R.string.gesture_pad_two_tap_detail),
         GestureEntry("pad_two_vertical", GestureSurface.PAD, GestureKind.TWO_FINGER_DRAG, R.string.gesture_pad_two_vertical, R.string.gesture_pad_two_vertical_detail),
+        GestureEntry("pad_two_horizontal", GestureSurface.PAD, GestureKind.TWO_FINGER_DRAG, R.string.gesture_pad_two_horizontal, R.string.gesture_pad_two_horizontal_detail),
+        GestureEntry("pad_fling", GestureSurface.PAD, GestureKind.SWIPE, R.string.gesture_pad_fling, R.string.gesture_pad_fling_detail),
         // Volume.
         GestureEntry("volume_drag", GestureSurface.VOLUME, GestureKind.DRAG, R.string.gesture_volume_drag, R.string.gesture_volume_drag_detail),
         GestureEntry("volume_hold", GestureSurface.VOLUME, GestureKind.HOLD, R.string.gesture_volume_hold, R.string.gesture_volume_hold_detail),
         // Round keys.
+        GestureEntry("back_long", GestureSurface.KEYS, GestureKind.LONG_PRESS, R.string.gesture_back_long, R.string.gesture_back_long_detail),
+        GestureEntry("home_long", GestureSurface.KEYS, GestureKind.LONG_PRESS, R.string.gesture_home_long, R.string.gesture_home_long_detail),
+        GestureEntry("keyboard_long", GestureSurface.KEYS, GestureKind.LONG_PRESS, R.string.gesture_keyboard_long, R.string.gesture_keyboard_long_detail),
         GestureEntry("key_long", GestureSurface.KEYS, GestureKind.LONG_PRESS, R.string.gesture_key_long, R.string.gesture_key_long_detail),
         GestureEntry("mic_hold", GestureSurface.KEYS, GestureKind.HOLD, R.string.gesture_mic_hold, R.string.gesture_mic_hold_detail),
         // Dock.

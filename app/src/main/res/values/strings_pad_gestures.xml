@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The pad's two-finger horizontal drag (TalkBack actions and the tag). -->
+    <string name="pad_skip_back">Back 10 seconds</string>
+    <string name="pad_skip_forward">Forward 10 seconds</string>
+    <string name="pad_skip_back_tag">−%1$d s</string>
+    <string name="pad_skip_forward_tag">+%1$d s</string>
+    <!-- Round keys' default long presses. -->
+    <string name="row_long_previous_app">Previous app</string>
+    <string name="row_long_recent_apps">Recent apps</string>
+    <string name="row_long_default_said">Long press: %1$s</string>
+    <string name="row_long_change">Change</string>
+    <string name="row_long_no_previous">No previous app yet</string>
+    <!-- Long-press Keyboard. -->
+    <string name="keyboard_long_paste">Paste on the TV</string>
+    <string name="keyboard_long_paste_empty">The clipboard is empty</string>
+    <string name="keyboard_long_paste_no_field">No text field open on the TV</string>
+    <string name="keyboard_long_paste_done">Pasted on the TV</string>
+    <!-- Gesture registry entries (ui/common/Gestures.kt) for the pad and the round keys. -->
+    <string name="gesture_pad_fling">Keep scrolling</string>
+    <string name="gesture_pad_fling_detail">Swipe fast on the touchpad and let go: it keeps stepping, slowing down. Touch the pad to stop it.</string>
+    <string name="gesture_pad_two_horizontal">Back or forward 10 seconds</string>
+    <string name="gesture_pad_two_horizontal_detail">Drag left or right on the pad with two fingers, touchpad or D-pad.</string>
+    <string name="gesture_back_long">Previous app</string>
+    <string name="gesture_back_long_detail">Long press Back to return to the app you were in before; you can give it another action.</string>
+    <string name="gesture_home_long">Recent apps</string>
+    <string name="gesture_home_long_detail">Long press Home to open the TV\'s recent apps; you can give it another action.</string>
+    <string name="gesture_keyboard_long">Paste on the TV</string>
+    <string name="gesture_keyboard_long_detail">Long press Keyboard to paste the phone\'s clipboard into the text field open on the TV.</string>
+</resources>

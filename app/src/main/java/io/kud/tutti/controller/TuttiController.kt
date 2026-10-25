@@ -40,6 +40,7 @@ import io.kud.tutti.protocol.apps.LaunchBook
 import io.kud.tutti.protocol.apps.LaunchEffect
 import io.kud.tutti.protocol.apps.LaunchLink
 import io.kud.tutti.protocol.apps.LaunchPlan
+import io.kud.tutti.protocol.apps.AppHistory
 import io.kud.tutti.protocol.apps.LaunchQueue
 import io.kud.tutti.protocol.apps.LaunchStep
 import io.kud.tutti.protocol.apps.LaunchResult
@@ -292,6 +293,10 @@ class TuttiController @Inject constructor(
             atv.state.map { it.currentApp }.distinctUntilChanged().collect { app ->
                 launchStep { LaunchQueue.foreground(it, app) }
             }
+        }
+        scope.launch {
+            // The app before the one in front, for long-press Back (AppHistory).
+            atv.state.map { it.currentApp }.distinctUntilChanged().collect { app -> appHistory.update { it.seen(app) } }
         }
         scope.launch {
             // Per-app profiles: "Quand Netflix est au premier plan, appliquer Cinéma" (while connected).
@@ -757,6 +762,33 @@ class TuttiController @Inject constructor(
 
     fun key(keyCode: Int) {
         scope.launch { sendTvKey(keyCode, long = false) }
+    }
+
+    /** The TV's foreground app and the one before it, from the remote v2's reports. */
+    private val appHistory = MutableStateFlow(AppHistory())
+
+    /**
+     * Long-press Back: back to the app before the one in front, through the optimistic launch
+     * path ([launchApp], [LaunchQueue]), so a blip holds it like any tap. False when there is none yet.
+     */
+    fun launchPreviousApp(): Boolean {
+        val target = appHistory.value.back() ?: return false
+        launchApp(target)
+        return true
+    }
+
+    /**
+     * Long-press Home: the TV's recent apps (APP_SWITCH, 187). Google TV may ignore it, so the
+     * outcome is logged for the check on the BRAVIA: whether it went out, and whether the
+     * foreground app moved within [RECENTS_WATCH_MS]. No package or text is logged.
+     */
+    fun recentApps() {
+        scope.launch {
+            val before = atv.state.value.currentApp
+            val sent = sendTvKey(V2Key.APP_SWITCH, long = false)
+            delay(RECENTS_WATCH_MS)
+            Log.i(TAG, "APP_SWITCH sent=$sent foregroundChanged=${before != atv.state.value.currentApp}")
+        }
     }
 
     /** Long-press Select is reserved for the TV: a held key. */
@@ -1946,6 +1978,7 @@ class TuttiController @Inject constructor(
 
     companion object {
         private const val TAG = "tutti"
+        private const val RECENTS_WATCH_MS = 1_500L
         const val MAX_VOLUME = 100
         private const val LINGER_MS = 30_000L
         private const val MIN_BACKOFF_MS = 1_000L

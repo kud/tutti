@@ -407,6 +407,7 @@ fun InputView(
                     onLongSelect = onLongSelect,
                     onPlayPause = { onKey(V2Key.MEDIA_PLAY_PAUSE) },
                     onVolumeStep = {},
+                    onSkip = { onKey(skipKey(it)) },
                     // Always a D-pad here: no mode switch on it.
                     onModeChange = null,
                     modifier = Modifier.size(DPAD_SIZE),

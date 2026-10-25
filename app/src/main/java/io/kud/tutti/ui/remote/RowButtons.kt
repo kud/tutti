@@ -3,6 +3,7 @@ package io.kud.tutti.ui.remote
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -13,6 +14,7 @@ import io.kud.tutti.platform.data.RowButton
 import io.kud.tutti.platform.data.SecondaryButton
 import io.kud.tutti.protocol.atv.V2Key
 import io.kud.tutti.ui.common.Haptics
+import io.kud.tutti.ui.common.LocalMessages
 import io.kud.tutti.ui.common.TonalRoundButton
 import io.kud.tutti.ui.common.actionLabel
 
@@ -95,12 +97,36 @@ fun LiveRowButton(
     // the bar's, connecting and out of reach alike, and a down key bumps and sends nothing.
     val tv = state.controlLink(Owner.TV)
     val tvReason = controlLinkReason(tv, Owner.TV, state)
+    val clipboard = LocalClipboardManager.current
+    val messages = LocalMessages.current
+    val pasteEmpty = stringResource(R.string.keyboard_long_paste_empty)
+    val pasteNoField = stringResource(R.string.keyboard_long_paste_no_field)
+    val pasteDone = stringResource(R.string.keyboard_long_paste_done)
     when (button) {
         RowButton.VOICE -> VoiceButton(controller = controller, down = tv.down, downReason = tvReason, size = size)
         RowButton.KEYBOARD -> TonalRoundButton(
             icon = R.drawable.ic_keyboard,
             contentDescription = rowButtonLabel(button),
             onClick = onKeyboard,
+            // Long press pastes the phone's clipboard into the TV's open field, without the view.
+            onLongClick = {
+                when (val outcome = paste(clipboard.getText()?.text, state.keyboardField?.text)) {
+                    Paste.Empty -> {
+                        haptics.reject()
+                        messages?.show(pasteEmpty)
+                    }
+                    Paste.NoField -> {
+                        haptics.reject()
+                        messages?.show(pasteNoField)
+                    }
+                    is Paste.Send -> {
+                        haptics.longPress()
+                        controller.text(outcome.text)
+                        messages?.show(pasteDone)
+                    }
+                }
+            },
+            onLongClickLabel = stringResource(R.string.keyboard_long_paste),
             // A field remembered from before a drop is not a field now: never "on" while the TV is down.
             active = fieldWaiting && !tv.down,
             unreachable = tv.down,
@@ -132,7 +158,11 @@ fun LiveRowButton(
                 unreachable = tv.down,
                 onLongClick = secondary?.let { { onSecondary(it) } },
                 // Names the second action: read aloud by TalkBack, and tagged over the key when it lands.
-                onLongClickLabel = secondary?.let { state.dock.longPress[it] }?.let { actionLabel(it, state) },
+                // His own action when he chose one, else the key's default (RowGestures).
+                onLongClickLabel = secondary?.let { which ->
+                    state.dock.longPress[which]?.let { actionLabel(it, state) }
+                        ?: rowDefault(which)?.let { stringResource(it.label) }
+                },
                 size = size,
                 stateDescription = tvReason,
             )

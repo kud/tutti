@@ -153,11 +153,6 @@ fun RemoteScreen(
         onDispose { controller.remoteInFront = false }
     }
 
-    fun secondary(button: SecondaryButton) {
-        val action = state.dock.longPress[button]
-        haptics.longPress()
-        if (action != null) controller.run(action) else picker = PickerTarget.LongPress(button)
-    }
 
     val sheet = rememberBottomSheetScaffoldState()
 
@@ -174,6 +169,41 @@ fun RemoteScreen(
             messages?.show(standbyWords, actionLabel = wakeWords, onAction = { controller.power(PowerTarget.TV, on = true) })
         }
         return true
+    }
+
+    // The round keys' default long presses (RowGestures) say themselves once per visit, with
+    // "Change" to pick another: proposed, never imposed in silence.
+    val defaultsSaid = remember { mutableSetOf<SecondaryButton>() }
+    val longSaidWords = stringResource(R.string.row_long_default_said)
+    val changeWords = stringResource(R.string.row_long_change)
+    val noPreviousWords = stringResource(R.string.row_long_no_previous)
+    val defaultLabels = RowDefault.entries.associateWith { stringResource(it.label) }
+    fun secondary(button: SecondaryButton) {
+        val action = state.dock.longPress[button]
+        haptics.longPress()
+        if (action != null) {
+            controller.run(action)
+            return
+        }
+        val fallback = rowDefault(button)
+        if (fallback == null) {
+            picker = PickerTarget.LongPress(button)
+            return
+        }
+        if (tvAsleepAlone()) return
+        val change = { picker = PickerTarget.LongPress(button) }
+        val ran = when (fallback) {
+            RowDefault.PREVIOUS_APP -> controller.launchPreviousApp()
+            RowDefault.RECENT_APPS -> {
+                controller.recentApps()
+                true
+            }
+        }
+        if (!ran) {
+            messages?.show(noPreviousWords, actionLabel = changeWords, onAction = change)
+        } else if (defaultsSaid.add(button)) {
+            messages?.show(longSaidWords.format(defaultLabels.getValue(fallback)), actionLabel = changeWords, onAction = change)
+        }
     }
 
     // « Et la feuille Son peut monter toute seule » (Erwann, 2026-10-24): when the bar starts
@@ -381,6 +411,7 @@ fun RemoteScreen(
                                 onLongSelect = { if (!tvAsleepAlone()) controller.longPress(V2Key.DPAD_CENTER) },
                                 onPlayPause = { if (!tvAsleepAlone()) controller.key(V2Key.MEDIA_PLAY_PAUSE) },
                                 onVolumeStep = controller::volumeStep,
+                                onSkip = { if (!tvAsleepAlone()) controller.key(skipKey(it)) },
                                 onModeChange = controller::setPadMode,
                                 volume = state.volume.takeIf { state.bar.connected },
                                 volumeCap = state.volumeCap,
