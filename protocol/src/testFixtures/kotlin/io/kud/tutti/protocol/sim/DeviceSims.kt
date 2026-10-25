@@ -271,6 +271,16 @@ class FakeBraviaTv(
         }.toString()
         val service = request.path.removePrefix("/sony/")
         if (method == "getSupportedApiInfo") return ok(supportedApis())
+        // No authentication, as on the TV: the diagnostic's first REST probe.
+        if (service == "system" && method == "getInterfaceInformation") {
+            return ok(buildJsonObject {
+                put("productCategory", "tv")
+                put("productName", "BRAVIA")
+                put("modelName", "K-00SIM00")
+                put("serverName", "")
+                put("interfaceVersion", "6.3.0")
+            })
+        }
         if (!authorised(request)) return error(authFailureStatus, "Forbidden", status = authFailureStatus)
         if (method in missing) return error(12, "No Such Method")
         val params = (rpc["params"] as? JsonArray)?.firstOrNull() as? JsonObject
@@ -452,7 +462,7 @@ class FakeBraviaTv(
     private fun supportedApis(): JsonArray = buildJsonArray {
         val methods = mapOf(
             "system" to listOf(
-                "getPowerStatus", "setPowerStatus", "getSystemInformation", "getPowerSavingMode", "setPowerSavingMode",
+                "getPowerStatus", "setPowerStatus", "getSystemInformation", "getInterfaceInformation", "getPowerSavingMode", "setPowerSavingMode",
                 "getWolMode", "setWolMode", "getNetworkSettings", "getRemoteControllerInfo",
             ),
             "audio" to listOf("getVolumeInformation", "setAudioVolume", "setAudioMute", "getSoundSettings", "setSoundSettings"),
@@ -498,41 +508,59 @@ class FakeTheatreBar(initial: Map<String, String> = DEFAULTS) : SimServer("theat
     /** Features that never notify, DRC and Auto Volume on the real bar: the app polls them. */
     val quiet: MutableSet<String> = ConcurrentHashMap.newKeySet<String>().apply { addAll(listOf("audio.drangecomp", "audio.aav")) }
 
+    /**
+     * The Bar 9's habit (Erwann's wire log, 2026-10-24): it takes [busyMillis] to answer, and a
+     * request that arrives before it has answered the last is dropped, unanswered ([dropped]).
+     */
+    @Volatile var busyMillis: Long = 0
+    val dropped = java.util.concurrent.atomic.AtomicInteger()
+
     override fun serve(link: Link) {
         val reader = BufferedReader(InputStreamReader(link.input, Charsets.UTF_8))
+        var busyUntil = 0L
         while (true) {
             val line = reader.readLine() ?: return
             lines += line
             if (!link.received()) continue
+            val busy = busyMillis
+            if (busy > 0) {
+                val now = System.nanoTime() / 1_000_000
+                if (now < busyUntil) {
+                    dropped.incrementAndGet()
+                    continue
+                }
+                busyUntil = now + busy
+            }
             val request = Json.parseToJsonElement(line) as JsonObject
             val id = request["id"]?.jsonPrimitive?.intOrNull
             val feature = request["feature"]?.jsonPrimitive?.content ?: continue
             when (request["type"]?.jsonPrimitive?.content) {
-                "get" -> reply(link, id, feature, values[feature] ?: "ERR")
+                "get" -> later(busy) { reply(link, id, feature, values[feature] ?: "ERR") }
                 "set" -> {
                     val value = request["value"]?.jsonPrimitive?.content ?: continue
                     when {
-                        feature in refused -> reply(link, id, feature = null, value = "NAK")
-                        !values.containsKey(feature) -> reply(link, id, feature = null, value = "ERR")
+                        feature in refused -> later(busy) { reply(link, id, feature = null, value = "NAK") }
+                        !values.containsKey(feature) -> later(busy) { reply(link, id, feature = null, value = "ERR") }
                         else -> {
                             values[feature] = value
                             val acknowledge = {
                                 reply(link, id, feature = null, value = "ACK")
                                 if (feature !in quiet) notifyAll(feature, value)
                             }
-                            val delay = ackDelayMillis[feature] ?: 0
-                            if (delay <= 0) {
-                                acknowledge()
-                            } else {
-                                kotlin.concurrent.thread(isDaemon = true, name = "theatre-bar-late-ack") {
-                                    Thread.sleep(delay)
-                                    runCatching { acknowledge() }
-                                }
-                            }
+                            later(maxOf(busy, ackDelayMillis[feature] ?: 0)) { acknowledge() }
                         }
                     }
                 }
             }
+        }
+    }
+
+    /** Runs [answer] now, or on its own thread after [delayMillis]. */
+    private fun later(delayMillis: Long, answer: () -> Unit) {
+        if (delayMillis <= 0) return answer()
+        kotlin.concurrent.thread(isDaemon = true, name = "theatre-bar-later") {
+            Thread.sleep(delayMillis)
+            runCatching { answer() }
         }
     }
 

@@ -85,6 +85,21 @@ class BarFeaturesSimTest {
     }
 
     @Test
+    fun `a bar that drops what comes before its last answer still reads everything, and loses nothing`() = runBlocking<Unit> {
+        bar.busyMillis = 60
+        val client = connected()
+        client.state.await("every feature answered or refused", millis = 15_000) { s ->
+            TheatreFeature.everyday.all { it.key in s.confirmed || it.key in s.refused }
+        }
+        client.setToggle(TheatreFeature.NIGHT, true)
+        client.setLevel(TheatreFeature.VOLUME, 25)
+        client.state.await("both sets taken") {
+            it.confirmed[TheatreFeature.NIGHT.key] == "on" && it.confirmed[TheatreFeature.VOLUME.key] == "25" && it.pending.isEmpty()
+        }
+        assertEquals("requests sent before the bar answered the last", 0, bar.dropped.get())
+    }
+
+    @Test
     fun `DRC and IMAX take each of their choices, DRC by its ACK alone`() = runBlocking<Unit> {
         val client = connected()
         for (value in listOf("on", "off", "auto")) {
