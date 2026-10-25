@@ -2,6 +2,7 @@ package io.kud.tutti.platform.data
 
 import android.content.Context
 import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -69,17 +70,11 @@ class TuttiStore @Inject constructor(
 
     /** Writes the migrated list once (idempotent). The old `devices` key is left in place. */
     suspend fun migrateDevices() {
-        store.edit { prefs ->
-            if (prefs[DEVICES_V2] != null) return@edit
-            val migrated = readList(prefs) ?: return@edit
-            prefs[DEVICES_V2] = StoreJson.encodeToString(DeviceList.serializer(), migrated)
-        }
+        val host = legacyHidHost()
+        store.edit { prefs -> migrateDeviceList(prefs, host) }
     }
 
-    private fun readList(prefs: Preferences): DeviceList? {
-        val current = prefs[DEVICES_V2]?.let { runCatching { StoreJson.decodeFromString(DeviceList.serializer(), it) }.getOrNull() }
-        return DeviceMigration.migrate(current, prefs[DEVICES], legacyHidHost())
-    }
+    private fun readList(prefs: Preferences): DeviceList? = resolveDeviceList(prefs, legacyHidHost())
 
     /** The host the version-1 Bluetooth screen remembered (`bluetooth_hid`), always the TV. */
     private fun legacyHidHost(): String? =
@@ -133,6 +128,19 @@ class TuttiStore @Inject constructor(
         const val TUTTI = "tutti"
         private val DEVICES = stringPreferencesKey("devices")
         private val DEVICES_V2 = stringPreferencesKey("devices_v2")
+
+        /** The device list as every reader sees it: version 2, else the migration of version 1. */
+        internal fun resolveDeviceList(prefs: Preferences, legacyHidHost: String?): DeviceList? {
+            val current = prefs[DEVICES_V2]?.let { runCatching { StoreJson.decodeFromString(DeviceList.serializer(), it) }.getOrNull() }
+            return DeviceMigration.migrate(current, prefs[DEVICES], legacyHidHost)
+        }
+
+        /** [migrateDevices]'s one edit: writes version 2 once, leaves version 1 in place. */
+        internal fun migrateDeviceList(prefs: MutablePreferences, legacyHidHost: String?) {
+            if (prefs[DEVICES_V2] != null) return
+            val migrated = resolveDeviceList(prefs, legacyHidHost) ?: return
+            prefs[DEVICES_V2] = StoreJson.encodeToString(DeviceList.serializer(), migrated)
+        }
         private val PREFS = stringPreferencesKey("prefs")
         private val DOCK = stringPreferencesKey("dock")
         private val SCENES = stringPreferencesKey("scenes")

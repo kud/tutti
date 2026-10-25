@@ -56,8 +56,7 @@ class SecureStore @Inject constructor(
 
     /** The per-device key, else its version-1 twin (until the copy has run). */
     private suspend fun read(name: String): String? {
-        val prefs = store.data.first()
-        val encoded = prefs[stringPreferencesKey(name)] ?: legacyOf(name)?.let { prefs[stringPreferencesKey(it)] } ?: return null
+        val encoded = encodedSecret(store.data.first(), name) ?: return null
         val blob = runCatching { Base64.decode(encoded, Base64.NO_WRAP) }.getOrNull() ?: return null
         return cipher.decrypt(blob)?.decodeToString()
     }
@@ -71,10 +70,14 @@ class SecureStore @Inject constructor(
         }
     }
 
-    private fun legacyOf(name: String): String? = SecretKeys.legacy.entries.firstOrNull { it.value == name }?.key
-
     companion object {
         const val SECURE = "secure"
         private const val TV = Device.TV_ID
+
+        private fun legacyOf(name: String): String? = SecretKeys.legacy.entries.firstOrNull { it.value == name }?.key
+
+        /** The encrypted blob [read] decrypts: the per-device key, else its version-1 twin. */
+        internal fun encodedSecret(prefs: Preferences, name: String): String? =
+            prefs[stringPreferencesKey(name)] ?: legacyOf(name)?.let { prefs[stringPreferencesKey(it)] }
     }
 }
