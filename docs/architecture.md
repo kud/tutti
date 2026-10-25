@@ -100,6 +100,19 @@ Acoustic Center Sync, sound calibration, speaker placement and first setup: a sh
 
 `:protocol`'s `DiagnosticRunner` walks every plane against the configured devices with its own read-only connections: mDNS discovery; REST `getInterfaceInformation` (no PSK), `getSystemInformation` (PSK), `getMethodTypes`, then only the getters the TV lists; the v2 remote's TLS connect and handshake (it answers configure, set-active and ping, and sends nothing else); the pairing port's TCP reachability; a `get` for every soundbar feature, Voice Zoom 3 included. Each step records ok / failed / skipped, its time, a short error class and what the device reported. `DiagnosticReport` renders the plain-text report, scrubbed through `Redact.text` with the hosts, PSK, pin and every identifying value seen in a reply (`JsonShape` keeps keys and types, values only for harmless keys). Pins seen during a run are never saved.
 
+## Release build: R8
+
+Release builds are shrunk and optimised by R8 with `isShrinkResources` (Maya, 2026-10-25), and **keep their names** (`-dontobfuscate`, line numbers kept): the in-app crash log and the diagnostic report are the only stack traces a phone gives without adb, and they are pasted into bug reports as they are. Obfuscation would save a little more and make every report need `mapping.txt`. The unsigned release APK went from 36.9 MB to about 6.4 MB, mostly dex (33.9 MB to 5.0 MB, 193k to 26k method references).
+
+Keep rules (`app/proguard-rules.pro`) cover what is reached by name:
+
+- Glance builds an `ActionCallback` by class name, and a placed widget keeps that name in its PendingIntents until redrawn: every implementation keeps its name and no-arg constructor.
+- Wire's generated protos are kept whole (small; `ProtoAdapter.get` and enum lookups reflect on them).
+- kotlinx.serialization, Hilt, OkHttp, coroutines, DataStore and Compose bring their own rules. Every stored model is read through an explicit `serializer()`, and a JSON key is a string constant in its generated serializer, so shrinking cannot rename a stored field. Checked on the first R8 build: every stored property name, sealed `@SerialName` and enum constant of `platform/data/Models.kt` and `protocol/scenes` is in the release dex, and every stored root's `$serializer` is in `mapping.txt`.
+- BouncyCastle is only reached through `ClientCertificates` (RSA self-signing via the platform JCA provider); its Picnic tables are excluded from the APK.
+
+The Compose group-mapping file is off (`includeComposeMappingFile`): it only decodes obfuscated Compose traces. Not provable offline, so to check on a phone with each first R8 release: first launch over an existing install (stored devices, prefs, dock and scenes intact), pairing a TV (certificate generation), the widget's buttons, the tile and the notification actions.
+
 ## Threat model
 
 Assets: the TV PSK, the TV pairing (client private key + TV pin), Sony OAuth tokens and session keys (opt-in), and control of the living-room devices.

@@ -57,8 +57,9 @@ android {
             signingConfig = signingConfigs.getByName("debug")
         }
         release {
-            // R8 stays off until a first signed release has run in CI; turn it on with keep rules then.
-            isMinifyEnabled = false
+            // R8 shrinks and optimises, names stay readable (docs/architecture.md, "Release build: R8").
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             signingConfig = signingConfigs.findByName("release")
         }
@@ -80,6 +81,9 @@ android {
             // BouncyCastle jars each ship this file; AGP refuses duplicates.
             excludes += "/META-INF/versions/9/OSGI-INF/MANIFEST.MF"
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
+            // BouncyCastle's Picnic (post-quantum signature) tables, 1.2 MB: only its picnic
+            // classes read them, and tutti only builds an RSA certificate (ClientCertificates).
+            excludes += "/org/bouncycastle/pqc/crypto/picnic/**"
         }
     }
 
@@ -87,6 +91,12 @@ android {
         abortOnError = true
         checkReleaseBuilds = false
     }
+}
+
+composeCompiler {
+    // The group mapping only decodes Compose stack traces in obfuscated builds, and release
+    // keeps its names (proguard-rules.pro). Its tool is not in the offline Gradle cache either.
+    includeComposeMappingFile.set(false)
 }
 
 kotlin {
