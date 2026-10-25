@@ -939,6 +939,7 @@ fun RemoteScreen(
                     }
                 }
             },
+            onScrub = { code -> sendKey(code) },
         )
     }
     actionsFor?.let { opened ->

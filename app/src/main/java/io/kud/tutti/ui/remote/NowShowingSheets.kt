@@ -3,6 +3,7 @@ package io.kud.tutti.ui.remote
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,21 +25,30 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -49,6 +59,7 @@ import io.kud.tutti.ui.common.TuttiSheet
 import io.kud.tutti.ui.common.drawDownRing
 import io.kud.tutti.ui.common.keyIcon
 import io.kud.tutti.ui.common.keyLabel
+import io.kud.tutti.ui.common.rememberHaptics
 
 /**
  * The now-showing card's header, worn by both of its sheets: the same icon and words as the card,
@@ -89,6 +100,7 @@ internal fun PlaybackSheet(
     onKey: (Int) -> Unit,
     onDismiss: () -> Unit,
     barToggles: (@Composable () -> Unit)? = null,
+    onScrub: ((Int) -> Unit)? = null,
 ) {
     TuttiSheet(onDismissRequest = onDismiss) {
         val scroll = rememberScrollState()
@@ -128,6 +140,7 @@ internal fun PlaybackSheet(
                 // The bar's Voice and Night, where the film is (benchmark item 5, from Sonos): the
                 // Son sheet's own tiles, so state is said in words and a mark, and pinnable alike.
                 barToggles?.invoke()
+                onScrub?.let { ScrubStrip(downReason, it) }
                 if (!down) {
                     Text(
                         stringResource(R.string.playback_note),
@@ -140,6 +153,104 @@ internal fun PlaybackSheet(
         }
     }
 }
+
+/**
+ * The scrub strip under the Voice and Night tiles (benchmark idea 2): a sideways drag moves back
+ * or forward, one key per [SCRUB_STEP_DP] of travel ([ScrubTrack], [scrubKey]) and one select
+ * haptic per key, so the thumb counts the steps. It names no duration and shows no target
+ * position: the app decides how far a key goes and no source tells tutti where playback is.
+ * Ticks along the bottom edge follow the finger and settle back on the lift. TalkBack hears it as
+ * one control with "Rewind" and "Fast forward" actions. Down: the dashed ring, no drag.
+ */
+@Composable
+private fun ScrubStrip(downReason: String?, onKey: (Int) -> Unit) {
+    val haptics = rememberHaptics()
+    val send by rememberUpdatedState(onKey)
+    val stepPx = with(LocalDensity.current) { SCRUB_STEP_DP.dp.toPx() }
+    val track = remember(stepPx) { ScrubTrack(stepPx) }
+    var offset by remember { mutableFloatStateOf(0f) }
+    val down = downReason != null
+    val shape = RoundedCornerShape(16.dp)
+    val ring = MaterialTheme.colorScheme.outline
+    val fill = MaterialTheme.colorScheme.surfaceContainerHigh
+    val ink = if (down) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
+    val tick = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+    val label = stringResource(R.string.scrub_label)
+    val back = keyLabel(V2Key.MEDIA_REWIND)
+    val forward = keyLabel(V2Key.MEDIA_FAST_FORWARD)
+    fun step(delta: Int) {
+        haptics.select()
+        send(scrubKey(delta))
+    }
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = 56.dp)
+            .clip(shape)
+            .then(
+                if (down) {
+                    Modifier.drawBehind { drawDownRing(shape.createOutline(size, layoutDirection, this), ring) }
+                } else {
+                    Modifier.background(fill, shape)
+                },
+            )
+            .drawBehind {
+                if (down) return@drawBehind
+                val gap = SCRUB_TICK_GAP_DP.dp.toPx()
+                val height = 6.dp.toPx()
+                val shift = ((offset % gap) + gap) % gap
+                var x = shift
+                while (x < size.width) {
+                    drawLine(tick, Offset(x, size.height - height - 4.dp.toPx()), Offset(x, size.height - 4.dp.toPx()), strokeWidth = 1.5.dp.toPx(), cap = StrokeCap.Round)
+                    x += gap
+                }
+            }
+            .then(
+                if (down) {
+                    Modifier
+                } else {
+                    Modifier.pointerInput(track) {
+                        detectHorizontalDragGestures(
+                            onDragStart = { track.reset() },
+                            onDragEnd = { offset = 0f },
+                            onDragCancel = { offset = 0f },
+                        ) { change, amount ->
+                            change.consume()
+                            offset += amount
+                            track.move(amount).forEach(::step)
+                        }
+                    }
+                },
+            )
+            .semantics(mergeDescendants = true) {
+                contentDescription = label
+                downReason?.let { stateDescription = it }
+                if (!down) {
+                    customActions = listOf(
+                        CustomAccessibilityAction(back) { step(-1); true },
+                        CustomAccessibilityAction(forward) { step(1); true },
+                    )
+                }
+            }
+            .padding(horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(painterResource(keyIcon(V2Key.MEDIA_REWIND)), contentDescription = null, tint = ink, modifier = Modifier.size(20.dp))
+        Text(
+            label,
+            style = MaterialTheme.typography.labelLarge,
+            color = ink,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
+        )
+        Icon(painterResource(keyIcon(V2Key.MEDIA_FAST_FORWARD)), contentDescription = null, tint = ink, modifier = Modifier.size(20.dp))
+    }
+}
+
+/** Spacing of the strip's ticks: closer than a step, so a step crosses a few of them. */
+private const val SCRUB_TICK_GAP_DP = 12f
 
 /**
  * One media key: a glyph (and its name when [wide]), 56 dp or more. Up: a tonal fill (the

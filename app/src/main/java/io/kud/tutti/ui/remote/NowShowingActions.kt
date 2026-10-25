@@ -60,3 +60,41 @@ fun appActions(pinnedAt: Int?, pskSet: Boolean): List<AppAction> = buildList {
     add(if (pinnedAt == null) AppAction.PIN else AppAction.UNPIN)
     if (pskSet) add(AppAction.CLOSE_APPS)
 }
+
+/**
+ * The scrub strip's key (benchmark idea 2): rewind or fast forward, the transport row's own keys,
+ * since architecture.md rules that the strip moves by them and Cast only ever shows where that
+ * lands. How far one key moves is the app's choice, so nothing on the strip names a duration.
+ */
+fun scrubKey(delta: Int): Int = if (delta > 0) V2Key.MEDIA_FAST_FORWARD else V2Key.MEDIA_REWIND
+
+/** Travel along the scrub strip for one key. */
+const val SCRUB_STEP_DP = 32f
+
+/**
+ * A drag along the scrub strip: one step (+1 forward, right; -1 back, left) each time the travel
+ * crosses another [step] px. Turning back undoes travel before it adds the other way, so a small
+ * wobble sends nothing. Pure; px in, steps out.
+ */
+class ScrubTrack(private val step: Float) {
+    private var accumulated = 0f
+
+    fun reset() {
+        accumulated = 0f
+    }
+
+    fun move(dx: Float): List<Int> {
+        if (step <= 0f) return emptyList()
+        accumulated += dx
+        val out = mutableListOf<Int>()
+        while (accumulated >= step) {
+            out += 1
+            accumulated -= step
+        }
+        while (accumulated <= -step) {
+            out += -1
+            accumulated += step
+        }
+        return out
+    }
+}
