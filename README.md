@@ -80,7 +80,7 @@ Use one keystore forever: Android only installs an update signed with the same k
 keytool -genkeypair -v -keystore release.jks -alias tutti -keyalg RSA -keysize 4096 -validity 36500
 ```
 
-Keep it (and its passwords) somewhere safe outside the repo. If a secret is missing, the release job fails: nothing is published unsigned or signed with `app/debug.keystore`, the public debug key (password `android`) committed so every debug build installs over the last. Each release also carries R8's `mapping.txt`, to read its stack traces. The release key never lives in the repo.
+Keep it (and its passwords) somewhere safe outside the repo. If a secret is missing, a final release fails: it is never published unsigned or signed with `app/debug.keystore`, the public debug key (password `android`) committed so every debug build installs over the last. Until the key exists, a `-dev` tag still ships that debug build as a pre-release, for test phones only. Each release also carries R8's `mapping.txt`, to read its stack traces. The release key never lives in the repo.
 
 ## 🏗 Tech Stack
 
