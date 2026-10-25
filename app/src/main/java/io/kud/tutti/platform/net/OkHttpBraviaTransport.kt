@@ -6,6 +6,7 @@ import io.kud.tutti.protocol.apps.IconOutcome
 import io.kud.tutti.protocol.bravia.BraviaClient
 import io.kud.tutti.protocol.bravia.BraviaTransport
 import io.kud.tutti.protocol.bravia.HttpReply
+import io.kud.tutti.protocol.bravia.IpRegistration
 import io.kud.tutti.protocol.net.CertificatePin
 import io.kud.tutti.protocol.net.CertificatePinMismatch
 import io.kud.tutti.protocol.net.LanAddress
@@ -32,6 +33,10 @@ import javax.net.ssl.SSLException
 
 /**
  * BRAVIA REST over OkHttp, LAN only.
+ *
+ * Authenticated means carrying any of [BraviaClient.CREDENTIAL_HEADERS]: the PSK, the IP-control
+ * cookie, or the code from the TV during `actRegister`. All three follow the same rules below,
+ * written for the PSK.
  *
  * HTTPS first, pinned trust-on-first-use: the first certificate seen is persisted through
  * [savePin] only after an authenticated request (one carrying the PSK) has had a 2xx answer,
@@ -92,7 +97,7 @@ class OkHttpBraviaTransport internal constructor(
     override suspend fun post(path: String, body: String, headers: Map<String, String>): HttpReply =
         withContext(Dispatchers.IO) {
             checkHost(host)
-            val authenticated = headers.keys.any { it.equals(BraviaClient.PSK_HEADER, ignoreCase = true) }
+            val authenticated = BraviaClient.carriesCredential(headers)
             if (useHttp && authenticated) return@withContext execute("http", path, body, headers)
             try {
                 execute("https", path, body, headers).also { reply ->
@@ -120,11 +125,16 @@ class OkHttpBraviaTransport internal constructor(
      * One app icon, from this TV only ([AppIcons.plan] aims every icon URL at it). HTTPS goes
      * through the same pinned client (no pin yet, no icon); HTTP only to a private address. An
      * HTTP icon on a TV that refuses port 80 but is pinned is asked again over HTTPS at the same
-     * path. No PSK goes with the first request; a 401 or 403 is asked once more with it, since
-     * it is this TV's own key going to this TV. A stale pooled connection is retried once, as
+     * path. No PSK (or [cookie], which wins when both are given) goes with the first request; a
+     * 401 or 403 is asked once more with it, since it is this TV's own key going to this TV. A stale pooled connection is retried once, as
      * for [post]. Anything that is not an image, or over [maxBytes], is refused.
      */
-    suspend fun fetchIcon(url: String, psk: String? = null, maxBytes: Int = MAX_ICON_BYTES): IconFetch = withContext(Dispatchers.IO) {
+    suspend fun fetchIcon(url: String, psk: String? = null, maxBytes: Int = MAX_ICON_BYTES, cookie: String? = null): IconFetch = withContext(Dispatchers.IO) {
+        val credential: Pair<String, String>? = when {
+            cookie != null && IpRegistration.validCookieValue(cookie) -> BraviaClient.COOKIE to IpRegistration.cookieHeader(cookie)
+            !psk.isNullOrEmpty() -> BraviaClient.PSK_HEADER to psk
+            else -> null
+        }
         fun failed(outcome: IconOutcome, detail: String? = null) = IconFetch.Failed(IconAttempt(outcome, detail))
         val parsed = url.toHttpUrlOrNull() ?: return@withContext failed(IconOutcome.MALFORMED)
         if (parsed.host.removePrefix("[").removeSuffix("]") != host.removePrefix("[").removeSuffix("]")) {
@@ -138,7 +148,7 @@ class OkHttpBraviaTransport internal constructor(
         // The key only ever rides HTTPS to the pinned TV (the hostname verifier checks the pin).
         fun get(withPsk: Boolean): IconFetch = execute(
             Request.Builder().url(target).get()
-                .apply { if (withPsk && !psk.isNullOrEmpty() && target.scheme == "https") header(BraviaClient.PSK_HEADER, psk) },
+                .apply { if (withPsk && credential != null && target.scheme == "https") header(credential.first, credential.second) },
         ) { response ->
             when {
                 !response.isSuccessful -> failed(IconOutcome.HTTP_STATUS, "${response.code}")
@@ -157,7 +167,7 @@ class OkHttpBraviaTransport internal constructor(
             get(withPsk = false).let { first ->
                 val code = ((first as? IconFetch.Failed)?.attempt?.detail)
                 when {
-                    first !is IconFetch.Failed || (code != "401" && code != "403") || psk.isNullOrEmpty() -> first
+                    first !is IconFetch.Failed || (code != "401" && code != "403") || credential == null -> first
                     target.scheme == "https" -> get(withPsk = true)
                     // Refused over HTTP: the key goes only over HTTPS, so only to a pinned TV.
                     pinned -> {
@@ -203,7 +213,7 @@ class OkHttpBraviaTransport internal constructor(
             .url("$scheme://${urlHost()}:${if (scheme == "https") httpsPort else httpPort}$path")
             .post(body.toRequestBody(contentType?.toMediaTypeOrNull()))
             .apply { headers.forEach { (name, value) -> if (!name.equals("Content-Type", true)) header(name, value) } }
-        return execute(request) { response -> HttpReply(response.code, response.body.string()) }
+        return execute(request) { response -> HttpReply(response.code, response.body.string(), response.headers("Set-Cookie")) }
     }
 
     private fun <T> execute(request: Request.Builder, read: (Response) -> T): T {

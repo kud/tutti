@@ -3,10 +3,12 @@ package io.kud.tutti.platform.net.sim
 import io.kud.tutti.platform.net.OkHttpBraviaTransport
 import io.kud.tutti.protocol.apps.IconAttempt
 import io.kud.tutti.protocol.apps.IconOutcome
+import io.kud.tutti.protocol.bravia.AuthCookie
 import io.kud.tutti.protocol.bravia.BraviaClient
 import io.kud.tutti.protocol.bravia.BraviaError
 import io.kud.tutti.protocol.bravia.BraviaResult
 import io.kud.tutti.protocol.bravia.PowerStatus
+import io.kud.tutti.protocol.bravia.Registration
 import io.kud.tutti.protocol.net.CertificatePin
 import io.kud.tutti.protocol.sim.FakeBraviaTv
 import io.kud.tutti.protocol.sim.SimKeys
@@ -177,6 +179,90 @@ class BraviaSimTest {
         client.discover().ok()
         assertEquals(BraviaError.Unsupported("getVolumeInformation"), client.volumeInformation().error())
         assertEquals(PowerStatus.ACTIVE, client.powerStatus().ok())
+    }
+
+    // Sony's "Normal" authentication: the code on the TV, then a cookie. Invented code and cookies.
+    private val clientId = "tutti:00000000-0000-4000-8000-000000000001"
+
+    private fun cookieClient(transport: OkHttpBraviaTransport, cookie: () -> String?) = BraviaClient(transport, cookie = cookie) { null }
+
+    private fun registered(result: BraviaResult<Registration>): AuthCookie =
+        ((result as? BraviaResult.Ok)?.value as? Registration.Registered)?.cookie ?: throw AssertionError("expected a registration, got $result")
+
+    @Test
+    fun `the code on the TV gets a cookie over HTTPS, which then carries every call`() = runBlocking {
+        tv.code = "4821"
+        val transport = transport()
+        val api = cookieClient(transport) { null }
+        assertEquals(BraviaResult.Ok(Registration.CodeShown), api.requestCode(clientId))
+        assertEquals(1, tv.codesShown.get())
+        assertTrue("asking for the code pins nothing", saved.isEmpty())
+        val cookie = registered(api.submitCode(clientId, "4821"))
+        assertEquals(listOf(CertificatePin.of(SimKeys.tv.certificate)), saved)
+        val withCookie = cookieClient(transport) { cookie.value }
+        assertEquals(PowerStatus.ACTIVE, withCookie.powerStatus().ok())
+        assertEquals("https", transport.scheme)
+        assertEquals(0, tv.http.accepted.get())
+    }
+
+    @Test
+    fun `a wrong code is refused and pins nothing`() = runBlocking {
+        tv.code = "4821"
+        val api = cookieClient(transport()) { null }
+        api.requestCode(clientId)
+        assertEquals(BraviaResult.Ok(Registration.Refused), api.submitCode(clientId, "1111"))
+        assertTrue(saved.isEmpty())
+    }
+
+    @Test
+    fun `a cookie renews itself, and a forgotten one asks for a new code`() = runBlocking {
+        tv.code = "4821"
+        val transport = transport()
+        val api = cookieClient(transport) { null }
+        val first = registered(api.submitCode(clientId, "4821"))
+        val second = registered(api.renew(first))
+        assertTrue(second.value != first.value)
+        tv.cookies.clear()
+        assertEquals(BraviaResult.Ok(Registration.Refused), api.renew(second))
+        assertEquals(BraviaError.Unauthorized, cookieClient(transport) { second.value }.powerStatus().error())
+    }
+
+    @Test
+    fun `on an HTTP-only TV the code goes over HTTP only after the probe, and only to the LAN`() = runBlocking {
+        tv.code = "4821"
+        tv.https.sleep()
+        val transport = transport()
+        val api = cookieClient(transport) { null }
+        // Straight to the code: a credential never falls back to HTTP on its own.
+        assertTrue((api.submitCode(clientId, "4821") as BraviaResult.Failure).error is BraviaError.Transport)
+        assertEquals(0, tv.http.credentialSeen.get())
+        assertEquals(BraviaResult.Ok(Registration.CodeShown), api.requestCode(clientId))
+        assertEquals("http", transport.scheme)
+        val cookie = registered(api.submitCode(clientId, "4821"))
+        assertEquals(PowerStatus.ACTIVE, cookieClient(transport) { cookie.value }.powerStatus().ok())
+        assertTrue(saved.isEmpty())
+    }
+
+    @Test
+    fun `a pinned TV never sees the cookie over HTTP`() = runBlocking {
+        tv.code = "4821"
+        val pinned = transport()
+        val cookie = registered(cookieClient(pinned) { null }.submitCode(clientId, "4821"))
+        tv.https.sleep()
+        val later = transport(pin = saved.single())
+        assertTrue(cookieClient(later) { cookie.value }.powerStatus().error() is BraviaError.Transport)
+        assertEquals(0, tv.http.accepted.get())
+    }
+
+    @Test
+    fun `icons ride the cookie to the pinned TV only`() = runBlocking {
+        tv.code = "4821"
+        tv.filesNeedPsk = true
+        tv.files["/DIAL/icon/a.png"] = png
+        val transport = transport()
+        val cookie = registered(cookieClient(transport) { null }.submitCode(clientId, "4821"))
+        assertTrue(transport.fetchIcon("https://$HOST:${tv.https.port}/DIAL/icon/a.png", cookie = cookie.value) is OkHttpBraviaTransport.IconFetch.Image)
+        assertEquals(0, tv.http.credentialSeen.get())
     }
 
     private val png = byteArrayOf(0x89.toByte(), 'P'.code.toByte(), 'N'.code.toByte(), 'G'.code.toByte(), 13, 10, 26, 10, 0, 0, 0, 13)

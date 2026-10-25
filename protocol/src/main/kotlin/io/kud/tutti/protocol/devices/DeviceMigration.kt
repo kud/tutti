@@ -48,6 +48,9 @@ object SecretKeys {
     fun remotePin(id: String) = "pin/$id/remote"
     fun restPin(id: String) = "pin/$id/rest"
 
+    /** The IP-control cookie of Sony's "Normal" authentication (a bearer secret), `AuthCookie.encode()`. */
+    fun ipCookie(id: String) = "ipcookie/$id"
+
     /** Version-1 key → its per-device key. */
     val legacy: Map<String, String> = mapOf(
         "tv_psk" to psk(Device.TV_ID),
@@ -64,5 +67,5 @@ object SecretKeys {
 
     /** Every key that holds [id]'s secrets, including the version-1 ones for the TV. */
     fun all(id: String): List<String> =
-        listOf(psk(id), remotePin(id), restPin(id)) + if (id == Device.TV_ID) legacy.keys else emptySet()
+        listOf(psk(id), remotePin(id), restPin(id), ipCookie(id)) + if (id == Device.TV_ID) legacy.keys else emptySet()
 }

@@ -24,7 +24,10 @@ import java.util.concurrent.CopyOnWriteArrayList
  * BRAVIA REST JSON-RPC, over HTTP and HTTPS at once (two ports, one TV). Authenticated
  * methods want `X-Auth-PSK: [psk]`; a wrong or missing one gets [authFailureStatus] with Sony's
  * error body. [sleep] closes both ports, which is also how a TV still booting looks.
- * Model, MAC and apps are invented.
+ * With [code] set, Sony's "Normal" authentication works too: `accessControl.actRegister` without
+ * credentials answers 401 and "shows" the code ([codesShown]), with `Basic base64(":" + code)` it
+ * answers 200 and a fresh `auth` cookie, and with a cookie it issued it renews it (when
+ * [renewsByCookie]). Model, MAC, apps, codes and cookies are invented.
  */
 class FakeBraviaTv(
     identity: ClientIdentity = SimKeys.tv,
@@ -33,6 +36,16 @@ class FakeBraviaTv(
     @Volatile var power: String = "active"
     @Volatile var volume: Int = 12
     @Volatile var authFailureStatus: Int = 403
+
+    /** The 4-digit code this TV "shows"; null when "Normal" authentication is off. */
+    @Volatile var code: String? = null
+
+    /** Cookies this TV has handed out and still accepts. */
+    val cookies: MutableSet<String> = ConcurrentHashMap.newKeySet()
+
+    @Volatile var renewsByCookie: Boolean = true
+    val codesShown = java.util.concurrent.atomic.AtomicInteger(0)
+    private val issued = java.util.concurrent.atomic.AtomicInteger(0)
 
     /** Files served to a GET, by path, as the TV's `/DIAL/icon/…` app icons are. Anything else is 404. */
     val files: MutableMap<String, ByteArray> = ConcurrentHashMap()
@@ -89,13 +102,22 @@ class FakeBraviaTv(
         /** Requests that carried the PSK header on this port, for "never in clear" checks. */
         val pskSeen = java.util.concurrent.atomic.AtomicInteger(0)
 
+        /** Requests that carried a cookie or an Authorization header on this port. */
+        val credentialSeen = java.util.concurrent.atomic.AtomicInteger(0)
+
         override fun serve(link: Link) {
             while (true) {
                 val request = readRequest(link.input) ?: return
                 if (request.headers.containsKey("x-auth-psk")) pskSeen.incrementAndGet()
+                if (request.headers.containsKey("cookie") || request.headers.containsKey("authorization")) credentialSeen.incrementAndGet()
                 if (!link.received()) continue
-                val (status, bytes, type) = if (request.method == "GET") file(request) else answer(request).let { Triple(it.first, it.second.encodeToByteArray(), "application/json") }
+                var setCookie: String? = null
+                val (status, bytes, type) = if (request.method == "GET") file(request) else answer(request).let { (status, body, cookie) ->
+                    setCookie = cookie
+                    Triple(status, body.encodeToByteArray(), "application/json")
+                }
                 val head = "HTTP/1.1 $status ${if (status == 200) "OK" else "Error"}\r\n" +
+                    (setCookie?.let { "Set-Cookie: $it\r\n" } ?: "") +
                     "Content-Type: $type\r\nContent-Length: ${bytes.size}\r\n\r\n"
                 link.write(head.encodeToByteArray() + bytes)
             }
@@ -128,12 +150,45 @@ class FakeBraviaTv(
 
     private fun file(request: Request): Triple<Int, ByteArray, String> {
         gets += request.path
-        if (filesNeedPsk && request.headers["x-auth-psk"] != psk) return Triple(authFailureStatus, ByteArray(0), "text/plain")
+        if (filesNeedPsk && !authorised(request)) return Triple(authFailureStatus, ByteArray(0), "text/plain")
         val bytes = files[request.path] ?: return Triple(404, "<html>Not Found</html>".encodeToByteArray(), "text/html")
         return Triple(200, bytes, "image/png")
     }
 
-    private fun answer(request: Request): Pair<Int, String> {
+    private fun authorised(request: Request): Boolean {
+        if (request.headers["x-auth-psk"] == psk) return true
+        val cookie = request.headers["cookie"]?.split(';')?.map { it.trim() }?.firstOrNull { it.startsWith("auth=") }?.removePrefix("auth=")
+        return cookie != null && cookie in cookies
+    }
+
+    private fun issue(): String = "auth=" + "simcookie${issued.incrementAndGet()}".also { cookies += it } + "; Path=/sony/; Max-Age=1209600"
+
+    /** `actRegister`: 401 and the code on screen, or the cookie for the right code or a cookie it knows. */
+    private fun register(request: Request, id: Int): Triple<Int, String, String?> {
+        val expected = code ?: return Triple(200, "{\"error\":[403,\"Forbidden\"],\"id\":$id}", null)
+        val ok = "{\"result\":[],\"id\":$id}"
+        val basic = request.headers["authorization"]
+        if (basic != null) {
+            val sent = runCatching { java.util.Base64.getDecoder().decode(basic.removePrefix("Basic ")).decodeToString() }.getOrNull()
+            return if (sent == ":$expected") Triple(200, ok, issue()) else Triple(401, "", null)
+        }
+        if (request.headers.containsKey("cookie")) {
+            return if (renewsByCookie && authorised(request)) Triple(200, ok, issue()) else Triple(401, "", null)
+        }
+        codesShown.incrementAndGet()
+        return Triple(401, "", null)
+    }
+
+    private fun answer(request: Request): Triple<Int, String, String?> {
+        val rpc = Json.parseToJsonElement(request.body) as JsonObject
+        if (rpc["method"]?.jsonPrimitive?.content == "actRegister") {
+            calls += "actRegister"
+            return register(request, rpc["id"]?.jsonPrimitive?.intOrNull ?: 0)
+        }
+        return answerRpc(request).let { Triple(it.first, it.second, null) }
+    }
+
+    private fun answerRpc(request: Request): Pair<Int, String> {
         val rpc = Json.parseToJsonElement(request.body) as JsonObject
         val method = rpc["method"]!!.jsonPrimitive.content
         val id = rpc["id"]?.jsonPrimitive?.intOrNull ?: 0
@@ -151,7 +206,7 @@ class FakeBraviaTv(
         }.toString()
         val service = request.path.removePrefix("/sony/")
         if (method == "getSupportedApiInfo") return ok(supportedApis())
-        if (request.headers["x-auth-psk"] != psk) return error(authFailureStatus, "Forbidden", status = authFailureStatus)
+        if (!authorised(request)) return error(authFailureStatus, "Forbidden", status = authFailureStatus)
         if (method in missing) return error(12, "No Such Method")
         val params = (rpc["params"] as? JsonArray)?.firstOrNull() as? JsonObject
         return when (service to method) {
