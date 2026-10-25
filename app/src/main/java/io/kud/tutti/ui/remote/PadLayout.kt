@@ -37,20 +37,27 @@ internal data class CardFit(val size: CardSize, val height: Float)
 
 internal enum class CardSize { FULL, LINE, HIDDEN }
 
-internal fun placePad(available: Float, padWidth: Float, size: PadSize): PadPlacement {
+internal fun placePad(available: Float, padWidth: Float, size: PadSize, fontScale: Float = 1f): PadPlacement {
     val room = max(0f, available - PAD_MIN_ABOVE - PAD_BELOW)
     val height = min(room, padWidth * padRatio(size))
     val below = min(PAD_BELOW, max(0f, available - height))
     val cardRoom = max(0f, available - height - below)
-    return PadPlacement(cardRoom = cardRoom, card = cardFor(cardRoom), height = height, below = below)
+    return PadPlacement(cardRoom = cardRoom, card = cardFor(cardRoom, fontScale), height = height, below = below)
 }
 
-/** Full when [room] holds [CARD_FULL] and its margins, growing to [CARD_MAX]; else a line; else nothing. */
-internal fun cardFor(room: Float): CardFit {
+/**
+ * Full when [room] holds [CARD_FULL] and its margins, growing to [CARD_MAX]; else a line; else nothing.
+ * Large text needs taller cards ([cardGrowth]): rather than clip its words, the card steps down to
+ * the line or hides, and the pad keeps its size.
+ */
+internal fun cardFor(room: Float, fontScale: Float = 1f): CardFit {
     val inner = room - 2 * CARD_MARGIN
+    val grow = cardGrowth(fontScale)
+    val full = CARD_FULL + 2 * grow
+    val line = CARD_LINE + grow
     return when {
-        inner >= CARD_FULL -> CardFit(CardSize.FULL, min(inner, CARD_MAX))
-        inner >= CARD_LINE -> CardFit(CardSize.LINE, CARD_LINE)
+        inner >= full -> CardFit(CardSize.FULL, min(inner, max(CARD_MAX, full)))
+        inner >= line -> CardFit(CardSize.LINE, line)
         else -> CardFit(CardSize.HIDDEN, 0f)
     }
 }
@@ -73,6 +80,12 @@ internal const val CARD_FULL = 104f
 internal const val CARD_MAX = 140f
 internal const val CARD_LINE = 56f
 internal const val CARD_MARGIN = 12f
+
+/** What one line of the card's text gains over its 1x height at [fontScale] (capped at 200%), in dp. */
+internal fun cardGrowth(fontScale: Float): Float = (fontScale.coerceIn(1f, 2f) - 1f) * CARD_TEXT_LINE
+
+/** One line of the card's largest text at 1x, in dp. */
+internal const val CARD_TEXT_LINE = 28f
 
 /**
  * Which hand holds the phone decides the pad's side (Erwann, 2026-10-24: right by default). The

@@ -319,7 +319,7 @@ fun RemoteScreen(
                         .padding(horizontal = if (large) 8.dp else 16.dp),
                 ) {
                     BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
-                        val place = placePad(maxHeight.value, (maxWidth - railGap - RAIL_WIDTH).value, layout.padSize)
+                        val place = placePad(maxHeight.value, (maxWidth - railGap - RAIL_WIDTH).value, layout.padSize, LocalDensity.current.fontScale)
                         val shown = showing?.takeIf { place.card.size != CardSize.HIDDEN }
                         SideEffect { cardShown = shown != null }
                         // The card centres in the room above the pad (Erwann, 2026-10-24: the band

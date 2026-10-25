@@ -83,6 +83,17 @@ class PadLayoutTest {
     }
 
     @Test
+    fun `large text steps the card down instead of clipping it`() {
+        val room = CARD_FULL + 2 * CARD_MARGIN
+        assertEquals(CardSize.FULL, cardFor(room, fontScale = 1f).size)
+        assertEquals(CardSize.LINE, cardFor(room, fontScale = 2f).size)
+        assertEquals(CARD_LINE + CARD_TEXT_LINE, cardFor(room, fontScale = 2f).height, 0.01f)
+        assertEquals(CardSize.HIDDEN, cardFor(CARD_LINE + 2 * CARD_MARGIN, fontScale = 2f).size)
+        assertEquals(0f, cardGrowth(0.85f), 0.01f)
+        assertEquals(CARD_TEXT_LINE, cardGrowth(3f), 0.01f)
+    }
+
+    @Test
     fun `the pad's middle sits in the lower half on a tall phone`() {
         val (place, _, _) = phone(412f, 915f)
         // From the screen's top: the status bar, header and pills, then the card room.

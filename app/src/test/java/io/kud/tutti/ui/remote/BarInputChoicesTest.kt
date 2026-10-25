@@ -34,5 +34,10 @@ class BarInputChoicesTest {
     fun `five inputs fit, a sixth scrolls`() {
         assertEquals(false, barInputScrolls(barInputChoices(null).size))
         assertEquals(true, barInputScrolls(barInputChoices("chromecast").size))
+        // Large text fits fewer segments before the row scrolls rather than cutting their names.
+        assertEquals(false, barInputScrolls(5, fontScale = 1f))
+        assertEquals(true, barInputScrolls(5, fontScale = 1.3f))
+        assertEquals(true, barInputScrolls(3, fontScale = 2f))
+        assertEquals(false, barInputScrolls(2, fontScale = 2f))
     }
 }

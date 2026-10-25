@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.padding
@@ -381,8 +382,9 @@ private fun Tile(
     icon: @Composable (Color) -> Unit,
 ) {
     Column(
+        // At least 64 dp, taller when large text needs it: the label is never clipped mid-line.
         modifier = outer
-            .height(64.dp)
+            .heightIn(min = 64.dp)
             .pressScale(press.state)
             .clip(shape)
             .background(background, shape)

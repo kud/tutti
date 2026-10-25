@@ -43,6 +43,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -93,7 +94,7 @@ fun barInputIcon(value: String): Int = when (value) {
 fun barInputSegmentLabel(value: String, full: String): String = if (value == "airplay2") "AirPlay" else full
 
 /** Five inputs share the row's width; more scroll sideways at a fixed width, never wrapping. */
-fun barInputScrolls(count: Int): Boolean = count > MAX_FITTED_INPUTS
+fun barInputScrolls(count: Int, fontScale: Float = 1f): Boolean = count > (MAX_FITTED_INPUTS / fontScale.coerceAtLeast(1f)).toInt()
 
 private const val MAX_FITTED_INPUTS = 5
 
@@ -135,7 +136,7 @@ fun BarInputRow(state: TuttiUiState, controller: TuttiController, modifier: Modi
         SectionLabel(title, onHelp = onHelp) {
             Spacer(Modifier.width(12.dp))
             if (failed && reason == null) {
-                Icon(painterResource(R.drawable.ic_close), contentDescription = null, modifier = Modifier.size(14.dp))
+                Icon(painterResource(R.drawable.ic_warning), contentDescription = null, modifier = Modifier.size(14.dp))
                 Spacer(Modifier.width(4.dp))
             }
             Text(
@@ -152,7 +153,7 @@ fun BarInputRow(state: TuttiUiState, controller: TuttiController, modifier: Modi
             )
         }
         val choices = barInputChoices(current)
-        val scrolls = barInputScrolls(choices.size)
+        val scrolls = barInputScrolls(choices.size, LocalDensity.current.fontScale)
         val outline = MaterialTheme.colorScheme.outline
         Row(
             Modifier
