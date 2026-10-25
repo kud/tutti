@@ -80,8 +80,16 @@ class AndroidTlsConnector internal constructor(
         expectedPin: CertificatePin?,
     ): TlsConnection = closingIfCancelled { opened -> withContext(Dispatchers.IO) {
         checkHost(host)
-        val context = SSLContext.getInstance("TLS")
-        context.init(arrayOf(IdentityKeyManager(identity)), arrayOf(PinningTrustManager(expectedPin)), SecureRandom())
+        // A pinned device reuses its context, so its session cache lets the TV resume the TLS
+        // session on reconnect rather than redo the full RSA handshake. Keyed by the pin and our
+        // identity: a new pin or a new identity never resumes an old session. First use (no pin
+        // yet) always gets a fresh one.
+        val key = expectedPin?.let { TlsContexts.Key(host, port, it, CertificatePin.of(identity.certificate)) }
+        val context = contexts.get(key) {
+            SSLContext.getInstance("TLS").apply {
+                init(arrayOf(IdentityKeyManager(identity)), arrayOf(PinningTrustManager(expectedPin)), SecureRandom())
+            }
+        }
         val raw = Socket()
         try {
             raw.connect(InetSocketAddress(host, port), CONNECT_TIMEOUT_MS)
@@ -100,6 +108,30 @@ class AndroidTlsConnector internal constructor(
     private companion object {
         const val CONNECT_TIMEOUT_MS = 4_000
         const val TV_READ_TIMEOUT_MS = 20_000
+
+        /** Process-wide: every connector instance shares the sessions it could resume. */
+        val contexts = TlsContexts<SSLContext>()
+    }
+}
+
+/**
+ * The few TLS contexts worth keeping, one per pinned device and identity, at most [MAX]. A null key
+ * (first use, nothing pinned yet) is never cached.
+ */
+internal class TlsContexts<C : Any> {
+    data class Key(val host: String, val port: Int, val pin: CertificatePin, val identity: CertificatePin)
+
+    private val entries = object : LinkedHashMap<Key, C>(MAX, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Key, C>?): Boolean = size > MAX
+    }
+
+    fun get(key: Key?, create: () -> C): C {
+        if (key == null) return create()
+        return synchronized(entries) { entries.getOrPut(key, create) }
+    }
+
+    private companion object {
+        const val MAX = 6
     }
 }
 
