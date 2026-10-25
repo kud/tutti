@@ -1,5 +1,7 @@
 # Design direction (Iris)
 
+Scope: tutti is the living room's remote for the BRAVIA, the Theatre Bar and the Mac when it is shown on the TV (Erwann, 2026-10-25). Not a general-purpose Bluetooth keyboard or trackpad (« L'idée de tutti est d'être une remote control pour TV et Mac sur TV, pas un trackpad générique. »): two Bluetooth targets, the TV and the Mac, and no trackpad feature beyond what controlling the Mac on the TV needs.
+
 The app replaces BRAVIA Connect day to day, with a Google TV–grade remote at its heart. Setup and room calibration stay in BRAVIA Connect.
 
 ## Principle: calm on top, deep underneath, and always say what unlocks more
@@ -159,7 +161,16 @@ The rail drives the soundbar, `main.volumestep` on its own 0–100 scale (`Theat
 
 ## Bluetooth keyboard and mouse (Iris and Maya, 2026-10-25)
 
-A screen of its own (Settings › Bluetooth), not a variant of the pad: it is a different link with different rules (no LAN, a cursor instead of focus), and folding it into the pad would blur which link a gesture uses (Iris). Iris will add an entry to the remote's ⋮ menu with her top-bar work. Mechanics and pairing: architecture.md § 6.
+**Direction changed (Erwann, 2026-10-25: « tutti affiche la même interface, qu'importe si c'est Bluetooth ou Google TV »).** The separate screen described below is the first build and is being folded into the remote: one interface, the link an implementation detail. Settings › Bluetooth keeps only setup (pairing, which TV input is the Mac's). Rules for the folded remote, agreed with Iris:
+
+- **Routing.** For the TV each control goes over the LAN when it is up and over Bluetooth when it isn't, by itself (`HidRoute.link`, `HidRoute.action`); a control Bluetooth can't reach (power, inputs, settings, colour keys) wears the down dress with its reason in words. At most a small quiet indicator says which link is in use, glyph and word, never colour alone.
+- **Target: TV or Mac.** A two-segment switch (TV glyph, laptop glyph, each with its label; the chosen one wears a tick, not colour alone; TalkBack reads two tabs, selected stated). The status line under it names the chosen target ("Connected to Mac"). Exactly two targets, never a device list.
+- **The Mac from the card (Iris).** When the TV's input is the HDMI marked as the Mac's, the now-showing card's tap itself becomes « Contrôler le Mac » (TalkBack action label to match, chevron kept) and switches the remote's target to the Mac, instead of opening playback: media keys to a Mac over CEC are guesswork. No third gesture, nothing in the ⋮ menu.
+- **Trackpad (Iris).** A scroll strip 48 dp wide, a separate area beside the pad (not inside it, so a drag reaching the edge never scrolls), with a visible track and a ↕ glyph; under the pad three equal buttons, Left, Middle, Right, each at least 48 dp tall with its name in words. Two-finger scroll on the pad stays. Same on the TV and the Mac.
+- **Gyro pointer.** A third pad mode, offered only when it can work (`HidRoute.gyroPossible`: Bluetooth up to the target, a gyroscope on the phone). If the link drops while in it, the pad goes back to the previous mode with a short message. The last mode is remembered per target.
+- **Typing** is the phone's own keyboard; tutti translates characters to key positions for the target's layout (Apple French AZERTY by default for the Mac). No shortcut or modifier row; Mac volume stays the bar's.
+
+The first build, kept until the fold lands: a screen of its own (Settings › Bluetooth), not a variant of the pad: it is a different link with different rules (no LAN, a cursor instead of focus), and folding it into the pad would blur which link a gesture uses (Iris). Iris will add an entry to the remote's ⋮ menu with her top-bar work. Mechanics and pairing: architecture.md § 6.
 
 - **Status line.** Bluetooth glyph and one line per state, each with its way forward: "Connected to BRAVIA 8"; "Paired with …, not connected" with Reconnect; "Not paired" with Make visible and the TV's steps; "Another app is using the phone as a Bluetooth keyboard" with Try again; permission and Bluetooth off with Allow and Turn on. While not connected the surfaces stay on screen in the down dress (no fill, dashed outline) and send nothing.
 - **Three segments**, outlined, icon and label, the chosen one ticked: Touchpad · Pointer · Keyboard, read as tabs, remembered between visits.
