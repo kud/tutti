@@ -86,6 +86,7 @@
     <string name="card_wake_tv_short">Turn on</string>
     <string name="system_tv_standby">%1$s on standby</string>
     <string name="key_tv_standby">Not sent: the TV is on standby</string>
+    <string name="key_waking_tv">Waking the TV…</string>
     <string name="power_long_label">Choose the TV, the soundbar or both</string>
     <string name="power_sheet_title">Turn on or off</string>
     <string name="power_sheet_tv">TV only</string>

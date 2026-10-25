@@ -79,6 +79,7 @@ import io.kud.tutti.platform.data.DockSlot
 import io.kud.tutti.protocol.apps.KnownApp
 import io.kud.tutti.platform.data.PadSize
 import io.kud.tutti.platform.data.SecondaryButton
+import io.kud.tutti.controller.TvLinkRule
 import io.kud.tutti.protocol.atv.V2Key
 import io.kud.tutti.ui.common.LocalReducedMotion
 import io.kud.tutti.ui.common.TonalRoundButton
@@ -260,10 +261,19 @@ fun RemoteScreen(
     }
     LaunchedEffect(input.open, routed) { if (input.open && routed) target.textReset() }
 
+    // Home and Play/Pause wake a TV known asleep, then go (TvLinkRule.wakesTv); the rest keep standby's refusal.
+    val wakingWords = stringResource(R.string.key_waking_tv)
+    fun wakesTv(code: Int): Boolean = TvLinkRule.wakesTv(code, long = false, tvPowered = tvPowered(state), barAlone = alone != null)
+
     /** One key, wherever it belongs. A key that goes nowhere bumps and says why; glyphs never change. */
     fun sendKey(code: Int): Boolean {
         if (!routed) {
-            controller.key(code)
+            if (wakesTv(code)) {
+                messages?.show(wakingWords)
+                controller.wakeThenKey(code)
+            } else {
+                controller.key(code)
+            }
             return true
         }
         val why = when (target.key(code).availability) {
@@ -312,8 +322,9 @@ fun RemoteScreen(
     }
     val standbyWords = stringResource(R.string.key_tv_standby)
     val wakeWords = stringResource(R.string.card_wake_tv_short)
-    fun tvAsleepAlone(): Boolean {
+    fun tvAsleepAlone(code: Int? = null): Boolean {
         if (alone?.tvAsleep != true) return false
+        if (code != null && wakesTv(code)) return false
         haptics.reject()
         if (messages?.current?.text != standbyWords) {
             messages?.show(standbyWords, actionLabel = wakeWords, onAction = { controller.power(PowerTarget.TV, on = true) })
@@ -608,9 +619,9 @@ fun RemoteScreen(
                                 down = if (routed) targets.link == RemoteLink.NONE else padLink.down,
                                 downReason = if (routed) linkDown else padReason,
                                 mode = if (routed) PadMode.DPAD else state.prefs.padMode,
-                                onKey = { if (routed || !tvAsleepAlone()) sendKey(it) },
+                                onKey = { if (routed || !tvAsleepAlone(it)) sendKey(it) },
                                 onSelectHold = { down -> if (!down || routed || !tvAsleepAlone()) holdSelect(down) },
-                                onPlayPause = { if (routed || !tvAsleepAlone()) sendKey(V2Key.MEDIA_PLAY_PAUSE) },
+                                onPlayPause = { if (routed || !tvAsleepAlone(V2Key.MEDIA_PLAY_PAUSE)) sendKey(V2Key.MEDIA_PLAY_PAUSE) },
                                 onVolumeStep = controller::volumeStep,
                                 onSkip = { if (routed || !tvAsleepAlone()) sendKey(skipKey(it)) },
                                 onModeChange = if (routed) {

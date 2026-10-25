@@ -82,6 +82,7 @@
     <string name="card_wake_tv_short">Allumer</string>
     <string name="system_tv_standby">%1$s en veille</string>
     <string name="key_tv_standby">Non envoyé : la TV est en veille</string>
+    <string name="key_waking_tv">Réveil de la TV…</string>
     <string name="power_long_label">Choisir la TV, la barre ou les deux</string>
     <string name="power_sheet_title">Allumer ou éteindre</string>
     <string name="power_sheet_tv">La TV seule</string>

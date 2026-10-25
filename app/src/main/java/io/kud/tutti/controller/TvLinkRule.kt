@@ -71,6 +71,27 @@ object TvLinkRule {
     )
 
     /**
+     * Implicit wake (Erwann, 2026-10-25, delegated to Maya): Home and Play/Pause pressed while the
+     * TV is known asleep wake it, then go once it is on, the way any physical remote wakes the
+     * screen. Only these two, because they mean "I want the TV": Home is where the TV starts, and
+     * Play/Pause on a sleeping TV can only mean "carry on watching". Arrows, OK, Back, digits and
+     * the rest mean something only on a screen already showing, so they keep their standby refusal.
+     */
+    val WAKES: Set<Int> = setOf(V2Key.HOME, V2Key.MEDIA_PLAY_PAUSE)
+
+    /**
+     * Whether [keyCode] wakes the TV before it is sent. [tvPowered] false only: a TV merely out of
+     * reach (null) is a fault, not standby, and waking it blind would hide that. With the bar
+     * playing its own source ([barAlone]), Play/Pause is about that music, so it never wakes the
+     * TV there (waking it can pull the bar back to the TV's input over HDMI-CEC); Home still does.
+     */
+    fun wakesTv(keyCode: Int, long: Boolean, tvPowered: Boolean?, barAlone: Boolean): Boolean = when {
+        long || tvPowered != false || keyCode !in WAKES -> false
+        barAlone -> keyCode == V2Key.HOME
+        else -> true
+    }
+
+    /**
      * [downForMs]: time since a link that was up this session went down; null when it never was
      * (or is up). ABSENT and NEEDS_PAIRING always show as they are.
      */

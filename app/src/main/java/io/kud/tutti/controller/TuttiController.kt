@@ -885,6 +885,31 @@ class TuttiController @Inject constructor(
         scope.launch { sendTvKey(keyCode, long = false) }
     }
 
+    /**
+     * Implicit wake ([TvLinkRule.wakesTv]): wakes the TV through [power]'s own path (remote power
+     * key, REST, Wake-on-LAN), then sends [keyCode] once the TV says it is on, within
+     * [WAKE_KEY_MS]. Newest wins with the other held keys. A wake that fails says so itself
+     * ([TuttiEvent.WakeFailed]); a TV that answered but never said it was on drops the key, said.
+     */
+    fun wakeThenKey(keyCode: Int) {
+        val mine = heldKey.incrementAndGet()
+        power(PowerTarget.TV, on = true)
+        scope.launch {
+            val on = withTimeoutOrNull(WAKE_KEY_MS) {
+                // On by the remote link's word, else REST's; the key itself waits out the link (sendTvKey).
+                combine(atv.state, tv) { remote, rest -> (remote.powered ?: (rest.power == PowerStatus.ACTIVE)) == true }.first { it }
+            } != null
+            if (mine != heldKey.get()) return@launch
+            if (!on) {
+                if (atv.state.value.ready) mutableEvents.tryEmit(TuttiEvent.KeyNotSent(KeyOutcome.EXPIRED))
+                return@launch
+            }
+            // The screen is still coming up: a Home sent in the same instant can be lost.
+            delay(WAKE_KEY_SETTLE_MS)
+            if (mine == heldKey.get()) sendTvKey(keyCode, long = false)
+        }
+    }
+
     /** The TV's foreground app and the one before it, from the remote v2's reports. */
     private val appHistory = MutableStateFlow(AppHistory())
 
@@ -2441,6 +2466,10 @@ class TuttiController @Inject constructor(
         private const val POWER_KNOWN_MS = 2_000L
         private const val VOLUME_SEND_INTERVAL_MS = 60L
         private const val WAKE_SETTLE_MS = 1_500L
+
+        /** The wake's own timeout and the TV's power report after it: past this a woken key is dropped. */
+        private const val WAKE_KEY_MS = WAKE_TIMEOUT_MS + POWER_KNOWN_MS
+        private const val WAKE_KEY_SETTLE_MS = 500L
         private const val MAX_MACRO_WAIT_MS = 30_000L
         private const val SECRET_ACK_TIMEOUT_MS = 12_000L
     }

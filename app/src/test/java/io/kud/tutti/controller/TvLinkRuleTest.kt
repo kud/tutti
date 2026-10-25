@@ -81,4 +81,27 @@ class TvLinkRuleTest {
         assertEquals(KeyOutcome.DROPPED_DOWN, TvLinkRule.launchWhileDown(Link.ABSENT, TvShown(Link.ABSENT)))
         assertEquals(KeyOutcome.DROPPED_PAIRING, TvLinkRule.launchWhileDown(Link.NEEDS_PAIRING, TvShown(Link.NEEDS_PAIRING)))
     }
+
+    @Test
+    fun `home and play pause wake a tv known asleep, and nothing else does`() {
+        assertEquals(true, TvLinkRule.wakesTv(V2Key.HOME, long = false, tvPowered = false, barAlone = false))
+        assertEquals(true, TvLinkRule.wakesTv(V2Key.MEDIA_PLAY_PAUSE, long = false, tvPowered = false, barAlone = false))
+        for (key in listOf(V2Key.BACK, V2Key.DPAD_CENTER, V2Key.DPAD_UP, V2Key.MEDIA_PLAY, V2Key.GUIDE, V2Key.SETTINGS)) {
+            assertEquals(false, TvLinkRule.wakesTv(key, long = false, tvPowered = false, barAlone = false))
+        }
+        assertEquals(false, TvLinkRule.wakesTv(V2Key.HOME, long = true, tvPowered = false, barAlone = false))
+    }
+
+    @Test
+    fun `a tv that is on or only out of reach is never woken by a key`() {
+        assertEquals(false, TvLinkRule.wakesTv(V2Key.HOME, long = false, tvPowered = true, barAlone = false))
+        assertEquals(false, TvLinkRule.wakesTv(V2Key.HOME, long = false, tvPowered = null, barAlone = false))
+        assertEquals(false, TvLinkRule.wakesTv(V2Key.MEDIA_PLAY_PAUSE, long = false, tvPowered = null, barAlone = true))
+    }
+
+    @Test
+    fun `with the bar playing its own music only home wakes the tv`() {
+        assertEquals(true, TvLinkRule.wakesTv(V2Key.HOME, long = false, tvPowered = false, barAlone = true))
+        assertEquals(false, TvLinkRule.wakesTv(V2Key.MEDIA_PLAY_PAUSE, long = false, tvPowered = false, barAlone = true))
+    }
 }
