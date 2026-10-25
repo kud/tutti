@@ -12,6 +12,7 @@ class FeedbackRulesTest {
     fun `every event has its one haptic`() {
         val table = mapOf(
             FeedbackEvent.KEY to HapticPattern.CLICK,
+            FeedbackEvent.KEY_UP to HapticPattern.RELEASE,
             FeedbackEvent.STEP to HapticPattern.TICK,
             FeedbackEvent.SELECT to HapticPattern.SELECT,
             FeedbackEvent.LONG_PRESS to HapticPattern.LONG_PRESS,
@@ -27,10 +28,10 @@ class FeedbackRulesTest {
     }
 
     @Test
-    fun `essentials drops only the key click and the step tick`() {
+    fun `essentials drops only the key click, its release and the step tick`() {
         for (event in FeedbackEvent.entries) {
             val plan = FeedbackRules.plan(event, VibrationLevel.ESSENTIALS, keySounds = false)
-            if (event == FeedbackEvent.KEY || event == FeedbackEvent.STEP) {
+            if (event == FeedbackEvent.KEY || event == FeedbackEvent.KEY_UP || event == FeedbackEvent.STEP) {
                 assertNull(event.name, plan.haptic)
             } else {
                 assertEquals(event.name, FeedbackRules.haptic(event), plan.haptic)

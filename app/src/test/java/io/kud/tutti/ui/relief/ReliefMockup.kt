@@ -19,76 +19,139 @@ import kotlin.math.sin
  * by a tiny software rasteriser (unit tests compile against android.jar, which has no java.awt),
  * so it is NOT a screenshot of the app. Runs only when RELIEF_MOCKUP_DIR is set:
  * `RELIEF_MOCKUP_DIR=/tmp/x ./gradlew :app:testDebugUnitTest --tests '*ReliefMockup*'`.
+ * Two strips, dark theme then light; in each, rest, two tilts and a held press.
  */
 class ReliefMockup {
 
     private val scale = 4f // px per dp
-    private val background = 0x141318
-    private val keyColour = 0x4A4458
-    private val onColour = 0xD0BCFF
-    private val discColour = 0x36343B
-    private val okColour = 0x4A4458
-    private val ink = 0xE6E1E5
+    private class Theme(val name: String, val background: Int, val key: Int, val on: Int, val disc: Int, val ok: Int, val ink: Int)
+    private val themes = listOf(
+        Theme("DARK THEME", 0x141218, 0x4A4458, 0xD0BCFF, 0x36343B, 0x4A4458, 0xE6E1E5),
+        Theme("LIGHT THEME", 0xFEF7FF, 0xE8DEF8, 0x6750A4, 0xE6E0E9, 0xE8DEF8, 0x1D1B20),
+    )
 
     @Test
     fun render() {
         val dir = System.getenv("RELIEF_MOCKUP_DIR")
         assumeTrue(dir != null)
         val poses = listOf(
-            "REST" to pose(0f, 0f, 0f),
-            "TILT LEFT" to pose(0f, 1f, 0f, -20f),
-            "TILT TOWARD YOU" to pose(1f, 0f, 0f, 20f),
+            Triple("REST", pose(0f, 0f, 0f), 0f),
+            Triple("TILT LEFT", pose(0f, 1f, 0f, -20f), 0f),
+            Triple("TILT TOWARD YOU", pose(1f, 0f, 0f, 20f), 0f),
+            Triple("PRESSED", pose(0f, 0f, 0f), 1f),
         )
         val panelW = (200 * scale).toInt()
         val panelH = (300 * scale).toInt()
-        val raster = Raster(panelW * poses.size, panelH + 80, background)
-        poses.forEachIndexed { index, (label, quat) ->
-            val tracker = HeadTracker()
-            tracker.update(floatArrayOf(0f, 0f, 0f, 1f), 0L)
-            tracker.update(quat, 1_000_000L)
-            val ox = index * panelW.toFloat()
-            // Three round keys, the middle one on, like the row under the pad.
-            for (k in 0..2) slab(raster, tracker, ox + (16 + k * 62) * scale, 16 * scale, 52f, 52f, if (k == 1) 16f else 26f, 3f, if (k == 1) onColour else keyColour)
-            // Two dock tiles, the second on.
-            slab(raster, tracker, ox + 16 * scale, 90 * scale, 80f, 64f, 20f, 2.5f, keyColour)
-            slab(raster, tracker, ox + 104 * scale, 90 * scale, 80f, 64f, 14f, 2.5f, onColour)
-            // The D-pad disc and OK (the hole's walls are left out of the mock-up).
-            slab(raster, tracker, ox + 30 * scale, 168 * scale, 120f, 120f, 60f, 3f, discColour)
-            slab(raster, tracker, ox + 60 * scale, 198 * scale, 60f, 60f, 30f, 4f, okColour)
-            raster.text(label, ox.toInt() + 16, panelH + 8, 4, ink)
+        val stripH = panelH + 80
+        val raster = Raster(panelW * poses.size, stripH * themes.size + 80, 0x000000)
+        themes.forEachIndexed { row, theme ->
+            val oy = row * stripH.toFloat()
+            raster.rect(0, oy.toInt(), raster.width, stripH, theme.background)
+            poses.forEachIndexed { index, (label, quat, press) ->
+                val tracker = HeadTracker()
+                tracker.update(floatArrayOf(0f, 0f, 0f, 1f), 0L)
+                tracker.update(quat, 1_000_000L)
+                val ox = index * panelW.toFloat()
+                // Three round keys, the middle one on and, in the last panel, held down.
+                for (k in 0..2) {
+                    slab(raster, tracker, ox + (16 + k * 62) * scale, oy + 16 * scale, 52f, 52f, if (k == 1) 16f else 26f, 9f, if (k == 1) theme.on else theme.key, if (k == 1) press else 0f)
+                }
+                // Two dock tiles, the second on.
+                slab(raster, tracker, ox + 16 * scale, oy + 92 * scale, 80f, 64f, 20f, 7f, theme.key, 0f)
+                slab(raster, tracker, ox + 104 * scale, oy + 92 * scale, 80f, 64f, 14f, 7f, theme.on, 0f)
+                // The D-pad disc and OK (the hole's walls are left out of the mock-up).
+                slab(raster, tracker, ox + 30 * scale, oy + 170 * scale, 120f, 120f, 60f, 8f, theme.disc, 0f)
+                slab(raster, tracker, ox + 60 * scale, oy + 200 * scale, 60f, 60f, 30f, 10f, theme.ok, press)
+                raster.text(label, ox.toInt() + 16, (oy + panelH + 8).toInt(), 4, theme.ink)
+            }
+            raster.text(theme.name, 16, (oy + panelH + 44).toInt(), 4, theme.ink)
         }
-        raster.text("GEOMETRY MOCK-UP - NOT THE APP", 16, panelH + 48, 4, 0xFFCF5C)
+        raster.text("GEOMETRY MOCK-UP - NOT THE APP", 16, stripH * themes.size + 24, 5, 0xFFCF5C)
         File(dir!!).mkdirs()
-        File(dir, "relief-geometry-mockup.png").writeBytes(raster.png())
+        File(dir, "relief-geometry-mockup-v2.png").writeBytes(raster.png())
     }
 
-    private fun slab(r: Raster, eye: HeadTracker, x: Float, y: Float, wDp: Float, hDp: Float, rDp: Float, depthDp: Float, colour: Int) {
-        val polygon = ReliefPolygon().apply { setRoundRect(x, y, wDp * scale, hDp * scale, rDp * scale) }
-        val depth = depthDp * scale
-        val top = Relief.topOffset(eye.eyeX, eye.eyeY, depth, 1900f * scale, 4f * scale)
-        val shadow = Relief.shadowOffset(depth)
-        val n = polygon.count
-        r.fill(FloatArray(n) { polygon.xs[it] + shadow.x }, FloatArray(n) { polygon.ys[it] + shadow.y }, 0x000000, 0.22f)
-        for (i in 0 until n) {
-            if (!Relief.wallVisible(polygon.nx[i], polygon.ny[i], top)) continue
-            val j = (i + 1) % n
-            val k = 0.35f + 0.65f * (Relief.wallShade(polygon.nx[i], polygon.ny[i]) / Relief.TOP_SHADE).coerceIn(0f, 1f)
-            r.fill(
-                floatArrayOf(polygon.xs[i], polygon.xs[j], polygon.xs[j] + top.x, polygon.xs[i] + top.x),
-                floatArrayOf(polygon.ys[i], polygon.ys[j], polygon.ys[j] + top.y, polygon.ys[i] + top.y),
-                scaleColour(colour, k),
-                1f,
-                grow = 0.6f,
-            )
+    private fun slab(r: Raster, eye: HeadTracker, x: Float, y: Float, wDp: Float, hDp: Float, rDp: Float, depthDp: Float, colour: Int, sink: Float) {
+        val p = ReliefPolygon().apply { setRoundRect(x, y, wDp * scale, hDp * scale, rDp * scale) }
+        val ref = 10f * scale
+        val max = 14f * scale
+        val rest = depthDp * scale
+        val depth = Relief.pressedDepth(rest, sink)
+        val top = Relief.topOffset(eye.eyeX, eye.eyeY, depth, ref, max)
+        val k = Relief.closeness(depth, ref)
+        val n = p.count
+        val dark = luminance(colour) <= Relief.DARK_LUMINANCE
+        fun tx(i: Int) = p.centreX + top.x + (p.xs[i] - p.centreX) * k
+        fun ty(i: Int) = p.centreY + top.y + (p.ys[i] - p.centreY) * k
+        fun grown(grow: Float, dx: Float, dy: Float): Pair<FloatArray, FloatArray> {
+            val xs = FloatArray(n)
+            val ys = FloatArray(n)
+            for (i in 0 until n) {
+                val prev = (i + n - 1) % n
+                var vx = p.nx[prev] + p.nx[i]
+                var vy = p.ny[prev] + p.ny[i]
+                val l = kotlin.math.sqrt(vx * vx + vy * vy).takeIf { it > 0f } ?: 1f
+                vx /= l; vy /= l
+                xs[i] = p.xs[i] + vx * grow + dx
+                ys[i] = p.ys[i] + vy * grow + dy
+            }
+            return xs to ys
         }
-        r.fill(FloatArray(n) { polygon.xs[it] + top.x }, FloatArray(n) { polygon.ys[it] + top.y }, colour, 1f)
+        // Cast shadow, four stacked layers, gone when pressed; then the contact shadow.
+        val cast = Relief.castShadow(depth, top)
+        val spread = Relief.shadowSpread(rest)
+        for (layer in 1..4) {
+            val (xs, ys) = grown(spread * layer / 4f, cast.x, cast.y)
+            r.fill(xs, ys, 0x000000, 0.30f * (1f - sink) / 4f)
+        }
+        grown(0.75f * scale, -Relief.LIGHT_X * scale, -Relief.LIGHT_Y * scale).let { (xs, ys) -> r.fill(xs, ys, 0x000000, 0.28f) }
+        for (i in 0 until n) {
+            val j = (i + 1) % n
+            val mx = (p.xs[i] + p.xs[j]) / 2f - p.centreX
+            val my = (p.ys[i] + p.ys[j]) / 2f - p.centreY
+            val d = androidx.compose.ui.geometry.Offset(top.x + mx * (k - 1f), top.y + my * (k - 1f))
+            if (!Relief.wallVisible(p.nx[i], p.ny[i], d)) continue
+            val f = Relief.wallFactor(Relief.wallShade(p.nx[i], p.ny[i]))
+            val lift = Relief.wallLift(p.nx[i], p.ny[i], dark)
+            fun band(from: Float, to: Float, c: Int, alpha: Float) = r.fill(
+                floatArrayOf(p.xs[i] + (tx(i) - p.xs[i]) * from, p.xs[j] + (tx(j) - p.xs[j]) * from, p.xs[j] + (tx(j) - p.xs[j]) * to, p.xs[i] + (tx(i) - p.xs[i]) * to),
+                floatArrayOf(p.ys[i] + (ty(i) - p.ys[i]) * from, p.ys[j] + (ty(j) - p.ys[j]) * from, p.ys[j] + (ty(j) - p.ys[j]) * to, p.ys[i] + (ty(i) - p.ys[i]) * to),
+                c, alpha, grow = 0.6f,
+            )
+            band(0f, 1f, tone(colour, f, lift), 1f)
+            band(0f, 0.45f, 0x000000, 0.18f)
+            band(0.78f, 1f, 0xFFFFFF, if (dark) 0.20f else 0.12f)
+        }
+        r.fill(FloatArray(n) { tx(it) }, FloatArray(n) { ty(it) }, colour, 1f)
+        val gleam = Relief.highlightDirection(top, max)
+        for (i in 0 until n) {
+            val j = (i + 1) % n
+            val g = Relief.highlight(p.nx[i], p.ny[i], gleam) * (if (dark) 0.45f else 0.55f) * (1f - 0.7f * sink)
+            val w = 1.5f * scale
+            if (g > 0.01f) r.fill(
+                floatArrayOf(tx(i), tx(j), tx(j) - p.nx[i] * w, tx(i) - p.nx[i] * w),
+                floatArrayOf(ty(i), ty(j), ty(j) - p.ny[i] * w, ty(i) - p.ny[i] * w),
+                0xFFFFFF, g, grow = 0.3f,
+            )
+            if (sink > 0.01f) {
+                val s = 4f * scale * k
+                r.fill(
+                    floatArrayOf(tx(i), tx(j), tx(j) - p.nx[i] * s, tx(i) - p.nx[i] * s),
+                    floatArrayOf(ty(i), ty(j), ty(j) - p.ny[i] * s, ty(i) - p.ny[i] * s),
+                    0x000000, 0.22f * sink, grow = 0.3f,
+                )
+            }
+        }
     }
 
-    private fun scaleColour(c: Int, k: Float): Int {
-        val red = ((c shr 16 and 0xFF) * k).toInt()
-        val green = ((c shr 8 and 0xFF) * k).toInt()
-        val blue = ((c and 0xFF) * k).toInt()
-        return (red shl 16) or (green shl 8) or blue
+    private fun luminance(c: Int): Float {
+        fun ch(v: Int): Float = (v / 255f).let { if (it <= 0.03928f) it / 12.92f else Math.pow(((it + 0.055f) / 1.055f).toDouble(), 2.4).toFloat() }
+        return 0.2126f * ch(c shr 16 and 0xFF) + 0.7152f * ch(c shr 8 and 0xFF) + 0.0722f * ch(c and 0xFF)
+    }
+
+    private fun tone(c: Int, k: Float, lift: Float): Int {
+        fun ch(v: Int) = ((v / 255f * k * (1f - lift) + lift) * 255f).toInt().coerceIn(0, 255)
+        return (ch(c shr 16 and 0xFF) shl 16) or (ch(c shr 8 and 0xFF) shl 8) or ch(c and 0xFF)
     }
 
     private fun pose(x: Float, y: Float, z: Float, degrees: Float = 0f): FloatArray {
@@ -139,6 +202,10 @@ private class Raster(val width: Int, val height: Int, background: Int) {
         val old = pixels[y * width + x]
         fun ch(shift: Int) = (((old shr shift) and 0xFF) * (1f - a) + ((colour shr shift) and 0xFF) * a).toInt().coerceIn(0, 255)
         pixels[y * width + x] = (ch(16) shl 16) or (ch(8) shl 8) or ch(0)
+    }
+
+    fun rect(x: Int, y: Int, w: Int, h: Int, colour: Int) {
+        for (py in max(0, y) until min(height, y + h)) for (px in max(0, x) until min(width, x + w)) pixels[py * width + px] = colour
     }
 
     fun text(text: String, x: Int, y: Int, size: Int, colour: Int) {

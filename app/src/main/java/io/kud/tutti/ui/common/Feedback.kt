@@ -64,6 +64,7 @@ class Feedback internal constructor(private val view: View, private val prefs: F
         val outcomes = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
         when (pattern) {
             HapticPattern.CLICK -> view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+            HapticPattern.RELEASE -> view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_RELEASE)
             HapticPattern.TICK -> view.performHapticFeedback(
                 if (modern) HapticFeedbackConstants.SEGMENT_FREQUENT_TICK else HapticFeedbackConstants.CLOCK_TICK,
             )

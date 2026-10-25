@@ -63,6 +63,9 @@ import io.kud.tutti.ui.common.LocalReducedMotion
 import io.kud.tutti.ui.common.rememberHaptics
 import io.kud.tutti.ui.motion.Motion
 import io.kud.tutti.ui.relief.LocalRelief
+import io.kud.tutti.ui.relief.rememberReliefPress
+import androidx.compose.foundation.interaction.PressInteraction
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import io.kud.tutti.ui.relief.ReliefDepth
 import io.kud.tutti.ui.relief.relief
 import kotlinx.coroutines.coroutineScope
@@ -369,10 +372,13 @@ private fun RailKey(
     }
     // "3D relief": the disc is the slab; the touch target round it stays flat and where it was.
     val relief = LocalRelief.current.takeIf { enabled }
+    // The rail's keys have their own detector, so they tell the relief's press by hand.
+    val interaction = remember { MutableInteractionSource() }
+    val reliefPress = rememberReliefPress(interaction, relief != null)
     Box(
         modifier
             .size(KEY_TARGET)
-            .relief(relief, ReliefDepth.RAIL_KEY, side = { disc }, slab = KEY_DISC)
+            .relief(relief, ReliefDepth.RAIL_KEY, side = { disc }, press = { reliefPress?.value ?: 0f }, slab = KEY_DISC)
             .semantics {
                 role = Role.Button
                 contentDescription = label
@@ -385,17 +391,28 @@ private fun RailKey(
                 if (!enabled) return@pointerInput
                 if (repeats) {
                     detectTapGestures(
-                        onPress = {
+                        onPress = { at ->
+                            val down = PressInteraction.Press(at)
+                            interaction.tryEmit(down)
                             act()
                             coroutineScope {
                                 val repeat = launch { KeyRepeat.run { act() } }
-                                tryAwaitRelease()
+                                val released = tryAwaitRelease()
                                 repeat.cancel()
+                                interaction.tryEmit(if (released) PressInteraction.Release(down) else PressInteraction.Cancel(down))
                             }
                         },
                     )
                 } else {
-                    detectTapGestures { act() }
+                    detectTapGestures(
+                        onPress = { at ->
+                            val down = PressInteraction.Press(at)
+                            interaction.tryEmit(down)
+                            val released = tryAwaitRelease()
+                            interaction.tryEmit(if (released) PressInteraction.Release(down) else PressInteraction.Cancel(down))
+                        },
+                        onTap = { act() },
+                    )
                 }
             },
         contentAlignment = Alignment.Center,

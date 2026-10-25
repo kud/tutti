@@ -51,6 +51,7 @@ import io.kud.tutti.ui.relief.LocalRelief
 import io.kud.tutti.ui.relief.ReliefCorner
 import io.kud.tutti.ui.relief.ReliefDepth
 import io.kud.tutti.ui.relief.relief
+import io.kud.tutti.ui.relief.rememberReliefPress
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.filter
@@ -116,6 +117,7 @@ fun TonalRoundButton(
     // "3D relief": a slab of the key's own colour that the press pushes flat. An unreachable key
     // is only a dashed ring, not a thing standing there, so it stays flat.
     val relief = LocalRelief.current.takeIf { !unreachable }
+    val reliefPress = rememberReliefPress(interaction, relief != null)
     val reliefCorner = remember(press, restCorner) {
         ReliefCorner { w, h, _ -> min(w, h) * (restCorner.value + (ON_CORNER - restCorner.value).coerceAtMost(0f) * press.fraction) / 100f }
     }
@@ -144,7 +146,7 @@ fun TonalRoundButton(
                 scaleY = scale
                 alpha = if (enabled) 1f else 0.38f
             }
-            .relief(relief, ReliefDepth.KEY, side = { container }, corner = reliefCorner, press = { press.fraction })
+            .relief(relief, ReliefDepth.KEY, side = { container }, corner = reliefCorner, press = { reliefPress?.value ?: 0f })
             .drawBehind {
                 val outline = shape.createOutline(this.size, layoutDirection, this)
                 if (unreachable) {
