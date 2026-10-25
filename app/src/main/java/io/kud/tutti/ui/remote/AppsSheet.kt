@@ -7,7 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -55,8 +55,7 @@ import io.kud.tutti.R
 import io.kud.tutti.controller.TuttiUiState
 import io.kud.tutti.platform.data.DockConfig
 import io.kud.tutti.protocol.apps.KnownApp
-import io.kud.tutti.protocol.apps.LaunchResult
-import io.kud.tutti.protocol.net.Redact
+import io.kud.tutti.protocol.apps.LaunchPhase
 import io.kud.tutti.ui.common.AppIcon
 import io.kud.tutti.ui.common.LocalDeveloperMode
 import io.kud.tutti.ui.common.LocalReducedMotion
@@ -69,18 +68,14 @@ import io.kud.tutti.ui.common.pressScale
 import io.kud.tutti.ui.common.rememberFeedback
 import io.kud.tutti.ui.common.rememberPressSource
 import io.kud.tutti.ui.common.rememberTuttiIndication
-import io.kud.tutti.ui.motion.SpinnerTiming
 import io.kud.tutti.ui.motion.rememberWaiting
-import kotlinx.coroutines.Deferred
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 
 /** Every app tutti knows, full height over the remote. Back or a tap outside closes it. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AppsSheet(
     state: TuttiUiState,
-    onLaunch: (KnownApp) -> Deferred<LaunchResult>,
+    onLaunch: (KnownApp) -> Long?,
     onLaunched: () -> Unit,
     onAllApps: () -> Unit,
     onPin: (KnownApp, slot: Int) -> Unit,
@@ -91,30 +86,42 @@ fun AppsSheet(
     }
 }
 
-/** A launch that didn't bring the app up: which tile says so, and the redacted trace. */
-private data class TileFailure(val packageName: String, val detail: String)
-
 /**
- * Tapping a tile launches and waits for the TV to confirm ([LaunchResult]): the ring after the
- * grace delay, then the sheet closes on success, or the tile says it didn't open.
+ * Tapping a tile launches optimistically (Erwann, 2026-10-25: "faut un click optimiste"): the
+ * controller shows the app on the now-showing card at once and the sheet closes the moment the
+ * launch goes out, without waiting for the TV to confirm; the card rolls back, with a quiet
+ * message, if it didn't open. Tapped in a blip of the TV's link, the launch is held: the tile
+ * keeps its ring and says it is waiting for the TV, and the sheet closes when it goes out. Every
+ * tap reaches the controller, which never launches the same app twice and lets a newer app win.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun AppsSheetContent(
     state: TuttiUiState,
-    onLaunch: (KnownApp) -> Deferred<LaunchResult>,
+    onLaunch: (KnownApp) -> Long?,
     onLaunched: () -> Unit,
     onAllApps: () -> Unit,
     onPin: (KnownApp, slot: Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var pinning by remember { mutableStateOf<KnownApp?>(null) }
-    var pending by remember { mutableStateOf<String?>(null) }
-    var failure by remember { mutableStateOf<TileFailure?>(null) }
-    val scope = rememberCoroutineScope()
+    // The launch this sheet asked for (its id): the sheet closes once it has gone out.
+    var asked by remember { mutableStateOf<Long?>(null) }
+    val inFlight = state.launches.pending
+    // Only a failure from while the sheet is open marks a tile; one from before is old news.
+    val before = remember { state.launches.failure }
+    val failure = state.launches.failure?.takeIf { it !== before }
     val feedback = rememberFeedback()
     val developer = LocalDeveloperMode.current
-    val clock: () -> Long = System::currentTimeMillis
+    val sent = state.launches.lastSentId
+    LaunchedEffect(asked, sent) {
+        val id = asked ?: return@LaunchedEffect
+        if (sent >= id) {
+            asked = null
+            feedback.confirm()
+            onLaunched()
+        }
+    }
     val pinLabel = stringResource(R.string.apps_pin_action)
     val grid = rememberLazyGridState()
     // Title and subtitle are the pinned header: only the grid scrolls (design.md, Sheets).
@@ -196,31 +203,14 @@ fun AppsSheetContent(
                 AppTile(
                     app = app,
                     iconPath = state.appIcons[app.packageName],
-                    pending = pending == app.packageName,
+                    pending = inFlight?.packageName == app.packageName,
+                    held = inFlight?.packageName == app.packageName && inFlight.phase == LaunchPhase.QUEUED,
                     failed = failure?.packageName == app.packageName,
                     pinLabel = pinLabel,
                     onLongClick = { pinning = app },
                     onClick = {
-                        if (pending != null) return@AppTile
-                        failure = null
-                        pending = app.packageName
-                        val started = clock()
-                        scope.launch {
-                            val result = try {
-                                onLaunch(app).await()
-                            } finally {
-                                pending = null
-                            }
-                            // A spinner that showed stays its minimum time before the outcome lands.
-                            delay(SpinnerTiming.holdAfter(clock() - started))
-                            if (result.ok) {
-                                feedback.confirm()
-                                onLaunched()
-                            } else {
-                                feedback.reject()
-                                failure = TileFailure(app.packageName, Redact.text(result.trace()))
-                            }
-                        }
+                        // Refused (the TV down): the message says why and the sheet stays.
+                        onLaunch(app)?.let { asked = it }
                     },
                 )
             }
@@ -250,6 +240,7 @@ private fun AppTile(
     app: KnownApp,
     iconPath: String?,
     pending: Boolean,
+    held: Boolean,
     failed: Boolean,
     pinLabel: String,
     onLongClick: () -> Unit,
@@ -259,7 +250,7 @@ private fun AppTile(
     val press = rememberPressSource(PressStyle.TILE, onDown = feedback::click)
     val waiting = rememberWaiting(pending)
     val scheme = MaterialTheme.colorScheme
-    val pendingLabel = stringResource(R.string.apps_launch_pending)
+    val pendingLabel = stringResource(if (held) R.string.apps_launch_waiting else R.string.apps_launch_pending)
     val failedLabel = stringResource(R.string.apps_launch_failed)
     Column(
         Modifier
@@ -325,6 +316,15 @@ private fun AppTile(
                 failedLabel,
                 style = MaterialTheme.typography.labelSmall,
                 color = scheme.error,
+                maxLines = 2,
+                textAlign = TextAlign.Center,
+            )
+        } else if (held) {
+            // Held through a blip of the TV's link: say what it waits for, not only a ring.
+            Text(
+                pendingLabel,
+                style = MaterialTheme.typography.labelSmall,
+                color = scheme.onSurfaceVariant,
                 maxLines = 2,
                 textAlign = TextAlign.Center,
             )

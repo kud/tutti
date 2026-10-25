@@ -91,6 +91,20 @@ object TvLinkRule {
         else -> null
     }
 
+    /**
+     * An app launch tapped with no route able to go now (remote link not ready, no IP control
+     * route). While the remote still shows the link up, a blip, it is held and sent the moment the
+     * link is back ([io.kud.tutti.protocol.apps.LaunchQueue.HOLD_MS]); once it shows connecting or
+     * out of reach every TV control is down (Erwann, 2026-10-25), and a launch is refused like the
+     * rest, with the same words as a key.
+     */
+    fun launchWhileDown(raw: Link, shown: TvShown): KeyOutcome = when {
+        raw == Link.NEEDS_PAIRING -> KeyOutcome.DROPPED_PAIRING
+        shown.link == Link.ONLINE -> KeyOutcome.HELD
+        raw == Link.ABSENT || shown.link == Link.UNREACHABLE -> KeyOutcome.DROPPED_DOWN
+        else -> KeyOutcome.DROPPED_WAITING
+    }
+
     /** A key pressed while the remote link was not ready: hold it or drop it, and say which. */
     fun whileDown(keyCode: Int, long: Boolean, raw: Link, shown: TvShown): KeyOutcome = when {
         raw == Link.NEEDS_PAIRING -> KeyOutcome.DROPPED_PAIRING

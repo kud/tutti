@@ -2,6 +2,7 @@ package io.kud.tutti.ui.remote
 
 import io.kud.tutti.controller.Link
 import io.kud.tutti.controller.TuttiUiState
+import io.kud.tutti.protocol.apps.KnownApp
 import io.kud.tutti.protocol.atv.AppCatalog
 import io.kud.tutti.protocol.bravia.ExternalInput
 import io.kud.tutti.protocol.bravia.PlayingContent
@@ -78,8 +79,20 @@ fun nowShowing(state: TuttiUiState): NowShowing? =
     if (state.devices.tv == null) {
         null
     } else {
-        nowShowing(state.tv.playing, state.tv.inputs, state.links.rest, state.remote.currentApp, state.links.tvShown.link, state.tv.power)
+        launchingApp(state.launches.optimistic, state.apps, state.links.tvShown.link, state.tv.power)
+            ?: nowShowing(state.tv.playing, state.tv.inputs, state.links.rest, state.remote.currentApp, state.links.tvShown.link, state.tv.power)
     }
+
+/**
+ * The app just tapped, shown before the TV reports it (optimistic launch, `LaunchQueue`): it
+ * outranks a channel or input REST still reports, since it is what was asked for. By the name the
+ * TV listed, else the catalogue's; nothing while the TV's link isn't shown up or it sleeps.
+ */
+fun launchingApp(packageName: String?, apps: List<KnownApp>, tvLink: Link, tvPower: PowerStatus): NowShowing.App? {
+    if (packageName == null || tvLink != Link.ONLINE || tvPower == PowerStatus.STANDBY) return null
+    val name = apps.firstOrNull { it.packageName == packageName }?.name ?: AppCatalog.byPackage(packageName)?.name ?: return null
+    return NowShowing.App(name, packageName)
+}
 
 private fun String.clean(): String? = trim().ifEmpty { null }
 

@@ -156,6 +156,15 @@ sealed interface TuttiEvent {
     /** A TV key met a link that wasn't up: held for a moment, or not sent ([TvLinkRule]). */
     data class KeyNotSent(val outcome: KeyOutcome) : TuttiEvent
 
+    /** An app launch tapped in a blip of the TV's link: held, and sent the moment it is back ([io.kud.tutti.protocol.apps.LaunchQueue]). */
+    data class AppLaunchHeld(val appName: String) : TuttiEvent
+
+    /**
+     * An app launch that didn't bring the app up: [expired] when it was held and the link never
+     * came back in time, else every route was tried. [detail] is the redacted trace, for developers.
+     */
+    data class AppNotOpened(val appName: String, val expired: Boolean, val detail: String?) : TuttiEvent
+
     /** "Open the TV's own apps screen" finished: what the remote link saw ([AppsScreenOpener]). */
     data class AppsScreen(val verdict: io.kud.tutti.protocol.apps.AppsScreenVerdict) : TuttiEvent
 }
@@ -192,6 +201,8 @@ data class TuttiUiState(
     val pskSet: Boolean = false,
     /** Readouts fetched when Technical details opens. */
     val technical: TechnicalReadouts = TechnicalReadouts(),
+    /** App launches in flight and the app shown optimistically meanwhile ([io.kud.tutti.protocol.apps.LaunchQueue]). */
+    val launches: io.kud.tutti.protocol.apps.LaunchBook = io.kud.tutti.protocol.apps.LaunchBook(),
 ) {
     /** [apps] minus the ones hidden in Settings: what the Apps sheet and pickers offer. */
     val visibleApps: List<io.kud.tutti.protocol.apps.KnownApp>

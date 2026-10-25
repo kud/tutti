@@ -1,6 +1,7 @@
 package io.kud.tutti.ui.remote
 
 import io.kud.tutti.controller.Link
+import io.kud.tutti.protocol.apps.KnownApp
 import io.kud.tutti.protocol.bravia.ExternalInput
 import io.kud.tutti.protocol.bravia.PlayingContent
 import io.kud.tutti.protocol.bravia.PowerStatus
@@ -83,5 +84,21 @@ class ForegroundAppTest {
         val app = NowShowing.App("Netflix", "com.netflix.ninja")
         assertEquals(CardShowing.Standby(true), cardShowing(true, app, Link.ONLINE, PowerStatus.STANDBY, barOn = true))
         assertEquals(CardShowing.Standby(false), cardShowing(true, null, Link.UNREACHABLE, PowerStatus.STANDBY, barOn = false))
+    }
+
+    @Test
+    fun `the app just tapped shows before the tv reports it, by the name the tv listed`() {
+        val apps = listOf(KnownApp("org.example.player", "Example Player"))
+        assertEquals(NowShowing.App("Example Player", "org.example.player"), launchingApp("org.example.player", apps, Link.ONLINE, PowerStatus.ACTIVE))
+        assertEquals(NowShowing.App("Netflix", "com.netflix.ninja"), launchingApp("com.netflix.ninja", emptyList(), Link.ONLINE, PowerStatus.UNKNOWN))
+    }
+
+    @Test
+    fun `no optimistic app with nothing launching, the link not shown up, the tv asleep or no name`() {
+        val apps = listOf(KnownApp("org.example.player", "Example Player"))
+        assertNull(launchingApp(null, apps, Link.ONLINE, PowerStatus.ACTIVE))
+        assertNull(launchingApp("org.example.player", apps, Link.CONNECTING, PowerStatus.ACTIVE))
+        assertNull(launchingApp("org.example.player", apps, Link.ONLINE, PowerStatus.STANDBY))
+        assertNull(launchingApp("org.example.unknown", apps, Link.ONLINE, PowerStatus.ACTIVE))
     }
 }

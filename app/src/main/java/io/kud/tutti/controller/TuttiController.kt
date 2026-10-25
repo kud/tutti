@@ -36,7 +36,12 @@ import io.kud.tutti.protocol.apps.IconAttempt
 import io.kud.tutti.protocol.apps.IconBook
 import io.kud.tutti.protocol.apps.IconOutcome
 import io.kud.tutti.protocol.apps.KnownApp
+import io.kud.tutti.protocol.apps.LaunchBook
+import io.kud.tutti.protocol.apps.LaunchEffect
+import io.kud.tutti.protocol.apps.LaunchLink
 import io.kud.tutti.protocol.apps.LaunchPlan
+import io.kud.tutti.protocol.apps.LaunchQueue
+import io.kud.tutti.protocol.apps.LaunchStep
 import io.kud.tutti.protocol.apps.LaunchResult
 import io.kud.tutti.protocol.apps.LaunchRoute
 import io.kud.tutti.protocol.net.Redact
@@ -178,6 +183,8 @@ class TuttiController @Inject constructor(
     private val activeSceneId = MutableStateFlow<String?>(null)
     private val pairing = MutableStateFlow<PairingUi>(PairingUi.Idle)
     private val overrides = MutableStateFlow(Overrides())
+    /** App launches, optimistic ([LaunchQueue]): what is in flight and the app shown meanwhile. */
+    private val launches = MutableStateFlow(LaunchBook())
     private val restart = MutableStateFlow(0)
     private val wake = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     /** Latest level to send; a Channel, not a StateFlow, so setting the level it already holds still sends it. */
@@ -223,13 +230,16 @@ class TuttiController @Inject constructor(
         val overrides: Overrides,
         val waking: Boolean,
         val linkNotes: LinkNotes,
+        val launches: LaunchBook,
     )
 
     private val stored = combine(store.devices, store.prefs, store.dock, store.scenes, store.profiles) { d, p, k, s, f -> Stored(d, p, k, s, f) }
     private val live = combine(tv, atv.state, theatre.state, links, voiceZoom) { t, r, b, l, v -> Live(t, r, b, l, v) }
-    private val extra = combine(progress, activeSceneId, pairing, cloud.state, combine(overrides, waking, linkNotes, ::Triple)) { p, a, q, c, o ->
-        Extra(p, a, q, c, o.first, o.second, o.third)
+    private val extra = combine(progress, activeSceneId, pairing, cloud.state, combine(overrides, waking, linkNotes, launches) { o, w, n, l -> Quad(o, w, n, l) }) { p, a, q, c, o ->
+        Extra(p, a, q, c, o.overrides, o.waking, o.linkNotes, o.launches)
     }
+
+    private data class Quad(val overrides: Overrides, val waking: Boolean, val linkNotes: LinkNotes, val launches: LaunchBook)
 
     val state: StateFlow<TuttiUiState> = combine(stored, live, extra, library, combine(pskSet, technical, ::Pair)) { s, l, e, a, k ->
         build(s, l, e).copy(apps = a.first, appIcons = a.second, linkNotes = e.linkNotes, pskSet = k.first, technical = k.second)
@@ -275,6 +285,12 @@ class TuttiController @Inject constructor(
             // The mic closes the moment the session stops wanting audio: release, cap, failure, drop.
             atv.voice.map { it.capturing }.distinctUntilChanged().collect { capturing ->
                 if (!capturing) micJob?.cancel()
+            }
+        }
+        scope.launch {
+            // The TV's own report replaces an optimistic app once no launch is in flight (LaunchQueue).
+            atv.state.map { it.currentApp }.distinctUntilChanged().collect { app ->
+                launchStep { LaunchQueue.foreground(it, app) }
             }
         }
         scope.launch {
@@ -714,6 +730,7 @@ class TuttiController @Inject constructor(
             waking = e.waking,
             pairing = e.pairing,
             cloud = e.cloud,
+            launches = e.launches,
         )
     }
 
@@ -828,16 +845,136 @@ class TuttiController @Inject constructor(
     // endregion
 
     /**
-     * Runs in the controller's scope, so leaving the sheet never cancels a launch half way; the
-     * caller awaits the [LaunchResult] to show it.
+     * Opens an app, optimistically (Erwann, 2026-10-25: "faut un click optimiste"). The remote
+     * shows the app at once ([TuttiUiState.launches]); the launch goes out now when a route can,
+     * waits up to [LaunchQueue.HOLD_MS] for a link that is only blipping, or is refused with the
+     * words a key gets ([TvLinkRule.launchWhileDown]). A repeat tap of the app in flight sends
+     * nothing; a different app replaces it. Runs in the controller's scope, so leaving the sheet
+     * never cancels a launch half way.
      */
-    fun launchApp(packageName: String): Deferred<LaunchResult> = scope.async { launchWithResult(packageName) }
+    fun launchApp(packageName: String): Long? {
+        val (id, effects) = tapLaunch(packageName, await = false)
+        handleLaunch(effects)
+        return id
+    }
+
+    /** [launchApp], awaiting the outcome: true once the launch went out (confirmed, or sent unobserved). */
+    private suspend fun requestLaunch(packageName: String): Boolean {
+        val (id, effects) = tapLaunch(packageName, await = true)
+        handleLaunch(effects)
+        return id?.let { launchWaiters[it]?.await() } ?: false
+    }
+
+    /**
+     * One tap through [LaunchQueue.tap], synchronous so the book has changed before the caller
+     * looks. Returns the launch the tap started or joined (null when refused), and the effects.
+     */
+    private fun tapLaunch(packageName: String, await: Boolean): Pair<Long?, List<LaunchEffect>> {
+        val link = launchReadiness(packageName)
+        var id: Long? = null
+        val effects = launchStep { book ->
+            LaunchQueue.tap(book, packageName, link, SystemClock.elapsedRealtime()).also { step ->
+                id = step.book.inFlightFor(packageName)
+                // Inside the step, so a launch that settles right after can't finish before its waiter exists.
+                if (await) id?.let { launchWaiters.getOrPut(it) { CompletableDeferred() } }
+            }
+        }
+        return id to effects
+    }
+
+    /** Callers awaiting a launch's end ([requestLaunch]), by launch id. */
+    private val launchWaiters = java.util.concurrent.ConcurrentHashMap<Long, CompletableDeferred<Boolean>>()
+
+    /** The job sending or holding each launch, by id, so a newer tap can stop the one it replaced. */
+    private val launchJobs = java.util.concurrent.ConcurrentHashMap<Long, Job>()
+
+    /** Applies one [LaunchQueue] step atomically and returns what the caller must do. */
+    private fun launchStep(transition: (LaunchBook) -> LaunchStep): List<LaunchEffect> {
+        var effects: List<LaunchEffect> = emptyList()
+        launches.update { book ->
+            val step = transition(book)
+            effects = step.effects
+            step.book
+        }
+        return effects
+    }
+
+    private fun handleLaunch(effects: List<LaunchEffect>) {
+        for (effect in effects) {
+            when (effect) {
+                is LaunchEffect.Send -> launchJobs[effect.id] = scope.launch {
+                    val result = launchWithResult(effect.packageName)
+                    launchJobs.remove(effect.id)
+                    handleLaunch(launchStep { LaunchQueue.settled(it, effect.id, result.verdict, SystemClock.elapsedRealtime(), Redact.text(result.trace())) })
+                }
+                is LaunchEffect.Held -> {
+                    mutableEvents.tryEmit(TuttiEvent.AppLaunchHeld(appLabel(effect.packageName)))
+                    launchJobs[effect.id] = scope.launch {
+                        val wait = (effect.until - SystemClock.elapsedRealtime()).coerceAtLeast(0)
+                        val back = withTimeoutOrNull(wait) { atv.state.first { it.ready } } != null
+                        launchJobs.remove(effect.id)
+                        val now = SystemClock.elapsedRealtime()
+                        handleLaunch(launchStep { if (back) LaunchQueue.linkReady(it, effect.id, now) else LaunchQueue.tick(it, now) })
+                    }
+                }
+                is LaunchEffect.Superseded -> launchJobs.remove(effect.id)?.cancel()
+                is LaunchEffect.Done -> {
+                    launchWaiters.remove(effect.id)?.complete(effect.ok)
+                    if (effect.ok) scheduleLaunchTick()
+                }
+                is LaunchEffect.Failed -> mutableEvents.tryEmit(
+                    TuttiEvent.AppNotOpened(appLabel(effect.failure.packageName), effect.failure.expired, effect.failure.detail),
+                )
+                is LaunchEffect.Refused -> {
+                    val current = links.value
+                    mutableEvents.tryEmit(TuttiEvent.KeyNotSent(TvLinkRule.launchWhileDown(current.tv, current.tvShown)))
+                }
+                is LaunchEffect.Repeat -> Unit
+            }
+        }
+    }
+
+    /** Lets an unconfirmed launch's app leave the screen once its grace is over. */
+    private fun scheduleLaunchTick() {
+        scope.launch {
+            delay(LaunchQueue.SENT_GRACE_MS)
+            launchStep { LaunchQueue.tick(it, SystemClock.elapsedRealtime()) }
+        }
+    }
+
+    /** Forgets the last failed launch once its tile has shown it. */
+    fun clearLaunchFailure() = launches.update(LaunchQueue::clearFailure)
+
+    /**
+     * Whether a launch can go now: the remote link ready, or IP control up with a uri the TV
+     * listed. Else the shown link decides ([TvLinkRule.launchWhileDown]): held through a blip only.
+     */
+    private fun launchReadiness(packageName: String): LaunchLink {
+        if (atv.state.value.ready) return LaunchLink.READY
+        // IP control can launch without the remote link, with a uri the TV listed (now or before).
+        val listed = tv.value.apps.any { AppLibrary.packageOf(it.uri) == packageName } ||
+            state.value.apps.any { it.packageName == packageName && it.tvUri != null }
+        if (bravia != null && links.value.rest == Link.ONLINE && listed) return LaunchLink.READY
+        val current = links.value
+        return if (TvLinkRule.launchWhileDown(current.tv, current.tvShown) == KeyOutcome.HELD) LaunchLink.ON_ITS_WAY else LaunchLink.DOWN
+    }
+
+    private suspend fun restUriFor(packageName: String): String? =
+        tv.value.apps.firstOrNull { AppLibrary.packageOf(it.uri) == packageName }?.uri
+            ?: store.apps.first().firstOrNull { it.packageName == packageName }?.tvUri
+
+    /** An app's name for the words on screen: what the TV listed, else the catalogue's, else the package. */
+    private fun appLabel(packageName: String): String =
+        state.value.apps.firstOrNull { it.packageName == packageName }?.name
+            ?: io.kud.tutti.protocol.atv.AppCatalog.byPackage(packageName)?.name
+            ?: packageName
 
     /** The last launch's redacted trace, for the developer diagnostic. */
     @Volatile var lastLaunchTrace: String? = null
         private set
 
-    private suspend fun launchLink(packageName: String): Boolean = launchWithResult(packageName).ok
+    /** A scene's launch: straight to the routes, since the scene has woken the TV and shows its own progress. */
+    private suspend fun launchDirect(packageName: String): Boolean = launchWithResult(packageName).ok
 
     /**
      * Through IP control when it answers and the TV ever listed the app, then each app link the
@@ -846,12 +983,7 @@ class TuttiController @Inject constructor(
     private suspend fun launchWithResult(packageName: String): LaunchResult {
         val client = bravia
         val restOnline = client != null && links.value.rest == Link.ONLINE
-        val restUri = if (!restOnline) {
-            null
-        } else {
-            tv.value.apps.firstOrNull { AppLibrary.packageOf(it.uri) == packageName }?.uri
-                ?: store.apps.first().firstOrNull { it.packageName == packageName }?.tvUri
-        }
+        val restUri = if (!restOnline) null else restUriFor(packageName)
         val launcher = AppLauncher(
             send = { route ->
                 when (route) {
@@ -1328,13 +1460,13 @@ class TuttiController @Inject constructor(
                 true
             }
             is SceneStep.TvInput -> bravia?.setPlayContent(step.uri) is BraviaResult.Ok
-            is SceneStep.TvApp -> launchLink(step.appPackage)
+            is SceneStep.TvApp -> launchDirect(step.appPackage)
             is SceneStep.PictureMode -> bravia?.setPictureSetting("pictureMode", step.mode) is BraviaResult.Ok
             is SceneStep.Bar -> {
                 theatre.set(step.feature, step.value)
                 theatre.state.value.connected
             }
-            is SceneStep.LaunchApp -> launchLink(step.appPackage)
+            is SceneStep.LaunchApp -> launchDirect(step.appPackage)
         }
     }
 
@@ -1348,7 +1480,7 @@ class TuttiController @Inject constructor(
 
     private suspend fun perform(action: DockAction) {
         when (action) {
-            is DockAction.LaunchApp -> launchLink(action.packageName)
+            is DockAction.LaunchApp -> requestLaunch(action.packageName)
             is DockAction.Input -> switchInput(action.uri)
             is DockAction.ToggleBar -> TheatreFeature.fromKey(action.featureKey)?.let { toggleBar(it) }
             is DockAction.RunScene -> applyScene(action.sceneId)

@@ -9,6 +9,10 @@
     <string name="apps_launch_pending">Opening on the TV</string>
     <string name="apps_launch_failed">Didn’t open</string>
     <string name="apps_launch_failed_note">The TV didn’t open %1$s. Try again, or open it from the TV’s own apps screen.</string>
+    <string name="apps_launch_waiting">Waiting for the TV</string>
+    <string name="apps_launch_held">Opening %1$s when the TV is back…</string>
+    <string name="apps_launch_not_opened">%1$s didn’t open</string>
+    <string name="apps_launch_expired">%1$s not opened: the TV didn’t come back in time</string>
     <string name="apps_open_tv_screen">Open the TV’s own apps screen</string>
     <string name="apps_screen_failed">The TV didn’t open its apps screen</string>
     <string name="apps_screen_unconfirmed">Sent. The TV can’t confirm its apps screen opened</string>

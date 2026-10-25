@@ -70,4 +70,15 @@ class TvLinkRuleTest {
         assertEquals(KeyOutcome.HELD, TvLinkRule.whileDown(V2Key.BACK, long = false, raw = Link.CONNECTING, shown = back))
         assertEquals(KeyOutcome.DROPPED_WAITING, TvLinkRule.whileDown(V2Key.DPAD_DOWN, long = false, raw = Link.CONNECTING, shown = back))
     }
+
+    @Test
+    fun `a launch waits out a blip, and is refused once the remote shows the tv down`() {
+        assertEquals(KeyOutcome.HELD, TvLinkRule.launchWhileDown(Link.UNREACHABLE, TvShown(Link.ONLINE)))
+        assertEquals(KeyOutcome.HELD, TvLinkRule.launchWhileDown(Link.CONNECTING, TvShown(Link.ONLINE)))
+        assertEquals(KeyOutcome.DROPPED_WAITING, TvLinkRule.launchWhileDown(Link.CONNECTING, TvShown(Link.CONNECTING, reconnecting = true)))
+        assertEquals(KeyOutcome.DROPPED_WAITING, TvLinkRule.launchWhileDown(Link.CONNECTING, TvShown(Link.CONNECTING)))
+        assertEquals(KeyOutcome.DROPPED_DOWN, TvLinkRule.launchWhileDown(Link.UNREACHABLE, TvShown(Link.UNREACHABLE)))
+        assertEquals(KeyOutcome.DROPPED_DOWN, TvLinkRule.launchWhileDown(Link.ABSENT, TvShown(Link.ABSENT)))
+        assertEquals(KeyOutcome.DROPPED_PAIRING, TvLinkRule.launchWhileDown(Link.NEEDS_PAIRING, TvShown(Link.NEEDS_PAIRING)))
+    }
 }

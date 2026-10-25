@@ -9,6 +9,10 @@
     <string name="apps_launch_pending">Ouverture sur la TV</string>
     <string name="apps_launch_failed">Pas ouverte</string>
     <string name="apps_launch_failed_note">La TV n’a pas ouvert %1$s. Réessayez, ou ouvrez-la depuis l’écran Apps de la TV.</string>
+    <string name="apps_launch_waiting">En attente de la TV</string>
+    <string name="apps_launch_held">Ouverture de %1$s dès que la TV répond…</string>
+    <string name="apps_launch_not_opened">%1$s ne s’est pas ouverte</string>
+    <string name="apps_launch_expired">%1$s pas ouverte : la TV n’est pas revenue à temps</string>
     <string name="apps_open_tv_screen">Ouvrir l’écran Apps de la TV</string>
     <string name="apps_screen_failed">La TV n’a pas ouvert son écran Apps</string>
     <string name="apps_screen_unconfirmed">Envoyé. La TV ne confirme pas l’ouverture de l’écran Apps</string>

@@ -206,6 +206,17 @@ fun TuttiApp(controller: TuttiController, discovery: TvDiscovery, diagnostics: D
                     if (event.verdict == AppsScreenVerdict.FAILED || event.verdict == AppsScreenVerdict.NOT_SENT) haptics.reject()
                     if (text != null && messages.current?.text != text) messages.show(text)
                 }
+                is TuttiEvent.AppLaunchHeld -> {
+                    // The tap's own click already played: a soft bump, as for a held key.
+                    haptics.bump()
+                    messages.show(context.getString(R.string.apps_launch_held, event.appName))
+                }
+                is TuttiEvent.AppNotOpened -> {
+                    // The optimistic app has already rolled back on the card; say so quietly.
+                    haptics.reject()
+                    val text = context.getString(if (event.expired) R.string.apps_launch_expired else R.string.apps_launch_not_opened, event.appName)
+                    if (event.detail != null && problems.developer) problems.report(text, event.detail) else messages.show(text)
+                }
                 is TuttiEvent.MicUnavailable -> problems.report(context.getString(R.string.voice_mic_unavailable), event.detail)
                 is TuttiEvent.WakeFailed -> problems.report(
                     context.getString(
