@@ -694,9 +694,10 @@ class TuttiController @Inject constructor(
                     tvWasActive = false
                     learnMac(client, device.host)
                     while (scope.isActive) {
+                        val started = SystemClock.elapsedRealtime()
                         if (!refreshTv(client)) break
                         if (psk == null && !keepCookieFresh(client)) break
-                        delay(POLL_TV_MS)
+                        awaitNextPoll(started)
                     }
                     links.update { it.copy(rest = Link.UNREACHABLE) }
                     linkNotes.update { it.copy(rest = failureDetail("tv ip control: poll", outcome = "answered, then stopped answering getPowerStatus")) }
@@ -771,6 +772,24 @@ class TuttiController @Inject constructor(
     @Volatile
     private var tvWasActive = false
 
+    /**
+     * Until the next poll: [TvPollRules.EVERY_MS] after [startedAt], or sooner once Remote v2 reports
+     * another foreground app ([TvPollRules.delayAfterChange]), so the input and the auto target follow.
+     */
+    private suspend fun awaitNextPoll(startedAt: Long) {
+        val remaining = startedAt + TvPollRules.EVERY_MS - SystemClock.elapsedRealtime()
+        if (remaining <= 0) return
+        val changed = withTimeoutOrNull(remaining) {
+            val before = atv.state.value.currentApp
+            atv.state.first { it.currentApp != before }
+        } != null
+        if (changed) delay(TvPollRules.delayAfterChange(startedAt, SystemClock.elapsedRealtime()))
+    }
+
+    /** When the poll last read the input list (elapsedRealtime), for [TvPollRules.inputsDue]. */
+    @Volatile
+    private var inputsAskedAt: Long? = null
+
     /** When the poll last asked for the app list (elapsedRealtime), for [AppListRefresh]. */
     @Volatile
     private var appsAskedAt: Long? = null
@@ -792,7 +811,7 @@ class TuttiController @Inject constructor(
         val caps = client.capabilities
         val active = power == PowerStatus.ACTIVE
         // getPlayingContentInfo is a `private` method: without a PSK it can only be refused, so it is
-        // not asked. It rides this poll (POLL_TV_MS), never a loop of its own. A failed or empty
+        // not asked. It rides this poll (TvPollRules.EVERY_MS), never a loop of its own. A failed or empty
         // answer (what an app playing is expected to give) clears [TvState.playing], so the chip
         // falls back to the app name rather than keeping a stale channel.
         val playing = if (active && (!psk.isNullOrEmpty() || ipCookie != null)) client.playingContent().getOrNull() else null
@@ -803,10 +822,17 @@ class TuttiController @Inject constructor(
             null
         }
         val current = tv.value
-        val inputs = if (current.inputs.isEmpty() && active) client.externalInputs().getOrNull().orEmpty() else current.inputs
+        val now = SystemClock.elapsedRealtime()
+        // The input list rides this poll ([TvPollRules.inputsDue]): CEC names and what is plugged in
+        // stay current. A failed or empty answer keeps the list we had.
+        val askInputs = TvPollRules.inputsDue(active, current.inputs.isNotEmpty(), inputsAskedAt, now, inputChanged = input != null && input != current.input)
+        val inputs = if (askInputs) {
+            client.externalInputs().getOrNull()?.also { inputsAskedAt = now }?.takeIf { it.isNotEmpty() } ?: current.inputs
+        } else {
+            current.inputs
+        }
         // The app list rides this poll too ([AppListRefresh]): until it is known, on every wake and
         // reconnect, and every AppListRefresh.EVERY_MS while on, so an app installed later shows up.
-        val now = SystemClock.elapsedRealtime()
         val askApps = AppListRefresh.due(active, tvWasActive, current.apps.isNotEmpty(), appsAskedAt, now)
         tvWasActive = active
         val fetched = if (askApps) client.applications().getOrNull().also { appsAskedAt = now } else null
@@ -2483,7 +2509,6 @@ class TuttiController @Inject constructor(
         private const val READY_TIMEOUT_MS = 8_000L
         private const val POLL_BAR_MS = 20_000L
         private const val REASK_EVERY_POLLS = 3
-        private const val POLL_TV_MS = 10_000L
         private const val OVERRIDE_MS = 2_500L
         private const val PERSIST_VOLUME_MS = 1_000L
         /** How long Power waits for a sleeping device: a TV woken by a magic packet needs a few seconds for its network. */
