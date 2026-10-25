@@ -83,7 +83,7 @@ fun barInputChoices(current: String?): List<String> {
 fun barInputIcon(value: String): Int = when (value) {
     "tv" -> R.drawable.ic_tv
     "hdmi1" -> R.drawable.ic_input
-    "spotify" -> R.drawable.ic_music
+    "spotify" -> R.drawable.brand_spotify
     "bluetooth" -> R.drawable.ic_bluetooth
     "airplay2" -> R.drawable.ic_airplay
     else -> R.drawable.ic_speaker

@@ -20,7 +20,7 @@ class BarInputChoicesTest {
     fun `each input has its own glyph, and an unknown one the speaker`() {
         val icons = barInputChoices(null).map { barInputIcon(it) }
         assertEquals(icons.size, icons.toSet().size)
-        assertEquals(io.kud.tutti.R.drawable.ic_music, barInputIcon("spotify"))
+        assertEquals(io.kud.tutti.R.drawable.brand_spotify, barInputIcon("spotify"))
         assertEquals(io.kud.tutti.R.drawable.ic_speaker, barInputIcon("chromecast"))
     }
 
