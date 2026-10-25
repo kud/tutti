@@ -115,6 +115,9 @@ import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.channels.Channel
 import java.net.ConnectException
 import java.net.NoRouteToHostException
 import java.net.SocketTimeoutException
@@ -177,7 +180,8 @@ class TuttiController @Inject constructor(
     private val overrides = MutableStateFlow(Overrides())
     private val restart = MutableStateFlow(0)
     private val wake = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
-    private val volumeTarget = MutableStateFlow<Int?>(null)
+    /** Latest level to send; a Channel, not a StateFlow, so setting the level it already holds still sends it. */
+    private val volumeTarget = Channel<Int>(Channel.CONFLATED)
     private val waking = MutableStateFlow(false)
     private val wakeOnLan = WakeOnLanSender(context)
 
@@ -262,7 +266,7 @@ class TuttiController @Inject constructor(
             icons.update { current -> cached.associate { it.name to it.path } + current }
         }
         scope.launch {
-            volumeTarget.filterNotNull().conflate().collect { level ->
+            for (level in volumeTarget) {
                 theatre.setLevel(TheatreFeature.VOLUME, level)
                 delay(VOLUME_SEND_INTERVAL_MS)
             }
@@ -784,9 +788,16 @@ class TuttiController @Inject constructor(
 
     /** Press: the mic opens at once, before the TV answers, so the first words are kept. */
     fun startVoice() {
-        scope.launch {
+        scope.launch(start = CoroutineStart.UNDISPATCHED) { voiceOrder.withLock { startVoiceNow() } }
+    }
+
+    /** Press, release and cancel run in the order they were made: a quick tap never finishes before it started. */
+    private val voiceOrder = Mutex()
+
+    private suspend fun startVoiceNow() {
+        run {
             atv.startVoice()
-            if (!atv.voice.value.capturing) return@launch
+            if (!atv.voice.value.capturing) return
             micJob?.cancel()
             micJob = scope.launch {
                 try {
@@ -803,13 +814,13 @@ class TuttiController @Inject constructor(
 
     /** Release over the button: what was said goes to the TV. */
     fun finishVoice() {
-        scope.launch { atv.finishVoice() }
+        scope.launch(start = CoroutineStart.UNDISPATCHED) { voiceOrder.withLock { atv.finishVoice() } }
     }
 
     /** Slide off, background, or leaving the screen. */
     fun cancelVoice() {
         micJob?.cancel()
-        scope.launch { atv.cancelVoice() }
+        scope.launch(start = CoroutineStart.UNDISPATCHED) { voiceOrder.withLock { atv.cancelVoice() } }
     }
 
     fun clearVoiceFailure() = atv.clearVoiceFailure()
@@ -1149,7 +1160,7 @@ class TuttiController @Inject constructor(
         val clamped = level.coerceIn(0, ceiling)
         if (clamped == 0 || clamped == ceiling) mutableEvents.tryEmit(TuttiEvent.VolumeLimit)
         setOverride { it.copy(volume = clamped) }
-        volumeTarget.value = clamped
+        volumeTarget.trySend(clamped)
     }
 
     fun volumeStep(delta: Int) {
