@@ -36,6 +36,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -118,6 +119,14 @@ fun SettingsScreen(
     var pskDialog by remember { mutableStateOf(false) }
     var forget by remember { mutableStateOf<Forget?>(null) }
     var appsDialog by remember { mutableStateOf(false) }
+    var adding by remember { mutableStateOf(false) }
+    val targets = rememberTargets()
+    val target = targets?.state?.collectAsStateWithLifecycle()?.value
+    // The phone can be a Bluetooth keyboard: the TV row offers it, and a Mac can be added.
+    val hidSupported = hid?.state?.collectAsStateWithLifecycle()?.value?.support == HidSupport.SUPPORTED
+    if (hid != null) LaunchedEffect(hid) { hid.probe() }
+    // Pairing from here holds the Bluetooth role; leaving Settings gives it back.
+    if (targets != null) DisposableEffect(targets) { onDispose { targets.settingsLeft() } }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -143,16 +152,19 @@ fun SettingsScreen(
                     SettingsRow(
                         title = tv.name,
                         icon = R.drawable.ic_tv,
-                        detail = stringResource(
-                            R.string.settings_tv_status,
-                            tv.host,
-                            linkLabel(state.links.tv),
-                            linkLabel(state.links.rest),
-                        ),
+                        // Links in words (Erwann, 2026-10-25): "Google TV connected · IP control not set up".
+                        detail = listOfNotNull(
+                            stringResource(R.string.devices_tv_status, linkLabel(state.links.tv), linkLabel(state.links.rest)),
+                            stringResource(R.string.devices_bt_paired).takeIf { target?.list?.tv?.bluetooth != null },
+                        ).joinToString(" · "),
                         footer = {
                             DeviceActions {
                                 TextButton(onClick = onPair) { Text(stringResource(R.string.settings_pair_again)) }
                                 TextButton(onClick = { pskDialog = true }) { Text(stringResource(R.string.settings_psk)) }
+                                // The TV's Bluetooth fallback lives on its row now, not in a group of its own.
+                                if (hidSupported) {
+                                    TextButton(onClick = onOpenBluetooth) { Text(stringResource(R.string.bt_title)) }
+                                }
                                 TextButton(onClick = { forget = Forget.TV }) { Text(stringResource(R.string.settings_forget)) }
                             }
                             ProblemNote(
@@ -166,7 +178,7 @@ fun SettingsScreen(
                     SettingsRow(
                         title = bar.name,
                         icon = R.drawable.ic_speaker,
-                        detail = stringResource(R.string.settings_bar_status, bar.host, linkLabel(state.links.bar)),
+                        detail = stringResource(R.string.devices_bar_status, linkLabel(state.links.bar)),
                         footer = {
                             DeviceActions {
                                 TextButton(onClick = { forget = Forget.BAR }) { Text(stringResource(R.string.settings_forget)) }
@@ -175,20 +187,16 @@ fun SettingsScreen(
                         },
                     )
                 }
-                // No TV: the whole setup. A TV but no bar: the bar step alone (Erwann, 2026-10-24:
-                // "c'est dur de revenir sur le onboarding"). Both: the whole setup again, on request.
-                when {
-                    tv == null -> SettingsRow(
+                if (targets != null && target != null) MacRows(targets, target, state.tv.inputs)
+                // One way in for every device (Erwann, 2026-10-25: « Comment j'ajoute un appareil ? »):
+                // it asks what first, offering the TV or the bar only when missing.
+                if (targets != null) {
+                    AddDeviceRow(missing = tv == null || bar == null, onClick = { adding = true })
+                } else if (tv == null) {
+                    SettingsRow(
                         title = stringResource(R.string.settings_add_device),
                         icon = R.drawable.ic_add,
                         onClick = onPair,
-                        trailing = { OpensChevron() },
-                    )
-                    bar == null -> SettingsRow(
-                        title = stringResource(R.string.settings_add_bar),
-                        icon = R.drawable.ic_add,
-                        detail = stringResource(R.string.settings_add_bar_detail),
-                        onClick = onAddBar,
                         trailing = { OpensChevron() },
                     )
                 }
@@ -282,24 +290,6 @@ fun SettingsScreen(
                 FeedbackRows(state.prefs, onVibration = controller::setVibration, onKeySounds = controller::setKeySounds)
             }
 
-            // Bluetooth mode (Maya, 2026-10-25): hidden on phones without the HID device role.
-            if (hid != null) {
-                val hidState by hid.state.collectAsStateWithLifecycle()
-                LaunchedEffect(hid) { hid.probe() }
-                if (hidState.support == HidSupport.SUPPORTED) {
-                    SettingsGroup(stringResource(R.string.settings_bluetooth)) {
-                        LinkRow(
-                            title = stringResource(R.string.bt_title),
-                            detail = stringResource(R.string.settings_bluetooth_detail),
-                            enabled = true,
-                            onClick = onOpenBluetooth,
-                            icon = R.drawable.ic_bluetooth,
-                            opens = true,
-                        )
-                    }
-                }
-            }
-
             SettingsGroup(stringResource(R.string.settings_sony)) {
                 // Not a control yet: a quiet statement of where it stands, not a greyed row.
                 SettingsRow(
@@ -375,6 +365,19 @@ fun SettingsScreen(
         }
     }
 
+    if (adding && targets != null) {
+        AddDeviceFlow(
+            targets = targets,
+            hid = hid,
+            inputs = state.tv.inputs,
+            tvMissing = state.devices.tv == null,
+            barMissing = state.devices.bar == null,
+            onSetUpTv = onPair,
+            onSetUpBar = onAddBar,
+            onClose = { adding = false },
+            onRefreshInputs = controller::loadTvSettings,
+        )
+    }
     if (appsDialog) {
         AppsShownDialog(state, controller::setAppShown) { appsDialog = false }
     }
