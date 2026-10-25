@@ -3,4 +3,5 @@
 <full-backup-content>
     <exclude domain="file" path="datastore/secure.preferences_pb" />
     <exclude domain="file" path="secure/" />
+    <exclude domain="file" path="last_crash.txt" />
 </full-backup-content>

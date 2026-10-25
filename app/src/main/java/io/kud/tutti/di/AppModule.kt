@@ -2,8 +2,10 @@ package io.kud.tutti.di
 
 import android.content.Context
 import androidx.datastore.core.DataStore
+import androidx.datastore.core.handlers.ReplaceFileCorruptionHandler
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.preferencesDataStoreFile
 import dagger.Binds
 import dagger.Module
@@ -19,6 +21,7 @@ import io.kud.tutti.protocol.grpc.SonyCloudPlane
 import io.kud.tutti.protocol.grpc.UnavailableSonyCloudPlane
 import io.kud.tutti.protocol.net.TcpConnector
 import io.kud.tutti.protocol.net.TlsConnector
+import java.io.File
 import javax.inject.Named
 import javax.inject.Singleton
 
@@ -40,17 +43,28 @@ object StorageModule {
     @Singleton
     @Named(TuttiStore.TUTTI)
     fun tuttiDataStore(@ApplicationContext context: Context): DataStore<Preferences> =
-        PreferenceDataStoreFactory.create(produceFile = { context.preferencesDataStoreFile(TuttiStore.TUTTI) })
+        preferencesStore { context.preferencesDataStoreFile(TuttiStore.TUTTI) }
 
     /** files/datastore/secure.preferences_pb: excluded from backup, values Keystore-encrypted. */
     @Provides
     @Singleton
     @Named(SecureStore.SECURE)
     fun secureDataStore(@ApplicationContext context: Context): DataStore<Preferences> =
-        PreferenceDataStoreFactory.create(produceFile = { context.preferencesDataStoreFile(SecureStore.SECURE) })
+        preferencesStore { context.preferencesDataStoreFile(SecureStore.SECURE) }
 
     /** The Sony-cloud envelope is undocumented: bound to "non disponible" (docs/architecture.md). */
     @Provides
     @Singleton
     fun sonyCloudPlane(): SonyCloudPlane = UnavailableSonyCloudPlane()
 }
+
+/**
+ * A preferences store that starts empty rather than crash on every launch when its file is
+ * corrupt (a torn write, a full disk). For the secure store that means pairing again: better
+ * than an app that never opens.
+ */
+internal fun preferencesStore(produceFile: () -> File): DataStore<Preferences> =
+    PreferenceDataStoreFactory.create(
+        corruptionHandler = ReplaceFileCorruptionHandler { emptyPreferences() },
+        produceFile = produceFile,
+    )

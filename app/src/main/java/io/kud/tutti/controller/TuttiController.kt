@@ -7,6 +7,7 @@ import android.net.ConnectivityManager
 import android.net.Network
 import android.os.Build
 import android.os.SystemClock
+import android.util.Log
 import dagger.hilt.android.qualifiers.ApplicationContext
 import io.kud.tutti.platform.data.DockAction
 import io.kud.tutti.platform.data.DockConfig
@@ -84,6 +85,7 @@ import io.kud.tutti.protocol.atv.VoiceEvent
 import io.kud.tutti.protocol.atv.VoiceState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
@@ -144,7 +146,7 @@ class TuttiController @Inject constructor(
     val cloud: SonyCloudPlane,
 ) {
     /** Application-lifetime scope; widgets may launch into it. */
-    val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default + loggingHandler { Log.e(TAG, it) })
 
     private val theatre = TheatreClient(tcp, scope)
     private val atv = AtvRemote(tls, scope, ClientDeviceInfo(model = "tutti", packageName = context.packageName))
@@ -458,7 +460,16 @@ class TuttiController @Inject constructor(
             linkNotes.update { it.copy(tv = failureDetail("tv remote: connect (TLS 6466)", outcome = "no pairing stored on this phone: pair the TV")) }
             return
         }
-        val identity = identities.getOrCreate()
+        val identity = try {
+            identities.getOrCreate()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // The Keystore can fail (locked, wiped, a vendor bug): the remote is down, not the app.
+            links.update { it.copy(tv = Link.UNREACHABLE) }
+            linkNotes.update { it.copy(tv = failureDetail("tv remote: client identity (Keystore)", outcome = "could not load or create", error = e)) }
+            return
+        }
         var wait = MIN_BACKOFF_MS
         var handshakeFailures = 0
         try {
@@ -878,11 +889,14 @@ class TuttiController @Inject constructor(
                     is AppIcons.Plan.Fetch -> when (val got = transport.fetchIcon(plan.url, psk)) {
                         is OkHttpBraviaTransport.IconFetch.Failed -> got.attempt to plan.shape
                         is OkHttpBraviaTransport.IconFetch.Image -> {
+                            // A full disk or a vanished cache dir is a missing icon, never a crash.
                             val path = withContextIO {
-                                val part = File(dir, "$name.part")
-                                part.writeBytes(got.bytes)
-                                val target = File(dir, name)
-                                if (part.renameTo(target)) target.path else null
+                                runCatching {
+                                    val part = File(dir, "$name.part")
+                                    part.writeBytes(got.bytes)
+                                    val target = File(dir, name)
+                                    if (part.renameTo(target)) target.path else null
+                                }.getOrNull()
                             }
                             if (path != null) icons.update { it + (name to path) }
                             (if (path != null) IconAttempt(IconOutcome.CACHED) else IconAttempt(IconOutcome.NETWORK, "cache write")) to plan.shape
@@ -1542,13 +1556,16 @@ class TuttiController @Inject constructor(
         return true
     }
 
-    fun setPsk(value: String?) {
+    /** Stores [value] (null clears it). False, and nothing stored, when it breaks [PskRules]. */
+    fun setPsk(value: String?): Boolean {
+        if (value != null && !PskRules.valid(value)) return false
         scope.launch {
             secure.setTvPsk(value)
             psk = secure.tvPsk()
             pskSet.value = psk != null
             restart.update { it + 1 }
         }
+        return true
     }
 
     suspend fun hasPsk(): Boolean = secure.tvPsk() != null
@@ -1769,6 +1786,7 @@ class TuttiController @Inject constructor(
     }
 
     companion object {
+        private const val TAG = "tutti"
         const val MAX_VOLUME = 100
         private const val LINGER_MS = 30_000L
         private const val MIN_BACKOFF_MS = 1_000L
@@ -1798,3 +1816,13 @@ internal fun iconFileName(packageName: String): String? =
 
 /** Whether the TV's REST pin still applies once the TV is saved at [next]: only at the same address. */
 internal fun restPinSurvives(previous: String?, next: String): Boolean = previous != null && previous.trim() == next.trim()
+
+/**
+ * The controller scope's last resort: a coroutine that throws is logged (scrubbed) instead of
+ * killing the process. Each loop still handles its own failures; this is for the ones nobody
+ * foresaw.
+ */
+internal fun loggingHandler(log: (String) -> Unit): CoroutineExceptionHandler = CoroutineExceptionHandler { _, error ->
+    val text = runCatching { Redact.text(error.stackTraceToString()) }.getOrDefault(error.javaClass.name)
+    runCatching { log("uncaught in the controller scope: $text") }
+}
