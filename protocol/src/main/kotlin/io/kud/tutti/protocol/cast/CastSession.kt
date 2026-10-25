@@ -2,6 +2,7 @@ package io.kud.tutti.protocol.cast
 
 import io.kud.tutti.protocol.cast.proto.CastMessage
 import io.kud.tutti.protocol.net.Connection
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -66,16 +67,24 @@ class CastSession(
             while (true) {
                 delay(heartbeatMillis)
                 if (!verified) continue
-                send(text(RECEIVER, CastNamespaces.HEARTBEAT, """{"type":"PING"}"""))
-                sinceRefresh += heartbeatMillis
-                if (sinceRefresh >= refreshMillis) {
-                    sinceRefresh = 0
-                    app?.let { mediaStatus(it) }
+                try {
+                    send(text(RECEIVER, CastNamespaces.HEARTBEAT, """{"type":"PING"}"""))
+                    sinceRefresh += heartbeatMillis
+                    if (sinceRefresh >= refreshMillis) {
+                        sinceRefresh = 0
+                        app?.let { mediaStatus(it) }
+                    }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    // A write on a socket that just died: end the read, which reports how it closed.
+                    connection.close()
+                    break
                 }
             }
         }
+        var result: CastEnd? = null
         val end = try {
-            var result: CastEnd? = null
             connection.incoming.collect { chunk ->
                 if (result != null) return@collect
                 val messages = try { decoder.feed(chunk) } catch (_: CastFrameException) { result = CastEnd.Malformed; emptyList() }
@@ -87,7 +96,8 @@ class CastSession(
             }
             result ?: CastEnd.Closed("eof")
         } catch (e: Exception) {
-            CastEnd.Closed(e.javaClass.simpleName)
+            // Closing the socket after a verdict can fail the read: the verdict is the reason.
+            result ?: CastEnd.Closed(e.javaClass.simpleName)
         } finally {
             ticker.cancel()
             onNowPlaying(null)
