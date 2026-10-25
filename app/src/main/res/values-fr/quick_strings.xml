@@ -26,8 +26,8 @@
     <string name="quick_notification_channel_description">Ce qui passe sur la TV, lecture/pause, volume et sourdine tant que la TV est allumée.</string>
     <string name="quick_notification_volume_down">Vol. −</string>
     <string name="quick_notification_volume_up">Vol. +</string>
-    <string name="quick_notification_mute">Muet</string>
-    <string name="quick_notification_unmute">Son</string>
+    <string name="quick_notification_mute">Couper le son</string>
+    <string name="quick_notification_unmute">Rétablir le son</string>
     <string name="quick_notification_play_pause">Lecture/pause</string>
     <string name="quick_level_bar">Vol. barre %1$d</string>
     <string name="quick_level_tv">Vol. TV %1$d</string>

@@ -49,7 +49,7 @@
     <string name="settings_developer_mode">Mode développeur</string>
     <string name="settings_developer_mode_detail">Affiche les détails techniques sous les erreurs, avec Copier les détails, et les diagnostics.</string>
     <string name="pairing_code_field">Code d’association</string>
-    <string name="pairing_code_progress">Saisis : %1$d sur %2$d</string>
+    <string name="pairing_code_progress">%1$d caractères sur %2$d</string>
     <string name="action_retry">Réessayer</string>
     <!-- Message passager de tutti (remplace les toasts système). -->
     <string name="message_dismiss">Fermer</string>
