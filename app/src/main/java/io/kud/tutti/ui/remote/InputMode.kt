@@ -85,6 +85,14 @@ object InputRules {
         return mode.copy(open = false, closedAt = null, sent = false, enterAt = null, left = null)
     }
 
+    /**
+     * The keyboard comes to him (Iris's benchmark, idea 6): a new TV field ([shows] past
+     * [seenShows]) while tutti is in front but off the remote, where the view would open by itself,
+     * is offered once as a quiet message with "Type". The same field is never offered twice.
+     */
+    fun offerAway(seenShows: Int, hasField: Boolean, shows: Int, onRemote: Boolean): Boolean =
+        hasField && shows != seenShows && !onRemote
+
     fun back(imeVisible: Boolean): BackAction = if (imeVisible) BackAction.HIDE_KEYBOARD else BackAction.LEAVE
 
     fun phase(mode: InputMode, reachable: Boolean): FieldPhase = when {

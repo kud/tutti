@@ -1,5 +1,9 @@
 package io.kud.tutti.ui
 
+import io.kud.tutti.ui.remote.InputRules
+import androidx.compose.ui.res.stringResource
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.collectAsState
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.ContentTransform
@@ -280,6 +284,22 @@ fun TuttiApp(
         }
     }
     BackHandler(enabled = stack.size > 1) { pop() }
+
+    // The keyboard comes to him: a field the TV opens while another screen is in front is offered
+    // with "Type" (InputRules.offerAway); the Keyboard tile and shortcut ask too. Either way the
+    // remote comes forward and opens its keyboard view.
+    val keyboardAsked by controller.keyboardAsked.collectAsState()
+    LaunchedEffect(keyboardAsked) { if (keyboardAsked && stack.last() != Screen.Remote) home() }
+    var seenShows by remember { mutableIntStateOf(state.remote.imeShows) }
+    val fieldWords = stringResource(R.string.keyboard_field_open)
+    val typeWords = stringResource(R.string.keyboard_field_type)
+    LaunchedEffect(state.remote.ime != null, state.remote.imeShows) {
+        val shows = state.remote.imeShows
+        if (InputRules.offerAway(seenShows, state.remote.ime != null, shows, onRemote = stack.last() == Screen.Remote)) {
+            messages.show(fieldWords, actionLabel = typeWords, onAction = { controller.askKeyboard() })
+        }
+        seenShows = shows
+    }
 
     LaunchedEffect(state.loaded) {
         if (state.loaded && state.devices.isEmpty && !state.prefs.onboarded && stack.none { it is Screen.Onboarding }) push(Screen.Onboarding())

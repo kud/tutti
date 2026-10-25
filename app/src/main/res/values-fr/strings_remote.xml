@@ -129,4 +129,7 @@
     <string name="click_left_said">Clic gauche</string>
     <string name="click_middle_said">Clic du milieu</string>
     <string name="click_right_said">Clic droit</string>
+    <string name="keyboard_field_open">Champ de texte ouvert sur la TV</string>
+    <string name="keyboard_field_type">Taper</string>
+    <string name="keyboard_tile_label">Clavier</string>
 </resources>

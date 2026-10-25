@@ -133,4 +133,7 @@
     <string name="click_left_said">Left click</string>
     <string name="click_middle_said">Middle click</string>
     <string name="click_right_said">Right click</string>
+    <string name="keyboard_field_open">A text field is open on the TV</string>
+    <string name="keyboard_field_type">Type</string>
+    <string name="keyboard_tile_label">Keyboard</string>
 </resources>

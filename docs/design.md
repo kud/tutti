@@ -194,6 +194,7 @@ The rail drives the soundbar, `main.volumestep` on its own 0–100 scale (`Theat
 
 ## Keyboard
 - Auto-open when the TV reports a focused text field (IME show request); the pad shrinks above, still live.
+- The keyboard comes to you (Iris's benchmark, idea 6; Maya, 2026-10-25). tutti in front but on another screen (settings, scenes): a new TV field shows a quiet message, "A text field is open on the TV" with "Type", which brings the remote forward with the view open (`InputRules.offerAway`, tested; once per field, never for one he left with Back). In the background nothing listens: no session is kept alive for it (no foreground service, see Notification), so the way in is the **Keyboard** Quick Settings tile, beside the remote's tile, and the launcher's Keyboard shortcut, both opening the remote on its keyboard view. A "Keyboard" button in the media notification is left out: Android 13+ draws those controls from the session, where a custom action can't open an activity.
 - Opened from the Keyboard key before the TV reports a field, the view is typable at once, the phone keyboard up: the text goes to whatever field the TV has focused, and the TV's first echo makes it live (Erwann, 2026-10-25: « pouvoir l'afficher dès le début »). A batch edit from the TV (its own keyboard typing) counts as a focused field too.
 - Mirror field at the top showing the TV's current text and label ("Rechercher sur YouTube").
 - Each keystroke sent live; Enter carries the TV's action. Chips: Coller, Dicter. Closes when the TV field loses focus or on swipe down.

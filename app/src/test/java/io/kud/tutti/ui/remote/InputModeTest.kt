@@ -110,4 +110,12 @@ class InputModeTest {
         assertEquals(FieldPhase.UNREACHABLE, InputRules.phase(open, reachable = false))
         assertEquals(FieldPhase.UNREACHABLE, InputRules.phase(InputRules.keyboardKey(closed), reachable = false))
     }
+
+    @Test
+    fun `a new tv field is offered off the remote, once, and never on it`() {
+        assertTrue(InputRules.offerAway(seenShows = 1, hasField = true, shows = 2, onRemote = false))
+        assertFalse(InputRules.offerAway(seenShows = 2, hasField = true, shows = 2, onRemote = false))
+        assertFalse(InputRules.offerAway(seenShows = 1, hasField = true, shows = 2, onRemote = true))
+        assertFalse(InputRules.offerAway(seenShows = 1, hasField = false, shows = 2, onRemote = false))
+    }
 }
