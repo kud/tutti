@@ -73,6 +73,8 @@ internal fun NowShowingCard(
     /** The tap points the remote at this computer ([CardTap.CONTROL_COMPUTER]): « Contrôler <nom> » instead of playback. */
     controls: String? = null,
     onActions: (() -> Unit)? = null,
+    /** A running switch-off timer, in words ("Off at 23:40 · 12 min left"), added to the card's detail line. */
+    timer: String? = null,
 ) {
     if (fit.size == CardSize.HIDDEN) return
     val shape = RoundedCornerShape(CARD_CORNER)
@@ -109,7 +111,9 @@ internal fun NowShowingCard(
             label = "now-showing",
             modifier = Modifier.fillMaxSize(),
         ) { now ->
-            val words = cardWords(now, tvName)
+            val words = cardWords(now, tvName).let { words ->
+                if (timer == null) words else words.copy(detail = listOfNotNull(words.detail, timer).joinToString(" · "))
+            }
             // The bar on its own offers the one thing it can't do by itself: waking the TV.
             val wake: (@Composable () -> Unit)? = when {
                 now is CardShowing.OnTheBar -> {

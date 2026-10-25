@@ -26,6 +26,15 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- ===== quick access: permissions (end) ===== -->
 
+    <!-- The gentle switch-off timer (docs/architecture.md): a connectedDevice foreground service for
+         the timer's life, an exact alarm at the fade's start (the user-granted SCHEDULE_EXACT_ALARM,
+         never USE_EXACT_ALARM), and a partial wake lock only during the 2-minute fade.
+         CHANGE_WIFI_MULTICAST_STATE above is the type's prerequisite permission. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
     <!-- Lets "Recalibrer dans BRAVIA Connect" see whether Sony's app is installed. -->
     <!-- Launchable apps: an app tile with no TV icon borrows the icon of the same app on this
          phone (PhoneIconBitmaps), matched by exact package. A TV app outside the catalog has a
@@ -112,5 +121,15 @@
             android:name=".quick.notification.QuickNotificationReceiver"
             android:exported="false" />
         <!-- ===== quick access: components (end) ===== -->
+
+        <!-- The gentle switch-off timer: its service (the notification is the timer) and its alarm. -->
+        <service
+            android:name=".sleep.SleepTimerService"
+            android:exported="false"
+            android:foregroundServiceType="connectedDevice" />
+
+        <receiver
+            android:name=".sleep.SleepTimerAlarmReceiver"
+            android:exported="false" />
     </application>
 </manifest>

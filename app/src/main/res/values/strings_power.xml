@@ -10,4 +10,20 @@
     <string name="screen_off_scene_key">Screen off</string>
     <string name="screen_off_summary_on">Screen off</string>
     <string name="screen_off_summary_off">Screen on</string>
+    <!-- Gentle switch-off timer (Power sheet, now-showing card, its notification) -->
+    <string name="gentle_off_title">Switch off gently</string>
+    <string name="gentle_off_detail">The volume lowers over the last 2 minutes, then the TV and the soundbar turn off.</string>
+    <string name="gentle_off_minutes">%1$d min</string>
+    <string name="gentle_off_minutes_label">Switch off in %1$d minutes</string>
+    <string name="gentle_off_at">Off at %1$s</string>
+    <string name="gentle_off_left">%1$d min left · tap to cancel</string>
+    <string name="gentle_off_card">Off at %1$s · %2$d min left</string>
+    <string name="gentle_off_cancel">Cancel</string>
+    <string name="gentle_off_late">May switch off a few minutes late</string>
+    <string name="gentle_off_allow">Allow exact timing</string>
+    <string name="gentle_off_all_off">The TV and the soundbar are off</string>
+    <string name="gentle_off_fading">Lowering the volume, then switching off</string>
+    <string name="gentle_off_notification_text">The volume lowers over the last 2 minutes</string>
+    <string name="gentle_off_channel">Switch-off timer</string>
+    <string name="gentle_off_channel_description">The countdown before the TV and the soundbar switch off.</string>
 </resources>

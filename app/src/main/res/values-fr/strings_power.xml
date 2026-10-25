@@ -9,4 +9,20 @@
     <string name="screen_off_scene_key">Écran éteint</string>
     <string name="screen_off_summary_on">Écran éteint</string>
     <string name="screen_off_summary_off">Écran allumé</string>
+    <!-- Extinction en douceur (feuille Marche / arrêt, carte « À l’écran », sa notification) -->
+    <string name="gentle_off_title">Éteindre en douceur</string>
+    <string name="gentle_off_detail">Le volume baisse pendant les 2 dernières minutes, puis la TV et la barre s’éteignent.</string>
+    <string name="gentle_off_minutes">%1$d min</string>
+    <string name="gentle_off_minutes_label">Éteindre dans %1$d minutes</string>
+    <string name="gentle_off_at">Arrêt à %1$s</string>
+    <string name="gentle_off_left">Encore %1$d min · touchez pour annuler</string>
+    <string name="gentle_off_card">Arrêt à %1$s · encore %2$d min</string>
+    <string name="gentle_off_cancel">Annuler</string>
+    <string name="gentle_off_late">Peut s’éteindre quelques minutes en retard</string>
+    <string name="gentle_off_allow">Autoriser l’heure exacte</string>
+    <string name="gentle_off_all_off">La TV et la barre sont éteintes</string>
+    <string name="gentle_off_fading">Le volume baisse, puis tout s’éteint</string>
+    <string name="gentle_off_notification_text">Le volume baissera pendant les 2 dernières minutes</string>
+    <string name="gentle_off_channel">Extinction programmée</string>
+    <string name="gentle_off_channel_description">Le compte à rebours avant que la TV et la barre s’éteignent.</string>
 </resources>

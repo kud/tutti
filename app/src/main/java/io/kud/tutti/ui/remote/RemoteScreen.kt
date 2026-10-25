@@ -1,5 +1,8 @@
 package io.kud.tutti.ui.remote
 
+import io.kud.tutti.sleep.SleepTimers
+import io.kud.tutti.sleep.gentleOffRow
+import io.kud.tutti.protocol.sleep.SleepFade
 import io.kud.tutti.ui.common.FeedbackEvent
 import android.os.SystemClock
 import androidx.activity.compose.BackHandler
@@ -42,6 +45,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -114,6 +118,15 @@ fun RemoteScreen(
     var picker by remember { mutableStateOf<PickerTarget?>(null) }
     var sheet2 by remember { mutableStateOf<RemoteSheet?>(null) }
     var powerSheet by remember { mutableStateOf(false) }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    // The gentle switch-off timer: its end, and a clock that ticks only while one runs.
+    val gentleTimer by SleepTimers.state.collectAsState()
+    val gentleNow by produceState(System.currentTimeMillis(), gentleTimer) {
+        while (gentleTimer != null) {
+            value = System.currentTimeMillis()
+            kotlinx.coroutines.delay(15_000L)
+        }
+    }
     // The "?" in the top bar: every hidden gesture (discoverability rule 2).
     var gesturesSheet by remember { mutableStateOf(false) }
     // Iris's gesture audit (2026-10-25): the volume sheet (the rail's number), a scene pinned from its menu.
@@ -498,6 +511,13 @@ fun RemoteScreen(
                                     // The TV alone; the bar plays on (CEC may still move it to the TV input).
                                     onWakeTv = { controller.power(PowerTarget.TV, on = true) },
                                     waking = state.waking,
+                                    timer = gentleTimer?.let { timer ->
+                                        stringResource(
+                                            R.string.gentle_off_card,
+                                            android.text.format.DateFormat.getTimeFormat(context).format(java.util.Date(timer.endsAt)),
+                                            SleepFade.minutesLeft(gentleNow, timer.endsAt),
+                                        )
+                                    },
                                     onOpen = when (cardTap(shown, targets.computerOnInput != null)) {
                                         CardTap.PLAYBACK -> {
                                             {
@@ -720,6 +740,8 @@ fun RemoteScreen(
     }
 
     if (powerSheet) {
+        // Asked again on every opening: the system page that grants exact alarms is one tap away.
+        val exactAllowed = remember(powerSheet) { SleepTimers.exactAllowed(context) }
         // The sleep key comes from the TV's IRCC list, which only TV settings load: ask once.
         LaunchedEffect(Unit) { controller.loadSleepTimer() }
         val powerPinner = rememberDockPinner(state, controller)
@@ -765,6 +787,29 @@ fun RemoteScreen(
                 powerSheet = false
             },
             onDismiss = { powerSheet = false },
+            gentle = gentleOffRow(
+                hasDevice = state.devices.tv != null || state.devices.bar != null,
+                powered = state.powered,
+                running = gentleTimer,
+                offReason = stringResource(R.string.gentle_off_all_off),
+            ),
+            now = gentleNow,
+            exactAllowed = exactAllowed,
+            onGentle = { minutes ->
+                haptics.select()
+                SleepTimers.start(context, minutes)
+                powerSheet = false
+            },
+            onGentleCancel = {
+                haptics.click()
+                SleepTimers.cancel(context)
+            },
+            onAllowExact = SleepTimers.exactSettings(context)?.let { page ->
+                {
+                    runCatching { context.startActivity(page) }
+                    Unit
+                }
+            },
         )
     }
 

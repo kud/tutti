@@ -17,7 +17,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -32,6 +37,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import io.kud.tutti.R
 import io.kud.tutti.controller.PowerTarget
+import io.kud.tutti.protocol.sleep.SleepFade
+import io.kud.tutti.sleep.GentleOffRow
 import io.kud.tutti.ui.common.PinnedHeader
 import io.kud.tutti.ui.common.TuttiSheet
 
@@ -103,6 +110,12 @@ fun PowerSheet(
     screen: ScreenOffRow? = null,
     onScreen: (off: Boolean) -> Unit = {},
     onPinScreen: ((off: Boolean) -> Unit)? = null,
+    gentle: GentleOffRow? = null,
+    now: Long = 0L,
+    exactAllowed: Boolean = true,
+    onGentle: (minutes: Int) -> Unit = {},
+    onGentleCancel: () -> Unit = {},
+    onAllowExact: (() -> Unit)? = null,
 ) {
     // With the TV alone, "TV only" would imply a soundbar that isn't there.
     val solo = choices.none { it.target == PowerTarget.BAR }
@@ -160,6 +173,70 @@ fun PowerSheet(
                 if (sleep != null) {
                     val detail = sleep.reason ?: stringResource(R.string.power_sleep_detail)
                     PowerRow(R.drawable.ic_bedtime, stringResource(R.string.power_sleep), detail, enabled = sleep.reason == null, down = sleep.reason != null, onClick = onSleep)
+                }
+                if (gentle != null) GentleOff(gentle, now, exactAllowed, onGentle, onGentleCancel, onAllowExact)
+            }
+        }
+    }
+}
+
+/**
+ * The gentle switch-off timer (Iris's top 10, item 5): a row of durations, or, while one runs, its
+ * end time and time left, a tap cancelling it. Without exact alarms it says, in words, that it may
+ * switch off a few minutes late, and offers the system page that allows exact timing.
+ */
+@Composable
+private fun GentleOff(
+    row: GentleOffRow,
+    now: Long,
+    exactAllowed: Boolean,
+    onStart: (Int) -> Unit,
+    onCancel: () -> Unit,
+    onAllowExact: (() -> Unit)?,
+) {
+    val running = row.running
+    if (running != null) {
+        val at = android.text.format.DateFormat.getTimeFormat(LocalContext.current).format(java.util.Date(running.endsAt))
+        val left = stringResource(R.string.gentle_off_left, SleepFade.minutesLeft(now, running.endsAt))
+        PowerRow(
+            R.drawable.ic_bedtime,
+            stringResource(R.string.gentle_off_at, at),
+            if (running.exact) left else left + "\n" + stringResource(R.string.gentle_off_late),
+            onClick = onCancel,
+        )
+        return
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        PowerRow(
+            R.drawable.ic_bedtime,
+            stringResource(R.string.gentle_off_title),
+            row.reason ?: stringResource(R.string.gentle_off_detail),
+            enabled = false,
+            down = row.reason != null,
+            onClick = {},
+        )
+        if (row.reason == null) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                for (minutes in SleepFade.DURATIONS_MIN) {
+                    val label = stringResource(R.string.gentle_off_minutes_label, minutes)
+                    FilledTonalButton(
+                        onClick = { onStart(minutes) },
+                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
+                        modifier = Modifier.weight(1f).heightIn(min = 48.dp).semantics { contentDescription = label },
+                    ) {
+                        Text(stringResource(R.string.gentle_off_minutes, minutes), maxLines = 1, style = MaterialTheme.typography.labelLarge)
+                    }
+                }
+            }
+            if (!exactAllowed) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        stringResource(R.string.gentle_off_late),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f).padding(start = 4.dp),
+                    )
+                    if (onAllowExact != null) TextButton(onClick = onAllowExact) { Text(stringResource(R.string.gentle_off_allow)) }
                 }
             }
         }

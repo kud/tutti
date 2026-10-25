@@ -109,7 +109,7 @@ Erwann, 2026-10-25: "clavier, souris, trackpad en mode Bluetooth si besoin", the
 
 **Touchpad and pointer.** Touchpad: finger pixels with a mild acceleration (`TouchpadMotion`), tap = left click, two-finger drag = wheel (one detent per 48 px, natural direction), two-finger tap = right click (Android: Back). Pointer (`AirPointer`, LG Magic Remote style): `TYPE_GYROSCOPE` at `SENSOR_DELAY_GAME`, rotation about the screen's normal moves the cursor sideways, about x up and down; a 0.03 rad/s dead zone (subtracted, so motion starts from zero), an EMA (0.45), 3200 cursor units per radian at sensitivity 1 (0.25 to 3), fractions carried between reports (`MotionAccumulator`), int8 splitting. "Hold to recentre" is the clutch: nothing moves while held, the filter restarts from rest on release. The sensor listener exists only while the Pointer segment is in front and the TV is connected.
 
-## Gentle switch-off timer (decided, Maya, 2026-10-25; app side not built yet)
+## Gentle switch-off timer (decided, Maya, 2026-10-25; built in `:app` `sleep/`)
 
 Iris's top 10, item 5: "turn off in 15/30/45/60/90 min", the bar's volume stepping down over the last two minutes, then the TV and the bar off. The timing is pure and tested in `:protocol` (`sleep/SleepFade.kt`): phases, the stepped level, "a hand on the rail wins" (the fade only ever lowers), the next wake-up, and the level to restore on a cancel mid-fade.
 
