@@ -1384,6 +1384,40 @@ class TuttiController @Inject constructor(
         scope.launch { theatre.startBluetoothPairing() }
     }
 
+    /** His own name for bar input [value] (null: back to the bar's), shown only in tutti. */
+    fun renameBarInput(value: String, name: String?) {
+        scope.launch { store.updatePrefs { it.copy(barInputNames = if (name == null) it.barInputNames - value else it.barInputNames + (value to name)) } }
+    }
+
+    /** Takes bar input [value] out of the Son sheet's row, or puts it back. */
+    fun setBarInputHidden(value: String, hidden: Boolean) {
+        scope.launch { store.updatePrefs { it.copy(hiddenBarInputs = if (hidden) it.hiddenBarInputs + value else it.hiddenBarInputs - value) } }
+    }
+
+    /**
+     * True when the one-time hint for gesture [id] may show now, and records it as shown: once
+     * ever, never two the same day (discoverability rule 3, [io.kud.tutti.ui.common.GestureHints]).
+     */
+    fun takeHint(id: String): Boolean {
+        val today = java.time.LocalDate.now().toEpochDay()
+        if (!io.kud.tutti.ui.common.GestureHints.mayShow(state.value.prefs.hints, id, today)) return false
+        scope.launch { store.updatePrefs { it.copy(hints = io.kud.tutti.ui.common.GestureHints.shown(it.hints, id, today)) } }
+        return true
+    }
+
+    private val keyboardAsk = MutableStateFlow(false)
+
+    /** A launcher shortcut asked for the keyboard view; the remote opens it and calls [keyboardAnswered]. */
+    val keyboardAsked: StateFlow<Boolean> = keyboardAsk
+
+    fun askKeyboard() {
+        keyboardAsk.value = true
+    }
+
+    fun keyboardAnswered() {
+        keyboardAsk.value = false
+    }
+
     /** The last exchanges on the bar's TCP 33336, scrubbed, for the diagnostic report. */
     val barWire: List<String> get() = theatre.wire.lines()
 

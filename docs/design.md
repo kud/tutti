@@ -91,6 +91,24 @@ Long press, on an app only (« aller sur home de l'app ou kill l'app »): a `Tut
 - Anchors never move or hide: Power (short press both, long press the device sheet), the volume rail, the pad's place and the Son sheet. The pad's side is chosen once, by the hand, never dragged; the rail takes the other side. "Reset the layout" asks first and puts the row, the scenes, the pad and the hand (right) back; pins stay.
 - Stored with every field defaulted to today's screen, so a phone that never opens edit mode sees no change.
 
+## Gestures: the long-press grammar and the discoverability rule (Erwann, 2026-10-25)
+
+**Grammar.** Tap does; long press opens the thing's menu (first row the most useful, last "Pin to dock" or "Edit"); drag sets a continuous value. No double tap anywhere: it would delay every OK by about 300 ms. When the menu would have a single row (an effect tile, a DRC or IMAX choice, a key in All keys, a TV setting value), the long press goes straight to that row: "Pin to dock" opens the slot dialog.
+
+**"Pin to dock" everywhere it makes sense.** Effect tiles, bar inputs, DRC and IMAX choices, All keys, TV settings values: one `DockPinner` (`ui/remote/PinAnywhere.kt`) writes the dock's own model (`DockAction`), so the pin is like any other.
+
+**Bar inputs.** Long press a segment: Pair a device (Bluetooth only, first), Rename (tutti only), Hide (never the input playing now), Pin to dock. Hidden inputs come back from Settings › Soundbar › Hidden inputs.
+
+**Launcher.** Long press on tutti's icon: the first three scenes in his order, then Keyboard; kept in step with the scenes whenever the app is in front.
+
+**Discoverability: a hidden gesture exists only if all five hold.**
+
+1. It shows it is coming: the ring sweeps the control's edge from 150 ms to the long-press timeout (`holdForMenu` for controls that keep their own tap, `longPressRing` on the round keys), and the menu, dialog or tag names what it did.
+2. It is listed in the registry, `ui/common/Gestures.kt`, the single source of truth, which the "?" on the remote's top bar shows as the "Gestures" sheet. A gesture not in the registry does not ship.
+3. At most one hint per gesture, once, at the right moment; never two the same day; showing is spending, so a dismissal is permanent (`GestureHints`, `TuttiController.takeHint`).
+4. Never only behind a gesture: each action also has a visible way in (a menu, a sheet, Settings).
+5. TalkBack first: every long press is a `CustomAccessibilityAction` named by what it does, never "long press"; state never rests on colour; 48 dp targets; a TV or bar control whose link is down refuses its long press too (a bump), except Power.
+
 ## The bar on its own
 
 Erwann, 2026-10-24: no switch, a state that comes and goes by itself. The rule is `barAlone` (`ui/remote/BarAlone.kt`, tested in `BarAloneTest`).

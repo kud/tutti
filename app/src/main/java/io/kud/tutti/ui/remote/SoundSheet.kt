@@ -76,6 +76,8 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.kud.tutti.R
+import io.kud.tutti.ui.common.holdForMenu
+import io.kud.tutti.platform.data.DockAction
 import io.kud.tutti.controller.TuttiController
 import io.kud.tutti.controller.TuttiUiState
 import io.kud.tutti.protocol.theatre.FeatureKind
@@ -136,6 +138,8 @@ fun SoundSheet(
     val scroll = rememberScrollState()
     // The section whose "?" was tapped: its explanation sheet is open (design.md, "Son" sheet).
     var explaining by remember { mutableStateOf<SoundSection?>(null) }
+    // Long press on a tile or a DRC/IMAX choice pins it (gesture audit item 9).
+    val pinner = rememberDockPinner(state, controller)
     val layout = soundSheetLayout(state.voiceZoomAvailable)
     explaining?.let { ExplainSheet(it, layout, onDismiss = { explaining = null }) }
     // The title line is the sheet's pinned header: folded, it is the whole peek; open, it stays put
@@ -182,7 +186,7 @@ fun SoundSheet(
                 }
             }
             Spacer(Modifier.height(4.dp))
-            BarInputRow(state, controller, onHelp = { explaining = SoundSection.Input })
+            BarInputRow(state, controller, onHelp = { explaining = SoundSection.Input }, pinner = pinner)
             Spacer(Modifier.height(4.dp))
 
             val tiles = layout.tiles
@@ -197,6 +201,10 @@ fun SoundSheet(
                                 haptics.select()
                                 if (feature.kind is FeatureKind.Toggle) controller.toggleBar(feature)
                             },
+                            onPin = { name ->
+                                haptics.longPress()
+                                pinner.request(DockAction.ToggleBar(feature.key), name)
+                            },
                             modifier = Modifier.weight(1f),
                         )
                     }
@@ -208,7 +216,10 @@ fun SoundSheet(
                 ChoiceSegments(state, feature, onSelect = {
                     haptics.select()
                     controller.setBarChoice(feature, it)
-                }, onHelp = { explaining = SoundSection.Choice(feature) })
+                }, onHelp = { explaining = SoundSection.Choice(feature) }, onPin = { option, name ->
+                    haptics.longPress()
+                    pinner.request(DockAction.SetBar(feature.key, option), name)
+                })
             }
 
             if (layout.levels.isNotEmpty()) {
@@ -269,7 +280,7 @@ fun soundSheetLayout(voiceZoom: Boolean, features: List<TheatreFeature> = SOUND_
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ChoiceSegments(state: TuttiUiState, feature: TheatreFeature, onSelect: (String) -> Unit, onHelp: () -> Unit) {
+private fun ChoiceSegments(state: TuttiUiState, feature: TheatreFeature, onSelect: (String) -> Unit, onHelp: () -> Unit, onPin: (String, String) -> Unit) {
     val kind = feature.kind as? FeatureKind.Choice ?: return
     val reason = barReason(state, feature)
     val value = state.bar.value(feature)
@@ -277,6 +288,8 @@ private fun ChoiceSegments(state: TuttiUiState, feature: TheatreFeature, onSelec
     val refused = state.bar.refusedValues(feature)
     val refusedWord = stringResource(R.string.choice_refused)
     val described = withHint(label, explanation(feature)?.let { stringResource(it) })
+    val pinLabel = stringResource(R.string.pin_to_dock)
+    val bumpFeedback = rememberFeedback()
     Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
         SectionLabel(label, onHelp = onHelp, modifier = Modifier.padding(bottom = 2.dp))
         SingleChoiceSegmentedButtonRow(
@@ -284,6 +297,8 @@ private fun ChoiceSegments(state: TuttiUiState, feature: TheatreFeature, onSelec
         ) {
             kind.options.forEachIndexed { index, option ->
                 val isRefused = option in refused
+                val segmentShape = SegmentedButtonDefaults.itemShape(index, kind.options.size)
+                val optionName = "$label · ${choiceLabel(option)}"
                 SegmentedButton(
                     selected = option == value,
                     // A refused option stays tappable: a tap is a retry.
@@ -297,7 +312,9 @@ private fun ChoiceSegments(state: TuttiUiState, feature: TheatreFeature, onSelec
                             SegmentedButtonDefaults.Icon(active = option == value)
                         }
                     },
-                    modifier = Modifier.heightIn(min = 48.dp).then(
+                    modifier = Modifier.heightIn(min = 48.dp)
+                        .holdForMenu(pinLabel, segmentShape, enabled = reason == null, onRefused = bumpFeedback::bump) { onPin(option, optionName) }
+                        .then(
                         if (isRefused) Modifier.semantics { stateDescription = refusedWord } else Modifier,
                     ),
                 ) {
@@ -320,7 +337,7 @@ private fun ChoiceSegments(state: TuttiUiState, feature: TheatreFeature, onSelec
 }
 
 @Composable
-private fun SoundTile(state: TuttiUiState, feature: TheatreFeature, onTap: () -> Unit, modifier: Modifier = Modifier) {
+private fun SoundTile(state: TuttiUiState, feature: TheatreFeature, onTap: () -> Unit, onPin: (String) -> Unit, modifier: Modifier = Modifier) {
     val reason = barReason(state, feature)
     val value = state.bar.value(feature)
     val on = state.bar.isOn(feature) == true
@@ -389,6 +406,8 @@ private fun SoundTile(state: TuttiUiState, feature: TheatreFeature, onTap: () ->
                 translationX = shake.value.dp.toPx()
             }
             .background(container, RoundedCornerShape(corner))
+            // Long press pins it; refused like the tap while the bar is out of reach.
+            .holdForMenu(stringResource(R.string.pin_to_dock), TILE_SHAPE, enabled = reason == null, onRefused = feedback::bump) { onPin(name) }
             // A disabled tile still answers: a bump, and its reason stays in view (design.md: never hidden).
             .clickable(
                 interactionSource = interaction,

@@ -59,6 +59,8 @@ import io.kud.tutti.controller.TuttiUiState
 import io.kud.tutti.protocol.theatre.FeatureKind
 import io.kud.tutti.protocol.theatre.TheatreFeature
 import io.kud.tutti.ui.common.brandColour
+import io.kud.tutti.ui.common.holdForMenu
+import io.kud.tutti.platform.data.DockAction
 import io.kud.tutti.ui.common.LocalReducedMotion
 import io.kud.tutti.ui.common.PressStyle
 import io.kud.tutti.ui.common.barValueLabel
@@ -108,7 +110,7 @@ private const val MAX_FITTED_INPUTS = 5
  * warning glyph and the word "refused", and stays tappable as a retry.
  */
 @Composable
-fun BarInputRow(state: TuttiUiState, controller: TuttiController, modifier: Modifier = Modifier, onHelp: () -> Unit = {}) {
+fun BarInputRow(state: TuttiUiState, controller: TuttiController, modifier: Modifier = Modifier, onHelp: () -> Unit = {}, pinner: DockPinner? = null) {
     val feature = TheatreFeature.INPUT
     val reason = barReason(state, feature)
     val current = state.bar.value(feature)
@@ -131,6 +133,45 @@ fun BarInputRow(state: TuttiUiState, controller: TuttiController, modifier: Modi
         failed = false
     }
     val title = stringResource(R.string.bar_input)
+    // Long press on a segment (gesture audit item 7): its menu, then rename's dialog.
+    var menuFor by remember { mutableStateOf<String?>(null) }
+    var renaming by remember { mutableStateOf<String?>(null) }
+    val names = state.prefs.barInputNames
+    menuFor?.let { value ->
+        val full = barValueLabel(feature, value)
+        val name = barInputName(value, full, names)
+        BarInputMenuSheet(
+            name = name,
+            items = barInputMenu(value, current),
+            onItem = { item ->
+                menuFor = null
+                when (item) {
+                    BarInputItem.PAIR -> {
+                        haptics.confirm()
+                        controller.startBarPairing()
+                    }
+                    BarInputItem.RENAME -> renaming = value
+                    BarInputItem.HIDE -> {
+                        haptics.select()
+                        controller.setBarInputHidden(value, true)
+                    }
+                    BarInputItem.PIN -> pinner?.request(DockAction.SetBar(feature.key, value), name)
+                }
+            },
+            onDismiss = { menuFor = null },
+        )
+    }
+    renaming?.let { value ->
+        RenameBarInputDialog(
+            original = barInputSegmentLabel(value, barValueLabel(feature, value)),
+            current = names[value],
+            onSave = { name ->
+                controller.renameBarInput(value, name)
+                renaming = null
+            },
+            onDismiss = { renaming = null },
+        )
+    }
     val described = withHint(title, stringResource(R.string.explain_input))
     Column(modifier.fillMaxWidth().padding(vertical = 4.dp)) {
         // The label, the current value, then the section's "?" (design.md, "Son" sheet).
@@ -153,7 +194,7 @@ fun BarInputRow(state: TuttiUiState, controller: TuttiController, modifier: Modi
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        val choices = barInputChoices(current)
+        val choices = visibleBarInputs(barInputChoices(current), state.prefs.hiddenBarInputs, current)
         val scrolls = barInputScrolls(choices.size, LocalDensity.current.fontScale)
         val outline = MaterialTheme.colorScheme.outline
         Row(
@@ -172,11 +213,18 @@ fun BarInputRow(state: TuttiUiState, controller: TuttiController, modifier: Modi
                 if (index > 0) Box(Modifier.width(1.dp).fillMaxHeight().background(outline))
                 InputSegment(
                     icon = barInputIcon(option),
-                    label = barInputSegmentLabel(option, barValueLabel(feature, option)),
+                    label = barInputName(option, barValueLabel(feature, option), names),
                     selected = option == current,
                     pending = option == pending && waiting.spinner,
                     refused = option in refused && option != current,
                     fixedWidth = scrolls,
+                    menuLabel = stringResource(R.string.bar_input_long_label),
+                    menuEnabled = reason == null,
+                    onRefused = feedback::bump,
+                    onMenu = {
+                        haptics.longPress()
+                        menuFor = option
+                    },
                     onTap = {
                         when {
                             reason != null -> feedback.bump()
@@ -212,6 +260,10 @@ private fun RowScope.InputSegment(
     pending: Boolean,
     refused: Boolean,
     fixedWidth: Boolean,
+    menuLabel: String,
+    menuEnabled: Boolean,
+    onRefused: () -> Unit,
+    onMenu: () -> Unit,
     onTap: () -> Unit,
 ) {
     val scheme = MaterialTheme.colorScheme
@@ -225,6 +277,7 @@ private fun RowScope.InputSegment(
             .then(if (fixedWidth) Modifier.widthIn(min = 76.dp) else Modifier.weight(1f))
             .heightIn(min = 64.dp)
             .background(container)
+            .holdForMenu(menuLabel, SEGMENT_SHAPE, enabled = menuEnabled, onRefused = onRefused, onLongPress = onMenu)
             .selectable(
                 selected = selected,
                 interactionSource = interaction,

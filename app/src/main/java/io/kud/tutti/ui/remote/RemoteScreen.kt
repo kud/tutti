@@ -36,6 +36,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
@@ -106,6 +107,8 @@ fun RemoteScreen(
     var picker by remember { mutableStateOf<PickerTarget?>(null) }
     var sheet2 by remember { mutableStateOf<RemoteSheet?>(null) }
     var powerSheet by remember { mutableStateOf(false) }
+    // The "?" in the top bar: every hidden gesture (discoverability rule 2).
+    var gesturesSheet by remember { mutableStateOf(false) }
     // The now-showing card's sheets (Erwann, 2026-10-25), each holding what the card showed when
     // opened, so a blip that changes the card never yanks the sheet away.
     var playbackFor by remember { mutableStateOf<CardShowing?>(null) }
@@ -126,6 +129,13 @@ fun RemoteScreen(
         input = InputRules.tick(input, SystemClock.uptimeMillis())
     }
     val inputOpen = input.open
+    // The launcher's Keyboard shortcut: open the keyboard view once, whatever the TV shows.
+    val keyboardAsked by controller.keyboardAsked.collectAsState()
+    LaunchedEffect(keyboardAsked) {
+        if (!keyboardAsked) return@LaunchedEffect
+        if (!input.open) input = InputRules.keyboardKey(input)
+        controller.keyboardAnswered()
+    }
     val tvReachable = !(state.devices.tv != null && state.links.tvShown.link == Link.UNREACHABLE)
     // TalkBack hears the TV's link change once per real change: the shown link (TvLinkRule) never
     // moves on a blip, so neither does this. The first connect says nothing; the chip already does.
@@ -295,6 +305,9 @@ fun RemoteScreen(
                     // The chip's "On the TV" line steps aside while the card below says it.
                     SystemChip(state, onClick = onOpenSettings, modifier = Modifier.weight(1f), showNow = !cardShown)
                     Spacer(Modifier.width(4.dp))
+                    IconButton(onClick = { gesturesSheet = true }) {
+                        Icon(painterResource(R.drawable.ic_help), contentDescription = stringResource(R.string.gestures_open))
+                    }
                     IconButton(onClick = onOpenScenes) {
                         Icon(painterResource(R.drawable.ic_scene), contentDescription = stringResource(R.string.action_scenes))
                     }
@@ -624,6 +637,8 @@ fun RemoteScreen(
         )
         null -> Unit
     }
+
+    if (gesturesSheet) GesturesSheet(onDismiss = { gesturesSheet = false })
 
     when (val target = picker) {
         is PickerTarget.Slot -> ActionPickerSheet(

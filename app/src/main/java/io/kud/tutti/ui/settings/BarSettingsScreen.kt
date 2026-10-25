@@ -22,6 +22,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import io.kud.tutti.R
+import io.kud.tutti.ui.common.SettingsRow
 import io.kud.tutti.controller.TuttiController
 import io.kud.tutti.controller.TuttiUiState
 import io.kud.tutti.protocol.theatre.FeatureKind
@@ -64,6 +65,21 @@ fun BarSettingsScreen(state: TuttiUiState, controller: TuttiController, onBack: 
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
                 )
+            }
+            // Inputs hidden from the Son sheet's row by his long press come back here (rule 4: never only behind a gesture).
+            val hidden = state.prefs.hiddenBarInputs
+            if (hidden.isNotEmpty()) {
+                SettingsGroup(stringResource(R.string.bar_input_hidden_title)) {
+                    for (value in hidden.sorted()) {
+                        val name = io.kud.tutti.ui.remote.barInputName(value, barValueLabel(TheatreFeature.INPUT, value), state.prefs.barInputNames)
+                        SettingsRow(
+                            title = stringResource(R.string.bar_input_show, name),
+                            icon = R.drawable.ic_visibility,
+                            onClick = { controller.setBarInputHidden(value, false) },
+                            role = androidx.compose.ui.semantics.Role.Button,
+                        )
+                    }
+                }
             }
             for ((title, features) in Sections) {
                 val shown = features.filter(bar::supports)

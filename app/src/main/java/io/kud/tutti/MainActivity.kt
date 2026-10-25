@@ -1,5 +1,16 @@
 package io.kud.tutti
 
+import android.content.Intent
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.launch
+import io.kud.tutti.platform.data.TuttiStore
+import io.kud.tutti.platform.shortcuts.ACTION_KEYBOARD
+import io.kud.tutti.platform.shortcuts.ACTION_SCENE
+import io.kud.tutti.platform.shortcuts.EXTRA_SCENE_ID
+import io.kud.tutti.platform.shortcuts.publishLauncherShortcuts
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.unit.dp
@@ -52,6 +63,8 @@ class MainActivity : ComponentActivity() {
 
     @Inject lateinit var diagnostics: Diagnostics
 
+    @Inject lateinit var store: TuttiStore
+
     override fun onCreate(savedInstanceState: Bundle?) {
         val splash = installSplashScreen()
         enableEdgeToEdge()
@@ -64,6 +77,13 @@ class MainActivity : ComponentActivity() {
         // start, short on a warm one, not at all for a recreated activity.
         val intro = LaunchIntro(LaunchIntro.kindFor(restored = savedInstanceState != null))
         splash.setOnExitAnimationListener(intro::takeOver)
+        if (savedInstanceState == null) handleShortcut(intent)
+        // The launcher's shortcuts follow his scenes (gesture audit item 10).
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                store.scenes.distinctUntilChanged().collect { publishLauncherShortcuts(this@MainActivity, it) }
+            }
+        }
         setContent {
             val state by controller.state.collectAsStateWithLifecycle()
             val reducedMotion = rememberReducedMotion()
@@ -100,6 +120,19 @@ class MainActivity : ComponentActivity() {
                     MessageHost()
                 }
             }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleShortcut(intent)
+    }
+
+    /** A launcher shortcut: apply its scene, or open the keyboard view. */
+    private fun handleShortcut(intent: Intent?) {
+        when (intent?.action) {
+            ACTION_SCENE -> intent.getStringExtra(EXTRA_SCENE_ID)?.let(controller::applyScene)
+            ACTION_KEYBOARD -> controller.askKeyboard()
         }
     }
 
