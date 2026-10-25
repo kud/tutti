@@ -5,8 +5,8 @@ import io.kud.tutti.platform.data.SecondaryButton
 
 /**
  * What a round key's long press does while he hasn't chosen one of his own (Iris's gesture
- * audit, 2026-10-25, item 4): Back goes back to the previous app, Home opens the TV's recent
- * apps. Play has no default yet: its first long press still opens the picker. An assigned action
+ * audit, 2026-10-25, item 4): Back goes back to the previous app, Home opens the Apps sheet, recent
+ * apps first. Play has no default yet: its first long press still opens the picker. An assigned action
  * always wins, and the default says itself once with "Change" beside it, never imposed in silence.
  */
 internal enum class RowDefault(val label: Int) {

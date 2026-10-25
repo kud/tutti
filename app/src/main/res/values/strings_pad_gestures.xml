@@ -23,7 +23,7 @@
     <string name="gesture_back_long">Previous app</string>
     <string name="gesture_back_long_detail">Long press Back to return to the app you were in before; you can give it another action.</string>
     <string name="gesture_home_long">Recent apps</string>
-    <string name="gesture_home_long_detail">Long press Home to open the TV\'s recent apps; you can give it another action.</string>
+    <string name="gesture_home_long_detail">Long press Home to open the Apps sheet, the apps you used last at the top; you can give it another action.</string>
     <string name="gesture_keyboard_long">Paste on the TV</string>
     <string name="gesture_keyboard_long_detail">Long press Keyboard to paste the phone\'s clipboard into the text field open on the TV.</string>
 </resources>

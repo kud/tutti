@@ -41,4 +41,21 @@ class AppHistoryTest {
         assertEquals("app.one", back.current)
         assertEquals("app.two", back.back())
     }
+
+    @Test
+    fun `recents are newest first, without the app in front, the launcher or settings`() {
+        val history = of("a.one", "a.two", AppsScreen.GOOGLE_TV_LAUNCHER, "com.android.tv.settings", "a.three")
+        assertEquals(listOf("a.two", "a.one"), history.others())
+    }
+
+    @Test
+    fun `an app opened again moves to the front instead of showing twice`() {
+        assertEquals(listOf("a.three", "a.two"), of("a.one", "a.two", "a.three", "a.one").others())
+    }
+
+    @Test
+    fun `recents stop at four`() {
+        val history = of("a.1", "a.2", "a.3", "a.4", "a.5", "a.6")
+        assertEquals(listOf("a.5", "a.4", "a.3", "a.2"), history.others())
+    }
 }

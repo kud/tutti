@@ -19,7 +19,7 @@
     <string name="gesture_back_long">App précédente</string>
     <string name="gesture_back_long_detail">Appui long sur Retour pour revenir à l\'app d\'avant ; vous pouvez lui donner une autre action.</string>
     <string name="gesture_home_long">Apps récentes</string>
-    <string name="gesture_home_long_detail">Appui long sur Accueil pour ouvrir les apps récentes de la TV ; vous pouvez lui donner une autre action.</string>
+    <string name="gesture_home_long_detail">Appui long sur Accueil pour ouvrir la feuille Apps, avec en tête les apps utilisées en dernier ; vous pouvez lui donner une autre action.</string>
     <string name="gesture_keyboard_long">Coller sur la TV</string>
     <string name="gesture_keyboard_long_detail">Appui long sur Clavier pour coller le presse-papiers du téléphone dans le champ de texte ouvert sur la TV.</string>
 </resources>

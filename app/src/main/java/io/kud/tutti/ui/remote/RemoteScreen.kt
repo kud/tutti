@@ -154,6 +154,7 @@ fun RemoteScreen(
     val inputOpen = input.open
     // The launcher's Keyboard shortcut: open the keyboard view once, whatever the TV shows.
     val keyboardAsked by controller.keyboardAsked.collectAsState()
+    val recentApps by controller.recentApps.collectAsState()
     LaunchedEffect(keyboardAsked) {
         if (!keyboardAsked) return@LaunchedEffect
         if (!input.open) input = InputRules.keyboardKey(input)
@@ -341,8 +342,9 @@ fun RemoteScreen(
         val change = { picker = PickerTarget.LongPress(button) }
         val ran = when (fallback) {
             RowDefault.PREVIOUS_APP -> controller.launchPreviousApp()
+            // Recent apps live at the top of the Apps sheet (Google TV has no switcher of its own).
             RowDefault.RECENT_APPS -> {
-                controller.recentApps()
+                sheet2 = RemoteSheet.APPS
                 true
             }
         }
@@ -966,6 +968,7 @@ fun RemoteScreen(
                 controller.assignDock(index, DockAction.LaunchApp(app.packageName, app.name), state.dock.slots.getOrNull(index)?.secondary)
             },
             onDismiss = { sheet2 = null },
+            recents = recentApps,
         )
         RemoteSheet.KEYS -> MoreKeysSheet(
             onKey = { code -> sheetKey(code) { sheet2 = null } },

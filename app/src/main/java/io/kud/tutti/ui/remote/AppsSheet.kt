@@ -80,9 +80,10 @@ fun AppsSheet(
     onAllApps: () -> Unit,
     onPin: (KnownApp, slot: Int) -> Unit,
     onDismiss: () -> Unit,
+    recents: List<String> = emptyList(),
 ) {
     TuttiSheet(onDismissRequest = onDismiss) {
-        AppsSheetContent(state, onLaunch, onLaunched, onAllApps, onPin, Modifier.fillMaxHeight())
+        AppsSheetContent(state, onLaunch, onLaunched, onAllApps, onPin, Modifier.fillMaxHeight(), recents)
     }
 }
 
@@ -93,6 +94,8 @@ fun AppsSheet(
  * message, if it didn't open. Tapped in a blip of the TV's link, the launch is held: the tile
  * keeps its ring and says it is waiting for the TV, and the sheet closes when it goes out. Every
  * tap reaches the controller, which never launches the same app twice and lets a newer app win.
+ * [recents] (packages, newest first, never the app in front) lead the grid under "Recent", the
+ * living room's app switcher that Google TV lacks; long-press Home opens this sheet for them.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -103,6 +106,7 @@ fun AppsSheetContent(
     onAllApps: () -> Unit,
     onPin: (KnownApp, slot: Int) -> Unit,
     modifier: Modifier = Modifier,
+    recents: List<String> = emptyList(),
 ) {
     var pinning by remember { mutableStateOf<KnownApp?>(null) }
     // The launch this sheet asked for (its id): the sheet closes once it has gone out.
@@ -199,21 +203,27 @@ fun AppsSheetContent(
                     ProblemNote(stringResource(R.string.apps_launch_failed_note, failedApp.name), failure?.detail)
                 }
             }
-            items(state.visibleApps, key = { it.packageName }) { app ->
-                AppTile(
-                    app = app,
-                    iconPath = state.appIcons[app.packageName],
-                    pending = inFlight?.packageName == app.packageName,
-                    held = inFlight?.packageName == app.packageName && inFlight.phase == LaunchPhase.QUEUED,
-                    failed = failure?.packageName == app.packageName,
-                    pinLabel = pinLabel,
-                    onLongClick = { pinning = app },
-                    onClick = {
-                        // Refused (the TV down): the message says why and the sheet stays.
-                        onLaunch(app)?.let { asked = it }
-                    },
-                )
+            @Composable
+            fun Tile(app: KnownApp) = AppTile(
+                app = app,
+                iconPath = state.appIcons[app.packageName],
+                pending = inFlight?.packageName == app.packageName,
+                held = inFlight?.packageName == app.packageName && inFlight.phase == LaunchPhase.QUEUED,
+                failed = failure?.packageName == app.packageName,
+                pinLabel = pinLabel,
+                onLongClick = { pinning = app },
+                onClick = {
+                    // Refused (the TV down): the message says why and the sheet stays.
+                    onLaunch(app)?.let { asked = it }
+                },
+            )
+            val recentApps = recents.mapNotNull { p -> state.visibleApps.firstOrNull { it.packageName == p } }
+            if (recentApps.isNotEmpty()) {
+                item(span = { GridItemSpan(maxLineSpan) }, key = "recent-title") { SectionTitle(stringResource(R.string.apps_recent)) }
+                items(recentApps, key = { "recent:" + it.packageName }) { Tile(it) }
+                item(span = { GridItemSpan(maxLineSpan) }, key = "all-title") { SectionTitle(stringResource(R.string.apps_all)) }
             }
+            items(state.visibleApps, key = { it.packageName }) { Tile(it) }
         }
     }
 
@@ -234,6 +244,16 @@ fun AppsSheetContent(
  * One app: answers on down (scale and click), shows a ring round the icon while the TV is asked
  * (after the grace delay), and a cross badge plus "Didn't open" when it failed. Never colour alone.
  */
+@Composable
+private fun SectionTitle(text: String) {
+    Text(
+        text,
+        style = MaterialTheme.typography.titleSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(top = 4.dp).semantics { heading() },
+    )
+}
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun AppTile(

@@ -4,6 +4,8 @@
     <string name="dock_keys">Touches</string>
     <string name="dock_reassign">Modifier l’épingle</string>
     <string name="apps_title">Apps</string>
+    <string name="apps_recent">Récentes</string>
+    <string name="apps_all">Toutes les apps</string>
     <string name="apps_pin_hint">Appui long sur une app pour l’épingler au dock.</string>
     <string name="apps_no_ip_hint">Le contrôle IP est désactivé sur la TV : tutti montre les apps qu’il connaît déjà. Activez-le pour la liste complète et les icônes officielles.</string>
     <string name="apps_launch_pending">Ouverture sur la TV</string>
