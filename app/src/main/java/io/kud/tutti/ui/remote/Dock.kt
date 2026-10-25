@@ -43,6 +43,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.drawscope.inset
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.Shape
@@ -62,6 +64,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.kud.tutti.R
 import io.kud.tutti.ui.common.TuttiMenu
+import io.kud.tutti.ui.common.DOWN_STROKE
+import io.kud.tutti.ui.common.LocalChipNudge
+import io.kud.tutti.ui.common.drawDownRing
 import io.kud.tutti.controller.TuttiUiState
 import io.kud.tutti.platform.data.DockAction
 import io.kud.tutti.platform.data.DockConfig
@@ -200,14 +205,30 @@ private fun PinTile(
     var menu by remember { mutableStateOf(false) }
     // The click plays on down; the command waits for release, since a long press means another.
     val feedback = rememberFeedback()
-    val press = rememberPressSource { feedback.click() }
+    // The remote's one rule (controlLink): a pin goes down with the device it talks to, and only that
+    // one. Power keys, scenes and macros wake or mix devices, so they never do.
+    val owner = dockOwner(slot.primary)
+    val link = state.controlLink(owner)
+    val reason = controlLinkReason(link, owner, state)
+    val isDown by rememberUpdatedState(link.down)
+    val nudge = LocalChipNudge.current
+    val press = rememberPressSource { if (!isDown) feedback.click() }
     val toggle = pinToggle(slot.primary, state.bar, state.devices.bar != null)
-    val on = (toggle as? PinToggle.Known)?.on == true
+    val on = (toggle as? PinToggle.Known)?.on == true && !link.down
     val scheme = MaterialTheme.colorScheme
     // On is the remote's one "on" dress, as on Power and Mute: the accent fill, squarer corners and a
     // check. Never the doors' tonal fill, which only says "a door", so fill alone never means on.
-    val background by animateColorAsState(if (on) scheme.primary else scheme.surfaceContainerHigh, snappyOrFade(), label = "pin")
+    val background by animateColorAsState(
+        when {
+            link.down -> Color.Transparent
+            on -> scheme.primary
+            else -> scheme.surfaceContainerHigh
+        },
+        snappyOrFade(),
+        label = "pin",
+    )
     val content = if (on) scheme.onPrimary else scheme.onSurfaceVariant
+    val downEdge = scheme.outline
     val reduced = LocalReducedMotion.current
     // On also squares the tile a little, as the Sound sheet's tiles do: shape, not only colour.
     val corner by animateDpAsState(if (on) 14.dp else 20.dp, if (reduced) snap() else Motion.snappy(), label = "pinCorner")
@@ -248,8 +269,15 @@ private fun PinTile(
             label = label,
             press = press,
             shape = shape,
-            stateText = toggleStateText(toggle, state),
-            modifier = Modifier.combinedClickable(
+            stateText = reason ?: toggleStateText(toggle, state),
+            modifier = Modifier
+                .drawBehind {
+                    if (link.down) {
+                        val half = DOWN_STROKE.toPx() / 2f
+                        inset(half) { drawDownRing(shape.createOutline(size, layoutDirection, this), downEdge) }
+                    }
+                }
+                .combinedClickable(
                 interactionSource = press.interaction,
                 indication = rememberTuttiIndication(shape, layerColor = content),
                 role = if (toggle != null) Role.Switch else null,
@@ -258,7 +286,16 @@ private fun PinTile(
                     feedback.longPress()
                     if (secondary != null) menu = true else onEdit()
                 },
-                onClick = onClick,
+                // Down, a tap is the Sound tile's: a bump, the chip nudged to say why, nothing sent.
+                // The long press still opens the menu and the editor.
+                onClick = {
+                    if (link.down) {
+                        feedback.bump()
+                        nudge.poke()
+                    } else {
+                        onClick()
+                    }
+                },
             ),
         ) { tint ->
             Box(contentAlignment = Alignment.Center) {

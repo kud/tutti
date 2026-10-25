@@ -33,6 +33,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawOutline
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
@@ -50,6 +53,8 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import io.kud.tutti.R
 import io.kud.tutti.ui.common.LocalMessages
+import io.kud.tutti.ui.common.LocalChipNudge
+import io.kud.tutti.ui.common.drawDownRing
 import io.kud.tutti.controller.TuttiController
 import io.kud.tutti.protocol.atv.VoiceEvent
 import io.kud.tutti.protocol.atv.VoiceFailure
@@ -68,7 +73,15 @@ private enum class Hold { NONE, TALKING, CANCELLING }
  * The microphone permission is asked on first use only, after a one-line rationale.
  */
 @Composable
-fun VoiceButton(controller: TuttiController, enabled: Boolean, size: Dp = 56.dp) {
+fun VoiceButton(
+    controller: TuttiController,
+    /** The TV's link isn't up (controlLink): the down dress, and a press bumps and opens nothing. */
+    down: Boolean,
+    /** Why, for TalkBack: "Connecting to the TV", "BRAVIA 8 unreachable". */
+    downReason: String? = null,
+    size: Dp = 56.dp,
+) {
+    val nudge = LocalChipNudge.current
     val context = LocalContext.current
     val haptics = rememberHaptics()
     val voice by controller.voice.collectAsState()
@@ -85,7 +98,7 @@ fun VoiceButton(controller: TuttiController, enabled: Boolean, size: Dp = 56.dp)
         messages?.show(context.getString(text))
     }
 
-    val current by rememberUpdatedState(enabled)
+    val isDown by rememberUpdatedState(down)
 
     LifecycleEventEffect(Lifecycle.Event.ON_STOP) {
         if (hold != Hold.NONE) {
@@ -139,7 +152,7 @@ fun VoiceButton(controller: TuttiController, enabled: Boolean, size: Dp = 56.dp)
         label = "scale",
     )
     val container by animateColorAsState(
-        when (hold) {
+        if (down) Color.Transparent else when (hold) {
             Hold.TALKING -> scheme.primary
             Hold.CANCELLING -> scheme.errorContainer
             Hold.NONE -> scheme.secondaryContainer
@@ -147,7 +160,7 @@ fun VoiceButton(controller: TuttiController, enabled: Boolean, size: Dp = 56.dp)
         snappyOrFade(),
         label = "container",
     )
-    val content = when (hold) {
+    val content = if (down) scheme.onSurfaceVariant else when (hold) {
         Hold.TALKING -> scheme.onPrimary
         Hold.CANCELLING -> scheme.onErrorContainer
         Hold.NONE -> scheme.onSecondaryContainer
@@ -161,19 +174,29 @@ fun VoiceButton(controller: TuttiController, enabled: Boolean, size: Dp = 56.dp)
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
-                alpha = if (enabled) 1f else 0.38f
+            }
+            .drawBehind {
+                val outline = RoundedCornerShape(percent = corner).createOutline(this.size, layoutDirection, this)
+                if (down) drawDownRing(outline, scheme.outline) else drawOutline(outline, container)
             }
             .clip(RoundedCornerShape(percent = corner))
-            .background(container)
             .semantics {
                 contentDescription = label
-                if (talking) stateDescription = listeningLabel
+                when {
+                    downReason != null -> stateDescription = downReason
+                    talking -> stateDescription = listeningLabel
+                }
             }
             .pointerInput(controller) {
                 awaitEachGesture {
                     val down = awaitFirstDown()
                     down.consume()
-                    if (!current) return@awaitEachGesture
+                    if (isDown) {
+                        // As every down control: a bump, the chip nudged to say why, nothing sent.
+                        haptics.bump()
+                        nudge.poke()
+                        return@awaitEachGesture
+                    }
                     if (!controller.micGranted()) {
                         rationale = true
                         return@awaitEachGesture

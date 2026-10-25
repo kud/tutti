@@ -7,6 +7,8 @@
     <string name="system_no_device">Aucun appareil</string>
     <string name="system_nothing_reachable">Aucun appareil joignable</string>
     <string name="system_connecting">Connexion…</string>
+    <string name="control_connecting_tv">Connexion à la TV</string>
+    <string name="control_connecting_bar">Connexion à la barre</string>
     <string name="action_power">Allumer ou éteindre</string>
     <string name="power_waking">Réveil de la TV et de la barre</string>
     <string name="power_wake_failed_tv">La TV ne s’est pas réveillée : activez le Démarrage à distance</string>

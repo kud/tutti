@@ -39,6 +39,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.inset
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.pointer.PointerEvent
@@ -54,12 +55,16 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import io.kud.tutti.R
 import io.kud.tutti.controller.TuttiController
 import io.kud.tutti.platform.data.PadMode
 import io.kud.tutti.protocol.atv.V2Key
+import io.kud.tutti.ui.common.DOWN_STROKE
 import io.kud.tutti.ui.common.FeedbackEvent
+import io.kud.tutti.ui.common.LocalChipNudge
+import io.kud.tutti.ui.common.drawDownRing
 import io.kud.tutti.ui.common.LocalReducedMotion
 import io.kud.tutti.ui.common.RING_DELAY_MS
 import io.kud.tutti.ui.common.ValueTag
@@ -101,8 +106,16 @@ fun Pad(
     volumeCap: Int? = null,
     /** The switch's corner: top-left for a right-hand layout (the rail on the left), else top-right. */
     switchOnLeft: Boolean = false,
+    /**
+     * The TV's link isn't up (controlLink): the surface stays, a dashed edge runs round it, the
+     * D-pad face and the switch dim, and any touch bumps and nudges the chip; nothing is sent.
+     */
+    down: Boolean = false,
+    /** Why, for TalkBack: "Connecting to the TV", "BRAVIA 8 unreachable". */
+    downReason: String? = null,
 ) {
     val haptics = rememberHaptics()
+    val nudge = LocalChipNudge.current
     val scope = rememberCoroutineScope()
     val glowAlpha = remember { Animatable(0f) }
     var glow by remember { mutableStateOf(Offset.Unspecified) }
@@ -157,7 +170,16 @@ fun Pad(
     }
 
     val padLabel = stringResource(R.string.pad_label)
-    val gestures = if (mode == PadMode.TOUCHPAD) {
+    val gestures = if (down) {
+        Modifier.pointerInput(Unit) {
+            detectTapGestures(
+                onPress = {
+                    haptics.bump()
+                    nudge.poke()
+                },
+            )
+        }
+    } else if (mode == PadMode.TOUCHPAD) {
         Modifier.pointerInput(haptics, switchable, switchOnLeft) {
             val corner = if (switchable) PAD_SWITCH_ZONE.dp.toPx() else 0f
             touchpadGestures(
@@ -276,7 +298,13 @@ fun Pad(
         V2Key.DPAD_LEFT to stringResource(R.string.pad_left),
         V2Key.DPAD_RIGHT to stringResource(R.string.pad_right),
     )
-    val semanticsModifier = if (mode == PadMode.TOUCHPAD) {
+    val semanticsModifier = if (down) {
+        // Down, it is one node that says why, with no actions: TalkBack can't send what a finger can't.
+        Modifier.semantics {
+            contentDescription = if (mode == PadMode.TOUCHPAD) padLabel else dpadLabel
+            if (downReason != null) stateDescription = downReason
+        }
+    } else if (mode == PadMode.TOUCHPAD) {
         Modifier.semantics { contentDescription = padLabel }
     } else {
         Modifier.semantics {
@@ -313,6 +341,10 @@ fun Pad(
         animationSpec = snappyOrFade(),
         label = "dpadFace",
     )
+    // Down dims what sends (the chevrons, OK, the switch) and leaves the surface whole, so the big
+    // pad reads as waiting, not broken. An opacity change, which is also its reduced-motion form.
+    val live by animateFloatAsState(if (down) DOWN_ALPHA else 1f, snappyOrFade(), label = "padLive")
+    val downEdge = MaterialTheme.colorScheme.outline
     BoxWithConstraints(
         modifier = modifier
             .then(touchpadAnchor)
@@ -320,6 +352,12 @@ fun Pad(
             .background(surfaceColor)
             .then(semanticsModifier)
             .drawBehind {
+                if (down) {
+                    val half = DOWN_STROKE.toPx() / 2f
+                    inset(half) {
+                        drawDownRing(RoundedCornerShape(PAD_CORNER - DOWN_STROKE / 2).createOutline(size, layoutDirection, this), downEdge)
+                    }
+                }
                 if (glow.isSpecified && glowAlpha.value > 0f) {
                     drawCircle(
                         brush = Brush.radialGradient(
@@ -361,7 +399,7 @@ fun Pad(
                     .align(Alignment.Center)
                     .size(faceSide)
                     .graphicsLayer {
-                        alpha = faceShown.coerceIn(0f, 1f)
+                        alpha = faceShown.coerceIn(0f, 1f) * live
                         val scale = if (reducedMotion) 1f else 0.92f + 0.08f * faceShown
                         scaleX = scale
                         scaleY = scale
@@ -375,7 +413,9 @@ fun Pad(
                 pressed = switchPressed,
                 onSwitch = ::switchTo,
                 atLeft = switchOnLeft,
-                modifier = Modifier.align(if (switchOnLeft) AbsoluteAlignment.TopLeft else AbsoluteAlignment.TopRight),
+                modifier = Modifier
+                    .align(if (switchOnLeft) AbsoluteAlignment.TopLeft else AbsoluteAlignment.TopRight)
+                    .graphicsLayer { alpha = live },
             )
         }
     }
@@ -677,3 +717,6 @@ private suspend fun PointerInputScope.touchpadGestures(
 
 private const val STEP_DP = 44
 private const val VOLUME_STEP_DP = 14
+
+/** How far a down pad's face and switch dim: enough to read as waiting, the glyphs still legible. */
+private const val DOWN_ALPHA = 0.38f

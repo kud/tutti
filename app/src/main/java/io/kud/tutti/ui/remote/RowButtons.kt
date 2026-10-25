@@ -7,7 +7,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.kud.tutti.R
-import io.kud.tutti.controller.Link
 import io.kud.tutti.controller.TuttiController
 import io.kud.tutti.controller.TuttiUiState
 import io.kud.tutti.platform.data.RowButton
@@ -92,27 +91,35 @@ fun LiveRowButton(
     onSecondary: (SecondaryButton) -> Unit,
     size: Dp,
 ) {
+    // One rule for every control (controlLink): a TV key goes down with the TV's link, Mute with
+    // the bar's, connecting and out of reach alike, and a down key bumps and sends nothing.
+    val tv = state.controlLink(Owner.TV)
+    val tvReason = controlLinkReason(tv, Owner.TV, state)
     when (button) {
-        RowButton.VOICE -> VoiceButton(controller = controller, enabled = state.remote.ready, size = size)
+        RowButton.VOICE -> VoiceButton(controller = controller, down = tv.down, downReason = tvReason, size = size)
         RowButton.KEYBOARD -> TonalRoundButton(
             icon = R.drawable.ic_keyboard,
             contentDescription = rowButtonLabel(button),
             onClick = onKeyboard,
-            active = fieldWaiting,
+            // A field remembered from before a drop is not a field now: never "on" while the TV is down.
+            active = fieldWaiting && !tv.down,
+            unreachable = tv.down,
             size = size,
+            stateDescription = tvReason,
         )
         RowButton.MUTE -> {
+            val bar = state.controlLink(Owner.BAR)
             // A remembered mute is not shown once the bar has gone: the reducer keeps the last value.
-            val muted = state.muted && state.bar.connected
+            val muted = state.muted && !bar.down
             TonalRoundButton(
                 icon = rowButtonIcon(button, muted),
                 // Like the rail's speaker: the label says what a tap does, the state what is true now.
                 contentDescription = stringResource(if (muted) R.string.volume_unmute else R.string.volume_mute),
                 onClick = { controller.toggleMute() },
                 active = muted,
-                unreachable = !state.bar.connected,
+                unreachable = bar.down,
                 size = size,
-                stateDescription = if (muted) stringResource(R.string.volume_muted) else null,
+                stateDescription = controlLinkReason(bar, Owner.BAR, state) ?: if (muted) stringResource(R.string.volume_muted) else null,
             )
         }
         else -> {
@@ -122,11 +129,12 @@ fun LiveRowButton(
                 icon = rowButtonIcon(button),
                 contentDescription = rowButtonLabel(button),
                 onClick = { controller.key(key) },
-                unreachable = state.devices.tv != null && state.links.tvShown.link == Link.UNREACHABLE,
+                unreachable = tv.down,
                 onLongClick = secondary?.let { { onSecondary(it) } },
                 // Names the second action: read aloud by TalkBack, and tagged over the key when it lands.
                 onLongClickLabel = secondary?.let { state.dock.longPress[it] }?.let { actionLabel(it, state) },
                 size = size,
+                stateDescription = tvReason,
             )
         }
     }

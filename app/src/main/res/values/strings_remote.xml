@@ -6,6 +6,8 @@
     <string name="system_no_device">No device</string>
     <string name="system_nothing_reachable">Nothing reachable</string>
     <string name="system_connecting">Connecting…</string>
+    <string name="control_connecting_tv">Connecting to the TV</string>
+    <string name="control_connecting_bar">Connecting to the bar</string>
     <string name="action_power">Power on or off</string>
     <string name="power_waking">Waking the TV and the bar</string>
     <string name="power_wake_failed_tv">The TV did not wake: turn on Remote start</string>

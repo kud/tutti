@@ -349,8 +349,12 @@ fun RemoteScreen(
                         // the rail. TalkBack always reads the pad, then the rail, whichever side each stands on.
                         val padOnRight = layout.hand.padOnRight
                         val density = LocalDensity.current
+                        val padLink = state.controlLink(Owner.TV)
+                        val padReason = controlLinkReason(padLink, Owner.TV, state)
                         val pad = @Composable { m: Modifier ->
                             Pad(
+                                down = padLink.down,
+                                downReason = padReason,
                                 mode = state.prefs.padMode,
                                 onKey = { if (!tvAsleepAlone()) controller.key(it) },
                                 onLongSelect = { if (!tvAsleepAlone()) controller.longPress(V2Key.DPAD_CENTER) },

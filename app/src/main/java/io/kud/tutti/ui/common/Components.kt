@@ -27,8 +27,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawOutline
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
@@ -136,12 +138,7 @@ fun TonalRoundButton(
             .drawBehind {
                 val outline = shape.createOutline(this.size, layoutDirection, this)
                 if (unreachable) {
-                    val dash = 4.dp.toPx()
-                    drawOutline(
-                        outline,
-                        dashed,
-                        style = Stroke(width = 1.5.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(dash, dash))),
-                    )
+                    drawDownRing(outline, dashed)
                 } else {
                     drawOutline(outline, container)
                 }
@@ -168,6 +165,20 @@ fun TonalRoundButton(
         }
     }
 }
+
+/**
+ * The down dress (Iris, 2026-10-25): a control whose device's link isn't up, connecting or out of
+ * reach alike, loses its fill and wears a dashed ring in the outline tone, its glyph in
+ * onSurfaceVariant. Shape, not colour, says it: a dashed edge is never a normal or "on" look.
+ * Every TV and bar control uses it (round keys, mic, Dock pins, the pad's edge).
+ */
+fun DrawScope.drawDownRing(outline: Outline, color: Color) {
+    val dash = DOWN_DASH.toPx()
+    drawOutline(outline, color, style = Stroke(width = DOWN_STROKE.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(dash, dash))))
+}
+
+val DOWN_DASH = 4.dp
+val DOWN_STROKE = 1.5.dp
 
 /** Centred above the anchor, kept inside the window. */
 private class AboveAnchor(private val gap: Int) : PopupPositionProvider {
