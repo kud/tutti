@@ -130,4 +130,5 @@ dependencies {
 
     testImplementation(libs.junit)
     testImplementation(testFixtures(project(":protocol")))
+    testImplementation(libs.kotlinx.coroutines.test)
 }

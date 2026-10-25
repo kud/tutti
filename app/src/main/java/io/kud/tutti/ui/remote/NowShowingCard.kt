@@ -75,6 +75,8 @@ internal fun NowShowingCard(
     onActions: (() -> Unit)? = null,
     /** A running switch-off timer, in words ("Off at 23:40 · 12 min left"), added to the card's detail line. */
     timer: String? = null,
+    /** What Cast reports playing: the full card's title line, track and time; never on the compact card. */
+    cast: io.kud.tutti.protocol.cast.CastNowPlaying? = null,
 ) {
     if (fit.size == CardSize.HIDDEN) return
     val shape = RoundedCornerShape(CARD_CORNER)
@@ -125,7 +127,7 @@ internal fun NowShowingCard(
                 else -> null
             }
             if (fit.size == CardSize.FULL) {
-                Full(now, words, fit.height, appIcons, wake)
+                Full(now, words, fit.height, appIcons, wake, cast?.takeIf { castFits(now) })
             } else {
                 Line(now, words, appIcons, wake)
             }
@@ -204,7 +206,14 @@ internal fun CardIcon(showing: CardShowing, size: Dp, appIcons: Map<String, Stri
 }
 
 @Composable
-private fun Full(showing: CardShowing, words: CardWords, height: Float, appIcons: Map<String, String>, action: (@Composable () -> Unit)?) {
+private fun Full(
+    showing: CardShowing,
+    words: CardWords,
+    height: Float,
+    appIcons: Map<String, String>,
+    action: (@Composable () -> Unit)?,
+    cast: io.kud.tutti.protocol.cast.CastNowPlaying?,
+) {
     // 104 dp gives a 56 dp icon and a large title; the room above that grows both, up to 140 dp.
     val grow = ((height - CARD_FULL) / (CARD_MAX - CARD_FULL)).coerceIn(0f, 1f)
     val icon = (56f + 16f * grow).dp
@@ -223,7 +232,10 @@ private fun Full(showing: CardShowing, words: CardWords, height: Float, appIcons
                 maxLines = 1,
             )
             Text(words.title, style = title, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            words.detail?.let {
+            if (cast != null) {
+                // Iris: the Cast title takes the detail line's place; no secondary line at 104 dp.
+                CastLine(cast)
+            } else words.detail?.let {
                 Text(
                     it,
                     style = MaterialTheme.typography.bodyMedium,
@@ -309,3 +321,6 @@ private fun OpensChevron() {
 }
 
 private val CARD_CORNER = 24.dp
+
+/** Cast speaks for the TV's own screen only: an app, a channel or the home screen, never the bar alone, standby or a lost link. */
+internal fun castFits(showing: CardShowing): Boolean = showing is CardShowing.Showing || showing == CardShowing.Home

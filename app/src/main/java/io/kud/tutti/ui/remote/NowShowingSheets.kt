@@ -55,8 +55,17 @@ import io.kud.tutti.ui.common.keyLabel
  * under a small label saying what the sheet is ("Playback", "App actions").
  */
 @Composable
-private fun NowShowingSheetHeader(label: String, showing: CardShowing, tvName: String, appIcons: Map<String, String>) {
-    val words = cardWords(showing, tvName)
+private fun NowShowingSheetHeader(
+    label: String,
+    showing: CardShowing,
+    tvName: String,
+    appIcons: Map<String, String>,
+    cast: io.kud.tutti.protocol.cast.CastNowPlaying? = null,
+) {
+    // With a Cast report the header names what plays, then the artist or channel (else the app), with no bar.
+    val words = cardWords(showing, tvName).let { words ->
+        if (cast == null) words else CardWords(cast.title, cast.secondary ?: words.title)
+    }
     Row(
         Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 16.dp).semantics(mergeDescendants = true) { heading() },
         verticalAlignment = Alignment.CenterVertically,
@@ -75,8 +84,8 @@ private fun NowShowingSheetHeader(label: String, showing: CardShowing, tvName: S
 
 /**
  * The card's tap (Erwann, 2026-10-25): the TV's media keys under the thumb. Nothing here claims a
- * state: no source reports whether an app plays, its title or its position, so play/pause is one
- * toggle glyph and there is no progress bar. With the TV's link down every key wears the down
+ * state: only Cast reports a title, and only for some apps, so play/pause is one toggle glyph,
+ * the header names the Cast title when there is one, and there is no progress bar. With the TV's link down every key wears the down
  * dress, can't be pressed, and the reason shows above them; the sheet stays open and comes back
  * to life with the link.
  */
@@ -89,13 +98,14 @@ internal fun PlaybackSheet(
     onKey: (Int) -> Unit,
     onDismiss: () -> Unit,
     barToggles: (@Composable () -> Unit)? = null,
+    cast: io.kud.tutti.protocol.cast.CastNowPlaying? = null,
 ) {
     TuttiSheet(onDismissRequest = onDismiss) {
         val scroll = rememberScrollState()
         PinnedHeader(
             scrolled = scroll.canScrollBackward,
             modifier = Modifier.fillMaxWidth(),
-            header = { NowShowingSheetHeader(stringResource(R.string.playback_label), showing, tvName, appIcons) },
+            header = { NowShowingSheetHeader(stringResource(R.string.playback_label), showing, tvName, appIcons, cast?.takeIf { castFits(showing) }) },
         ) {
             val down = downReason != null
             Column(

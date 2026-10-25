@@ -158,6 +158,7 @@ class TuttiController @Inject constructor(
     private val tls: io.kud.tutti.protocol.net.TlsConnector,
     tcp: io.kud.tutti.protocol.net.TcpConnector,
     val cloud: SonyCloudPlane,
+    cast: io.kud.tutti.protocol.cast.CastConnector,
 ) {
     /** Application-lifetime scope; widgets may launch into it. */
     val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default + loggingHandler { Log.e(TAG, it) })
@@ -276,8 +277,35 @@ class TuttiController @Inject constructor(
     }
         .stateIn(scope, SharingStarted.Eagerly, TuttiUiState())
 
-    /** Set by the remote screen while it is in front: volume rocker and hardware keyboard go to the devices. */
-    @Volatile var remoteInFront: Boolean = false
+    private val remoteFront = MutableStateFlow(false)
+
+    /**
+     * Set by the remote screen while it is in front: volume rocker and hardware keyboard go to
+     * the devices, and Cast reads what the TV plays ([castNowPlaying]).
+     */
+    var remoteInFront: Boolean
+        get() = remoteFront.value
+        set(value) {
+            remoteFront.value = value
+        }
+
+    private val castWatcher = CastWatcher(
+        connector = cast,
+        scope = scope,
+        active = CastWatcher.activeFrom(
+            inFront = remoteFront,
+            host = store.devices.map { it.tv?.host }.distinctUntilChanged(),
+            tvOn = state.map { it.powered == true }.distinctUntilChanged(),
+        ),
+        clock = System::currentTimeMillis,
+        log = { Log.i(TAG, it) },
+    )
+
+    /**
+     * What Cast reports the TV playing, while the remote is in front; null otherwise or when
+     * nothing is reported. Personal viewing data: never logged, stored or put in the diagnostic.
+     */
+    val castNowPlaying: StateFlow<io.kud.tutti.protocol.cast.CastNowPlaying?> get() = castWatcher.nowPlaying
 
     /** Set while the keyboard mirror field has focus: printable hardware keys stay in the field. */
     @Volatile var typing: Boolean = false

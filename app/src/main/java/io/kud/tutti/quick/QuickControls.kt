@@ -78,6 +78,8 @@ data class QuickState(
     /** Configured device names, for the notification's subtitle. */
     val tvName: String? = null,
     val barName: String? = null,
+    /** What Cast reports playing, while the remote is in front; null when nothing is reported. Never logged. */
+    val cast: io.kud.tutti.protocol.cast.CastNowPlaying? = null,
 ) {
     val activeScene: QuickScene? get() = scenes.firstOrNull { it.id == activeSceneId }
 }

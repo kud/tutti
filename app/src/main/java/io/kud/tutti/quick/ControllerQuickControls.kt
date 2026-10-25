@@ -13,7 +13,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.async
@@ -33,8 +33,9 @@ class ControllerQuickControls @Inject constructor(
     private val controller: TuttiController,
 ) : QuickControls {
 
-    override val state: StateFlow<QuickState> = controller.state
-        .map { it.toQuick() }
+    override val state: StateFlow<QuickState> = combine(controller.state, controller.castNowPlaying) { state, cast ->
+        state.toQuick().copy(cast = cast)
+    }
         .stateIn(controller.scope, SharingStarted.Eagerly, controller.state.value.toQuick())
 
     override fun retain() = controller.retain()

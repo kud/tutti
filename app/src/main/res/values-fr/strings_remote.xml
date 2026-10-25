@@ -60,6 +60,13 @@
     <string name="system_current_app">Sur la TV : %1$s</string>
     <string name="system_tv_channel">Chaîne TV</string>
     <string name="card_on_the_tv">Sur la TV</string>
+    <string name="cast_paused">En pause</string>
+    <string name="cast_loading">Chargement…</string>
+    <string name="cast_live">En direct</string>
+    <string name="cast_spoken_live">%1$s, en direct</string>
+    <string name="cast_spoken_loading">%1$s, chargement</string>
+    <string name="cast_spoken_paused">%1$s, en pause</string>
+    <string name="cast_spoken_paused_at">%1$s, %2$d sur %3$d minutes, en pause</string>
     <string name="card_input">Entrée externe</string>
     <string name="card_standby">TV en veille</string>
     <string name="card_bar_stays_on">La barre reste allumée</string>

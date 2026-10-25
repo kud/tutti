@@ -158,6 +158,7 @@ fun RemoteScreen(
     // The launcher's Keyboard shortcut: open the keyboard view once, whatever the TV shows.
     val keyboardAsked by controller.keyboardAsked.collectAsState()
     val recentApps by controller.recentApps.collectAsState()
+    val castNowPlaying by controller.castNowPlaying.collectAsState()
     LaunchedEffect(keyboardAsked) {
         if (!keyboardAsked) return@LaunchedEffect
         if (!input.open) input = InputRules.keyboardKey(input)
@@ -561,6 +562,7 @@ fun RemoteScreen(
                                     // The TV alone; the bar plays on (CEC may still move it to the TV input).
                                     onWakeTv = { controller.power(PowerTarget.TV, on = true) },
                                     waking = state.waking,
+                                    cast = castNowPlaying,
                                     timer = gentleTimer?.let { timer ->
                                         stringResource(
                                             R.string.gentle_off_card,
@@ -939,6 +941,7 @@ fun RemoteScreen(
                     }
                 }
             },
+            cast = castNowPlaying,
         )
     }
     actionsFor?.let { opened ->

@@ -63,6 +63,13 @@
     <string name="system_tv_channel">TV channel</string>
     <!-- The now-showing card above the pad: an overline, then each state's name and detail line. -->
     <string name="card_on_the_tv">On the TV</string>
+    <string name="cast_paused">Paused</string>
+    <string name="cast_loading">Loading…</string>
+    <string name="cast_live">Live</string>
+    <string name="cast_spoken_live">%1$s, live</string>
+    <string name="cast_spoken_loading">%1$s, loading</string>
+    <string name="cast_spoken_paused">%1$s, paused</string>
+    <string name="cast_spoken_paused_at">%1$s, %2$d of %3$d minutes, paused</string>
     <string name="card_input">External input</string>
     <string name="card_standby">TV on standby</string>
     <string name="card_bar_stays_on">The bar stays on</string>

@@ -143,18 +143,37 @@ object QuickNotifications {
 
     private fun updateSession(context: Context, live: Live, card: MediaCard, icon: Bitmap) {
         val session = live.session
-        session.setMetadata(
-            MediaMetadata.Builder()
+        // What Cast reports playing (only while the remote is in front, architecture § 7) takes
+        // the title, the artist or channel and the position; without it, today's fields stay.
+        val cast = card.cast
+        val metadata = MediaMetadata.Builder()
+            .putBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON, icon)
+        if (cast == null) {
+            metadata
                 .putString(MediaMetadata.METADATA_KEY_TITLE, title(context, card))
                 .putString(MediaMetadata.METADATA_KEY_ARTIST, subtitle(context, card))
-                .putBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON, icon)
-                .build(),
-        )
+        } else {
+            metadata
+                .putString(MediaMetadata.METADATA_KEY_TITLE, cast.title)
+                .putString(MediaMetadata.METADATA_KEY_ARTIST, cast.secondary ?: title(context, card))
+            cast.durationSec?.let { metadata.putLong(MediaMetadata.METADATA_KEY_DURATION, (it * 1000).toLong()) }
+        }
+        session.setMetadata(metadata.build())
+        val playback = cast?.let { castPlayback(it, System.currentTimeMillis(), SystemClock.elapsedRealtime()) }
         session.setPlaybackState(
             PlaybackState.Builder()
-                // The TV does not report play/pause: PLAYING keeps this the session the
-                // volume keys go to, and the button is a toggle either way.
-                .setState(PlaybackState.STATE_PLAYING, PlaybackState.PLAYBACK_POSITION_UNKNOWN, 0f)
+                .apply {
+                    if (playback == null) {
+                        // Without Cast the TV does not report play/pause: PLAYING keeps this the
+                        // session the volume keys go to, and the button is a toggle either way.
+                        setState(PlaybackState.STATE_PLAYING, PlaybackState.PLAYBACK_POSITION_UNKNOWN, 0f)
+                    } else {
+                        // Cast runs only while the remote is in front, where the activity takes
+                        // the volume keys itself, so a paused state costs the keys nothing.
+                        setState(playback.state, playback.positionMs, playback.speed, playback.updateTime)
+                    }
+                }
+                // Transport stays on the Remote v2 keys: no seek action, tutti never sends a Cast command.
                 .setActions(PlaybackState.ACTION_PLAY_PAUSE or PlaybackState.ACTION_PLAY or PlaybackState.ACTION_PAUSE)
                 .addCustomAction(customAction(context, MediaAction.VOLUME_DOWN, card))
                 .addCustomAction(customAction(context, MediaAction.VOLUME_UP, card))

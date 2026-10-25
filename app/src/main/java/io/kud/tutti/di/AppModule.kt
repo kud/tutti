@@ -33,6 +33,9 @@ abstract class ConnectorModule {
 
     @Binds
     abstract fun tlsConnector(impl: AndroidTlsConnector): TlsConnector
+
+    @Binds
+    abstract fun castConnector(impl: io.kud.tutti.platform.net.AndroidCastConnector): io.kud.tutti.protocol.cast.CastConnector
 }
 
 @Module

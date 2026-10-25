@@ -1,6 +1,9 @@
 package io.kud.tutti.quick.notification
 
+import android.media.session.PlaybackState
 import io.kud.tutti.protocol.atv.V2Key
+import io.kud.tutti.protocol.cast.CastNowPlaying
+import io.kud.tutti.protocol.cast.CastPlayerState
 import io.kud.tutti.quick.AudioLevel
 import io.kud.tutti.quick.QuickState
 import io.kud.tutti.quick.VolumeTarget
@@ -113,6 +116,8 @@ data class MediaCard(
     val remote: RemoteVolume?,
     /** The high-volume guard's line, when a quick press was just stopped there; null otherwise. */
     val guardHeld: Int? = null,
+    /** What Cast reports playing; null keeps today's metadata. Personal viewing data: never logged. */
+    val cast: CastNowPlaying? = null,
 ) {
     val muted: Boolean get() = level?.muted == true
 }
@@ -127,6 +132,7 @@ fun cardFor(state: QuickState): MediaCard = MediaCard(
     level = state.level,
     remote = remoteVolumeFor(state.level),
     guardHeld = state.guardLine?.takeIf { state.guardHeld },
+    cast = state.cast,
 )
 
 /**
@@ -138,4 +144,25 @@ fun cardFor(state: QuickState): MediaCard = MediaCard(
 fun postDelay(now: Long, lastPost: Long?, interval: Long): Long {
     if (lastPost == null) return 0
     return (lastPost + interval - now).coerceAtLeast(0)
+}
+
+/** The session's playback fields while Cast reports something: framework state, position, speed, update time. */
+data class CastPlayback(val state: Int, val positionMs: Long, val speed: Float, val updateTime: Long, val durationMs: Long?)
+
+/**
+ * Maps a Cast report onto the media session. The report's time is wall-clock; the session wants
+ * [android.os.SystemClock.elapsedRealtime], so it is shifted by how long ago the report was read.
+ * Unknown position stays unknown; live content has no duration.
+ */
+fun castPlayback(cast: CastNowPlaying, nowWallMs: Long, nowElapsedMs: Long): CastPlayback {
+    val state = when (cast.state) {
+        CastPlayerState.PLAYING -> PlaybackState.STATE_PLAYING
+        CastPlayerState.PAUSED -> PlaybackState.STATE_PAUSED
+        CastPlayerState.BUFFERING -> PlaybackState.STATE_BUFFERING
+        CastPlayerState.IDLE -> PlaybackState.STATE_STOPPED
+    }
+    val position = cast.positionSec?.let { (it * 1000).toLong() } ?: PlaybackState.PLAYBACK_POSITION_UNKNOWN
+    val speed = if (cast.state == CastPlayerState.PLAYING) cast.playbackRate.toFloat() else 0f
+    val updateTime = nowElapsedMs - (nowWallMs - cast.readAtMillis).coerceAtLeast(0)
+    return CastPlayback(state, position, speed, updateTime, cast.durationSec?.let { (it * 1000).toLong() })
 }
