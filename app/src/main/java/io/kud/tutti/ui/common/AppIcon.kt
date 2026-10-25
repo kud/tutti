@@ -1,6 +1,5 @@
 package io.kud.tutti.ui.common
 
-import android.graphics.BitmapFactory
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -18,10 +17,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import io.kud.tutti.platform.data.IconBitmaps
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -41,9 +42,10 @@ fun AppIcon(
     size: Dp = 28.dp,
     corner: Dp = 8.dp,
 ) {
-    val bitmap by produceState<ImageBitmap?>(null, iconPath) {
+    val sizePx = with(LocalDensity.current) { size.roundToPx() }
+    val bitmap by produceState<ImageBitmap?>(null, iconPath, sizePx) {
         value = iconPath?.let { path ->
-            withContext(Dispatchers.IO) { runCatching { BitmapFactory.decodeFile(path)?.asImageBitmap() }.getOrNull() }
+            withContext(Dispatchers.IO) { runCatching { IconBitmaps.load(path, sizePx)?.asImageBitmap() }.getOrNull() }
         }
     }
     val shape = RoundedCornerShape(corner)

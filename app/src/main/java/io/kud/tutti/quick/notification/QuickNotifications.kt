@@ -10,7 +10,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.graphics.drawable.Icon
 import android.media.AudioAttributes
 import android.media.MediaMetadata
@@ -25,6 +24,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.toBitmap
 import io.kud.tutti.MainActivity
 import io.kud.tutti.R
+import io.kud.tutti.platform.data.IconBitmaps
 import io.kud.tutti.quick.QuickControls
 import io.kud.tutti.quick.QuickPreferences
 import io.kud.tutti.quick.QuickRuntime
@@ -205,7 +205,7 @@ object QuickNotifications {
 
     /** The TV app's own icon when tutti has cached it, else tutti's mark. */
     private fun largeIcon(context: Context, card: MediaCard): Bitmap {
-        card.appIconPath?.let { path -> BitmapFactory.decodeFile(path)?.let { return it } }
+        card.appIconPath?.let { path -> runCatching { IconBitmaps.load(path) }.getOrNull()?.let { return it } }
         val mark = ContextCompat.getDrawable(context, R.mipmap.ic_launcher)
         return mark?.toBitmap(ICON_PX, ICON_PX) ?: Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
     }
