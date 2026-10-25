@@ -40,7 +40,7 @@ class AndroidTcpConnector internal constructor(
 ) : TcpConnector {
     @Inject constructor() : this(::requireLan, BAR_READ_TIMEOUT_MS)
 
-    override suspend fun connect(host: String, port: Int): Connection = withContext(Dispatchers.IO) {
+    override suspend fun connect(host: String, port: Int): Connection = closingIfCancelled { opened -> withContext(Dispatchers.IO) {
         checkHost(host)
         val socket = Socket()
         try {
@@ -48,12 +48,12 @@ class AndroidTcpConnector internal constructor(
             socket.tcpNoDelay = true
             socket.keepAlive = true
             socket.soTimeout = readTimeoutMs
-            SocketConnection(socket)
+            SocketConnection(socket).also(opened)
         } catch (e: Exception) {
             runCatching { socket.close() }
             throw e
         }
-    }
+    } }
 
     private companion object {
         const val CONNECT_TIMEOUT_MS = 4_000
@@ -78,7 +78,7 @@ class AndroidTlsConnector internal constructor(
         port: Int,
         identity: ClientIdentity,
         expectedPin: CertificatePin?,
-    ): TlsConnection = withContext(Dispatchers.IO) {
+    ): TlsConnection = closingIfCancelled { opened -> withContext(Dispatchers.IO) {
         checkHost(host)
         val context = SSLContext.getInstance("TLS")
         context.init(arrayOf(IdentityKeyManager(identity)), arrayOf(PinningTrustManager(expectedPin)), SecureRandom())
@@ -90,12 +90,12 @@ class AndroidTlsConnector internal constructor(
             val ssl = context.socketFactory.createSocket(raw, host, port, true) as SSLSocket
             ssl.useClientMode = true
             ssl.startHandshake()
-            TlsSocketConnection(ssl, raw, identity.certificate)
+            TlsSocketConnection(ssl, raw, identity.certificate).also(opened)
         } catch (e: Exception) {
             runCatching { raw.close() }
             throw e
         }
-    }
+    } }
 
     private companion object {
         const val CONNECT_TIMEOUT_MS = 4_000
@@ -121,5 +121,20 @@ internal class IdentityKeyManager(private val identity: ClientIdentity) : X509Ex
 
     private companion object {
         const val ALIAS = "tutti-client"
+    }
+}
+
+/**
+ * A blocking connect finishes even when its caller was cancelled meanwhile, and `withContext`
+ * then throws away the result: the socket stayed open, and the bar kept a client nobody read.
+ * Whatever [block] reports through `opened` is closed if the call ends in cancellation.
+ */
+internal suspend fun <T : Connection> closingIfCancelled(block: suspend (opened: (T) -> Unit) -> T): T {
+    var opened: T? = null
+    try {
+        return block { opened = it }
+    } catch (e: kotlinx.coroutines.CancellationException) {
+        opened?.let { runCatching { it.close() } }
+        throw e
     }
 }
