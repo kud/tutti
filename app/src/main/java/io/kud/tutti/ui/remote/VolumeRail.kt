@@ -10,6 +10,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -34,6 +35,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.PathEffect
@@ -58,7 +60,6 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import io.kud.tutti.R
 import io.kud.tutti.controller.TuttiController
@@ -296,7 +297,9 @@ fun VolumeRail(
             // stays whole and legible.
             if (connected) {
                 // The number is a door (Iris's gesture audit): a tap opens the volume sheet. A 48 dp
-                // target round it, its own button to TalkBack, and a quiet underline says it opens.
+                // target round it, its own button to TalkBack, and under it the card's quiet chevron
+                // pointing up, where the sheet rises from, says it opens (Erwann, 2026-10-25: the
+                // underline read as a web link, « pas sûr du souligné »). A shape, never colour alone.
                 if (onOpenLevel != null) {
                     Box(
                         Modifier
@@ -314,17 +317,10 @@ fun VolumeRail(
                 val text = shown?.toString() ?: NO_LEVEL
                 val topPx = with(density) { READOUT_TOP.toPx() }
                 val edge = railHeight * (1f - fraction) - topPx
+                val opens = onOpenLevel != null && shown != null
                 for (onFillPart in listOf(false, true)) {
-                    Text(
-                        text = text,
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.SemiBold,
-                        textDecoration = if (onOpenLevel != null && shown != null) TextDecoration.Underline else null,
-                        color = when {
-                            shown == null -> scheme.onSurfaceVariant
-                            onFillPart -> onFill
-                            else -> scheme.onSurface
-                        },
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
                         modifier = Modifier
                             .align(Alignment.TopCenter)
                             .padding(top = READOUT_TOP)
@@ -337,7 +333,26 @@ fun VolumeRail(
                                     clipRect(bottom = cut) { this@drawWithContent.drawContent() }
                                 }
                             },
-                    )
+                    ) {
+                        Text(
+                            text = text,
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.SemiBold,
+                            color = when {
+                                shown == null -> scheme.onSurfaceVariant
+                                onFillPart -> onFill
+                                else -> scheme.onSurface
+                            },
+                        )
+                        if (opens) {
+                            Icon(
+                                painterResource(R.drawable.ic_chevron_right),
+                                contentDescription = null,
+                                tint = if (onFillPart) onFill else scheme.onSurfaceVariant,
+                                modifier = Modifier.size(OPENS_CHEVRON).rotate(-90f),
+                            )
+                        }
+                    }
                 }
             }
             RailKey(
@@ -477,6 +492,9 @@ private val MINUS_BOTTOM = FOOT_INSET + FOOT_ICON / 2 + FOOT_TARGET / 2
 
 /** The readout, under +. */
 private val READOUT_TOP = KEY_INSET + KEY_TARGET + 4.dp
+
+/** The readout's "opens" chevron: small enough to stay under the number inside its 48 dp target. */
+private val OPENS_CHEVRON = 16.dp
 
 /** The number while connected and the level is not reported yet: waiting, not zero. */
 private const val NO_LEVEL = "…"
