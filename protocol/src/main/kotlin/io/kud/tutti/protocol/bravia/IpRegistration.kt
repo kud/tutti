@@ -187,3 +187,44 @@ object IpRegistration {
 }
 
 private const val DAY_MS = 24L * 60 * 60 * 1000
+
+/**
+ * When to renew the code's cookie, as a pure rule over three clocks: the cookie's own expiry, the
+ * last renewal attempt (at most one every [RETRY_MS] unless expired) and a refusal that follows an
+ * accepted renewal within [REFUSED_AFTER_RENEW_MS] (the renewed cookie is no good either).
+ */
+object CookieRenewal {
+    const val RETRY_MS = 6 * 60 * 60 * 1000L
+    const val REFUSED_AFTER_RENEW_MS = 60_000L
+
+    sealed interface Step {
+        /** Use the cookie as it is. */
+        data object Keep : Step
+
+        /** Ask the TV to renew it now. */
+        data object Renew : Step
+
+        /** Only a new code shown on the TV helps. */
+        data object NeedCode : Step
+    }
+
+    /**
+     * [awaitingCode]: a new code is already asked for. [refused]: the TV just answered 401 to the
+     * cookie. [lastTriedAtMs]: the previous renewal attempt, 0 if none.
+     */
+    fun decide(cookie: AuthCookie, awaitingCode: Boolean, refused: Boolean, nowMs: Long, lastTriedAtMs: Long): Step = when {
+        awaitingCode -> Step.NeedCode
+        refused && nowMs - lastTriedAtMs < REFUSED_AFTER_RENEW_MS -> Step.NeedCode
+        refused -> Step.Renew
+        !IpRegistration.needsRenewal(cookie, nowMs) -> Step.Keep
+        nowMs - lastTriedAtMs < RETRY_MS && !IpRegistration.expired(cookie, nowMs) -> Step.Keep
+        else -> Step.Renew
+    }
+
+    /**
+     * A renewal that could not reach the TV: keep the cookie for the next try, unless the TV had
+     * refused it or it is past its expiry.
+     */
+    fun keepAfterUnreachable(cookie: AuthCookie, refused: Boolean, nowMs: Long): Boolean =
+        !refused && !IpRegistration.expired(cookie, nowMs)
+}
