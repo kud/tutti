@@ -304,11 +304,11 @@ fun Pad(
             contentDescription = if (mode == PadMode.TOUCHPAD) padLabel else dpadLabel
             if (downReason != null) stateDescription = downReason
         }
-    } else if (mode == PadMode.TOUCHPAD) {
-        Modifier.semantics { contentDescription = padLabel }
     } else {
+        // Both modes offer TalkBack the same OK and four directions: a swipe can't be read out,
+        // but the keys it stands for can.
         Modifier.semantics {
-            contentDescription = dpadLabel
+            contentDescription = if (mode == PadMode.TOUCHPAD) padLabel else dpadLabel
             onClick(label = okLabel) {
                 key(V2Key.DPAD_CENTER)
                 true

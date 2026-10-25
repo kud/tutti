@@ -114,6 +114,7 @@
     <string name="pin_glyph_mic">Microphone</string>
     <string name="pin_glyph_home">Home</string>
     <string name="pin_glyph_settings">Gear</string>
+    <string name="pin_glyph_auto_awesome">Sparkles</string>
     <string name="pin_steps_hint">One action, or several in order. A wait gives the TV time to catch up.</string>
     <string name="pin_add_step">Action</string>
     <string name="pin_add_step_desc">Add an action</string>

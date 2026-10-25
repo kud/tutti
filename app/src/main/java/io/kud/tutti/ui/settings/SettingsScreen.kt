@@ -363,7 +363,7 @@ fun SettingsScreen(
         )
     }
     if (pskDialog) {
-        PskDialog(onSave = {
+        PskDialog(hasKey = state.pskSet, onSave = {
             controller.setPsk(it)
             pskDialog = false
         }, onDismiss = { pskDialog = false })

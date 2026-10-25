@@ -257,6 +257,7 @@ fun pinGlyphLabel(name: String): Int = when (name) {
     "mic" -> R.string.pin_glyph_mic
     "home" -> R.string.pin_glyph_home
     "settings" -> R.string.pin_glyph_settings
+    "auto_awesome" -> R.string.pin_glyph_auto_awesome
     else -> R.string.pin_icon
 }
 

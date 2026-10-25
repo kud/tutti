@@ -20,6 +20,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -53,10 +55,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import io.kud.tutti.R
-import io.kud.tutti.ui.common.LocalMessages
-import io.kud.tutti.ui.common.TuttiMenu
 import io.kud.tutti.controller.Link
 import io.kud.tutti.controller.TuttiController
 import io.kud.tutti.controller.TuttiUiState
@@ -67,16 +70,27 @@ import io.kud.tutti.protocol.scenes.Scene
 import io.kud.tutti.protocol.scenes.SceneKey
 import io.kud.tutti.protocol.scenes.SceneValue
 import io.kud.tutti.ui.common.ChoiceRow
+import io.kud.tutti.ui.common.LocalMessages
 import io.kud.tutti.ui.common.SceneGlyphs
 import io.kud.tutti.ui.common.SectionTitle
+import io.kud.tutti.ui.common.TuttiMenu
 import io.kud.tutti.ui.common.glyphRes
+import io.kud.tutti.ui.common.pinGlyphLabel
 import io.kud.tutti.ui.common.rememberHaptics
 import io.kud.tutti.ui.remote.contentOn
 import io.kud.tutti.ui.remote.signed
 import kotlin.math.roundToInt
 
-private val Palette: List<Long> = listOf(
-    0xFF8E5CF2, 0xFF5C7CF2, 0xFF3B4A6B, 0xFFE0609A, 0xFF3FAE6A, 0xFFF2994A, 0xFF9AA5B1, 0xFFE05C5C,
+/** Scene colours, each with the name TalkBack reads (Scene.color stores only the value). */
+private val Palette: List<Pair<Long, Int>> = listOf(
+    0xFF8E5CF2 to R.string.scene_colour_violet,
+    0xFF5C7CF2 to R.string.scene_colour_blue,
+    0xFF3B4A6B to R.string.scene_colour_navy,
+    0xFFE0609A to R.string.scene_colour_pink,
+    0xFF3FAE6A to R.string.scene_colour_green,
+    0xFFF2994A to R.string.scene_colour_orange,
+    0xFF9AA5B1 to R.string.scene_colour_grey,
+    0xFFE05C5C to R.string.scene_colour_red,
 )
 
 /**
@@ -99,7 +113,7 @@ fun SceneEditorScreen(
     val id = remember(sceneId) { original?.id ?: controller.newSceneId() }
     val savedProfile = remember(id) { state.profiles.firstOrNull { it.sceneId == id }?.appPackage }
     var name by remember { mutableStateOf(original?.name.orEmpty()) }
-    var color by remember { mutableLongStateOf(original?.color ?: Palette.first()) }
+    var color by remember { mutableLongStateOf(original?.color ?: Palette.first().first) }
     var glyph by remember { mutableStateOf(original?.glyph ?: "auto_awesome") }
     var settings by remember { mutableStateOf(original?.settings ?: emptyMap()) }
     var launchApp by remember { mutableStateOf(original?.launchApp) }
@@ -169,42 +183,65 @@ fun SceneEditorScreen(
             )
 
             SectionTitle(stringResource(R.string.editor_look))
-            Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                for (swatch in Palette) {
+            // Colour and symbol are two radio groups: each option is a 48 dp target with a name, and the
+            // chosen one says so in shape (a ring and a tick, a filled disc), never by colour alone.
+            FlowRow(Modifier.padding(horizontal = 12.dp).selectableGroup()) {
+                for ((swatch, nameRes) in Palette) {
                     val selected = swatch == color
+                    val colourName = stringResource(nameRes)
                     Box(
                         Modifier
-                            .size(32.dp)
-                            .clip(CircleShape)
-                            .background(Color(swatch))
-                            .then(if (selected) Modifier.border(3.dp, MaterialTheme.colorScheme.onSurface, CircleShape) else Modifier)
-                            .clickable {
+                            .size(48.dp)
+                            .selectable(selected = selected, role = Role.RadioButton) {
                                 haptics.tick()
                                 color = swatch
-                            },
-                    )
-                }
-            }
-            Spacer(Modifier.height(12.dp))
-            FlowRow(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                for (option in SceneGlyphs) {
-                    val selected = option == glyph
-                    Box(
-                        Modifier
-                            .size(44.dp)
-                            .clip(CircleShape)
-                            .background(if (selected) Color(color) else MaterialTheme.colorScheme.surfaceContainerHigh)
-                            .clickable {
-                                haptics.tick()
-                                glyph = option
-                            },
+                            }
+                            .semantics { contentDescription = colourName },
                         contentAlignment = Alignment.Center,
                     ) {
-                        Icon(
-                            painterResource(glyphRes(option)),
-                            contentDescription = option,
-                            tint = if (selected) contentOn(Color(color)) else MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                        Box(
+                            Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(Color(swatch))
+                                .then(if (selected) Modifier.border(3.dp, MaterialTheme.colorScheme.onSurface, CircleShape) else Modifier),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            if (selected) {
+                                Icon(painterResource(R.drawable.ic_check), contentDescription = null, tint = contentOn(Color(swatch)), modifier = Modifier.size(20.dp))
+                            }
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            FlowRow(Modifier.padding(horizontal = 12.dp).selectableGroup()) {
+                for (option in SceneGlyphs) {
+                    val selected = option == glyph
+                    val glyphName = stringResource(pinGlyphLabel(option))
+                    Box(
+                        Modifier
+                            .size(48.dp)
+                            .selectable(selected = selected, role = Role.RadioButton) {
+                                haptics.tick()
+                                glyph = option
+                            }
+                            .semantics { contentDescription = glyphName },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Box(
+                            Modifier
+                                .size(44.dp)
+                                .clip(CircleShape)
+                                .background(if (selected) Color(color) else MaterialTheme.colorScheme.surfaceContainerHigh),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                painterResource(glyphRes(option)),
+                                contentDescription = null,
+                                tint = if (selected) contentOn(Color(color)) else MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     }
                 }
             }

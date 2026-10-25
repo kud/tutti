@@ -58,4 +58,8 @@
     <string name="intro_ready_not_added">Not added</string>
     <string name="intro_ready_psk">Picture and sound output: add the TV’s PSK later in Settings.</string>
     <string name="intro_open_remote">Open the remote</string>
+    <string name="onboarding_psk_rule">8 to 32 letters, digits or symbols, exactly as set on the TV.</string>
+    <string name="onboarding_psk_show">Show the key</string>
+    <string name="onboarding_psk_hide">Hide the key</string>
+    <string name="onboarding_psk_remove">Remove the saved key</string>
 </resources>

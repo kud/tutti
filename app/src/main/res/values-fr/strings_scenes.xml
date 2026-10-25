@@ -53,4 +53,13 @@
         <item quantity="other">%1$d étapes sur %2$d ont échoué</item>
     </plurals>
     <string name="scene_failed_short">échec</string>
+    <!-- Couleurs des scènes, lues par TalkBack dans le choix de couleur de l'éditeur. -->
+    <string name="scene_colour_violet">Violet</string>
+    <string name="scene_colour_blue">Bleu</string>
+    <string name="scene_colour_navy">Bleu marine</string>
+    <string name="scene_colour_pink">Rose</string>
+    <string name="scene_colour_green">Vert</string>
+    <string name="scene_colour_orange">Orange</string>
+    <string name="scene_colour_grey">Gris</string>
+    <string name="scene_colour_red">Rouge</string>
 </resources>

@@ -59,4 +59,8 @@
     <string name="intro_ready_not_added">Non ajoutée</string>
     <string name="intro_ready_psk">Image et sortie son : ajoutez la clé PSK de la TV plus tard dans Réglages.</string>
     <string name="intro_open_remote">Ouvrir la télécommande</string>
+    <string name="onboarding_psk_rule">De 8 à 32 lettres, chiffres ou symboles, exactement comme sur le téléviseur.</string>
+    <string name="onboarding_psk_show">Afficher la clé</string>
+    <string name="onboarding_psk_hide">Masquer la clé</string>
+    <string name="onboarding_psk_remove">Supprimer la clé enregistrée</string>
 </resources>

@@ -114,6 +114,7 @@
     <string name="pin_glyph_mic">Micro</string>
     <string name="pin_glyph_home">Maison</string>
     <string name="pin_glyph_settings">Engrenage</string>
+    <string name="pin_glyph_auto_awesome">Étincelles</string>
     <string name="pin_steps_hint">Une action, ou plusieurs à la suite. Une attente laisse à la TV le temps de suivre.</string>
     <string name="pin_add_step">Action</string>
     <string name="pin_add_step_desc">Ajouter une action</string>

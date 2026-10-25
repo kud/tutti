@@ -54,4 +54,13 @@
     </plurals>
     <!-- The pill's short form of the same. -->
     <string name="scene_failed_short">failed</string>
+    <!-- Scene colours, read by TalkBack in the editor's colour picker. -->
+    <string name="scene_colour_violet">Violet</string>
+    <string name="scene_colour_blue">Blue</string>
+    <string name="scene_colour_navy">Navy</string>
+    <string name="scene_colour_pink">Pink</string>
+    <string name="scene_colour_green">Green</string>
+    <string name="scene_colour_orange">Orange</string>
+    <string name="scene_colour_grey">Grey</string>
+    <string name="scene_colour_red">Red</string>
 </resources>

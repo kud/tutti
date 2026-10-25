@@ -1,7 +1,5 @@
 package io.kud.tutti.ui.onboarding
 
-import io.kud.tutti.ui.intro.LaunchMark
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
@@ -16,6 +14,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -24,8 +23,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -65,6 +64,7 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.kud.tutti.R
@@ -82,6 +82,7 @@ import io.kud.tutti.ui.common.PressStyle
 import io.kud.tutti.ui.common.ProblemNote
 import io.kud.tutti.ui.common.rememberFeedback
 import io.kud.tutti.ui.common.rememberPressSource
+import io.kud.tutti.ui.intro.LaunchMark
 import io.kud.tutti.ui.motion.ActionPhase
 import io.kud.tutti.ui.motion.Motion
 import io.kud.tutti.ui.motion.ProgressButton
@@ -137,6 +138,8 @@ fun OnboardingScreen(
     LaunchedEffect(pairing, pairPressed) {
         when {
             pairing is PairingUi.AwaitingCode && step == IntroStep.TV -> step = IntroStep.CODE
+            // Back from process death on Code with nothing pairing: no code is coming, so start the TV step again.
+            codeStepOrphaned(step, pairing, pairPressed) -> step = IntroStep.TV
             pairing == PairingUi.Done && pairPressed && step == IntroStep.CODE -> {
                 delay(Motion.HERO.toLong())
                 step = IntroStep.BAR
@@ -822,10 +825,24 @@ fun PairingCodeDialog(attempt: Int, onSubmit: (String) -> Unit, onCancel: () -> 
     )
 }
 
-/** The TV's pre-shared key, for picture, sound output and inputs over its IP control. */
+/**
+ * Code shows only while a pairing is under way. The step survives process death (rememberSaveable)
+ * but the pairing and the press don't, which once left a locked code field waiting for nothing.
+ */
+internal fun codeStepOrphaned(step: IntroStep, pairing: PairingUi, pairPressed: Boolean): Boolean =
+    step == IntroStep.CODE && pairing == PairingUi.Idle && !pairPressed
+
+/**
+ * The TV's pre-shared key, for picture, sound output and inputs over its IP control. Save needs a
+ * key that could be one ([pskLooksValid]); taking a stored key away is its own button, shown only
+ * when [hasKey], so an empty Save can never erase it.
+ */
 @Composable
-fun PskDialog(onSave: (String?) -> Unit, onDismiss: () -> Unit) {
+fun PskDialog(hasKey: Boolean, onSave: (String?) -> Unit, onDismiss: () -> Unit) {
     var psk by remember { mutableStateOf("") }
+    var shown by remember { mutableStateOf(false) }
+    val valid = pskLooksValid(psk)
+    val colors = MaterialTheme.colorScheme
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.onboarding_psk_title)) },
@@ -837,13 +854,28 @@ fun PskDialog(onSave: (String?) -> Unit, onDismiss: () -> Unit) {
                     onValueChange = { psk = it },
                     label = { Text(stringResource(R.string.onboarding_psk_field)) },
                     singleLine = true,
-                    visualTransformation = PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    isError = psk.isNotEmpty() && !valid,
+                    supportingText = { Text(stringResource(R.string.onboarding_psk_rule)) },
+                    trailingIcon = {
+                        IconButton(onClick = { shown = !shown }) {
+                            Icon(
+                                painterResource(if (shown) R.drawable.ic_visibility_off else R.drawable.ic_visibility),
+                                contentDescription = stringResource(if (shown) R.string.onboarding_psk_hide else R.string.onboarding_psk_show),
+                            )
+                        }
+                    },
+                    visualTransformation = if (shown) VisualTransformation.None else PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = if (shown) KeyboardType.Ascii else KeyboardType.Password),
                 )
+                if (hasKey) {
+                    TextButton(onClick = { onSave(null) }) {
+                        Text(stringResource(R.string.onboarding_psk_remove), color = colors.error)
+                    }
+                }
             }
         },
         confirmButton = {
-            TextButton(onClick = { onSave(psk.ifBlank { null }) }) { Text(stringResource(R.string.onboarding_save)) }
+            TextButton(onClick = { onSave(psk) }, enabled = valid) { Text(stringResource(R.string.onboarding_save)) }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
     )
