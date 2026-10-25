@@ -301,51 +301,62 @@ fun RemoteScreen(
                     .fillMaxSize()
                     .statusBarsPadding(),
             ) {
-                Row(
-                    Modifier.fillMaxWidth().padding(start = 16.dp, end = 12.dp, top = 8.dp, bottom = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    // The chip's "On the TV" line steps aside while the card below says it.
-                    SystemChip(state, onClick = onOpenSettings, modifier = Modifier.weight(1f), showNow = !cardShown)
-                    Spacer(Modifier.width(4.dp))
-                    IconButton(onClick = { gesturesSheet = true }) {
-                        Icon(painterResource(R.drawable.ic_help), contentDescription = stringResource(R.string.gestures_open))
-                    }
-                    IconButton(onClick = onOpenScenes) {
-                        Icon(painterResource(R.drawable.ic_scene), contentDescription = stringResource(R.string.action_scenes))
-                    }
-                    IconButton(onClick = onOpenSettings) {
-                        Icon(painterResource(R.drawable.ic_settings), contentDescription = stringResource(R.string.action_settings))
-                    }
-                    // Waking a sleeping TV takes seconds: a turning ring says so (not a colour), and the label follows.
-                    // The ring keeps the loading rules: not before 150 ms, then at least 400 ms; held still when motion is reduced.
-                    val wakingRing = rememberWaiting(state.waking)
-                    Box(contentAlignment = Alignment.Center) {
-                        TonalRoundButton(
-                            icon = R.drawable.ic_power,
-                            contentDescription = stringResource(if (state.waking) R.string.power_waking else R.string.action_power),
-                            onClick = { controller.power() },
-                            // TV only, soundbar only or both (Erwann, 2026-10-24), and the TV's sleep timer:
-                            // with a TV set up, alone or with the bar (Iris's gesture audit, 2026-10-25).
-                            onLongClick = { powerSheet = true }.takeIf { state.devices.tv != null },
-                            onLongClickLabel = stringResource(if (state.devices.bar != null) R.string.power_long_label else R.string.power_long_label_tv),
-                            feedback = FeedbackEvent.SELECT,
-                            active = state.powered == true,
-                            size = 52.dp,
-                            // Unknown power says nothing rather than "Off".
-                            stateDescription = state.powered?.let { stringResource(if (it) R.string.toggle_state_on else R.string.toggle_state_off) },
-                        )
-                        // Box scope inside a Row: the plain overload, named, so the Row's one isn't picked.
-                        androidx.compose.animation.AnimatedVisibility(
-                            visible = wakingRing.spinner,
-                            enter = fadeIn(Motion.fade()),
-                            exit = fadeOut(Motion.exit()),
-                            modifier = Modifier.matchParentSize(),
-                        ) {
-                            if (LocalReducedMotion.current) {
-                                CircularProgressIndicator(progress = { 0.75f }, modifier = Modifier.fillMaxSize(), strokeWidth = 3.dp)
-                            } else {
-                                CircularProgressIndicator(Modifier.fillMaxSize(), strokeWidth = 3.dp)
+                // Below 420 dp of bar, Gestures and Settings fold into one "⋯" and the chip takes the
+                // freed width (TopBar.kt; Erwann, 2026-10-25). Measured on the bar itself, not the device.
+                BoxWithConstraints(Modifier.fillMaxWidth()) {
+                    val folds = topBarFolds(maxWidth.value.toInt())
+                    Row(
+                        Modifier.fillMaxWidth().padding(start = 16.dp, end = 12.dp, top = 8.dp, bottom = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        // The chip's "On the TV" line steps aside while the card below says it.
+                        SystemChip(state, onClick = onOpenSettings, modifier = Modifier.weight(1f), showNow = !cardShown)
+                        Spacer(Modifier.width(4.dp))
+                        if (!folds) {
+                            IconButton(onClick = { gesturesSheet = true }) {
+                                Icon(painterResource(R.drawable.ic_help), contentDescription = stringResource(R.string.gestures_open))
+                            }
+                        }
+                        IconButton(onClick = onOpenScenes) {
+                            Icon(painterResource(R.drawable.ic_scene), contentDescription = stringResource(R.string.action_scenes))
+                        }
+                        if (folds) {
+                            TopBarOverflow(onSettings = onOpenSettings, onGestures = { gesturesSheet = true })
+                        } else {
+                            IconButton(onClick = onOpenSettings) {
+                                Icon(painterResource(R.drawable.ic_settings), contentDescription = stringResource(R.string.action_settings))
+                            }
+                        }
+                        // Waking a sleeping TV takes seconds: a turning ring says so (not a colour), and the label follows.
+                        // The ring keeps the loading rules: not before 150 ms, then at least 400 ms; held still when motion is reduced.
+                        val wakingRing = rememberWaiting(state.waking)
+                        Box(contentAlignment = Alignment.Center) {
+                            TonalRoundButton(
+                                icon = R.drawable.ic_power,
+                                contentDescription = stringResource(if (state.waking) R.string.power_waking else R.string.action_power),
+                                onClick = { controller.power() },
+                                // TV only, soundbar only or both (Erwann, 2026-10-24), and the TV's sleep timer:
+                                // with a TV set up, alone or with the bar (Iris's gesture audit, 2026-10-25).
+                                onLongClick = { powerSheet = true }.takeIf { state.devices.tv != null },
+                                onLongClickLabel = stringResource(if (state.devices.bar != null) R.string.power_long_label else R.string.power_long_label_tv),
+                                feedback = FeedbackEvent.SELECT,
+                                active = state.powered == true,
+                                size = 52.dp,
+                                // Unknown power says nothing rather than "Off".
+                                stateDescription = state.powered?.let { stringResource(if (it) R.string.toggle_state_on else R.string.toggle_state_off) },
+                            )
+                            // Box scope inside a Row: the plain overload, named, so the Row's one isn't picked.
+                            androidx.compose.animation.AnimatedVisibility(
+                                visible = wakingRing.spinner,
+                                enter = fadeIn(Motion.fade()),
+                                exit = fadeOut(Motion.exit()),
+                                modifier = Modifier.matchParentSize(),
+                            ) {
+                                if (LocalReducedMotion.current) {
+                                    CircularProgressIndicator(progress = { 0.75f }, modifier = Modifier.fillMaxSize(), strokeWidth = 3.dp)
+                                } else {
+                                    CircularProgressIndicator(Modifier.fillMaxSize(), strokeWidth = 3.dp)
+                                }
                             }
                         }
                     }

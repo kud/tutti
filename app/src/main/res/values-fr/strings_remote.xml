@@ -22,6 +22,7 @@
     <string name="action_mute">Couper le son</string>
     <string name="action_scenes">Scènes</string>
     <string name="action_settings">Réglages</string>
+    <string name="action_more">Plus d’options</string>
     <string name="pad_label">Pavé tactile</string>
     <string name="pad_switch_dpad">Passer en croix directionnelle</string>
     <string name="pad_dpad_label">Croix directionnelle</string>

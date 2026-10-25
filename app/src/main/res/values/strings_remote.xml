@@ -21,6 +21,8 @@
     <string name="action_mute">Mute</string>
     <string name="action_scenes">Scenes</string>
     <string name="action_settings">Settings</string>
+    <!-- The top bar's overflow below 420 dp (TopBar.kt): Settings and Gestures fold into it. -->
+    <string name="action_more">More options</string>
     <string name="pad_label">Touchpad</string>
     <string name="pad_switch_dpad">Switch to D-pad</string>
     <string name="pad_dpad_label">D-pad</string>
