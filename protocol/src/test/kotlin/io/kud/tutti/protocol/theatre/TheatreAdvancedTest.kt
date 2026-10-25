@@ -127,9 +127,9 @@ class TheatreAdvancedTest {
         assertEquals(listOf("main.input"), connection.sentFeatures())
         advanceUntilIdle()
         pairing.join()
-        val lines = connection.sent.map { Json.parseToJsonElement(it).jsonObject }
+        // Each unanswered set is then asked again with a get; the sets themselves keep their order.
+        val lines = connection.sent.map { Json.parseToJsonElement(it).jsonObject }.filter { it["type"]!!.jsonPrimitive.content == "set" }
         assertEquals(listOf("bluetooth", "Off", "RX"), lines.map { it["value"]!!.jsonPrimitive.content })
-        assertTrue(lines.all { it["type"]!!.jsonPrimitive.content == "set" })
         assertEquals("RX", client.state.value.value(TheatreFeature.BLUETOOTH_MODE))
         client.disconnect()
     }

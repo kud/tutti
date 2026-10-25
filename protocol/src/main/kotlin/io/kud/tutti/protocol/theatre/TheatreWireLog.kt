@@ -15,9 +15,13 @@ class TheatreWireLog(
     private val capacity: Int = 50,
     private val clock: () -> Long = System::currentTimeMillis,
     private val maxEntryChars: Int = 400,
+    private val maxPinned: Int = 8,
 ) {
     private val entries = ArrayDeque<String>()
     private var origin: Long? = null
+
+    /** The story of the last `set` per feature, kept out of the ring: see [pin]. */
+    private val pinned = LinkedHashMap<String, String>()
 
     fun sent(text: String) = record(OUT, text)
 
@@ -25,23 +29,41 @@ class TheatreWireLog(
 
     fun note(text: String) = record(NOTE, text)
 
+    /**
+     * Adds [text] to [feature]'s pinned story (a [fresh] one starts it over): what tutti last set
+     * there and what the bar answered, kept whatever the ring rolls past. At most [maxPinned]
+     * features, the oldest dropped; each story is capped like an entry.
+     */
+    fun pin(feature: String, text: String, fresh: Boolean = false) = synchronized(entries) {
+        val story = if (fresh) text else pinned[feature]?.let { "$it; $text" } ?: text
+        pinned.remove(feature)
+        pinned[feature] = story
+        while (pinned.size > maxPinned) pinned.remove(pinned.keys.first())
+    }
+
     fun clear() = synchronized(entries) {
         entries.clear()
+        pinned.clear()
         origin = null
     }
 
-    /** Oldest first, already scrubbed. */
-    fun lines(): List<String> = synchronized(entries) { entries.toList() }
+    /** Oldest first, already scrubbed, then one line per pinned `set` story. */
+    fun lines(): List<String> = synchronized(entries) {
+        entries.toList() + pinned.map { (feature, story) -> "last set $feature: ${cap(scrub(story))}" }
+    }
 
     private fun record(direction: String, text: String) {
         val now = clock()
-        val body = scrub(text).let { if (it.length > maxEntryChars) it.take(maxEntryChars) + "…(+${it.length - maxEntryChars})" else it }
+        val body = cap(scrub(text))
         synchronized(entries) {
             val start = origin ?: now.also { origin = it }
             entries.addLast("+${now - start}ms $direction $body")
             while (entries.size > capacity) entries.removeFirst()
         }
     }
+
+    private fun cap(text: String): String =
+        if (text.length > maxEntryChars) text.take(maxEntryChars) + "…(+${text.length - maxEntryChars})" else text
 
     companion object {
         const val OUT = ">"

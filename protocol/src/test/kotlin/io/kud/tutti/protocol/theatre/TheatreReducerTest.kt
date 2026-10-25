@@ -45,6 +45,52 @@ class TheatreReducerTest {
     }
 
     @Test
+    fun `a late ack confirms a set already rolled back at its timeout`() {
+        val timedOut = start.on(set(1, "30", now = 0), TheatreEvent.Tick(now = 2_000))
+        assertEquals("20", timedOut.value(TheatreFeature.VOLUME))
+        val late = timedOut.on(result(1, "ACK"))
+        assertEquals("30", late.value(TheatreFeature.VOLUME))
+        assertTrue(late.refusedValues(TheatreFeature.VOLUME).isEmpty())
+        assertTrue(late.overdue.isEmpty())
+    }
+
+    @Test
+    fun `a late refusal leaves the rollback, and an overdue set is forgotten after the grace`() {
+        val timedOut = start.on(set(1, "30", now = 0), TheatreEvent.Tick(now = 2_000))
+        val refused = timedOut.on(result(1, "NAK"))
+        assertEquals("20", refused.value(TheatreFeature.VOLUME))
+        assertEquals(setOf("30"), refused.refusedValues(TheatreFeature.VOLUME))
+
+        val forgotten = timedOut.on(TheatreEvent.Tick(now = 2_000 + TheatreReducer.LATE_SET_MILLIS))
+        assertTrue(forgotten.overdue.isEmpty())
+        assertEquals("20", forgotten.on(result(1, "ACK")).value(TheatreFeature.VOLUME))
+    }
+
+    @Test
+    fun `a late ack never hides a newer pending intent`() {
+        val timedOut = start.on(set(1, "30", now = 0), TheatreEvent.Tick(now = 2_000), set(2, "40", now = 2_100))
+        val late = timedOut.on(result(1, "ACK"))
+        assertEquals("30", late.confirmed[volume])
+        assertEquals("40", late.value(TheatreFeature.VOLUME))
+    }
+
+    @Test
+    fun `a set answered with its own value echoed back is taken, not refused`() {
+        val echoed = start.on(set(1, "30"), result(1, "30", feature = volume))
+        assertEquals("30", echoed.confirmed[volume])
+        assertFalse(echoed.isPending(TheatreFeature.VOLUME))
+        assertTrue(echoed.refusedValues(TheatreFeature.VOLUME).isEmpty())
+        assertNull(echoed.lastError)
+    }
+
+    @Test
+    fun `a disconnect forgets overdue sets`() {
+        val timedOut = start.on(set(1, "30", now = 0), TheatreEvent.Tick(now = 2_000))
+        assertEquals(1, timedOut.overdue.size)
+        assertTrue(timedOut.on(TheatreEvent.Connected(false)).overdue.isEmpty())
+    }
+
+    @Test
     fun `optimistic set shows at once and is confirmed by the ack`() {
         val sent = start.on(set(1, "30"))
         assertEquals("30", sent.value(TheatreFeature.VOLUME))

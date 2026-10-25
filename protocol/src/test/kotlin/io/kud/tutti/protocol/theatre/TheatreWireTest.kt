@@ -181,6 +181,43 @@ class TheatreWireTest {
     }
 
     @Test
+    fun `a set the bar leaves unanswered is asked again, and its story stays pinned in the wire log`() = runTest {
+        val connection = FakeConnection()
+        val spatial = TheatreFeature.SPATIAL_360
+        val client = TheatreClient(FakeConnector(connection), backgroundScope, clock = { testScheduler.currentTime })
+        connection.answer = { id, feature -> """{"id":$id,"type":"result","feature":"$feature","value":"off"}""" }
+        client.connect("192.0.2.10")
+        advanceTimeBy(600_000)
+        runCurrent()
+        assertEquals("off", client.state.value.value(spatial))
+
+        // The bar says nothing to the set, then reports Sound Mapping on when asked again.
+        connection.answer = { id, feature -> """{"id":$id,"type":"result","feature":"$feature","value":"on"}""" }
+        connection.sent.clear()
+        launch { client.setToggle(spatial, true) }
+        advanceTimeBy(5_000)
+        runCurrent()
+        assertEquals(listOf("audio.360ssm", "audio.360ssm"), connection.sentFeatures(), "the set, then one get")
+        assertEquals("on", client.state.value.value(spatial))
+        assertTrue(client.state.value.refusedValues(spatial).isEmpty())
+
+        // A hundred more exchanges roll the ring, never the pinned story.
+        repeat(100) { client.wire.note("filler $it") }
+        val story = client.wire.lines().single { it.startsWith("last set audio.360ssm:") }
+        assertTrue("set \"on\"" in story && "no answer within 3000ms" in story, story)
+        client.disconnect()
+    }
+
+    @Test
+    fun `the pinned story records the bar's own reply to a set`() {
+        val log = TheatreWireLog(clock = { 0 })
+        log.pin("audio.360ssm", "#4 set \"on\"", fresh = true)
+        log.pin("audio.360ssm", "#4 result \"NAK\" after 120ms")
+        log.pin("audio.360ssm", "#9 set \"off\"", fresh = true)
+        assertEquals(listOf("last set audio.360ssm: #9 set \"off\""), log.lines())
+    }
+
+    @Test
     fun `the wire log keeps only the last entries`() {
         val log = TheatreWireLog(capacity = 3, clock = { 0 })
         repeat(5) { log.sent("line $it") }

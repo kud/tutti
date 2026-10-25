@@ -344,9 +344,17 @@ private fun SoundTile(state: TuttiUiState, feature: TheatreFeature, onTap: () ->
     var refusals by remember { mutableIntStateOf(0) }
     var failed by remember { mutableStateOf(false) }
     val shake = remember { Animatable(0f) }
+    // A late answer (the bar took it after all) clears the warning at once: never "On" beside
+    // "Didn't take" (Erwann's 360 Spatial screenshot, 2026-10-25).
+    var late by remember { mutableIntStateOf(0) }
     LaunchedEffect(pending, value, state.bar.connected) {
-        if (outcome.observe(pending, value, state.bar.connected) == TileSettle.REFUSED) refusals++
+        when (outcome.observe(pending, value, state.bar.connected)) {
+            TileSettle.REFUSED -> refusals++
+            TileSettle.LATE -> late++
+            else -> Unit
+        }
     }
+    LaunchedEffect(late) { if (late > 0) failed = false }
     LaunchedEffect(refusals) {
         if (refusals == 0) return@LaunchedEffect
         failed = true

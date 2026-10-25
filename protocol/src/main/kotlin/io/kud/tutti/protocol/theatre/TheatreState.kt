@@ -26,6 +26,12 @@ data class TheatreState(
      * marche pas"). A value the bar later acknowledges or reports is cleared.
      */
     val refusedValues: Map<String, Set<String>> = emptyMap(),
+    /**
+     * `set`s given up on at their timeout, kept a little longer ([TheatreReducer.LATE_SET_MILLIS])
+     * so an answer that arrives late still lands: an ACK then confirms the value instead of being
+     * dropped as an unknown id, which left the tile reading "didn't take" over a bar that had taken it.
+     */
+    val overdue: Map<Int, Outstanding> = emptyMap(),
 ) {
     fun refusedValues(feature: TheatreFeature): Set<String> = refusedValues[feature.key].orEmpty()
 

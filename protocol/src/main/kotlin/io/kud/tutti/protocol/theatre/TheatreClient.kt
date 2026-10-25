@@ -81,7 +81,19 @@ class TheatreClient(
         tickJob = scope.launch {
             while (isActive) {
                 delay(TICK_MILLIS)
+                val before = state.value.overdue.keys
                 dispatch(TheatreEvent.Tick(clock()))
+                // A set the bar left unanswered: say so in the wire log, then ask the bar what it
+                // holds now, so the tile shows the truth rather than our rollback.
+                val gaveUp = state.value.overdue.filterKeys { it !in before }
+                for ((id, request) in gaveUp) {
+                    if (sets.containsKey(id)) wire.pin(request.feature, "#$id no answer within ${timeoutMillis}ms, asked again")
+                }
+                val now = clock()
+                sets.entries.removeIf { now - it.value.at > timeoutMillis + TheatreReducer.LATE_SET_MILLIS }
+                for (key in gaveUp.values.map { it.feature }.distinct()) {
+                    TheatreFeature.fromKey(key)?.let { launch { get(it) } }
+                }
             }
         }
         // Paced, so it takes seconds: the caller learns it is connected before it ends.
@@ -211,6 +223,12 @@ class TheatreClient(
     private suspend fun send(request: TheatreOutbound) = oneAtATime.withLock {
         val conn = connection ?: return@withLock
         dispatch(TheatreEvent.Sent(request, clock(), timeoutMillis))
+        if (request is TheatreOutbound.SetRequest) {
+            val sent = SetSent(request.feature, request.value, clock())
+            sets[request.id] = sent
+            lastSet[request.feature] = sent
+            wire.pin(request.feature, "#${request.id} set \"${request.value}\"", fresh = true)
+        }
         val text = TheatreCodec.encode(request)
         wire.sent(text)
         try {
@@ -225,6 +243,37 @@ class TheatreClient(
         // Hold the line until this one is answered (or given up on), then let the next go.
         withTimeoutOrNull(pacing.answerMillis) {
             state.first { request.id !in it.outstanding || !it.connected }
+        }
+    }
+
+    /** `set`s awaiting their story in the wire log's pinned lines: id → what was asked, and when. */
+    private data class SetSent(val feature: String, val value: String, val at: Long)
+
+    private val sets = ConcurrentHashMap<Int, SetSent>()
+
+    /** The last `set` per feature and when it went, so a notify that follows can join its story. */
+    private val lastSet = ConcurrentHashMap<String, SetSent>()
+
+    /**
+     * Pins what the bar answered to a `set` in [wire] ([TheatreWireLog.pin]), per feature, so the
+     * diagnostic report keeps it after the 50-line ring has rolled past (Erwann's 360 Spatial
+     * "didn't take", 2026-10-25: the reply that decides it is otherwise gone within minutes).
+     */
+    private fun pinSetStory(message: TheatreInbound) {
+        val now = clock()
+        when (message) {
+            is TheatreInbound.Result -> {
+                val sent = message.id?.let { sets.remove(it) } ?: return
+                val what = message.value?.let { "\"$it\"" } ?: "no value"
+                val about = message.feature?.let { " for $it" }.orEmpty()
+                wire.pin(sent.feature, "#${message.id} result $what$about after ${now - sent.at}ms")
+            }
+            is TheatreInbound.Notify -> {
+                val sent = lastSet[message.feature] ?: return
+                if (now - sent.at > TheatreReducer.LATE_SET_MILLIS) return
+                wire.pin(message.feature, "notify \"${message.value}\" after ${now - sent.at}ms")
+            }
+            is TheatreInbound.Malformed -> Unit
         }
     }
 
@@ -249,6 +298,7 @@ class TheatreClient(
             }
         }
         if (message is TheatreInbound.Malformed) wire.note("undecoded (${message.reason})")
+        pinSetStory(message)
         dispatch(TheatreEvent.Received(message))
     }
 
