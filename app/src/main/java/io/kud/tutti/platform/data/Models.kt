@@ -21,7 +21,13 @@ data class Devices(val tv: TvDevice? = null, val bar: BarDevice? = null) {
 }
 
 @Serializable
-enum class PadMode { TOUCHPAD, DPAD }
+enum class PadMode {
+    TOUCHPAD,
+    DPAD,
+
+    /** The phone as an air mouse: only for a Bluetooth target, and only with a gyroscope (Iris, 2026-10-25). */
+    GYRO,
+}
 
 /** Light or dark: follow the phone, or force one. */
 @Serializable

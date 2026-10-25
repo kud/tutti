@@ -94,4 +94,42 @@
     <string name="power_sheet_turn_off">Turn off</string>
     <string name="power_sheet_turn_on_both">Turn both on</string>
     <string name="power_sheet_turn_off_both">Turn both off</string>
+    <!-- Remote target: where the keys go (Iris, 2026-10-25) -->
+    <string name="target_chip_label">Remote controls %1$s</string>
+    <string name="target_sheet_open">Choose what to control</string>
+    <string name="target_sheet_title">Control</string>
+    <string name="target_announce">Controlling %1$s</string>
+    <string name="target_link_lan">Over the network</string>
+    <string name="target_link_bluetooth">Over Bluetooth</string>
+    <string name="target_link_none">Not connected</string>
+    <string name="link_bluetooth">Bluetooth</string>
+    <string name="link_indicator_bluetooth">Keys go over Bluetooth</string>
+    <string name="card_control_mac">Control the Mac</string>
+    <string name="mac_unavailable">Not available on the Mac</string>
+    <string name="mac_meaning_back">Escape on the Mac</string>
+    <string name="mac_meaning_arrow">arrow key on the Mac</string>
+    <string name="mac_meaning_ok">Return on the Mac</string>
+    <string name="mac_meaning_media">media key on the Mac</string>
+    <string name="mac_meaning_keyboard">types on the Mac</string>
+    <!-- Pointing pad for Bluetooth targets -->
+    <string name="pad_mode_gyro">Gyro pointer</string>
+    <string name="pad_switch_gyro">Switch to the gyro pointer</string>
+    <string name="pad_switch_gyro_blocked">Gyro pointer, unavailable: %1$s</string>
+    <string name="gyro_no_sensor">This phone has no gyroscope</string>
+    <string name="gyro_link_down">The gyro pointer needs Bluetooth to the target</string>
+    <string name="gyro_dropped">Bluetooth dropped, back to the %1$s</string>
+    <string name="pointer_pad_label">Trackpad</string>
+    <string name="pointer_pad_hint">Slide to move · tap to click · two fingers to scroll</string>
+    <string name="pointer_gyro_label">Gyro pointer</string>
+    <string name="pointer_gyro_hint">Point the phone · tap to click · hold to recentre</string>
+    <string name="pointer_gyro_frozen">Frozen</string>
+    <string name="pad_scroll">Scroll</string>
+    <string name="pad_scroll_up">Scroll up</string>
+    <string name="pad_scroll_down">Scroll down</string>
+    <string name="click_left">Left</string>
+    <string name="click_middle">Middle</string>
+    <string name="click_right">Right</string>
+    <string name="click_left_said">Left click</string>
+    <string name="click_middle_said">Middle click</string>
+    <string name="click_right_said">Right click</string>
 </resources>

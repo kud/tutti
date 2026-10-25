@@ -141,7 +141,7 @@ internal fun padTouchEnd(moved: Boolean, longFired: Boolean, pointers: Int, star
     else -> PadTouchEnd.TAP
 }
 
-internal val PadMode.other: PadMode get() = if (this == PadMode.TOUCHPAD) PadMode.DPAD else PadMode.TOUCHPAD
+internal val PadMode.other: PadMode get() = if (this == PadMode.DPAD) PadMode.TOUCHPAD else PadMode.DPAD
 
 private val GLYPH = 24.dp
 private val TARGET = 48.dp

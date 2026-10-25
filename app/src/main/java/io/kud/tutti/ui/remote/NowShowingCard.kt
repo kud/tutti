@@ -70,11 +70,13 @@ internal fun NowShowingCard(
     onWakeTv: () -> Unit = {},
     waking: Boolean = false,
     onOpen: (() -> Unit)? = null,
+    /** The tap points the remote at the Mac ([CardTap.CONTROL_MAC]): « Contrôler le Mac » instead of playback. */
+    opensMac: Boolean = false,
     onActions: (() -> Unit)? = null,
 ) {
     if (fit.size == CardSize.HIDDEN) return
     val shape = RoundedCornerShape(CARD_CORNER)
-    val openLabel = stringResource(R.string.card_playback_open)
+    val openLabel = stringResource(if (opensMac) R.string.card_control_mac else R.string.card_playback_open)
     val actionsLabel = stringResource(R.string.card_app_actions_open)
     Box(
         modifier

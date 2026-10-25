@@ -41,6 +41,17 @@ class NowShowingActionsTest {
     }
 
     @Test
+    fun `on the mac's input the tap controls the mac instead of opening playback`() {
+        val mac = CardShowing.Showing(NowShowing.Input("HDMI 2"))
+        assertEquals(CardTap.CONTROL_MAC, cardTap(mac, onMacInput = true))
+        assertEquals(CardTap.PLAYBACK, cardTap(mac, onMacInput = false))
+        // An app is never the Mac's input, whatever the flag says.
+        assertEquals(CardTap.PLAYBACK, cardTap(CardShowing.Showing(app), onMacInput = true))
+        assertEquals(CardTap.NONE, cardTap(CardShowing.Home, onMacInput = true))
+        assertEquals(CardTap.NONE, cardTap(null, onMacInput = true))
+    }
+
+    @Test
     fun `the long press acts on apps only`() {
         assertEquals(app, cardActionsApp(CardShowing.Showing(app)))
         assertNull(cardActionsApp(CardShowing.Showing(NowShowing.Input("HDMI 2"))))

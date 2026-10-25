@@ -25,6 +25,21 @@ val PLAYBACK_TRACKS: List<Int> = listOf(V2Key.CAPTIONS, V2Key.MEDIA_AUDIO_TRACK)
 /** What the card's tap opens: playback while the TV shows something (an app, a channel, an input), else nothing. */
 fun cardOpensPlayback(showing: CardShowing?): Boolean = showing is CardShowing.Showing
 
+/** What the card's tap does: [PLAYBACK], [CONTROL_MAC] on the Mac's input, or [NONE]. */
+enum class CardTap { PLAYBACK, CONTROL_MAC, NONE }
+
+/**
+ * The card's tap (Iris, 2026-10-25). While the TV shows the HDMI input marked as the Mac's
+ * ([onMacInput]), the tap becomes « Contrôler le Mac » and points the remote at the Mac: media keys
+ * sent to a Mac over HDMI-CEC are guesswork, while the remote's own keys reach it over Bluetooth.
+ * Anything else the TV shows opens playback, as [cardOpensPlayback] says.
+ */
+fun cardTap(showing: CardShowing?, onMacInput: Boolean): CardTap = when {
+    !cardOpensPlayback(showing) -> CardTap.NONE
+    onMacInput && (showing as CardShowing.Showing).now is NowShowing.Input -> CardTap.CONTROL_MAC
+    else -> CardTap.PLAYBACK
+}
+
 /** What the card's long press acts on: only an app, which the actions need by package. */
 fun cardActionsApp(showing: CardShowing?): NowShowing.App? = (showing as? CardShowing.Showing)?.now as? NowShowing.App
 

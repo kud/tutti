@@ -90,4 +90,42 @@
     <string name="power_sheet_turn_off">Éteindre</string>
     <string name="power_sheet_turn_on_both">Allumer les deux</string>
     <string name="power_sheet_turn_off_both">Éteindre les deux</string>
+    <!-- Cible de la télécommande (Iris, 2026-10-25) -->
+    <string name="target_chip_label">La télécommande contrôle %1$s</string>
+    <string name="target_sheet_open">Choisir ce que vous contrôlez</string>
+    <string name="target_sheet_title">Contrôler</string>
+    <string name="target_announce">Vous contrôlez %1$s</string>
+    <string name="target_link_lan">Par le réseau</string>
+    <string name="target_link_bluetooth">Par Bluetooth</string>
+    <string name="target_link_none">Non connecté</string>
+    <string name="link_bluetooth">Bluetooth</string>
+    <string name="link_indicator_bluetooth">Les touches passent par Bluetooth</string>
+    <string name="card_control_mac">Contrôler le Mac</string>
+    <string name="mac_unavailable">Indisponible sur le Mac</string>
+    <string name="mac_meaning_back">Échap sur le Mac</string>
+    <string name="mac_meaning_arrow">flèche sur le Mac</string>
+    <string name="mac_meaning_ok">Entrée sur le Mac</string>
+    <string name="mac_meaning_media">touche média du Mac</string>
+    <string name="mac_meaning_keyboard">tape sur le Mac</string>
+    <!-- Pavé de pointage des cibles Bluetooth -->
+    <string name="pad_mode_gyro">Pointeur gyroscopique</string>
+    <string name="pad_switch_gyro">Passer au pointeur gyroscopique</string>
+    <string name="pad_switch_gyro_blocked">Pointeur gyroscopique, indisponible : %1$s</string>
+    <string name="gyro_no_sensor">Ce téléphone n’a pas de gyroscope</string>
+    <string name="gyro_link_down">Le pointeur gyroscopique a besoin du Bluetooth vers la cible</string>
+    <string name="gyro_dropped">Bluetooth perdu, retour au mode %1$s</string>
+    <string name="pointer_pad_label">Trackpad</string>
+    <string name="pointer_pad_hint">Glissez pour déplacer · touchez pour cliquer · deux doigts pour défiler</string>
+    <string name="pointer_gyro_label">Pointeur gyroscopique</string>
+    <string name="pointer_gyro_hint">Visez avec le téléphone · touchez pour cliquer · maintenez pour recentrer</string>
+    <string name="pointer_gyro_frozen">Figé</string>
+    <string name="pad_scroll">Défilement</string>
+    <string name="pad_scroll_up">Défiler vers le haut</string>
+    <string name="pad_scroll_down">Défiler vers le bas</string>
+    <string name="click_left">Gauche</string>
+    <string name="click_middle">Milieu</string>
+    <string name="click_right">Droit</string>
+    <string name="click_left_said">Clic gauche</string>
+    <string name="click_middle_said">Clic du milieu</string>
+    <string name="click_right_said">Clic droit</string>
 </resources>
