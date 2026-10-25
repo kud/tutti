@@ -114,5 +114,3 @@ internal fun skipKey(delta: Int, fallback: Boolean = SKIP_KEYS_FALLBACK): Int = 
 
 internal const val SKIP_KEYS_FALLBACK = false
 
-/** Seconds one skip step stands for, shown on the pad's tag ("+10 s"). */
-internal const val SKIP_SECONDS = 10

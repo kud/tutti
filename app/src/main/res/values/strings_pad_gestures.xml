@@ -1,10 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- The pad's two-finger horizontal drag (TalkBack actions and the tag). -->
-    <string name="pad_skip_back">Back 10 seconds</string>
-    <string name="pad_skip_forward">Forward 10 seconds</string>
-    <string name="pad_skip_back_tag">−%1$d s</string>
-    <string name="pad_skip_forward_tag">+%1$d s</string>
+    <string name="pad_skip_back">Skip back</string>
+    <string name="pad_skip_forward">Skip forward</string>
+    <string name="pad_skip_times">%1$s ×%2$d</string>
     <!-- Round keys' default long presses. -->
     <string name="row_long_previous_app">Previous app</string>
     <string name="row_long_recent_apps">Recent apps</string>
@@ -19,8 +18,8 @@
     <!-- Gesture registry entries (ui/common/Gestures.kt) for the pad and the round keys. -->
     <string name="gesture_pad_fling">Keep scrolling</string>
     <string name="gesture_pad_fling_detail">Swipe fast on the touchpad and let go: it keeps stepping, slowing down. Touch the pad to stop it.</string>
-    <string name="gesture_pad_two_horizontal">Back or forward 10 seconds</string>
-    <string name="gesture_pad_two_horizontal_detail">Drag left or right on the pad with two fingers, touchpad or D-pad.</string>
+    <string name="gesture_pad_two_horizontal">Skip back or forward</string>
+    <string name="gesture_pad_two_horizontal_detail">Drag left or right on the pad with two fingers, touchpad or D-pad. The app on the TV decides how far.</string>
     <string name="gesture_back_long">Previous app</string>
     <string name="gesture_back_long_detail">Long press Back to return to the app you were in before; you can give it another action.</string>
     <string name="gesture_home_long">Recent apps</string>

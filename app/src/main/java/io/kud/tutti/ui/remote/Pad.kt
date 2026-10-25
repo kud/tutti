@@ -90,7 +90,8 @@ import kotlinx.coroutines.launch
  * A held direction repeats on the [KeyRepeat] schedule, on the D-pad and under a finger resting after a swipe step.
  * A fast swipe flings: steps carry on after the lift and slow down ([PadFling]); a new touch stops them.
  * Two-finger gestures, in both modes: tap = play/pause, vertical drag = bar volume, horizontal
- * drag = skip back or forward 10 s ([TwoFingerTrack]).
+ * drag = skip back or forward ([TwoFingerTrack]); the app on the TV decides how far, so no
+ * duration is ever shown or spoken.
  *
  * The halo follows the finger and steps leave no mark (Erwann, 2026-10-24: the halo stays, the
  * step dot goes); a two-finger step shows a "Vol 24" tag at the top, from [volume] and [volumeCap], ticking inside the range (the walls are
@@ -134,7 +135,7 @@ fun Pad(
     val currentCap by rememberUpdatedState(volumeCap)
     var tagVisible by remember { mutableStateOf(false) }
     var tagLevel by remember { mutableIntStateOf(0) }
-    // The skip tag's running total in seconds ("-30 s"); null while the tag shows a volume.
+    // The skip tag's running count of steps, signed ("Skip back ×3"); null while the tag shows a volume.
     var tagSkip by remember { mutableStateOf<Int?>(null) }
     var tagJob by remember { mutableStateOf<Job?>(null) }
     val glowColor = MaterialTheme.colorScheme.primary
@@ -183,11 +184,11 @@ fun Pad(
         showTag()
     }
 
-    // A skip ticks and counts on from the tag while it shows: two steps read "+20 s".
+    // A skip ticks and counts on from the tag while it shows: two steps read "Skip forward ×2".
     fun skipStep(delta: Int) {
         val run = skip ?: return
         haptics.tick()
-        tagSkip = (if (tagVisible) tagSkip ?: 0 else 0) + delta * SKIP_SECONDS
+        tagSkip = (if (tagVisible) tagSkip ?: 0 else 0) + delta
         showTag()
         run(delta)
     }
@@ -429,12 +430,13 @@ fun Pad(
     ) {
         val tagAlpha by animateFloatAsState(if (tagVisible) 1f else 0f, tween(durationMillis = Motion.FADE_OUT), label = "volumeTag")
         if (tagAlpha > 0f) {
-            val seconds = tagSkip
+            val steps = tagSkip
             ValueTag(
-                if (seconds == null) {
+                if (steps == null) {
                     stringResource(R.string.pad_volume_tag, tagLevel)
                 } else {
-                    stringResource(if (seconds < 0) R.string.pad_skip_back_tag else R.string.pad_skip_forward_tag, abs(seconds))
+                    val way = stringResource(if (steps < 0) R.string.pad_skip_back else R.string.pad_skip_forward)
+                    if (abs(steps) > 1) stringResource(R.string.pad_skip_times, way, abs(steps)) else way
                 },
                 Modifier
                     .align(Alignment.TopCenter)
