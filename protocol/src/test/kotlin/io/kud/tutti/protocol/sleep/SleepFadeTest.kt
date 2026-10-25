@@ -39,7 +39,7 @@ class SleepFadeTest {
     }
 
     @Test
-    fun `a hand on the rail wins: the fade only ever lowers`() {
+    fun `a hand on the rail wins, the fade only ever lowers`() {
         val start = SleepFade.fadeStartsAt(end)
         assertEquals(22, SleepFade.nextLevel(start, end, 24, current = 24))
         assertNull(SleepFade.nextLevel(start, end, 24, current = 15))

@@ -1,8 +1,8 @@
 package io.kud.tutti.ui.remote
 
-import kotlin.test.Test
-import kotlin.test.assertFalse
-import kotlin.test.assertTrue
+import org.junit.Test
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 
 class ShowOnTvTest {
     private val hdmi2 = "extInput:hdmi?port=2"
