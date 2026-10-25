@@ -43,7 +43,7 @@ object DeviceMigration {
      * The TV's Bluetooth link, dropped when it points at a computer: one in [list], or a bonded
      * host the phone reports as a computer ([computers], addresses). Version 1 remembered the last
      * host its Bluetooth screen connected, and that screen offered every bonded device, so a Mac
-     * picked there became the TV's link at migration (Erwann, 2026-10-25: « kud · home » under the
+     * picked there became the TV's link at migration (Erwann, 2026-10-25: a computer's name under the
      * TV). Dropped, never guessed: the TV row's pairing step sets it again. Unchanged otherwise.
      */
     fun withoutStrayTvBluetooth(list: DeviceList, computers: Set<String>): DeviceList {
