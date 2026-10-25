@@ -52,8 +52,19 @@ object HidRoute {
     fun targetFor(currentInput: String?, macInput: String?): HidTarget =
         if (macInput != null && currentInput == macInput) HidTarget.MAC else HidTarget.TV
 
-    /** Whether Bluetooth must be registered while the remote is in front: never in the background. */
-    fun needsHid(target: HidTarget, lanUp: Boolean): Boolean = target == HidTarget.MAC || !lanUp
+    /**
+     * Which host holds the one HID connection while the remote is in front (Erwann, 2026-10-25:
+     * « autant se connecter à la TV qu'au Mac, et pouvoir switcher »). The TV lives on its LAN
+     * links, so the Mac keeps Bluetooth as soon as it is configured, whatever the target, and a
+     * switch is only routing. The connection moves to the TV only when the TV is the target and
+     * its LAN is down (the remote says so in words). Null: Bluetooth isn't needed; release the role.
+     * Never consulted in the background: the role is only held while the remote is in front.
+     */
+    fun hidHost(target: HidTarget, macConfigured: Boolean, lanUp: Boolean): HidTarget? = when {
+        target == HidTarget.TV && !lanUp -> HidTarget.TV
+        macConfigured -> HidTarget.MAC
+        else -> null
+    }
 
     /**
      * The pad's gyro pointer mode is offered only where it can work (Erwann, 2026-10-25: « seulement
