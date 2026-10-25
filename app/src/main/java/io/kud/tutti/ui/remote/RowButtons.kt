@@ -21,7 +21,7 @@ import io.kud.tutti.ui.common.actionLabel
 /** The icon a row button wears, in the row and in the edit mode's "add" chips. */
 @DrawableRes
 fun rowButtonIcon(button: RowButton, muted: Boolean = false): Int = when (button) {
-    RowButton.BACK -> R.drawable.ic_back
+    RowButton.BACK -> R.drawable.ic_tv_back
     RowButton.HOME -> R.drawable.ic_home
     RowButton.PLAY -> R.drawable.ic_play_pause
     RowButton.VOICE -> R.drawable.ic_mic

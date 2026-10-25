@@ -33,4 +33,10 @@ class KeyIconTest {
         assertEquals(keys.size, glyphs.toSet().size)
         assertEquals(R.drawable.ic_more_vert, keyIcon(V2Key.MENU))
     }
+
+    @Test
+    fun `the tv back key wears the return arrow wherever it shows`() {
+        assertEquals(R.drawable.ic_tv_back, keyIcon(V2Key.BACK))
+        assertEquals(R.drawable.ic_tv_back, io.kud.tutti.ui.remote.rowButtonIcon(io.kud.tutti.platform.data.RowButton.BACK))
+    }
 }

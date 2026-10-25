@@ -245,7 +245,7 @@ fun SettingsScreen(
                         onClick = { picker = button },
                         icon = when (button) {
                             SecondaryButton.HOME -> R.drawable.ic_home
-                            SecondaryButton.BACK -> R.drawable.ic_back
+                            SecondaryButton.BACK -> R.drawable.ic_tv_back
                             SecondaryButton.PLAY -> R.drawable.ic_play_pause
                         },
                     )

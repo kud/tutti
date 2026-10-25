@@ -155,7 +155,7 @@ private fun namedKeyRes(name: String): Int? = when (name) {
 fun keyIcon(keyCode: Int): Int = when (keyCode) {
     V2Key.SETTINGS -> R.drawable.ic_settings
     V2Key.HOME -> R.drawable.ic_home
-    V2Key.BACK -> R.drawable.ic_back
+    V2Key.BACK -> R.drawable.ic_tv_back
     V2Key.POWER, 177 -> R.drawable.ic_power
     V2Key.SEARCH, V2Key.ASSIST -> R.drawable.ic_mic
     V2Key.TV_INPUT, V2Key.TV_INPUT_HDMI_1, V2Key.TV_INPUT_HDMI_2, V2Key.TV_INPUT_HDMI_3, V2Key.TV_INPUT_HDMI_4 -> R.drawable.ic_input
