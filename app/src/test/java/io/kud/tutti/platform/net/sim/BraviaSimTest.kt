@@ -101,7 +101,7 @@ class BraviaSimTest {
     }
 
     @Test
-    fun `HTTP does not stick: the next discovery tries HTTPS again`() = runBlocking {
+    fun `HTTP does not stick, the next discovery tries HTTPS again`() = runBlocking {
         tv.https.sleep()
         val transport = transport()
         val client = client(transport)
