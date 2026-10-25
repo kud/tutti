@@ -4,6 +4,13 @@ import io.kud.tutti.protocol.atv.proto.remote.RemoteMessage
 
 data class TvVolume(val level: Int, val max: Int, val muted: Boolean)
 
+/**
+ * What survives a dropped link: nothing the TV reported live. Power and volume are the TV's
+ * own word, so a reconnect must hear them again: a TV switched off with its own remote while
+ * the link was down would otherwise still read as on, and Power would switch it "off".
+ */
+fun RemoteState.disconnected(): RemoteState = copy(ready = false, ime = null, powered = null, volume = null)
+
 /** The TV's focused text field, mirrored above the phone keyboard. */
 data class ImeField(val text: String, val label: String, val selectionStart: Int, val selectionEnd: Int)
 

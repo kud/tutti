@@ -48,7 +48,18 @@ data class Links(
     val rest: Link = Link.ABSENT,
     val bar: Link = Link.ABSENT,
     val tvShown: TvShown = TvShown(Link.ABSENT),
-)
+    /** Which generation of sessions these links describe ([TuttiController.retainSession]). */
+    val epoch: Int = 0,
+) {
+    /** A new generation: nothing it has not heard itself counts as up, or as given up on. */
+    fun restarted(epoch: Int): Links = copy(tv = tv.restarted(), rest = rest.restarted(), bar = bar.restarted(), epoch = epoch)
+}
+
+/** What a link reads once its session has stopped: no longer up, and no longer trying. */
+fun Link.stopped(): Link = if (this == Link.ONLINE || this == Link.CONNECTING) Link.UNREACHABLE else this
+
+/** What a link reads as a new session starts: a live or failed link is asked again; a verdict (absent, pairing, key) stands until the loop says otherwise. */
+fun Link.restarted(): Link = if (this == Link.ONLINE || this == Link.UNREACHABLE) Link.CONNECTING else this
 
 data class TvSettingsState(
     val loading: Boolean = false,

@@ -102,7 +102,7 @@ class AtvRemote(
         connection = null
         readJob?.cancel()
         conn?.close()
-        mutableState.update { it.copy(ready = false, ime = null) }
+        mutableState.update { it.disconnected() }
         mutableVoice.update { VoiceSession.disconnected(it, now()) }
     }
 

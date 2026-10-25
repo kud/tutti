@@ -14,6 +14,9 @@ import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withTimeoutOrNull
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -37,7 +40,12 @@ class ControllerQuickControls @Inject constructor(
 
     override fun release() = controller.release()
 
-    override suspend fun togglePower() = held { controller.power() }
+    /**
+     * Power acts on the TV's power as heard in this session, never on what an earlier one heard:
+     * a TV switched off with its own remote meanwhile must be switched on, not "off" again.
+     * It waits until power is known, or every configured link has had its first say.
+     */
+    override suspend fun togglePower() = held(until = ::powerSettled) { controller.power() }
 
     override suspend fun volumeUp() = step(+1)
 
@@ -72,18 +80,34 @@ class ControllerQuickControls @Inject constructor(
     private fun onBar(): Boolean = controller.state.value.devices.bar != null
 
     override suspend fun applyScene(id: String) = held {
-        controller.applyScene(id)
-        withTimeoutOrNull(SCENE_TIMEOUT_MS) {
-            controller.events.filter { it is TuttiEvent.SceneFinished && it.sceneId == id }.first()
+        // Subscribed before the scene starts, so a scene that finishes at once is not missed.
+        coroutineScope {
+            val finished = async(start = CoroutineStart.UNDISPATCHED) {
+                withTimeoutOrNull(SCENE_TIMEOUT_MS) {
+                    controller.events.filter { it is TuttiEvent.SceneFinished && it.sceneId == id }.first()
+                }
+            }
+            controller.applyScene(id)
+            finished.await()
         }
     }
 
-    private suspend fun held(onTv: Boolean = false, action: suspend () -> Unit) {
-        controller.retain()
+    /**
+     * Holds the sessions for [action], after waiting (bounded) for a link of this session's
+     * epoch: a link the stopped sessions reported is never taken for a live one, so a cold
+     * widget tap waits for the connect instead of going nowhere.
+     */
+    private suspend fun held(
+        onTv: Boolean = false,
+        until: ((TuttiUiState) -> Boolean)? = null,
+        action: suspend () -> Unit,
+    ) {
+        val epoch = controller.retainSession()
         try {
             val bar = !onTv && onBar()
+            val ready = until ?: { s: TuttiUiState -> (if (bar) s.links.bar else s.links.tv) == Link.ONLINE }
             withTimeoutOrNull(LINK_TIMEOUT_MS) {
-                controller.state.first { (if (bar) it.links.bar else it.links.tv) == Link.ONLINE }
+                controller.state.first { it.links.epoch == epoch && ready(it) }
             }
             action()
         } finally {
@@ -99,6 +123,7 @@ class ControllerQuickControls @Inject constructor(
         return QuickState(
             // The bar's link when one is configured (volume needs it), else the TV's remote link.
             connected = (if (hasBar) links.bar else links.tv) == Link.ONLINE,
+            configured = hasBar || devices.tv != null,
             power = powered == true,
             volume = volume ?: 0,
             volumeLimit = volumeCap ?: 100,
@@ -126,7 +151,16 @@ class ControllerQuickControls @Inject constructor(
         )
     }
 
-    private companion object {
+    internal companion object {
+        /** Power is known, or no configured link is still trying: Power can decide (and wake) now. */
+        fun powerSettled(state: TuttiUiState): Boolean {
+            if (state.powered != null) return true
+            val links = state.links
+            val tvTrying = state.devices.tv != null && (links.tv == Link.CONNECTING || links.tv == Link.ONLINE)
+            val barTrying = state.devices.bar != null && (links.bar == Link.CONNECTING || links.bar == Link.ONLINE)
+            return !tvTrying && !barTrying
+        }
+
         const val LINK_TIMEOUT_MS = 4_000L
         const val SCENE_TIMEOUT_MS = 30_000L
     }

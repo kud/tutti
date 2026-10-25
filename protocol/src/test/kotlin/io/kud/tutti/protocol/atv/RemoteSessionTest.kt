@@ -112,4 +112,15 @@ class RemoteSessionTest {
         assertNull(RemoteMessages.key(0))
         assertNull(RemoteMessages.key(9_999))
     }
+
+    @Test
+    fun `a dropped link forgets the TV's power and volume, keeps the rest`() {
+        val live = RemoteState(ready = true, powered = true, volume = TvVolume(12, 100, false), currentApp = "com.example.app")
+        val down = live.disconnected()
+        assertEquals(false, down.ready)
+        assertNull(down.powered)
+        assertNull(down.volume)
+        assertNull(down.ime)
+        assertEquals("com.example.app", down.currentApp)
+    }
 }

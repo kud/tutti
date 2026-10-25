@@ -47,6 +47,8 @@ interface QuickControls {
 data class QuickState(
     /** Both control channels needed for quick actions are up (bar TCP at least). */
     val connected: Boolean = false,
+    /** A TV or a bar is set up: actions are offered, and connect on tap, even while nothing is up. */
+    val configured: Boolean = false,
     /** The TV is on. The notification shows only while this and [connected] hold. */
     val power: Boolean = false,
     /** Bar volume, 0–100. 0 while unknown: surfaces that must not show a made-up 0 read [level]. */

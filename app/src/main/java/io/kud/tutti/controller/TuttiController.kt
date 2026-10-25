@@ -106,6 +106,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
@@ -237,6 +238,7 @@ class TuttiController @Inject constructor(
     private val lock = Any()
     private var holders = 0
     private var sessionsJob: Job? = null
+    private var epoch = 0
     private var lingerJob: Job? = null
     private var sceneJob: Job? = null
     private var pairingJob: Job? = null
@@ -313,13 +315,32 @@ class TuttiController @Inject constructor(
 
     /** Starts (or keeps) the sessions. Pair every call with [release]. */
     fun retain() {
-        synchronized(lock) {
+        retainSession()
+    }
+
+    /**
+     * [retain], returning the session epoch ([Links.epoch]) whose links the caller may trust:
+     * a link reported under an older epoch belongs to sessions that have stopped. A new
+     * generation starts only once the old one has finished, so its `finally` blocks can never
+     * clear what the new one set.
+     */
+    fun retainSession(): Int {
+        val current = synchronized(lock) {
             holders++
             lingerJob?.cancel()
             lingerJob = null
-            if (sessionsJob?.isActive != true) sessionsJob = scope.launch { runSessions() }
+            if (sessionsJob?.isActive != true) {
+                val previous = sessionsJob
+                val next = ++epoch
+                sessionsJob = scope.launch {
+                    previous?.cancelAndJoin()
+                    runSessions(next)
+                }
+            }
+            epoch
         }
         wake.tryEmit(Unit)
+        return current
     }
 
     fun release() {
@@ -342,7 +363,9 @@ class TuttiController @Inject constructor(
         }
     }
 
-    private suspend fun runSessions() {
+    private suspend fun runSessions(epoch: Int) {
+        // Whatever the stopped sessions left is not news: every link is asked again under this epoch.
+        links.update { it.restarted(epoch) }
         // Coming back to the app is a fresh blip, not the minutes spent away.
         if (tvWasUp) tvDownSince = SystemClock.elapsedRealtime()
         psk = secure.tvPsk()
@@ -411,6 +434,7 @@ class TuttiController @Inject constructor(
             }
         } finally {
             theatre.disconnect()
+            links.update { it.copy(bar = it.bar.stopped()) }
         }
     }
 
@@ -472,6 +496,7 @@ class TuttiController @Inject constructor(
             }
         } finally {
             atv.disconnect()
+            links.update { it.copy(tv = it.tv.stopped()) }
         }
     }
 
@@ -497,6 +522,20 @@ class TuttiController @Inject constructor(
         braviaTransport = transport
         tvHostForIcons = device.host
         bravia = client
+        try {
+            restSession(client, device)
+        } finally {
+            // A stopped session has no TV to talk to and no power reading to stand on.
+            if (bravia === client) {
+                bravia = null
+                braviaTransport = null
+            }
+            links.update { it.copy(rest = it.rest.stopped()) }
+            tv.update { it.copy(power = PowerStatus.UNKNOWN) }
+        }
+    }
+
+    private suspend fun restSession(client: BraviaClient, device: TvDevice) {
         var wait = MIN_BACKOFF_MS
         while (scope.isActive) {
             links.update { it.copy(rest = Link.CONNECTING) }

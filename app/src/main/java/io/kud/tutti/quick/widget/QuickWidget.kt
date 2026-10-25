@@ -219,7 +219,8 @@ private fun ScenePill(scene: QuickScene, active: Boolean, modifier: GlanceModifi
 @Composable
 private fun VolumeRow(state: QuickState) {
     val context = LocalContext.current
-    val enabled = state.connected
+    // A tap connects on its own (ControllerQuickControls.held): only "nothing set up" disables.
+    val enabled = state.configured
     Row(
         modifier = GlanceModifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
