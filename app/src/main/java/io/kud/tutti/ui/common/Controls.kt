@@ -20,13 +20,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.semantics.Role
 import io.kud.tutti.R
 
 /**
  * A settings row that opens a menu of options. [reason] greys it and says why. [refused] options
  * stay listed and tappable (a retry), marked with the warning glyph and the word, and the row
- * says which value the bar refused.
+ * says which value the bar refused. [onPin] lets a long press on an option pin it to the dock.
  */
 @Composable
 fun <T> ChoiceRow(
@@ -38,8 +39,12 @@ fun <T> ChoiceRow(
     reason: String? = null,
     @DrawableRes icon: Int? = null,
     refused: Set<T> = emptySet(),
+    onPin: ((T, String) -> Unit)? = null,
+    canPin: (T) -> Boolean = { true },
 ) {
     var expanded by remember { mutableStateOf(false) }
+    val pinLabel = stringResource(R.string.pin_to_dock)
+    val pinFeedback = rememberFeedback()
     val refusedWord = stringResource(R.string.choice_refused)
     val refusedNote = options.filter { it.first in refused }.joinToString { it.second }.ifEmpty { null }
         ?.let { stringResource(R.string.choice_refused_note, it) }
@@ -65,6 +70,17 @@ fun <T> ChoiceRow(
                     onClick = {
                         expanded = false
                         onSelect(value)
+                    },
+                    // A value's menu would have one row, so its long press is "Pin to dock" itself
+                    // (design.md, gestures). Only offered where the caller can pin that value.
+                    modifier = if (onPin != null && canPin(value)) {
+                        Modifier.holdForMenu(pinLabel, RectangleShape) {
+                            pinFeedback.longPress()
+                            expanded = false
+                            onPin(value, text)
+                        }
+                    } else {
+                        Modifier
                     },
                 )
             }

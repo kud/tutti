@@ -76,6 +76,8 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.kud.tutti.R
+import io.kud.tutti.ui.common.rememberGestureHint
+import io.kud.tutti.ui.common.GestureHintBubble
 import io.kud.tutti.ui.common.holdForMenu
 import io.kud.tutti.platform.data.DockAction
 import io.kud.tutti.controller.TuttiController
@@ -140,6 +142,10 @@ fun SoundSheet(
     var explaining by remember { mutableStateOf<SoundSection?>(null) }
     // Long press on a tile or a DRC/IMAX choice pins it (gesture audit item 9).
     val pinner = rememberDockPinner(state, controller)
+    // One-time hints (discoverability rule 3): the tile's long press after a third toggle, the input's
+    // after the first change, each beside the control it names.
+    val hint = rememberGestureHint(controller)
+    var toggles by remember { mutableIntStateOf(0) }
     val layout = soundSheetLayout(state.voiceZoomAvailable)
     explaining?.let { ExplainSheet(it, layout, onDismiss = { explaining = null }) }
     // The title line is the sheet's pinned header: folded, it is the whole peek; open, it stays put
@@ -186,7 +192,14 @@ fun SoundSheet(
                 }
             }
             Spacer(Modifier.height(4.dp))
-            BarInputRow(state, controller, onHelp = { explaining = SoundSection.Input }, pinner = pinner)
+            BarInputRow(
+                state,
+                controller,
+                onHelp = { explaining = SoundSection.Input },
+                pinner = pinner,
+                onChanged = { hint.offer("bar_input_long") },
+            )
+            GestureHintBubble(hint, Modifier.padding(top = 8.dp), only = "bar_input_long")
             Spacer(Modifier.height(4.dp))
 
             val tiles = layout.tiles
@@ -199,7 +212,10 @@ fun SoundSheet(
                             feature = feature,
                             onTap = {
                                 haptics.select()
-                                if (feature.kind is FeatureKind.Toggle) controller.toggleBar(feature)
+                                if (feature.kind is FeatureKind.Toggle) {
+                                    controller.toggleBar(feature)
+                                    if (++toggles == 3) hint.offer("effect_long")
+                                }
                             },
                             onPin = { name ->
                                 haptics.longPress()
@@ -211,6 +227,7 @@ fun SoundSheet(
                     if (row.size == 1) Spacer(Modifier.weight(1f))
                 }
             }
+            GestureHintBubble(hint, Modifier.padding(vertical = 4.dp), only = "effect_long")
 
             for (feature in layout.choices) {
                 ChoiceSegments(state, feature, onSelect = {

@@ -23,6 +23,11 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import io.kud.tutti.ui.common.keyLabel
+import io.kud.tutti.ui.common.holdForMenu
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
@@ -55,9 +60,39 @@ import io.kud.tutti.ui.common.TuttiSheet
 fun MoreKeysSheet(
     onKey: (Int) -> Unit,
     onDismiss: () -> Unit,
+    pin: KeyPin? = null,
 ) {
     TuttiSheet(onDismissRequest = onDismiss) {
-        MoreKeysContent(onKey)
+        CompositionLocalProvider(LocalKeyPin provides pin) {
+            MoreKeysContent(onKey)
+        }
+    }
+}
+
+/**
+ * Long press on a key of the sheet pins it to the dock (design.md, gestures: a key in All keys has
+ * a one-row menu, so the long press goes straight to "Pin to dock"). [enabled] false while the TV
+ * is connecting or out of reach: the long press is refused with a bump, like the tap's device.
+ */
+class KeyPin(val enabled: Boolean, val onPin: (keyCode: Int, name: String) -> Unit)
+
+private val LocalKeyPin = staticCompositionLocalOf<KeyPin?> { null }
+
+/** The pin modifier for key [keyCode], or nothing when the sheet was opened without a pinner. */
+@Composable
+private fun Modifier.pinKey(keyCode: Int?, shape: Shape): Modifier {
+    val pin = LocalKeyPin.current ?: return this
+    if (keyCode == null) return this
+    val feedback = rememberFeedback()
+    val name = keyLabel(keyCode)
+    return holdForMenu(
+        label = stringResource(R.string.pin_to_dock),
+        shape = shape,
+        enabled = pin.enabled,
+        onRefused = feedback::bump,
+    ) {
+        feedback.longPress()
+        pin.onPin(keyCode, name)
     }
 }
 
@@ -91,9 +126,9 @@ fun MoreKeysContent(
                         }
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Key(stringResource(R.string.more_jump), onClick = { onKey(V2Key.LAST_CHANNEL) })
+                        Key(stringResource(R.string.more_jump), onClick = { onKey(V2Key.LAST_CHANNEL) }, code = V2Key.LAST_CHANNEL)
                         Digit(0, onKey)
-                        Key(stringResource(R.string.more_live_tv), onClick = { onKey(V2Key.TV) })
+                        Key(stringResource(R.string.more_live_tv), onClick = { onKey(V2Key.TV) }, code = V2Key.TV)
                     }
                 }
                 // The channel rocker, as tall as the keypad, like the remote's right-hand rocker.
@@ -104,7 +139,7 @@ fun MoreKeysContent(
                     KeyTile(
                         "+",
                         description = stringResource(R.string.more_channel_up),
-                        onClick = { onKey(V2Key.CHANNEL_UP) },
+                        onClick = { onKey(V2Key.CHANNEL_UP) }, code = V2Key.CHANNEL_UP,
                         height = KeyHeight * 2 + 4.dp,
                         caption = stringResource(R.string.more_channel_short),
                         modifier = Modifier.fillMaxWidth(),
@@ -112,7 +147,7 @@ fun MoreKeysContent(
                     KeyTile(
                         "−",
                         description = stringResource(R.string.more_channel_down),
-                        onClick = { onKey(V2Key.CHANNEL_DOWN) },
+                        onClick = { onKey(V2Key.CHANNEL_DOWN) }, code = V2Key.CHANNEL_DOWN,
                         height = KeyHeight * 2 + 4.dp,
                         caption = stringResource(R.string.more_channel_short),
                         modifier = Modifier.fillMaxWidth(),
@@ -131,19 +166,19 @@ fun MoreKeysContent(
 
             Section(R.string.more_section_tv)
             KeyRow {
-                Key(stringResource(R.string.key_guide), onClick = { onKey(V2Key.GUIDE) })
-                Key(stringResource(R.string.more_info), onClick = { onKey(V2Key.INFO) })
-                Key(stringResource(R.string.key_input), onClick = { onKey(V2Key.TV_INPUT) })
+                Key(stringResource(R.string.key_guide), onClick = { onKey(V2Key.GUIDE) }, code = V2Key.GUIDE)
+                Key(stringResource(R.string.more_info), onClick = { onKey(V2Key.INFO) }, code = V2Key.INFO)
+                Key(stringResource(R.string.key_input), onClick = { onKey(V2Key.TV_INPUT) }, code = V2Key.TV_INPUT)
             }
             Spacer(Modifier.height(8.dp))
             KeyRow {
-                Key(stringResource(R.string.more_subtitles), onClick = { onKey(V2Key.CAPTIONS) })
-                Key(stringResource(R.string.more_audio), onClick = { onKey(V2Key.MEDIA_AUDIO_TRACK) })
-                Key(stringResource(R.string.more_menu), onClick = { onKey(V2Key.MENU) })
+                Key(stringResource(R.string.more_subtitles), onClick = { onKey(V2Key.CAPTIONS) }, code = V2Key.CAPTIONS)
+                Key(stringResource(R.string.more_audio), onClick = { onKey(V2Key.MEDIA_AUDIO_TRACK) }, code = V2Key.MEDIA_AUDIO_TRACK)
+                Key(stringResource(R.string.more_menu), onClick = { onKey(V2Key.MENU) }, code = V2Key.MENU)
             }
             Spacer(Modifier.height(8.dp))
             KeyRow {
-                Key(stringResource(R.string.more_quick_settings), onClick = { onKey(V2Key.SETTINGS) })
+                Key(stringResource(R.string.more_quick_settings), onClick = { onKey(V2Key.SETTINGS) }, code = V2Key.SETTINGS)
             }
 
         }
@@ -167,16 +202,17 @@ private fun KeyRow(content: @Composable RowScope.() -> Unit) {
 
 @Composable
 private fun RowScope.Digit(digit: Int, onKey: (Int) -> Unit) {
-    Key(digit.toString(), onClick = { onKey(V2Key.digit(digit)) }, big = true)
+    Key(digit.toString(), onClick = { onKey(V2Key.digit(digit)) }, code = V2Key.digit(digit), big = true)
 }
 
 @Composable
 private fun RowScope.Key(
     label: String,
     onClick: () -> Unit,
+    code: Int? = null,
     description: String? = null,
     big: Boolean = false,
-) = KeyTile(label, onClick, Modifier.weight(1f), description, big)
+) = KeyTile(label, onClick, Modifier.weight(1f), description, big, code = code)
 
 @Composable
 private fun KeyTile(
@@ -187,10 +223,12 @@ private fun KeyTile(
     big: Boolean = false,
     height: Dp = KeyHeight,
     caption: String? = null,
+    code: Int? = null,
 ) {
     Column(
         modifier
             .height(height)
+            .pinKey(code, KeyShape)
             .keyPress(onClick)
             .then(if (description != null) Modifier.semantics { contentDescription = description } else Modifier)
             .padding(horizontal = 6.dp),
@@ -215,6 +253,7 @@ private fun RowScope.ColourKey(@StringRes name: Int, colour: Color, keyCode: Int
         Modifier
             .weight(1f)
             .height(KeyHeight + 8.dp)
+            .pinKey(keyCode, KeyShape)
             .keyPress { onKey(keyCode) },
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,

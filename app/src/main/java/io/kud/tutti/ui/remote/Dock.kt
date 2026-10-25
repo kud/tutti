@@ -64,6 +64,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.kud.tutti.R
+import io.kud.tutti.ui.common.longPressRing
+import io.kud.tutti.ui.common.rememberLongPressProgress
 import io.kud.tutti.ui.common.TuttiMenu
 import io.kud.tutti.ui.common.DOWN_STROKE
 import io.kud.tutti.ui.common.LocalChipNudge
@@ -263,7 +265,14 @@ private fun PinTile(
             )
         }
     }
-    Box(modifier.graphicsLayer { translationX = shake.value.dp.toPx() }) {
+    // The long press opens the pin's menu or editor: the same ring as the segments and tiles
+    // (discoverability rule 1). Editing is local, so it sweeps even while the device is down.
+    val ring = rememberLongPressProgress(press.interaction, enabled = true)
+    Box(
+        modifier
+            .graphicsLayer { translationX = shake.value.dp.toPx() }
+            .longPressRing({ ring.value }, shape, scheme.onSurface),
+    ) {
         Tile(
             background = background,
             content = content,

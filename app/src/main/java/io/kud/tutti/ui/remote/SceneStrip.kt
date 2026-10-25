@@ -55,6 +55,8 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import io.kud.tutti.R
+import io.kud.tutti.ui.common.longPressRing
+import io.kud.tutti.ui.common.rememberLongPressProgress
 import io.kud.tutti.controller.SceneStatus
 import io.kud.tutti.controller.SceneUi
 import io.kud.tutti.ui.common.glyphRes
@@ -224,6 +226,9 @@ fun ScenePill(ui: SceneUi, onClick: () -> Unit, onLongClick: () -> Unit, modifie
     val interaction = remember { MutableInteractionSource() }
     val feedback = rememberFeedback()
     val press = rememberPress(interaction, PressStyle.TILE, onDown = feedback::click)
+    // The long press opens the editor: the same ring as the segments and tiles (rule 1).
+    val ring = rememberLongPressProgress(interaction, enabled = true)
+    val ringColour = MaterialTheme.colorScheme.onSurface
     SceneStepTicks(ui.progress)
     Row(
         modifier = modifier
@@ -242,6 +247,7 @@ fun ScenePill(ui: SceneUi, onClick: () -> Unit, onLongClick: () -> Unit, modifie
                 onClick = onClick,
             )
             .padding(vertical = 4.dp)
+            .longPressRing({ ring.value }, shape, ringColour)
             .clip(shape)
             .background(container)
             .then(if (ui.status == SceneStatus.MODIFIED) Modifier.border(1.5.dp, seed, shape) else Modifier)

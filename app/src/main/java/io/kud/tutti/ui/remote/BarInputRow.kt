@@ -110,7 +110,7 @@ private const val MAX_FITTED_INPUTS = 5
  * warning glyph and the word "refused", and stays tappable as a retry.
  */
 @Composable
-fun BarInputRow(state: TuttiUiState, controller: TuttiController, modifier: Modifier = Modifier, onHelp: () -> Unit = {}, pinner: DockPinner? = null) {
+fun BarInputRow(state: TuttiUiState, controller: TuttiController, modifier: Modifier = Modifier, onHelp: () -> Unit = {}, pinner: DockPinner? = null, onChanged: () -> Unit = {}) {
     val feature = TheatreFeature.INPUT
     val reason = barReason(state, feature)
     val current = state.bar.value(feature)
@@ -232,6 +232,7 @@ fun BarInputRow(state: TuttiUiState, controller: TuttiController, modifier: Modi
                             else -> {
                                 haptics.select()
                                 controller.setBarChoice(feature, option)
+                                onChanged()
                             }
                         }
                     },

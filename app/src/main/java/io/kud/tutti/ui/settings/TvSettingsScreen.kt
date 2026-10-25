@@ -30,6 +30,8 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import io.kud.tutti.R
+import io.kud.tutti.ui.remote.rememberDockPinner
+import io.kud.tutti.platform.data.DockAction
 import io.kud.tutti.controller.Link
 import io.kud.tutti.controller.TuttiController
 import io.kud.tutti.controller.TuttiController.TvSettingGroup
@@ -57,6 +59,10 @@ fun TvSettingsScreen(state: TuttiUiState, controller: TuttiController, onBack: (
     LaunchedEffect(rest) { if (rest == Link.ONLINE) controller.loadTvSettings() }
     var pskDialog by remember { mutableStateOf(false) }
     val settings = state.tv.settings
+    // Picture modes and sound outputs pin to the dock from their own menu (design.md, gestures).
+    // The rows only exist while REST is online, so no long press here can meet a down link.
+    val pinner = rememberDockPinner(state, controller)
+    val pin: (DockAction, String) -> Unit = pinner::request
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
@@ -79,7 +85,7 @@ fun TvSettingsScreen(state: TuttiUiState, controller: TuttiController, onBack: (
             if (settings.loading) BusyBar(Modifier.fillMaxWidth())
 
             if (settings.picture.isNotEmpty() || settings.scene != null) SettingsGroup(stringResource(R.string.tv_picture)) {
-                settings.picture.forEach { TvSettingRow(it, TvSettingGroup.PICTURE, controller) }
+                settings.picture.forEach { TvSettingRow(it, TvSettingGroup.PICTURE, controller, pin) }
                 settings.scene?.let { scene ->
                     val names = mapOf(
                         "auto" to stringResource(R.string.tv_scene_auto),
@@ -95,7 +101,7 @@ fun TvSettingsScreen(state: TuttiUiState, controller: TuttiController, onBack: (
                 }
             }
             if (settings.sound.isNotEmpty()) SettingsGroup(stringResource(R.string.tv_sound_output)) {
-                settings.sound.forEach { TvSettingRow(it, TvSettingGroup.SOUND, controller) }
+                settings.sound.forEach { TvSettingRow(it, TvSettingGroup.SOUND, controller, pin) }
             } else if (settings.outputWriteOnly) SettingsGroup(stringResource(R.string.tv_sound_output)) {
                 val outputs = outputNames()
                 ChoiceRow(
@@ -103,10 +109,12 @@ fun TvSettingsScreen(state: TuttiUiState, controller: TuttiController, onBack: (
                     valueLabel = stringResource(R.string.tv_output_write_only),
                     options = TvSetting.OUTPUT_TERMINALS.map { it to (outputs[it] ?: it) },
                     onSelect = controller::setOutputTerminal,
+                    onPin = tvPin(TvSetting.OUTPUT_TERMINAL, pin),
+                    canPin = ::dockKnowsOutput,
                 )
             }
             if (settings.speaker.isNotEmpty()) SettingsGroup(stringResource(R.string.tv_speaker)) {
-                settings.speaker.forEach { TvSettingRow(it, TvSettingGroup.SPEAKER, controller) }
+                settings.speaker.forEach { TvSettingRow(it, TvSettingGroup.SPEAKER, controller, pin) }
             }
             if (state.tv.inputs.isNotEmpty()) SettingsGroup(stringResource(R.string.tv_inputs)) {
                 for (input in state.tv.inputs) {
@@ -223,7 +231,7 @@ private fun outputNames(): Map<String, String> = mapOf(
 )
 
 @Composable
-private fun TvSettingRow(setting: TvSetting, group: TvSettingGroup, controller: TuttiController) {
+private fun TvSettingRow(setting: TvSetting, group: TvSettingGroup, controller: TuttiController, pin: (DockAction, String) -> Unit) {
     val label = settingTitle(setting)
     val reason = if (!setting.isAvailable) stringResource(R.string.tv_setting_unavailable) else null
     if (setting.isRange) {
@@ -269,9 +277,23 @@ private fun TvSettingRow(setting: TvSetting, group: TvSettingGroup, controller: 
             options = options,
             onSelect = { controller.setTvSetting(group, setting.target, it) },
             reason = reason,
+            onPin = tvPin(setting.target, pin),
+            canPin = { setting.target != TvSetting.OUTPUT_TERMINAL || dockKnowsOutput(it) },
         )
     }
 }
+
+/**
+ * The dock pin for a value of [target], when the dock has one: a picture mode, or a sound output
+ * it knows ([DockAction.TvSoundOutput] takes only the two terminals tutti can name). Null otherwise.
+ */
+private fun tvPin(target: String, pin: (DockAction, String) -> Unit): ((String, String) -> Unit)? = when (target) {
+    "pictureMode" -> { value, title -> pin(DockAction.PictureMode(value, title), title) }
+    TvSetting.OUTPUT_TERMINAL -> { value, title -> pin(DockAction.TvSoundOutput(value), title) }
+    else -> null
+}
+
+private fun dockKnowsOutput(value: String): Boolean = value == TvSetting.TERMINAL_AUDIO_SYSTEM || value == TvSetting.TERMINAL_SPEAKER
 
 private fun format(value: Double, step: Double): String =
     if (step % 1.0 == 0.0) value.roundToInt().toString() else "%.1f".format(java.util.Locale.ROOT, value)

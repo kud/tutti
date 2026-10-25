@@ -680,6 +680,7 @@ fun RemoteScreen(
         )
     }
 
+    val keysPinner = rememberDockPinner(state, controller)
     when (sheet2) {
         RemoteSheet.APPS -> AppsSheet(
             state = state,
@@ -702,6 +703,7 @@ fun RemoteScreen(
                 controller.key(it)
             },
             onDismiss = { sheet2 = null },
+            pin = KeyPin(enabled = !state.controlLink(Owner.TV).down) { code, name -> keysPinner.request(DockAction.Key(code), name) },
         )
         null -> Unit
     }

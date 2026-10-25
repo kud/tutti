@@ -97,4 +97,7 @@
     <string name="shortcut_keyboard">Clavier</string>
     <string name="shortcut_keyboard_long">Écrire sur la TV</string>
     <string name="shortcut_scene_long">Appliquer %1$s</string>
+    <!-- The one-time hint bubble (GestureHintBubble): the gesture's own title, then its sentence. -->
+    <string name="hint_title">Astuce : %1$s</string>
+    <string name="hint_close">Fermer l’astuce</string>
 </resources>
