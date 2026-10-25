@@ -12,6 +12,7 @@ import io.kud.tutti.protocol.devices.DeviceMigration
 import io.kud.tutti.protocol.scenes.AppProfile
 import io.kud.tutti.protocol.scenes.Scene
 import io.kud.tutti.protocol.scenes.SceneJson
+import io.kud.tutti.protocol.scenes.SceneListSerializer
 import io.kud.tutti.protocol.scenes.StarterScenes
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -46,7 +47,7 @@ class TuttiStore @Inject constructor(
     val devices: Flow<Devices> = deviceList.map(DeviceViews::legacy).distinctUntilChanged()
     val prefs: Flow<AppPrefs> = field(PREFS, AppPrefs.serializer(), StoreJson) { AppPrefs() }
     val dock: Flow<DockConfig> = field(DOCK, DockConfig.serializer(), StoreJson) { DockConfig() }
-    val scenes: Flow<List<Scene>> = field(SCENES, ListSerializer(Scene.serializer()), SceneJson) { StarterScenes.all }
+    val scenes: Flow<List<Scene>> = field(SCENES, SceneListSerializer, SceneJson) { StarterScenes.all }
         .map(::localiseStarters)
     /** Apps the TV ever listed, kept so the Apps sheet works without IP control. */
     val apps: Flow<List<KnownApp>> = field(APPS, ListSerializer(KnownApp.serializer()), StoreJson) { emptyList() }
@@ -85,7 +86,7 @@ class TuttiStore @Inject constructor(
     suspend fun updateDock(transform: (DockConfig) -> DockConfig) = update(DOCK, DockConfig.serializer(), StoreJson, DockConfig(), transform)
 
     suspend fun updateScenes(transform: (List<Scene>) -> List<Scene>) =
-        update(SCENES, ListSerializer(Scene.serializer()), SceneJson, StarterScenes.all) { transform(localiseStarters(it)) }
+        update(SCENES, SceneListSerializer, SceneJson, StarterScenes.all) { transform(localiseStarters(it)) }
 
     /**
      * Starter scenes still carrying their shipped name read in the phone's language. A name he
