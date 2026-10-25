@@ -165,6 +165,8 @@ fun keyIcon(keyCode: Int): Int = when (keyCode) {
     223 -> R.drawable.ic_bedtime
     V2Key.INFO -> R.drawable.ic_info
     V2Key.GUIDE -> R.drawable.ic_guide
+    // The options-menu mark, not a list: Guide already wears the list glyph.
+    V2Key.MENU -> R.drawable.ic_more_vert
     V2Key.CAPTIONS -> R.drawable.ic_subtitles
     V2Key.MEDIA_AUDIO_TRACK, 252 -> R.drawable.ic_audiotrack
     V2Key.MEDIA_PLAY -> R.drawable.ic_play

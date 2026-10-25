@@ -25,4 +25,12 @@ class KeyIconTest {
         assertEquals(R.drawable.ic_subtitles, keyIcon(V2Key.CAPTIONS))
         assertEquals(R.drawable.ic_audiotrack, keyIcon(V2Key.MEDIA_AUDIO_TRACK))
     }
+
+    @Test
+    fun `the tv keys in all keys each wear a glyph of their own`() {
+        val keys = listOf(V2Key.GUIDE, V2Key.INFO, V2Key.TV_INPUT, V2Key.CAPTIONS, V2Key.MEDIA_AUDIO_TRACK, V2Key.MENU, V2Key.SETTINGS)
+        val glyphs = keys.map(::keyIcon)
+        assertEquals(keys.size, glyphs.toSet().size)
+        assertEquals(R.drawable.ic_more_vert, keyIcon(V2Key.MENU))
+    }
 }

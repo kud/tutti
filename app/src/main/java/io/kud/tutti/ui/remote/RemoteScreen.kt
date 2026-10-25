@@ -715,6 +715,7 @@ fun RemoteScreen(
             },
             onDismiss = { sheet2 = null },
             pin = KeyPin(enabled = !state.controlLink(Owner.TV).down) { code, name -> keysPinner.request(DockAction.Key(code), name) },
+            downReason = controlLinkReason(state.controlLink(Owner.TV), Owner.TV, state),
         )
         null -> Unit
     }
