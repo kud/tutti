@@ -63,6 +63,7 @@ import io.kud.tutti.ui.settings.SettingsScreen
 import io.kud.tutti.ui.settings.TechnicalScreen
 import io.kud.tutti.ui.settings.TvSettingsScreen
 import io.kud.tutti.ui.settings.UnlockScreen
+import io.kud.tutti.ui.remote.ConnAction
 
 /** Three places, opening on the remote; two levels deep at most. */
 sealed interface Screen {
@@ -316,6 +317,20 @@ fun TuttiApp(
                             onOpenSettings = { push(Screen.Settings) },
                             onEditScene = { push(Screen.SceneEditor(it)) },
                             onAddBar = { push(Screen.Onboarding(barOnly = true, cancellable = true)) },
+                            onConnectionStep = { step ->
+                                when (step) {
+                                    ConnAction.PAIR_TV -> {
+                                        controller.resetPairing()
+                                        push(Screen.Onboarding(cancellable = true))
+                                    }
+                                    // IP control's home is its checklist step: the TV's menu path and
+                                    // tutti's own field for the key (the PIN, once it lands there).
+                                    ConnAction.SET_UP_IP -> push(Screen.Unlock(io.kud.tutti.ui.settings.Unlock.IP_CONTROL))
+                                    ConnAction.SET_UP_BAR -> push(Screen.Unlock(io.kud.tutti.ui.settings.Unlock.SOUNDBAR))
+                                    ConnAction.ADD_BAR -> push(Screen.Onboarding(barOnly = true, cancellable = true))
+                                    else -> push(Screen.Settings)
+                                }
+                            },
                             editing = editingLayout,
                             onEditingChange = { editingLayout = it },
                         )

@@ -67,6 +67,8 @@ data class TargetState(
     val hidPhase: HidPhase = HidPhase.STOPPED,
     /** The device the HID connection is up with, if any. */
     val hidConnectedTo: String? = null,
+    /** Bluetooth addresses the phone is bonded with, as the HID link lists them (empty while it is stopped). */
+    val hidBonded: Set<String> = emptySet(),
     /** The link the target's own keys (D-pad, OK, Back) use right now. */
     val link: RemoteLink = RemoteLink.NONE,
     /** Pointer mode can work: Bluetooth up to the target and a gyroscope in the phone. */
@@ -168,6 +170,7 @@ class TargetController @Inject constructor(
             tvLanUp = lanUp,
             hidPhase = h.phase,
             hidConnectedTo = connectedTo,
+            hidBonded = h.bonded.mapTo(mutableSetOf()) { it.address },
             link = link,
             gyroPossible = HidRoute.gyroPossible(link, hasGyroscope),
             hasGyroscope = hasGyroscope,

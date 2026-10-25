@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="conn_title">Connexions</string>
+    <string name="conn_target">La télécommande pilote %1$s</string>
+    <string name="conn_targeted_tag">Les touches vont ici</string>
+    <string name="conn_device_targeted">%1$s, les touches de la télécommande vont ici</string>
+    <string name="conn_device_tv">TV</string>
+    <string name="conn_device_bar">Barre de son</string>
+    <string name="conn_device_computer">Ordinateur</string>
+    <string name="conn_line">%1$s · %2$s</string>
+    <string name="conn_line_said">%1$s, %2$s : %3$s</string>
+    <string name="conn_link_google_tv">Google TV</string>
+    <string name="conn_link_sony_ip">Contrôle IP Sony</string>
+    <string name="conn_link_network">Réseau</string>
+    <string name="conn_link_bluetooth">Bluetooth</string>
+    <string name="conn_connected">connecté</string>
+    <string name="conn_connecting">connexion…</string>
+    <string name="conn_reconnecting">reconnexion…</string>
+    <string name="conn_standby">en veille</string>
+    <string name="conn_not_set_up">non configuré</string>
+    <string name="conn_unreachable">injoignable</string>
+    <string name="conn_key_refused">clé refusée</string>
+    <string name="conn_code_to_renew">code à renouveler</string>
+    <string name="conn_needs_pairing">à associer à nouveau</string>
+    <string name="conn_ready">prêt, se connecte quand vous le pilotez</string>
+    <string name="conn_not_paired">non associé</string>
+    <string name="conn_bluetooth_off">Bluetooth du téléphone désactivé</string>
+    <string name="conn_needs_permission">autorisation requise</string>
+    <string name="conn_busy">utilisé par une autre app</string>
+    <string name="conn_not_added">non ajouté</string>
+    <string name="conn_gives_google_tv">touches, clavier, apps</string>
+    <string name="conn_gives_sony_ip">icônes, entrées HDMI, réglages TV</string>
+    <string name="conn_gives_bar">volume, son, marche / arrêt</string>
+    <string name="conn_gives_bt_computer">touches, trackpad, saisie</string>
+    <string name="conn_gives_bt_tv">touches quand le réseau tombe</string>
+    <string name="conn_action_pair">Associer</string>
+    <string name="conn_action_set_up">Configurer</string>
+    <string name="conn_action_add">Ajouter</string>
+    <string name="conn_action_control">Contrôler</string>
+    <string name="conn_action_devices">Ouvrir Appareils</string>
+</resources>

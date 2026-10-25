@@ -103,6 +103,8 @@ fun RemoteScreen(
     onOpenSettings: () -> Unit,
     onEditScene: (String) -> Unit,
     onAddBar: () -> Unit = {},
+    /** A Connections step that leaves the remote (pairing, a setup step, Settings › Devices). */
+    onConnectionStep: (ConnAction) -> Unit = { onOpenSettings() },
     editing: Boolean = false,
     onEditingChange: (Boolean) -> Unit = {},
 ) {
@@ -181,6 +183,8 @@ fun RemoteScreen(
     // The target engine (TargetController): the chip, the sheet and where each key goes.
     val targets by target.state.collectAsState()
     var targetSheet by remember { mutableStateOf(false) }
+    // The device pill opens « Connexions » (Erwann, 2026-10-25), no longer Settings directly.
+    var connectionsSheet by remember { mutableStateOf(false) }
     // The remote is on screen: with the app in front, the HID connection may be held.
     DisposableEffect(target) {
         target.remoteShown(true)
@@ -390,7 +394,7 @@ fun RemoteScreen(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     // The chip's "On the TV" line steps aside while the card below says it.
-                    SystemChip(state, onClick = onOpenSettings, modifier = Modifier.weight(1f), showNow = !cardShown)
+                    SystemChip(state, onClick = { connectionsSheet = true }, modifier = Modifier.weight(1f), showNow = !cardShown)
                     val rows = targetRows(targets)
                     if (linkIndicatorShown(targets.link)) {
                         Spacer(Modifier.width(4.dp))
@@ -675,6 +679,25 @@ fun RemoteScreen(
                 Spacer(Modifier.height(12.dp))
             }
         }
+    }
+
+    if (connectionsSheet) {
+        ConnectionsSheet(
+            devices = connections(connInput(state, targets)),
+            onAction = { device, action ->
+                connectionsSheet = false
+                when (action) {
+                    ConnAction.WAKE_TV -> controller.power(PowerTarget.TV, on = true)
+                    ConnAction.CONTROL -> target.setTarget(device.id)
+                    else -> onConnectionStep(action)
+                }
+            },
+            onOpenSettings = {
+                connectionsSheet = false
+                onOpenSettings()
+            },
+            onDismiss = { connectionsSheet = false },
+        )
     }
 
     if (targetSheet) {

@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The Connections sheet, from the device pill (Erwann, 2026-10-25). -->
+    <string name="conn_title">Connections</string>
+    <string name="conn_target">The remote controls %1$s</string>
+    <string name="conn_targeted_tag">Keys go here</string>
+    <string name="conn_device_targeted">%1$s, the remote\'s keys go here</string>
+    <string name="conn_device_tv">TV</string>
+    <string name="conn_device_bar">Soundbar</string>
+    <string name="conn_device_computer">Computer</string>
+    <string name="conn_line">%1$s · %2$s</string>
+    <string name="conn_line_said">%1$s, %2$s: %3$s</string>
+    <string name="conn_link_google_tv">Google TV</string>
+    <string name="conn_link_sony_ip">Sony IP control</string>
+    <string name="conn_link_network">Network</string>
+    <string name="conn_link_bluetooth">Bluetooth</string>
+    <string name="conn_connected">connected</string>
+    <string name="conn_connecting">connecting…</string>
+    <string name="conn_reconnecting">reconnecting…</string>
+    <string name="conn_standby">on standby</string>
+    <string name="conn_not_set_up">not set up</string>
+    <string name="conn_unreachable">unreachable</string>
+    <string name="conn_key_refused">key refused</string>
+    <string name="conn_code_to_renew">code to renew</string>
+    <string name="conn_needs_pairing">needs pairing again</string>
+    <string name="conn_ready">ready, connects when controlled</string>
+    <string name="conn_not_paired">not paired</string>
+    <string name="conn_bluetooth_off">the phone\'s Bluetooth is off</string>
+    <string name="conn_needs_permission">needs permission</string>
+    <string name="conn_busy">used by another app</string>
+    <string name="conn_not_added">not added</string>
+    <string name="conn_gives_google_tv">keys, keyboard, apps</string>
+    <string name="conn_gives_sony_ip">icons, HDMI inputs, TV settings</string>
+    <string name="conn_gives_bar">volume, sound, power</string>
+    <string name="conn_gives_bt_computer">keys, trackpad, typing</string>
+    <string name="conn_gives_bt_tv">keys when the network is down</string>
+    <string name="conn_action_pair">Pair</string>
+    <string name="conn_action_set_up">Set up</string>
+    <string name="conn_action_add">Add</string>
+    <string name="conn_action_control">Control</string>
+    <string name="conn_action_devices">Open Devices</string>
+</resources>
