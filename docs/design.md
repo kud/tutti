@@ -184,6 +184,12 @@ The first build, kept until the fold lands: a screen of its own (Settings › Bl
 - Home, Back, play/pause, mute and volume sit under each surface as 48 dp round keys with the remote's glyphs.
 - A footnote says plainly that only one app at a time can be a Bluetooth keyboard and that tutti holds the role only while the screen is open.
 
+### Devices, stage 1 (Maya, 2026-10-25)
+
+- One TV, one bar, any number of Macs. The remote's chip and sheet list the targets (the bar never is one); in stage 1 every configured target counts as present, the sheet filters by presence in stage 2.
+- A key that can't act says why in words, one reason each: « Indisponible sur le Mac », « Indisponible en Bluetooth » (the TV with its LAN down: power, inputs, settings), « Liaison coupée ». TV-meaning keys (Home, Apps, Settings, inputs, Power, volume) still reach the TV over its LAN while a Mac is the target.
+- Settings › Devices (data side and strings built in `TargetController`; the screen is not built yet): one row per device with its links in words, « Ajouter un Mac » (pick a paired computer, then the HDMI input it is shown on, preselected when exactly one input came on since the flow opened), Mac rows with « Associer à nouveau » and « Oublier », and an offer to set up the TV or the bar when missing.
+
 ## Quick access (v1)
 Quick Settings tile (opens a compact remote overlay), phone volume buttons drive the bar while the app is in front (and while the notification shows, below), home-screen widget (scenes + volume), media-style notification.
 - State on the quick surfaces follows the remote's rules (Iris, 2026-10-24): the tile's subtitle and the widget's number show the volume rule's level only once it is reported ("Connected" or "–" until then, never "Volume 0"); the widget's active scene pill wears a tick and bold type as well as its full fill, and TalkBack reads it as "Cinema, active"; once changed by hand it drops the fill and the tick and reads "Cinema · modified", as the remote's pill does. TV settings already show no value while the TV's IP link is down: the screen is the link's explainer until it is back.

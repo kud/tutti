@@ -54,4 +54,25 @@
     <string name="bt_key_mute">Couper le son</string>
     <string name="bt_key_volume_down">Baisser le volume</string>
     <string name="bt_key_volume_up">Monter le volume</string>
+    <string name="target_not_on_mac">Indisponible sur le Mac</string>
+    <string name="target_not_over_bluetooth">Indisponible en Bluetooth</string>
+    <string name="target_link_down">Liaison coupée</string>
+    <string name="target_typing_unsupported">Impossible à taper avec cette disposition : %1$s</string>
+    <string name="devices_title">Appareils</string>
+    <string name="devices_add_mac">Ajouter un Mac</string>
+    <string name="devices_add_tv">Configurer la TV</string>
+    <string name="devices_add_bar">Configurer la barre de son</string>
+    <string name="devices_mac_pick">Choisissez le Mac</string>
+    <string name="devices_mac_pick_hint">Associez d’abord le téléphone depuis le Mac : Réglages Système › Bluetooth, téléphone visible.</string>
+    <string name="devices_mac_input">Sur quelle entrée est le Mac ?</string>
+    <string name="devices_mac_input_hint">Branchez ou réveillez le Mac : l’entrée qui s’allume est sélectionnée.</string>
+    <string name="devices_mac_input_none">Aucune entrée (AirPlay seulement)</string>
+    <string name="devices_pair_again">Associer à nouveau</string>
+    <string name="devices_forget">Oublier</string>
+    <string name="devices_forget_confirm">Oublier %1$s ? Ses réglages sur ce téléphone sont supprimés.</string>
+    <string name="devices_link_google">Google TV</string>
+    <string name="devices_link_sony_ip">Contrôle IP Sony</string>
+    <string name="devices_link_bluetooth">Bluetooth</string>
+    <string name="devices_link_network">Réseau</string>
+    <string name="devices_link_none">Non connecté</string>
 </resources>

@@ -53,4 +53,25 @@
     <string name="bt_key_mute">Mute</string>
     <string name="bt_key_volume_down">Volume down</string>
     <string name="bt_key_volume_up">Volume up</string>
+    <string name="target_not_on_mac">Not available on the Mac</string>
+    <string name="target_not_over_bluetooth">Not available over Bluetooth</string>
+    <string name="target_link_down">Link down</string>
+    <string name="target_typing_unsupported">Can\'t type on this keyboard layout: %1$s</string>
+    <string name="devices_title">Devices</string>
+    <string name="devices_add_mac">Add a Mac</string>
+    <string name="devices_add_tv">Set up the TV</string>
+    <string name="devices_add_bar">Set up the Theatre Bar</string>
+    <string name="devices_mac_pick">Choose the Mac</string>
+    <string name="devices_mac_pick_hint">Pair the phone from the Mac first: System Settings › Bluetooth, with the phone visible.</string>
+    <string name="devices_mac_input">Which input is the Mac on?</string>
+    <string name="devices_mac_input_hint">Plug the Mac in or wake it: the input that comes on is selected.</string>
+    <string name="devices_mac_input_none">No input (AirPlay only)</string>
+    <string name="devices_pair_again">Pair again</string>
+    <string name="devices_forget">Forget</string>
+    <string name="devices_forget_confirm">Forget %1$s? Its settings on this phone are removed.</string>
+    <string name="devices_link_google">Google TV</string>
+    <string name="devices_link_sony_ip">Sony IP control</string>
+    <string name="devices_link_bluetooth">Bluetooth</string>
+    <string name="devices_link_network">Network</string>
+    <string name="devices_link_none">Not connected</string>
 </resources>
