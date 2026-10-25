@@ -42,6 +42,8 @@
     <string name="settings_theme_dark">Sombre</string>
     <string name="settings_true_black">Noir pur</string>
     <string name="settings_true_black_detail">Fond entièrement noir pour les écrans OLED</string>
+    <string name="settings_evening_dim">Salle obscure</string>
+    <string name="settings_evening_dim_detail">Dès 20 h, quand la TV est allumée, tutti assombrit son propre écran. Changer la luminosité le désactive pour la soirée.</string>
     <string name="settings_sony">Sony</string>
     <string name="settings_sony_connection">Connexion Sony (expérimental)</string>
     <string name="settings_sony_unavailable">Non disponible</string>

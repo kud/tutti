@@ -289,6 +289,10 @@ Quick Settings tile (opens a compact remote overlay), phone volume buttons drive
 - Performance target: visual and haptic response within one frame of a tap, before any network round trip.
 - UI in English by default (`values/`), French as a translation (`values-fr/`); every string in both.
 
+### Salle obscure: the phone dims with the room (Iris, 2026-10-25, benchmark)
+
+Settings › App › "Salle obscure" ("Dark room" in English), off by default. From 20:00 to 05:00, while the TV is known on and tutti is in front, tutti's own window fades to a low brightness over about 2 s, and back up over the same 2 s when the TV goes off, the switch goes off or the evening ends (`dimTarget`, `EveningDim`, tested; `EveningDimmer`). tutti never writes the phone's brightness setting, only its window's: so the moment he moves the system brightness, the window lets go at once and stays at his level for the rest of that evening, the evening after midnight included. With Android's animations off the fade is a jump. Unverified: whether auto-brightness on some phones writes the same setting, which would read as his change and end the dim early.
+
 ## Words: one name per thing (Iris, 2026-10-25)
 
 Each thing has one name in each language, everywhere: screens, TalkBack, the notification and the widget.
