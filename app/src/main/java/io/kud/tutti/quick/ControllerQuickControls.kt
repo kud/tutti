@@ -8,6 +8,9 @@ import io.kud.tutti.controller.SceneStatus
 import io.kud.tutti.controller.VolumeSource
 import io.kud.tutti.protocol.atv.V2Key
 import io.kud.tutti.quick.notification.tvStepsTo
+import io.kud.tutti.ui.remote.CardShowing
+import io.kud.tutti.ui.remote.NowShowing
+import io.kud.tutti.ui.remote.cardShowing
 import kotlin.math.abs
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -150,9 +153,24 @@ class ControllerQuickControls @Inject constructor(
             nowShowing = app?.let { pkg ->
                 QuickNowShowing(pkg, apps.firstOrNull { it.packageName == pkg }?.name, appIcons[pkg])
             },
+            tvConfigured = devices.tv != null,
+            showing = cardShowing(this)?.toQuick(),
             tvName = devices.tv?.name,
             barName = devices.bar?.name,
         )
+    }
+
+    private fun CardShowing.toQuick(): QuickShowing = when (this) {
+        is CardShowing.Showing -> when (val now = now) {
+            is NowShowing.App -> QuickShowing.App(now.name, now.packageName)
+            is NowShowing.Input -> QuickShowing.Input(now.title)
+            is NowShowing.Channel -> QuickShowing.Channel(now.text)
+        }
+        is CardShowing.OnTheBar -> QuickShowing.OnTheBar(bar.input, bar.tvAsleep)
+        is CardShowing.Standby -> QuickShowing.Standby(barOn)
+        CardShowing.Home -> QuickShowing.Home
+        CardShowing.Reconnecting -> QuickShowing.Reconnecting
+        CardShowing.Offline -> QuickShowing.Offline
     }
 
     internal companion object {

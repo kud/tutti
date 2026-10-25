@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The widget picker's preview (layout/quick_widget_preview.xml), in GlanceTheme's tones: Material 3 baseline, dark. -->
+<resources>
+    <color name="quick_preview_background">#FF141218</color>
+    <color name="quick_preview_on_surface">#FFE6E0E9</color>
+    <color name="quick_preview_on_surface_variant">#FFCAC4D0</color>
+    <color name="quick_preview_button">#FF4A4458</color>
+    <color name="quick_preview_on_button">#FFE8DEF8</color>
+</resources>

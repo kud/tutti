@@ -16,6 +16,7 @@ class QuickWidgetAction : ActionCallback {
             OP_VOLUME_UP -> controls.volumeUp()
             OP_VOLUME_DOWN -> controls.volumeDown()
             OP_MUTE -> controls.toggleMute()
+            OP_PLAY_PAUSE -> controls.playPause()
             OP_SCENE -> parameters[SceneId]?.let { controls.applyScene(it) }
         }
     }
@@ -27,6 +28,7 @@ class QuickWidgetAction : ActionCallback {
         const val OP_VOLUME_UP = "volume_up"
         const val OP_VOLUME_DOWN = "volume_down"
         const val OP_MUTE = "mute"
+        const val OP_PLAY_PAUSE = "play_pause"
         const val OP_SCENE = "scene"
     }
 }

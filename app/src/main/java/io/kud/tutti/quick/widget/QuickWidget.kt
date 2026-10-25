@@ -9,6 +9,8 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.glance.ColorFilter
+import androidx.glance.Image
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.GlanceTheme
@@ -50,11 +52,14 @@ import io.kud.tutti.R
 import io.kud.tutti.quick.QuickRuntime
 import io.kud.tutti.quick.QuickScene
 import io.kud.tutti.quick.QuickState
+import io.kud.tutti.quick.playPauseOffered
 import io.kud.tutti.quick.quickControls
+import io.kud.tutti.quick.quickHeadline
+import io.kud.tutti.quick.text
 import kotlinx.coroutines.flow.MutableStateFlow
 
 /**
- * Home-screen widget: connection status, scene pills, volume −/+ and mute.
+ * Home-screen widget: what's on with play/pause, scene pills, volume −/+ and mute.
  * GlanceTheme's default colours are dynamic on Android 12+ and follow the system
  * night mode; the layout is drawn for dark first (tonal surfaces, no outlines).
  */
@@ -81,6 +86,9 @@ class QuickWidget : GlanceAppWidget() {
 
         /** Status + scene pills + volume. */
         val FULL = DpSize(250.dp, 170.dp)
+
+        /** Play/pause plus −, + and mute at 48 dp, with room left for the level. */
+        val PLAY_IN_ROW_WIDTH = 240.dp
     }
 }
 
@@ -93,6 +101,8 @@ private fun QuickWidgetContent(state: QuickState) {
     val size = LocalSize.current
     val showStatus = size.height >= QuickWidget.MEDIUM.height
     val showScenes = size.height >= QuickWidget.FULL.height && state.scenes.isNotEmpty()
+    // Volume row only: play/pause joins it where four buttons fit.
+    val playInVolumeRow = !showStatus && state.tvConfigured && size.width >= QuickWidget.PLAY_IN_ROW_WIDTH
 
     Column(
         modifier = GlanceModifier
@@ -100,56 +110,76 @@ private fun QuickWidgetContent(state: QuickState) {
             .appWidgetBackground()
             .background(GlanceTheme.colors.widgetBackground)
             .cornerRadius(24.dp)
-            .padding(12.dp),
+            .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (showStatus) {
             StatusRow(state)
-            Spacer(GlanceModifier.height(10.dp))
+            Spacer(GlanceModifier.height(6.dp))
         }
         if (showScenes) {
             SceneRow(state, maxPills = ((size.width.value - 24f) / 84f).toInt().coerceIn(1, 4))
             Spacer(GlanceModifier.height(10.dp))
         }
-        VolumeRow(state)
+        VolumeRow(state, playPause = playInVolumeRow)
     }
 }
 
+/**
+ * What's on, in the now-showing card's words ("Netflix · Cinema", "TV on standby"), after the
+ * state's glyph, so it never rests on a dot's colour; play/pause at the end, the most urgent
+ * thing when the phone rings. A tap on the words opens the app.
+ */
 @Composable
 private fun StatusRow(state: QuickState) {
     val context = LocalContext.current
-    val status = when {
-        !state.connected -> context.getString(R.string.quick_status_disconnected)
-        !state.power -> context.getString(R.string.quick_status_off)
-        state.muted -> context.getString(R.string.quick_status_muted)
-        else -> context.getString(R.string.quick_status_connected)
-    }
-    val scene = state.activeScene?.let {
-        if (state.activeSceneModified) context.getString(R.string.quick_scene_modified, it.name) else it.name
-    }
+    val headline = quickHeadline(state)
     Row(
-        modifier = GlanceModifier
-            .fillMaxWidth()
-            .clickable(actionStartActivity<MainActivity>()),
+        modifier = GlanceModifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(
+        Row(
             modifier = GlanceModifier
-                .size(8.dp)
-                .cornerRadius(4.dp)
-                .background(if (state.connected) GlanceTheme.colors.primary else GlanceTheme.colors.outline),
-        ) {}
-        Spacer(GlanceModifier.width(8.dp))
-        Text(
-            text = if (scene != null) "$status · $scene" else status,
-            style = TextStyle(
-                color = GlanceTheme.colors.onSurface,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Medium,
-            ),
-            maxLines = 1,
-        )
+                .defaultWeight()
+                .height(PLAY_SIZE)
+                .clickable(actionStartActivity<MainActivity>()),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Image(
+                provider = ImageProvider(headline.glyph),
+                contentDescription = null,
+                modifier = GlanceModifier.size(18.dp),
+                colorFilter = ColorFilter.tint(GlanceTheme.colors.onSurfaceVariant),
+            )
+            Spacer(GlanceModifier.width(8.dp))
+            Text(
+                text = headline.text(context),
+                style = TextStyle(
+                    color = GlanceTheme.colors.onSurface,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                ),
+                maxLines = 1,
+            )
+        }
+        if (state.tvConfigured) {
+            Spacer(GlanceModifier.width(6.dp))
+            PlayPauseButton(state, GlanceModifier.size(PLAY_SIZE))
+        }
     }
+}
+
+/** Always the TV's; greyed while it sleeps, the line beside it saying so ("TV on standby"). */
+@Composable
+private fun PlayPauseButton(state: QuickState, modifier: GlanceModifier = GlanceModifier) {
+    val context = LocalContext.current
+    CircleIconButton(
+        imageProvider = ImageProvider(R.drawable.ic_play_pause),
+        contentDescription = context.getString(R.string.quick_action_play_pause),
+        onClick = op(QuickWidgetAction.OP_PLAY_PAUSE),
+        modifier = modifier,
+        enabled = playPauseOffered(state),
+    )
 }
 
 @Composable
@@ -217,7 +247,7 @@ private fun ScenePill(scene: QuickScene, active: Boolean, modifier: GlanceModifi
 }
 
 @Composable
-private fun VolumeRow(state: QuickState) {
+private fun VolumeRow(state: QuickState, playPause: Boolean) {
     val context = LocalContext.current
     // A tap connects on its own (ControllerQuickControls.held): only "nothing set up" disables.
     val enabled = state.configured
@@ -225,6 +255,10 @@ private fun VolumeRow(state: QuickState) {
         modifier = GlanceModifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        if (playPause) {
+            PlayPauseButton(state)
+            Spacer(GlanceModifier.width(6.dp))
+        }
         CircleIconButton(
             imageProvider = ImageProvider(R.drawable.quick_ic_remove),
             contentDescription = context.getString(R.string.quick_action_volume_down),
@@ -276,5 +310,8 @@ private fun VolumeRow(state: QuickState) {
         )
     }
 }
+
+/** The status row's height: play/pause sits in it at this size, so the medium widget keeps its two rows. */
+private val PLAY_SIZE = 36.dp
 
 private fun op(op: String) = actionRunCallback<QuickWidgetAction>(actionParametersOf(QuickWidgetAction.Op to op))

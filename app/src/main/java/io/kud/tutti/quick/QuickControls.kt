@@ -1,5 +1,7 @@
 package io.kud.tutti.quick
 
+import androidx.annotation.DrawableRes
+import io.kud.tutti.R
 import io.kud.tutti.platform.data.VibrationLevel
 import kotlinx.coroutines.flow.StateFlow
 
@@ -75,6 +77,10 @@ data class QuickState(
     val level: AudioLevel? = null,
     /** What the TV is showing, when its foreground app is known. */
     val nowShowing: QuickNowShowing? = null,
+    /** A TV is set up: play/pause is offered. */
+    val tvConfigured: Boolean = false,
+    /** What the now-showing card says, for the widget and the overlay; null without a TV. */
+    val showing: QuickShowing? = null,
     /** Configured device names, for the notification's subtitle. */
     val tvName: String? = null,
     val barName: String? = null,
@@ -138,3 +144,97 @@ private fun barLimit(state: QuickState): Int = minOf(state.volumeLimit, state.gu
 
 /** The bar's scale (TuttiController.MAX_VOLUME). */
 private const val BAR_RANGE = 100
+
+/**
+ * The now-showing card's state (`ui/remote/ForegroundApp.kt`, `CardShowing`) as plain data, so the
+ * widget and the overlay say what's on in the card's own words instead of a protocol word.
+ */
+sealed interface QuickShowing {
+    data class App(val name: String, val packageName: String) : QuickShowing
+
+    data class Input(val title: String) : QuickShowing
+
+    /** The tuner: "2 · Channel", null when the TV sent neither (then a plain "TV channel"). */
+    data class Channel(val text: String?) : QuickShowing
+
+    /** The bar playing one of its own sources ([source] as the bar names it) with the TV asleep or out of reach. */
+    data class OnTheBar(val source: String, val tvAsleep: Boolean) : QuickShowing
+
+    data class Standby(val barOn: Boolean) : QuickShowing
+
+    data object Home : QuickShowing
+
+    data object Reconnecting : QuickShowing
+
+    data object Offline : QuickShowing
+}
+
+/** One part of a quick surface's line: text as the TV or the user wrote it, or a string resource. */
+sealed interface QuickWord {
+    data class Plain(val text: String) : QuickWord
+
+    data class Res(val id: Int, val arg: String? = null) : QuickWord
+}
+
+/** The widget's and the overlay's top line: its parts, joined with " · ", and the state's glyph. */
+data class QuickHeadline(val words: List<QuickWord>, @DrawableRes val glyph: Int)
+
+/**
+ * What's on, as the now-showing card says it: "Netflix · Cinema", "HDMI 1", "TV on standby".
+ * The active scene follows what is playing (marked when changed by hand), never a standby or an
+ * out-of-reach TV. Without a TV, the soundbar by name, or why it can't be reached. Never
+ * "Connected" (Iris, design idea 4): state is told in words and a glyph, not a dot's colour.
+ */
+fun quickHeadline(state: QuickState): QuickHeadline {
+    val scene = state.activeScene?.let {
+        if (state.activeSceneModified) QuickWord.Res(R.string.quick_scene_modified, it.name) else QuickWord.Plain(it.name)
+    }
+    fun playing(word: QuickWord, glyph: Int) = QuickHeadline(listOfNotNull(word, scene), glyph)
+    return when (val showing = state.showing) {
+        is QuickShowing.App -> playing(QuickWord.Plain(showing.name), R.drawable.ic_apps)
+        is QuickShowing.Input -> playing(QuickWord.Plain(showing.title), R.drawable.ic_input)
+        is QuickShowing.Channel -> playing(
+            showing.text?.let(QuickWord::Plain) ?: QuickWord.Res(R.string.system_tv_channel),
+            R.drawable.ic_tv,
+        )
+        is QuickShowing.OnTheBar -> QuickHeadline(
+            listOf(
+                barSourceName(showing.source)?.let(QuickWord::Plain) ?: QuickWord.Res(R.string.card_on_the_bar),
+                QuickWord.Res(if (showing.tvAsleep) R.string.card_standby else R.string.card_offline),
+            ),
+            R.drawable.ic_speaker,
+        )
+        is QuickShowing.Standby -> QuickHeadline(listOf(QuickWord.Res(R.string.card_standby)), R.drawable.ic_power)
+        QuickShowing.Home -> playing(QuickWord.Res(R.string.card_home), R.drawable.ic_home)
+        QuickShowing.Reconnecting -> QuickHeadline(listOf(QuickWord.Res(R.string.card_reconnecting)), R.drawable.ic_refresh)
+        QuickShowing.Offline -> QuickHeadline(listOf(QuickWord.Res(R.string.card_offline)), R.drawable.ic_warning)
+        null -> when {
+            !state.configured -> QuickHeadline(listOf(QuickWord.Res(R.string.quick_status_set_up)), R.drawable.ic_tv)
+            !state.connected -> QuickHeadline(
+                listOf(QuickWord.Res(R.string.system_unreachable, state.barName ?: "")),
+                R.drawable.ic_warning,
+            )
+            else -> playing(
+                state.barName?.let(QuickWord::Plain) ?: QuickWord.Res(R.string.card_on_the_bar),
+                R.drawable.ic_speaker,
+            )
+        }
+    }
+}
+
+/** The bar's sources by the names the Sound sheet gives them (`barValueLabel`); null for one tutti doesn't know. */
+private fun barSourceName(source: String): String? = when (source) {
+    "tv" -> "TV"
+    "hdmi1" -> "HDMI 1"
+    "spotify" -> "Spotify"
+    "bluetooth" -> "Bluetooth"
+    "airplay2" -> "AirPlay 2"
+    else -> null
+}
+
+/**
+ * Play/pause is offered with a TV set up, except while it sleeps: a tap there would send nothing
+ * worth sending. Out of reach it stays, like volume: a quick tap connects on its own, and the
+ * controller's own rules hold the key for the TV's return or drop it with a reason.
+ */
+fun playPauseOffered(state: QuickState): Boolean = state.tvConfigured && state.showing !is QuickShowing.Standby

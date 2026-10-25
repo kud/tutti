@@ -2,12 +2,14 @@
 <resources>
     <string name="quick_tile_label">Living room</string>
     <string name="quick_widget_label">Quick remote</string>
-    <string name="quick_widget_description">Scenes, volume and mute</string>
+    <string name="quick_widget_description">What’s on, play/pause, scenes and volume</string>
 
     <string name="quick_status_connected">Connected</string>
     <string name="quick_status_disconnected">Disconnected</string>
     <string name="quick_status_off">Off</string>
     <string name="quick_status_muted">Muted</string>
+    <!-- Widget and overlay with nothing set up yet. -->
+    <string name="quick_status_set_up">Open tutti to add the TV</string>
     <string name="quick_volume_value">Volume %1$d</string>
     <string name="quick_scene_active">%1$s, active</string>
     <string name="quick_scene_modified">%1$s · modified</string>
@@ -16,6 +18,7 @@
     <string name="quick_action_volume_up">Volume up</string>
     <string name="quick_action_mute">Mute</string>
     <string name="quick_action_unmute">Unmute</string>
+    <string name="quick_action_play_pause">Play/pause</string>
     <string name="quick_action_power">Power</string>
     <string name="quick_action_open_app">Open the remote</string>
     <string name="quick_volume_slider">Bar volume</string>
@@ -37,4 +40,8 @@
     <string name="quick_pref_notification_title">Control notification</string>
     <string name="quick_pref_notification_summary">Play/pause, volume and mute, on the lock screen too, while the TV is on. Meanwhile the phone’s volume keys drive the bar, or the TV.</string>
     <string name="quick_pref_notification_denied">Notifications are blocked in Android settings</string>
+
+    <!-- The widget picker's preview (layout/quick_widget_preview.xml): an example, not live state. -->
+    <string name="quick_widget_preview_showing">YouTube · Cinema</string>
+    <string name="quick_widget_preview_level" translatable="false">18</string>
 </resources>
