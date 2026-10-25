@@ -148,4 +148,16 @@ class BraviaClientTest {
         assertTrue(body.contains("<IRCCCode>AAAAAQAAAAEAAAAvAw==</IRCCCode>"))
         assertEquals("\"urn:schemas-sony-com:service:IRCC:1#X_SendIRCC\"", headers["SOAPACTION"])
     }
+
+    @Test
+    fun `terminate apps sends the bare app control call`() = runTest {
+        val transport = FakeTransport { _, _ -> ok("[]") }
+        val client = BraviaClient(transport) { "0000" }
+        assertEquals(BraviaResult.Ok(Unit), client.terminateApps())
+        val (path, body, _) = transport.calls.single()
+        assertEquals("/sony/appControl", path)
+        val sent = Json.parseToJsonElement(body).jsonObject
+        assertEquals("terminateApps", sent["method"]!!.jsonPrimitive.content)
+        assertEquals("[]", sent["params"].toString())
+    }
 }

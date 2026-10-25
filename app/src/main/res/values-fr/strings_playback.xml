@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="card_playback_open">Commandes de lecture</string>
+    <string name="card_app_actions_open">Actions de l\'app</string>
+    <string name="playback_label">Lecture</string>
+    <string name="playback_note">Chaque app de la TV décide de l\'effet de ces touches.</string>
+    <string name="app_actions_label">Actions de l\'app</string>
+    <string name="app_actions_pin">Épingler au dock</string>
+    <string name="app_actions_pin_detail">Choisissez son emplacement</string>
+    <string name="app_actions_unpin">Retirer du dock</string>
+    <string name="app_actions_unpin_detail">Libère l\'épingle %1$d</string>
+    <string name="app_actions_close">Fermer les apps de la TV</string>
+    <string name="app_actions_close_detail">Toutes les apps, pas seulement celle-ci</string>
+    <string name="app_actions_close_down">Demande le contrôle IP, qui ne répond pas</string>
+    <string name="app_actions_close_confirm_title">Fermer toutes les apps de la TV ?</string>
+    <string name="app_actions_close_confirm_text">La TV ne sait fermer que toutes ses apps à la fois, %1$s comprise.</string>
+    <string name="app_actions_close_confirm">Fermer les apps</string>
+</resources>

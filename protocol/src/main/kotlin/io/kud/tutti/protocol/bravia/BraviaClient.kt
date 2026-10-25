@@ -157,6 +157,12 @@ class BraviaClient(
     suspend fun setActiveApp(uri: String) =
         call(BraviaService.APP_CONTROL, "setActiveApp", listOf(buildJsonObject { put("uri", uri) })).map { }
 
+    /**
+     * `appControl.terminateApps` (v1.0, no parameters): Sony documents it as terminating every
+     * application the TV runs, never one by name, so the UI says "close apps", plural.
+     */
+    suspend fun terminateApps() = call(BraviaService.APP_CONTROL, "terminateApps").map { }
+
     /** IRCC over SOAP, for keys the v2 remote lacks. [code] comes from [remoteControllerInfo]. */
     suspend fun sendIrcc(code: String): BraviaResult<Unit> {
         val headers = authHeaders() + mapOf(

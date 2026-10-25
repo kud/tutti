@@ -6,7 +6,9 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,6 +30,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -49,10 +54,12 @@ import io.kud.tutti.ui.motion.Motion
  * [placePad]: full (104 to 140 dp, the icon and name growing with it), one 56 dp line, or hidden.
  * Every state is told by its icon and its words, never colour alone, and it is never empty: an
  * app, a channel or an input, the bar on its own, standby, the home screen, or the TV out of
- * reach. A tap on the card does nothing for now; the bar on its own carries one button, "Turn on
- * the TV" ([onWakeTv]). State changes fade through by opacity only, which is also the
+ * reach. While the TV shows something a tap opens the playback sheet ([onOpen]) and, on an app, a
+ * long press its actions ([onActions]); a quiet chevron at the end says the card opens (Erwann,
+ * 2026-10-25). The bar on its own carries one button, "Turn on the TV" ([onWakeTv]). State changes fade through by opacity only, which is also the
  * reduced-motion form.
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun NowShowingCard(
     showing: CardShowing,
@@ -62,13 +69,32 @@ internal fun NowShowingCard(
     modifier: Modifier = Modifier,
     onWakeTv: () -> Unit = {},
     waking: Boolean = false,
+    onOpen: (() -> Unit)? = null,
+    onActions: (() -> Unit)? = null,
 ) {
     if (fit.size == CardSize.HIDDEN) return
+    val shape = RoundedCornerShape(CARD_CORNER)
+    val openLabel = stringResource(R.string.card_playback_open)
+    val actionsLabel = stringResource(R.string.card_app_actions_open)
     Box(
         modifier
             .fillMaxWidth()
             .height(fit.height.dp)
-            .background(MaterialTheme.colorScheme.surfaceContainerLow, RoundedCornerShape(CARD_CORNER))
+            .clip(shape)
+            .background(MaterialTheme.colorScheme.surfaceContainerLow, shape)
+            .then(
+                if (onOpen != null) {
+                    Modifier.combinedClickable(
+                        role = Role.Button,
+                        onClickLabel = openLabel,
+                        onLongClickLabel = onActions?.let { actionsLabel },
+                        onLongClick = onActions,
+                        onClick = onOpen,
+                    )
+                } else {
+                    Modifier
+                },
+            )
             .semantics(mergeDescendants = true) {},
     ) {
         // Fade through, not a cross-fade: the old words are gone before the new ones arrive, so two
@@ -83,10 +109,14 @@ internal fun NowShowingCard(
         ) { now ->
             val words = cardWords(now, tvName)
             // The bar on its own offers the one thing it can't do by itself: waking the TV.
-            val wake: (@Composable () -> Unit)? = if (now is CardShowing.OnTheBar) {
-                { WakeTvButton(onWakeTv, waking, compact = fit.size != CardSize.FULL) }
-            } else {
-                null
+            val wake: (@Composable () -> Unit)? = when {
+                now is CardShowing.OnTheBar -> {
+                    { WakeTvButton(onWakeTv, waking, compact = fit.size != CardSize.FULL) }
+                }
+                onOpen != null && cardOpensPlayback(now) -> {
+                    { OpensChevron() }
+                }
+                else -> null
             }
             if (fit.size == CardSize.FULL) {
                 Full(now, words, fit.height, appIcons, wake)
@@ -97,10 +127,10 @@ internal fun NowShowingCard(
     }
 }
 
-private data class CardWords(val title: String, val detail: String?)
+internal data class CardWords(val title: String, val detail: String?)
 
 @Composable
-private fun cardWords(showing: CardShowing, tvName: String): CardWords = when (showing) {
+internal fun cardWords(showing: CardShowing, tvName: String): CardWords = when (showing) {
     is CardShowing.Showing -> when (val now = showing.now) {
         is NowShowing.App -> CardWords(now.name, tvName)
         is NowShowing.Input -> CardWords(now.title, stringResource(R.string.card_input))
@@ -146,7 +176,7 @@ internal fun barSourceIcon(input: String): Int = when (input) {
 
 /** The app's own icon when there is one, else the state's glyph on a tile of the same size. */
 @Composable
-private fun CardIcon(showing: CardShowing, size: Dp, appIcons: Map<String, String>) {
+internal fun CardIcon(showing: CardShowing, size: Dp, appIcons: Map<String, String>) {
     val app = (showing as? CardShowing.Showing)?.now as? NowShowing.App
     if (app != null) {
         AppIcon(name = app.name, iconPath = appIcons[app.packageName], packageName = app.packageName, size = size, corner = size / 4)
@@ -256,6 +286,20 @@ private fun WakeTvButton(onClick: () -> Unit, waking: Boolean, compact: Boolean)
         Spacer(Modifier.width(8.dp))
         Text(if (compact) stringResource(R.string.card_wake_tv_short) else full, maxLines = 1)
     }
+}
+
+/**
+ * The card opens: a 20 dp chevron pointing up, where the sheet will rise from, in
+ * onSurfaceVariant. Quiet on purpose: the card stays a readout first; TalkBack hears the action.
+ */
+@Composable
+private fun OpensChevron() {
+    Icon(
+        painterResource(R.drawable.ic_chevron_right),
+        contentDescription = null,
+        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.size(20.dp).rotate(-90f),
+    )
 }
 
 private val CARD_CORNER = 24.dp

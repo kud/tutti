@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The now-showing card's tap and long press (Erwann, 2026-10-25). -->
+    <string name="card_playback_open">Playback controls</string>
+    <string name="card_app_actions_open">App actions</string>
+    <string name="playback_label">Playback</string>
+    <string name="playback_note">Each app on the TV decides what these keys do.</string>
+    <string name="app_actions_label">App actions</string>
+    <string name="app_actions_pin">Pin to the dock</string>
+    <string name="app_actions_pin_detail">Choose which pin it takes</string>
+    <string name="app_actions_unpin">Remove from the dock</string>
+    <string name="app_actions_unpin_detail">Frees pin %1$d</string>
+    <string name="app_actions_close">Close apps on the TV</string>
+    <string name="app_actions_close_detail">Every app, not just this one</string>
+    <string name="app_actions_close_down">Needs IP control, which isn\'t answering</string>
+    <string name="app_actions_close_confirm_title">Close every app on the TV?</string>
+    <string name="app_actions_close_confirm_text">The TV can only close all its apps at once, %1$s included.</string>
+    <string name="app_actions_close_confirm">Close apps</string>
+</resources>

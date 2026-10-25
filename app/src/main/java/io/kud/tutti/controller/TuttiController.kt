@@ -1064,6 +1064,22 @@ class TuttiController @Inject constructor(
      * and watches the foreground app; [TuttiEvent.AppsScreen] says what it saw. With the link
      * down it waits like a one-shot key ([TvLinkRule]) and says so.
      */
+    /**
+     * Closes every app on the TV through IP control (`appControl.terminateApps`, PSK set): Sony
+     * offers no way to close one app by name. The now-showing card's long press asks first.
+     */
+    fun closeTvApps() {
+        val client = bravia
+        if (client == null || links.value.rest != Link.ONLINE) {
+            mutableEvents.tryEmit(TuttiEvent.ActionFailed("terminateApps: IP control not online"))
+            return
+        }
+        scope.launch {
+            val result = client.terminateApps()
+            if (result !is BraviaResult.Ok) mutableEvents.tryEmit(TuttiEvent.ActionFailed(Redact.text("terminateApps: $result")))
+        }
+    }
+
     fun openAllApps() {
         scope.launch {
             if (!atv.state.value.ready) {

@@ -336,7 +336,7 @@ private val TILE_SHAPE = RoundedCornerShape(16.dp)
 
 /** Which dock slot takes the app; each row says what it replaces. */
 @Composable
-private fun PinDialog(app: KnownApp, state: TuttiUiState, onPick: (Int) -> Unit, onDismiss: () -> Unit) {
+internal fun PinDialog(app: KnownApp, state: TuttiUiState, onPick: (Int) -> Unit, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.apps_pin_title, app.name)) },

@@ -62,6 +62,8 @@ import io.kud.tutti.controller.TuttiController
 import io.kud.tutti.ui.common.LocalMessages
 import io.kud.tutti.controller.TuttiUiState
 import io.kud.tutti.platform.data.DockAction
+import io.kud.tutti.platform.data.DockSlot
+import io.kud.tutti.protocol.apps.KnownApp
 import io.kud.tutti.platform.data.PadSize
 import io.kud.tutti.platform.data.SecondaryButton
 import io.kud.tutti.protocol.atv.V2Key
@@ -104,6 +106,11 @@ fun RemoteScreen(
     var picker by remember { mutableStateOf<PickerTarget?>(null) }
     var sheet2 by remember { mutableStateOf<RemoteSheet?>(null) }
     var powerSheet by remember { mutableStateOf(false) }
+    // The now-showing card's sheets (Erwann, 2026-10-25), each holding what the card showed when
+    // opened, so a blip that changes the card never yanks the sheet away.
+    var playbackFor by remember { mutableStateOf<CardShowing?>(null) }
+    var actionsFor by remember { mutableStateOf<CardShowing?>(null) }
+    var pinningNow by remember { mutableStateOf<NowShowing.App?>(null) }
     // The full input view is a state of the remote, not a screen: InputRules moves it.
     var input by remember { mutableStateOf(InputMode()) }
     // Whether the now-showing card fits above the pad: the pad block measures, the chip reads it.
@@ -341,6 +348,20 @@ fun RemoteScreen(
                                     // The TV alone; the bar plays on (CEC may still move it to the TV input).
                                     onWakeTv = { controller.power(PowerTarget.TV, on = true) },
                                     waking = state.waking,
+                                    onOpen = if (cardOpensPlayback(shown)) {
+                                        {
+                                            haptics.click()
+                                            playbackFor = shown
+                                        }
+                                    } else {
+                                        null
+                                    },
+                                    onActions = cardActionsApp(shown)?.let {
+                                        {
+                                            haptics.longPress()
+                                            actionsFor = shown
+                                        }
+                                    },
                                 )
                             }
                         }
@@ -485,6 +506,65 @@ fun RemoteScreen(
                 powerSheet = false
             },
             onDismiss = { powerSheet = false },
+        )
+    }
+
+    val liveCard = cardShowing(state)
+    playbackFor?.let { opened ->
+        PlaybackSheet(
+            showing = liveCard?.takeIf(::cardOpensPlayback) ?: opened,
+            tvName = state.devices.tv?.name.orEmpty(),
+            appIcons = state.appIcons,
+            downReason = controlLinkReason(state.controlLink(Owner.TV), Owner.TV, state),
+            onKey = { code ->
+                haptics.click()
+                controller.key(code)
+            },
+            onDismiss = { playbackFor = null },
+        )
+    }
+    actionsFor?.let { opened ->
+        val showing = liveCard?.takeIf { cardActionsApp(it) != null } ?: opened
+        val app = cardActionsApp(showing)
+        if (app != null) {
+            val pinnedAt = pinnedIndex(state.dock, app.packageName)
+            AppActionsSheet(
+                showing = showing,
+                app = app,
+                tvName = state.devices.tv?.name.orEmpty(),
+                appIcons = state.appIcons,
+                actions = appActions(pinnedAt, state.pskSet),
+                pinnedAt = pinnedAt,
+                closeDown = state.links.rest != Link.ONLINE,
+                onPin = {
+                    haptics.click()
+                    pinningNow = app
+                },
+                onUnpin = {
+                    haptics.select()
+                    pinnedAt?.let { controller.saveSlot(it, DockSlot()) }
+                    actionsFor = null
+                },
+                onCloseApps = {
+                    haptics.confirm()
+                    controller.closeTvApps()
+                    actionsFor = null
+                },
+                onDismiss = { actionsFor = null },
+            )
+        }
+    }
+    pinningNow?.let { app ->
+        PinDialog(
+            app = state.apps.firstOrNull { it.packageName == app.packageName } ?: KnownApp(app.packageName, app.name),
+            state = state,
+            onPick = { slot ->
+                haptics.longPress()
+                controller.assignDock(slot, DockAction.LaunchApp(app.packageName, app.name), state.dock.slot(slot).secondary)
+                pinningNow = null
+                actionsFor = null
+            },
+            onDismiss = { pinningNow = null },
         )
     }
 
