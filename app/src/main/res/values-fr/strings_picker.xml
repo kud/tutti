@@ -9,7 +9,11 @@
     <string name="picker_toggle">basculer</string>
     <string name="picker_value_previous">Valeur précédente</string>
     <string name="picker_value_next">Valeur suivante</string>
-    <string name="picker_bar_hidden">%1$d réglages masqués : la barre ne les a pas annoncés</string>
+    <plurals name="picker_bar_hidden">
+        <item quantity="one">%1$d réglage masqué : la barre ne l’a pas annoncé</item>
+        <item quantity="many">%1$d réglages masqués : la barre ne les a pas annoncés</item>
+        <item quantity="other">%1$d réglages masqués : la barre ne les a pas annoncés</item>
+    </plurals>
     <string name="picker_bar_offline">La barre n’est pas connectée : ses réglages apparaîtront dès qu’elle répondra.</string>
     <string name="picker_no_ip">Le contrôle IP est désactivé sur la TV : le mode d’image et les touches propres à la TV en ont besoin (Réglages TV › Réseau › Contrôle IP).</string>
     <string name="picker_inputs_no_ip">Le contrôle IP est désactivé sur la TV : il faut l’activer pour lister les entrées.</string>
@@ -17,7 +21,11 @@
     <string name="picker_tv_none">La TV n’a annoncé ni mode d’image ni touche propre.</string>
     <string name="picker_picture_mode">Mode d’image</string>
     <string name="picker_tv_keys">Touches de la TV</string>
-    <string name="picker_apps_hidden">%1$d apps masquées dans Réglages</string>
+    <plurals name="picker_apps_hidden">
+        <item quantity="one">%1$d app masquée dans Réglages</item>
+        <item quantity="many">%1$d apps masquées dans Réglages</item>
+        <item quantity="other">%1$d apps masquées dans Réglages</item>
+    </plurals>
     <string name="picker_no_match">Rien ne correspond à « %1$s ».</string>
     <string name="picker_group_navigation">Navigation</string>
     <string name="picker_group_playback">Lecture</string>

@@ -160,3 +160,22 @@ Quick Settings tile (opens a compact remote overlay), phone volume buttons drive
   - Per device, never "anything down disables everything": TV controls follow the TV's shown link (`TvLinkRule`, so a blip under 3 s stays normal), bar controls (Mute, the bar's pins) follow the bar's. With the TV out of reach and the bar connected, volume, Mute, the Sound sheet and the bar's pins stay normal. Power, scenes and macros never go down: they wake the TV, which is exactly when it is out of reach, and a scene runs its bar steps whatever the TV does. Power pins count as Power. A device not added has nothing to wait for and stays normal. Rule in `controlLink` and `dockOwner` (`ui/remote/ControlLink.kt`, tested).
 - Performance target: visual and haptic response within one frame of a tap, before any network round trip.
 - UI in English by default (`values/`), French as a translation (`values-fr/`); every string in both.
+
+## Words: one name per thing (Iris, 2026-10-25)
+
+Each thing has one name in each language, everywhere: screens, TalkBack, the notification and the widget.
+
+| Thing | English | French |
+| --- | --- | --- |
+| The television | TV (never "television") | la TV (never "téléviseur", "télé") |
+| The soundbar | soundbar where it is named alone (titles, TalkBack, notifications); "the bar" in running text once it is on screen | barre de son alone; « la barre » in running text |
+| A dock button the user sets | pin (never "shortcut", "button") | épingle (never « raccourci », « bouton ») |
+| TV applications | apps | apps (never « applis », « applications ») |
+| Power | Power for the control; Turn on / Turn off for the action | Marche / arrêt for the control (never « Alimentation », « Power »); Allumer / Éteindre for the action |
+| The TV's input | Input | Entrée (never « Source ») |
+
+- IP control has one menu path, written the same in every string: Settings → Network & Internet → Local network setup → IP control (FR: Paramètres → Réseau et Internet → Configuration du réseau local → Contrôle IP).
+- Link states in French are invariable (« en ligne », « injoignable », « à configurer »), so they agree with any device: « télécommande en ligne », « barre injoignable ».
+- Counts use plurals in both languages; French `one` covers 0 and 1.
+- Failure marks are `ic_warning`, never ✕: ✕ means close or remove.
+- Every choice in a picker is a 48 dp target with a name TalkBack reads; a chosen colour also wears a tick.

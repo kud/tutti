@@ -27,14 +27,14 @@
     <string name="layout_move_right">Déplacer à droite</string>
     <string name="layout_move_up">Monter</string>
     <string name="layout_move_down">Descendre</string>
-    <string name="layout_pins">Boutons · page %1$d sur %2$d</string>
+    <string name="layout_pins">Épingles · page %1$d sur %2$d</string>
     <string name="layout_pins_add_page">Page</string>
     <string name="layout_pins_hint">Glisser pour réordonner · toucher pour modifier</string>
     <string name="layout_reset">Réinitialiser la disposition</string>
     <string name="layout_reset_title">Réinitialiser la disposition ?</string>
     <string name="layout_reset_body">La rangée, les scènes et le pavé reviennent comme au premier jour. Vos boutons restent.</string>
     <string name="layout_reset_confirm">Réinitialiser</string>
-    <string name="layout_anchors">Power, volume et Son ne bougent jamais</string>
+    <string name="layout_anchors">Marche / arrêt, volume et Son ne bougent jamais</string>
     <string name="row_info">Info</string>
     <string name="row_captions">Sous-titres</string>
     <string name="row_input">Entrée</string>

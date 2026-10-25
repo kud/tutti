@@ -3,7 +3,7 @@
     <string name="cancel">Annuler</string>
     <string name="error_action_failed">L’appareil n’a pas répondu</string>
     <string name="scene_missing">Scène supprimée</string>
-    <string name="bar_power">Alimentation</string>
+    <string name="bar_power">Marche / arrêt</string>
     <string name="bar_volume">Volume</string>
     <string name="bar_mute">Sourdine</string>
     <string name="bar_input">Entrée de la barre</string>
@@ -34,7 +34,7 @@
     <string name="bar_bt_mode_tx">Émission (barre vers un casque)</string>
     <string name="bar_bt_quality">Qualité Bluetooth</string>
     <string name="key_settings">Réglages TV</string>
-    <string name="key_input">Source</string>
+    <string name="key_input">Entrée</string>
     <string name="key_guide">Guide</string>
     <string name="key_captions">Sous-titres</string>
     <string name="key_assistant">Assistant</string>

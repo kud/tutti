@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Quick access surfaces: tile, overlay, widget, notification. French (default locale). -->
+<!-- Quick access surfaces: tile, overlay, widget, notification. French; English is the default (values/). -->
 <resources>
     <string name="quick_tile_label">Télécommande</string>
     <string name="quick_widget_label">Télécommande rapide</string>
@@ -23,18 +23,18 @@
     <string name="quick_volume_unknown">Niveau non signalé</string>
 
     <string name="quick_notification_channel">Télécommande rapide</string>
-    <string name="quick_notification_channel_description">Ce qui passe à la télé, lecture/pause, volume et sourdine tant que la télé est allumée.</string>
+    <string name="quick_notification_channel_description">Ce qui passe sur la TV, lecture/pause, volume et sourdine tant que la TV est allumée.</string>
     <string name="quick_notification_volume_down">Vol. −</string>
     <string name="quick_notification_volume_up">Vol. +</string>
     <string name="quick_notification_mute">Muet</string>
     <string name="quick_notification_unmute">Son</string>
     <string name="quick_notification_play_pause">Lecture/pause</string>
     <string name="quick_level_bar">Vol. barre %1$d</string>
-    <string name="quick_level_tv">Vol. télé %1$d</string>
+    <string name="quick_level_tv">Vol. TV %1$d</string>
     <string name="quick_level_bar_muted">Barre en sourdine</string>
-    <string name="quick_level_tv_muted">Télé en sourdine</string>
+    <string name="quick_level_tv_muted">TV en sourdine</string>
 
     <string name="quick_pref_notification_title">Notification de contrôle</string>
-    <string name="quick_pref_notification_summary">Lecture/pause, volume et sourdine, aussi sur l\'écran verrouillé, tant que la télé est allumée. Les touches de volume du téléphone règlent alors la barre, ou la télé.</string>
+    <string name="quick_pref_notification_summary">Lecture/pause, volume et sourdine, aussi sur l’écran verrouillé, tant que la TV est allumée. Les touches de volume du téléphone règlent alors la barre, ou la télé.</string>
     <string name="quick_pref_notification_denied">Notifications bloquées dans les réglages Android</string>
 </resources>

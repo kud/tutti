@@ -44,7 +44,7 @@
     <string name="volume_down">Volume down</string>
     <string name="scene_modified">modified</string>
     <string name="dock_add">Add</string>
-    <string name="dock_assign_title">Shortcut %1$d</string>
+    <string name="dock_assign_title">Pin %1$d</string>
     <string name="longpress_assign_title">Long press: %1$s</string>
     <string name="picker_apps">Apps</string>
     <string name="picker_inputs">Inputs</string>
@@ -65,7 +65,7 @@
     <string name="card_home">Home screen</string>
     <string name="card_home_detail">No app playing</string>
     <string name="card_offline">TV out of reach</string>
-    <string name="card_offline_detail">Check it\'s on and on the same Wi-Fi</string>
+    <string name="card_offline_detail">Check it’s on and on the same Wi-Fi</string>
     <!-- The TV's link, calm rule (TvLinkRule): past a blip, then a key pressed while it's down. -->
     <string name="system_reconnecting_tv">Reconnecting to the TV…</string>
     <string name="card_reconnecting">Reconnecting…</string>
@@ -75,7 +75,7 @@
     <string name="key_dropped_waiting">Not sent: waiting for the TV</string>
     <string name="key_dropped_down">Not sent: the TV is out of reach</string>
     <string name="key_dropped_pairing">Not sent: pair the TV again</string>
-    <string name="key_expired">Not sent: the TV didn\'t come back in time</string>
+    <string name="key_expired">Not sent: the TV didn’t come back in time</string>
     <!-- The bar on its own (BarAlone): the card, the chip, a pad press, and the long press on Power. -->
     <string name="card_on_the_bar">On the bar</string>
     <string name="card_wake_tv">Turn on the TV</string>

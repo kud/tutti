@@ -15,8 +15,8 @@
     <string name="settings_add_bar_detail">Seulement la barre : Contrôle externe dans BRAVIA Connect, puis son adresse</string>
     <string name="settings_setup_again">Refaire la configuration</string>
     <string name="settings_setup_again_detail">Associer la TV, puis ajouter la barre de son</string>
-    <string name="settings_tv">Téléviseur</string>
-    <string name="settings_tv_settings">Réglages du téléviseur</string>
+    <string name="settings_tv">TV</string>
+    <string name="settings_tv_settings">Réglages de la TV</string>
     <string name="settings_tv_settings_detail">Image, sortie son, haut-parleurs, entrées, économie d’énergie</string>
     <string name="settings_tv_settings_needs">Contrôle IP : %1$s</string>
     <string name="settings_bar">Barre de son</string>
@@ -30,7 +30,7 @@
     <string name="settings_vibration_detail">À chaque touche, pas et limite de volume</string>
     <string name="settings_vibration_level">Vibrer pour</string>
     <string name="settings_vibration_all">Tout</string>
-    <string name="settings_vibration_essentials">L\'essentiel</string>
+    <string name="settings_vibration_essentials">L’essentiel</string>
     <string name="settings_vibration_system_off">Inactif tant que les vibrations tactiles sont désactivées dans Android.</string>
     <string name="settings_key_sounds">Sons des touches</string>
     <string name="settings_key_sounds_detail">Un clic discret à chaque touche, au volume système</string>
@@ -50,9 +50,9 @@
     <string name="settings_sony_explain">Le canal cloud de Sony n’est pas assez documenté pour être implémenté sans deviner. Les commandes locales n’en dépendent pas.</string>
     <string name="settings_bravia_connect">BRAVIA Connect</string>
     <string name="settings_recalibrate_detail">Calibration, Acoustic Center Sync et placement des enceintes restent dans l’app de Sony.</string>
-    <string name="link_absent">non configuré</string>
+    <string name="link_absent">à configurer</string>
     <string name="link_connecting">connexion…</string>
-    <string name="link_online">connecté</string>
+    <string name="link_online">en ligne</string>
     <string name="link_unreachable">injoignable</string>
     <string name="link_needs_pairing">à associer de nouveau</string>
     <string name="link_unauthorized">clé PSK refusée ou absente</string>
@@ -60,7 +60,7 @@
     <string name="tv_sound_output">Sortie son</string>
     <string name="tv_speaker">Haut-parleurs</string>
     <string name="tv_inputs">Entrées</string>
-    <string name="tv_input_current">Source actuelle</string>
+    <string name="tv_input_current">Entrée actuelle</string>
     <string name="tv_input_connected">Branchée</string>
     <string name="tv_input_disconnected">Rien de branché</string>
     <string name="tv_power_saving">Économie d’énergie</string>
@@ -80,7 +80,7 @@
     <string name="tv_target_auto_picture_mode">Mode d’image automatique</string>
     <string name="tv_target_hdr_mode">Mode HDR</string>
     <string name="tv_target_output_terminal">Sortie audio</string>
-    <string name="tv_target_tv_position">Position du téléviseur</string>
+    <string name="tv_target_tv_position">Position de la TV</string>
     <string name="tv_target_subwoofer_level">Niveau du caisson</string>
     <string name="bar_refresh">Actualiser</string>
     <string name="bar_section_hdmi">HDMI</string>
@@ -124,12 +124,12 @@
     <string name="tv_target_subwoofer_freq">Fréquence du caisson</string>
     <string name="tv_target_subwoofer_phase">Phase du caisson</string>
     <string name="tv_target_subwoofer_power">Alimentation du caisson</string>
-    <string name="tv_device">Téléviseur</string>
+    <string name="tv_device">TV</string>
     <string name="tv_device_model">Modèle</string>
     <string name="tv_device_generation">Génération de l’API</string>
-    <string name="settings_apps_shown">Applis affichées</string>
+    <string name="settings_apps_shown">Apps affichées</string>
     <string name="settings_apps_shown_detail">%1$d sur %2$d</string>
-    <string name="settings_apps_shown_live">Voici les applis que votre TV indique. Désactivez celles que vous n’utilisez jamais.</string>
-    <string name="settings_apps_shown_static">Sans le contrôle IP, la TV ne peut pas lister ses applis : voici la liste de tutti. Désactivez celles que vous n’avez pas.</string>
+    <string name="settings_apps_shown_live">Voici les apps que votre TV indique. Désactivez celles que vous n’utilisez jamais.</string>
+    <string name="settings_apps_shown_static">Sans le contrôle IP, la TV ne peut pas lister ses apps : voici la liste de tutti. Désactivez celles que vous n’avez pas.</string>
     <string name="settings_apps_shown_done">Terminé</string>
 </resources>

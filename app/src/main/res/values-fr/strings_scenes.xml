@@ -4,7 +4,7 @@
     <string name="scenes_new">Nouvelle scène</string>
     <string name="scenes_edit">Modifier la scène</string>
     <string name="scenes_active">Active</string>
-    <string name="scene_key_input">Source TV</string>
+    <string name="scene_key_input">Entrée TV</string>
     <string name="scene_key_app">App TV</string>
     <string name="scene_key_picture">Mode d’image</string>
     <string name="scene_key_cap">Volume max</string>
@@ -53,7 +53,7 @@
         <item quantity="other">%1$d étapes sur %2$d ont échoué</item>
     </plurals>
     <string name="scene_failed_short">échec</string>
-    <!-- Couleurs des scènes, lues par TalkBack dans le choix de couleur de l'éditeur. -->
+    <!-- Scene colours, read by TalkBack in the editor's colour picker. -->
     <string name="scene_colour_violet">Violet</string>
     <string name="scene_colour_blue">Bleu</string>
     <string name="scene_colour_navy">Bleu marine</string>

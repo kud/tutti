@@ -9,7 +9,10 @@
     <string name="picker_toggle">toggle</string>
     <string name="picker_value_previous">Previous value</string>
     <string name="picker_value_next">Next value</string>
-    <string name="picker_bar_hidden">%1$d settings hidden: the bar hasn’t announced them</string>
+    <plurals name="picker_bar_hidden">
+        <item quantity="one">%1$d setting hidden: the bar hasn’t announced it</item>
+        <item quantity="other">%1$d settings hidden: the bar hasn’t announced them</item>
+    </plurals>
     <string name="picker_bar_offline">The soundbar isn’t connected: its settings appear once it answers.</string>
     <string name="picker_no_ip">IP control is off on the TV: picture mode and the TV’s own keys need it (TV settings › Network › IP control).</string>
     <string name="picker_inputs_no_ip">IP control is off on the TV: inputs need it to be listed.</string>
@@ -17,7 +20,10 @@
     <string name="picker_tv_none">The TV announced no picture modes or keys of its own.</string>
     <string name="picker_picture_mode">Picture mode</string>
     <string name="picker_tv_keys">TV keys</string>
-    <string name="picker_apps_hidden">%1$d apps hidden in Settings</string>
+    <plurals name="picker_apps_hidden">
+        <item quantity="one">%1$d app hidden in Settings</item>
+        <item quantity="other">%1$d apps hidden in Settings</item>
+    </plurals>
     <string name="picker_no_match">Nothing matches “%1$s”.</string>
     <string name="picker_group_navigation">Navigation</string>
     <string name="picker_group_playback">Playback</string>

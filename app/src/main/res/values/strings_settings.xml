@@ -124,7 +124,7 @@
     <string name="tv_target_subwoofer_freq">Subwoofer frequency</string>
     <string name="tv_target_subwoofer_phase">Subwoofer phase</string>
     <string name="tv_target_subwoofer_power">Subwoofer power</string>
-    <string name="tv_device">Television</string>
+    <string name="tv_device">TV</string>
     <string name="tv_device_model">Model</string>
     <string name="tv_device_generation">API generation</string>
     <string name="settings_apps_shown">Apps shown</string>

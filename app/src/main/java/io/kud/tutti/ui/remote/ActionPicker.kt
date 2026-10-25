@@ -45,6 +45,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -258,7 +259,7 @@ fun ActionPickerContent(
                         onPick(DockAction.LaunchApp(app.packageName, app.name))
                     }
                 }
-                if (hiddenApps > 0 && !searching) item(key = "apps-hidden") { Note(stringResource(R.string.picker_apps_hidden, hiddenApps)) }
+                if (hiddenApps > 0 && !searching) item(key = "apps-hidden") { Note(pluralStringResource(R.plurals.picker_apps_hidden, hiddenApps, hiddenApps)) }
             }
 
             if (shows(Category.INPUTS) && (inputRows.isNotEmpty() || !searching)) {
@@ -288,7 +289,7 @@ fun ActionPickerContent(
                 if (!searching) {
                     when {
                         !barOnline -> item(key = "bar-why") { Note(stringResource(R.string.picker_bar_offline)) }
-                        barOffer.hidden > 0 -> item(key = "bar-hidden") { Note(stringResource(R.string.picker_bar_hidden, barOffer.hidden)) }
+                        barOffer.hidden > 0 -> item(key = "bar-hidden") { Note(pluralStringResource(R.plurals.picker_bar_hidden, barOffer.hidden, barOffer.hidden)) }
                     }
                 }
             }

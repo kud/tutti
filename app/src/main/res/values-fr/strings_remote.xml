@@ -45,9 +45,9 @@
     <string name="volume_down">Baisser le volume</string>
     <string name="scene_modified">modifiée</string>
     <string name="dock_add">Ajouter</string>
-    <string name="dock_assign_title">Raccourci %1$d</string>
+    <string name="dock_assign_title">Épingle %1$d</string>
     <string name="longpress_assign_title">Appui long : %1$s</string>
-    <string name="picker_apps">Applications</string>
+    <string name="picker_apps">Apps</string>
     <string name="picker_inputs">Entrées</string>
     <string name="picker_bar">Barre de son</string>
     <string name="picker_scenes">Scènes</string>
@@ -60,10 +60,10 @@
     <string name="card_input">Entrée externe</string>
     <string name="card_standby">TV en veille</string>
     <string name="card_bar_stays_on">La barre reste allumée</string>
-    <string name="card_home">Écran d\'accueil</string>
+    <string name="card_home">Écran d’accueil</string>
     <string name="card_home_detail">Aucune appli en cours</string>
     <string name="card_offline">TV injoignable</string>
-    <string name="card_offline_detail">Vérifiez qu\'elle est allumée et sur le même Wi-Fi</string>
+    <string name="card_offline_detail">Vérifiez qu’elle est allumée et sur le même Wi-Fi</string>
     <!-- The TV's link, calm rule (TvLinkRule): past a blip, then a key pressed while it's down. -->
     <string name="system_reconnecting_tv">Reconnexion à la TV…</string>
     <string name="card_reconnecting">Reconnexion…</string>
@@ -73,7 +73,7 @@
     <string name="key_dropped_waiting">Non envoyé : en attente de la TV</string>
     <string name="key_dropped_down">Non envoyé : la TV est injoignable</string>
     <string name="key_dropped_pairing">Non envoyé : associez à nouveau la TV</string>
-    <string name="key_expired">Non envoyé : la TV n\'est pas revenue à temps</string>
+    <string name="key_expired">Non envoyé : la TV n’est pas revenue à temps</string>
     <string name="card_on_the_bar">Sur la barre</string>
     <string name="card_wake_tv">Allumer la TV</string>
     <string name="card_wake_tv_short">Allumer</string>
