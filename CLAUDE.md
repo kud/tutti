@@ -40,3 +40,5 @@ Secrets live only in `files/datastore/secure.preferences_pb` and `files/secure/`
 ## Releases
 
 Pushing a `vMAJOR.MINOR.PATCH` tag builds a signed APK and attaches it to a GitHub Release. The four signing secrets are listed in the README. The release job fails rather than ship an unsigned APK.
+
+A `-dev.N` pre-release needs no go-ahead (Erwann, 2026-10-25): once the full check above passes on a clean worktree, fast-forward `main` to the verified commit and run the Android workflow on `main` with the next `v0.1.0-dev.N` tag, then tell Erwann what it carries. Without the signing secrets it ships the debug APK. A final `vMAJOR.MINOR.PATCH` release still waits for his explicit word.
