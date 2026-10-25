@@ -1,0 +1,76 @@
+// Google Cast v2 (CASTV2) channel messages, TCP 8009 over TLS.
+//
+// Copied from chromium/openscreen (cast/common/channel/proto/cast_channel.proto,
+// commit 2a78d154c5786ef4dfdb04ad1ce720596f3cb47e, read 2026-10-25), BSD-style licence
+// in LICENSE-openscreen. Changes for this repo: comments trimmed, the package renamed
+// and java_package added, optimize_for dropped (Wire ignores it). Field names, numbers
+// and defaults are unchanged. See docs/architecture.md, "Cast now playing".
+syntax = "proto2";
+package cast_channel;
+
+option java_package = "io.kud.tutti.protocol.cast.proto";
+
+message CastMessage {
+  enum ProtocolVersion {
+    CASTV2_1_0 = 0;
+    CASTV2_1_1 = 1;
+    CASTV2_1_2 = 2;
+    CASTV2_1_3 = 3;
+  }
+  required ProtocolVersion protocol_version = 1;
+  required string source_id = 2;
+  required string destination_id = 3;
+  required string namespace = 4;
+
+  enum PayloadType {
+    STRING = 0;
+    BINARY = 1;
+  }
+  required PayloadType payload_type = 5;
+  optional string payload_utf8 = 6;
+  optional bytes payload_binary = 7;
+  optional bool continued = 8;
+  optional uint32 remaining_length = 9;
+}
+
+enum SignatureAlgorithm {
+  UNSPECIFIED = 0;
+  RSASSA_PKCS1v15 = 1;
+  RSASSA_PSS = 2;
+}
+
+enum HashAlgorithm {
+  SHA1 = 0;
+  SHA256 = 1;
+}
+
+message AuthChallenge {
+  optional SignatureAlgorithm signature_algorithm = 1 [default = RSASSA_PKCS1v15];
+  optional bytes sender_nonce = 2;
+  optional HashAlgorithm hash_algorithm = 3 [default = SHA1];
+}
+
+message AuthResponse {
+  required bytes signature = 1;
+  required bytes client_auth_certificate = 2;
+  repeated bytes intermediate_certificate = 3;
+  optional SignatureAlgorithm signature_algorithm = 4 [default = RSASSA_PKCS1v15];
+  optional bytes sender_nonce = 5;
+  optional HashAlgorithm hash_algorithm = 6 [default = SHA1];
+  optional bytes crl = 7;
+}
+
+message AuthError {
+  enum ErrorType {
+    INTERNAL_ERROR = 0;
+    NO_TLS = 1;
+    SIGNATURE_ALGORITHM_UNAVAILABLE = 2;
+  }
+  required ErrorType error_type = 1;
+}
+
+message DeviceAuthMessage {
+  optional AuthChallenge challenge = 1;
+  optional AuthResponse response = 2;
+  optional AuthError error = 3;
+}
