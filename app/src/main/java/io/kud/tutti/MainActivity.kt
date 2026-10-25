@@ -63,6 +63,8 @@ class MainActivity : ComponentActivity() {
 
     @Inject lateinit var diagnostics: Diagnostics
 
+    @Inject lateinit var hid: io.kud.tutti.platform.bluetooth.HidLink
+
     @Inject lateinit var store: TuttiStore
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -104,7 +106,7 @@ class MainActivity : ComponentActivity() {
                     LocalReducedMotion provides reducedMotion,
                     LocalIntroAnchors provides remember { IntroAnchors() },
                 ) {
-                    TuttiApp(controller, discovery, diagnostics, state)
+                    TuttiApp(controller, discovery, diagnostics, hid, state)
                     LaunchIntroOverlay(
                         intro,
                         firstLaunch = if (state.loaded) state.devices.isEmpty && !state.prefs.onboarded else null,

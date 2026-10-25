@@ -1,4 +1,57 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- French (values-fr/); English is the default locale (values/). app_name comes from gradle.properties. -->
 <resources>
+
+    <!-- Bluetooth mode (keyboard and mouse over BluetoothHidDevice) -->
+    <string name="settings_bluetooth">Bluetooth</string>
+    <string name="settings_bluetooth_detail">Utilisez le téléphone comme clavier et souris du téléviseur, sans Wi-Fi</string>
+    <string name="bt_title">Clavier et souris Bluetooth</string>
+    <string name="bt_touchpad">Pavé tactile</string>
+    <string name="bt_pointer">Pointeur</string>
+    <string name="bt_keyboard">Clavier</string>
+    <string name="bt_unsupported">Ce téléphone ne permet pas aux applis de servir de clavier et souris Bluetooth.</string>
+    <string name="bt_the_tv">le téléviseur</string>
+    <string name="bt_status_connected">Connecté à %1$s</string>
+    <string name="bt_status_connecting">Connexion à %1$s…</string>
+    <string name="bt_status_paired">Associé à %1$s, non connecté</string>
+    <string name="bt_status_not_paired">Non associé</string>
+    <string name="bt_status_busy">Une autre appli utilise le téléphone comme clavier Bluetooth. Fermez-la, puis réessayez.</string>
+    <string name="bt_status_permission">tutti a besoin de l’autorisation Appareils à proximité</string>
+    <string name="bt_status_off">Le Bluetooth est désactivé</string>
+    <string name="bt_status_starting">Démarrage…</string>
+    <string name="bt_reconnect">Reconnecter</string>
+    <string name="bt_make_visible">Rendre visible</string>
+    <string name="bt_allow">Autoriser</string>
+    <string name="bt_turn_on">Activer</string>
+    <string name="bt_retry">Réessayer</string>
+    <string name="bt_pair_steps">Sur le téléviseur : Paramètres › Télécommandes et accessoires › Associer un accessoire. Touchez Rendre visible ici, choisissez tutti sur le téléviseur, puis confirmez le code des deux côtés.</string>
+    <string name="bt_known_devices">Déjà associés à ce téléphone</string>
+    <string name="bt_forget">Oublier ce téléviseur</string>
+    <string name="bt_role_note">Une seule appli à la fois peut servir de clavier Bluetooth. tutti prend ce rôle tant que cet écran est ouvert et le rend quand vous le quittez.</string>
+    <string name="bt_touchpad_hint">Touchez pour cliquer · deux doigts pour faire défiler · touchez à deux doigts pour revenir</string>
+    <string name="bt_pointer_hint">Pointez le téléphone vers le téléviseur et bougez-le : le curseur suit.</string>
+    <string name="bt_pointer_no_gyro">Ce téléphone n’a pas de gyroscope : le pointeur ne peut pas le suivre. Le pavé tactile fonctionne.</string>
+    <string name="bt_pointer_recentre">Maintenez pour recentrer</string>
+    <string name="bt_pointer_frozen">Figé</string>
+    <string name="bt_click">Clic</string>
+    <string name="bt_sensitivity">Sensibilité</string>
+    <string name="bt_sensitivity_value">%1$d pour cent</string>
+    <string name="bt_keyboard_field">Écrivez sur le téléviseur</string>
+    <string name="bt_keyboard_missing">Non envoyés, cette disposition ne peut pas les taper : %1$s</string>
+    <string name="bt_layout">Disposition du clavier sur le téléviseur</string>
+    <string name="bt_layout_us">QWERTY (US)</string>
+    <string name="bt_layout_fr">AZERTY (français)</string>
+    <string name="bt_layout_explain">Le Bluetooth envoie la position des touches, pas les lettres. Choisissez la disposition réglée sur le téléviseur pour ce clavier, sinon les lettres sortent fausses.</string>
+    <string name="bt_key_left">Gauche</string>
+    <string name="bt_key_up">Haut</string>
+    <string name="bt_key_down">Bas</string>
+    <string name="bt_key_right">Droite</string>
+    <string name="bt_key_backspace">Effacer</string>
+    <string name="bt_key_enter">Entrée</string>
+    <string name="bt_key_back">Retour</string>
+    <string name="bt_key_home">Accueil</string>
+    <string name="bt_key_play_pause">Lecture ou pause</string>
+    <string name="bt_key_mute">Couper le son</string>
+    <string name="bt_key_volume_down">Baisser le volume</string>
+    <string name="bt_key_volume_up">Monter le volume</string>
 </resources>

@@ -1,5 +1,10 @@
 package io.kud.tutti.ui.settings
 
+import androidx.compose.runtime.LaunchedEffect
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.kud.tutti.platform.bluetooth.HidLink
+import io.kud.tutti.platform.bluetooth.HidSupport
+
 import android.content.Intent
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -105,6 +110,8 @@ fun SettingsScreen(
     onAddBar: () -> Unit = {},
     onOpenUnlock: () -> Unit = {},
     onOpenTechnical: () -> Unit = {},
+    hid: HidLink? = null,
+    onOpenBluetooth: () -> Unit = {},
 ) {
     val context = LocalContext.current
     var picker by remember { mutableStateOf<SecondaryButton?>(null) }
@@ -273,6 +280,24 @@ fun SettingsScreen(
 
             SettingsGroup(stringResource(R.string.settings_feedback)) {
                 FeedbackRows(state.prefs, onVibration = controller::setVibration, onKeySounds = controller::setKeySounds)
+            }
+
+            // Bluetooth mode (Maya, 2026-10-25): hidden on phones without the HID device role.
+            if (hid != null) {
+                val hidState by hid.state.collectAsStateWithLifecycle()
+                LaunchedEffect(hid) { hid.probe() }
+                if (hidState.support == HidSupport.SUPPORTED) {
+                    SettingsGroup(stringResource(R.string.settings_bluetooth)) {
+                        LinkRow(
+                            title = stringResource(R.string.bt_title),
+                            detail = stringResource(R.string.settings_bluetooth_detail),
+                            enabled = true,
+                            onClick = onOpenBluetooth,
+                            icon = R.drawable.ic_bluetooth,
+                            opens = true,
+                        )
+                    }
+                }
             }
 
             SettingsGroup(stringResource(R.string.settings_sony)) {

@@ -157,6 +157,18 @@ The rail drives the soundbar, `main.volumestep` on its own 0–100 scale (`Theat
 - Each keystroke sent live; Enter carries the TV's action. Chips: Coller, Dicter. Closes when the TV field loses focus or on swipe down.
 - Hardware keyboard: arrows → D-pad, Enter → OK, Esc → Back, text → IME.
 
+## Bluetooth keyboard and mouse (Iris and Maya, 2026-10-25)
+
+A screen of its own (Settings › Bluetooth), not a variant of the pad: it is a different link with different rules (no LAN, a cursor instead of focus), and folding it into the pad would blur which link a gesture uses (Iris). Iris will add an entry to the remote's ⋮ menu with her top-bar work. Mechanics and pairing: architecture.md § 6.
+
+- **Status line.** Bluetooth glyph and one line per state, each with its way forward: "Connected to BRAVIA 8"; "Paired with …, not connected" with Reconnect; "Not paired" with Make visible and the TV's steps; "Another app is using the phone as a Bluetooth keyboard" with Try again; permission and Bluetooth off with Allow and Turn on. While not connected the surfaces stay on screen in the down dress (no fill, dashed outline) and send nothing.
+- **Three segments**, outlined, icon and label, the chosen one ticked: Touchpad · Pointer · Keyboard, read as tabs, remembered between visits.
+- **Touchpad.** A large outlined area wearing the touchpad glyph, with its meaning in words under it ("Tap to click · two fingers to scroll · two-finger tap to go back"), since a tap clicks here and means OK on the remote's pad.
+- **Pointer.** "Hold to recentre" on top, which while held stays pressed, thicker-edged, and says "Frozen" (haptic tick on press and release); Click below it, the biggest target, under the thumb, with the click haptic; the sensitivity slider quiet underneath, its value named for TalkBack. The gyroscope runs only while this segment is in front.
+- **Keyboard.** A field whose every change is sent as keystrokes (deletions as Backspace), arrows, Delete and Enter; the TV's layout (QWERTY US or AZERTY French) as a segmented choice with why it matters in one line; characters the layout can't type are named under the field, never sent as something else.
+- Home, Back, play/pause, mute and volume sit under each surface as 48 dp round keys with the remote's glyphs.
+- A footnote says plainly that only one app at a time can be a Bluetooth keyboard and that tutti holds the role only while the screen is open.
+
 ## Quick access (v1)
 Quick Settings tile (opens a compact remote overlay), phone volume buttons drive the bar while the app is in front (and while the notification shows, below), home-screen widget (scenes + volume), media-style notification.
 - State on the quick surfaces follows the remote's rules (Iris, 2026-10-24): the tile's subtitle and the widget's number show the volume rule's level only once it is reported ("Connected" or "–" until then, never "Volume 0"); the widget's active scene pill wears a tick and bold type as well as its full fill, and TalkBack reads it as "Cinema, active"; once changed by hand it drops the fill and the tick and reads "Cinema · modified", as the remote's pill does. TV settings already show no value while the TV's IP link is down: the screen is the link's explainer until it is back.

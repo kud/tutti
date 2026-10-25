@@ -10,6 +10,17 @@
     <!-- Hold-to-talk to the TV's assistant: asked on first use, the mic is open only while held. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
+    <!-- Bluetooth mode: the phone as the TV's keyboard and mouse (BluetoothHidDevice). CONNECT to
+         register and send, ADVERTISE to be made visible for pairing; both asked on the Bluetooth
+         screen, never at start. No SCAN: the TV finds the phone, not the other way round. -->
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
+    <uses-feature android:name="android.hardware.bluetooth" android:required="false" />
+    <!-- The air-mouse pointer; the segment says so when there is none. -->
+    <uses-feature android:name="android.hardware.sensor.gyroscope" android:required="false" />
+
     <!-- ===== quick access: permissions (begin) ===== -->
     <!-- Control notification (Android 13+ runtime permission, asked from QuickNotificationSetting). No foreground service. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />

@@ -11,6 +11,8 @@
   bravia/   REST JSON-RPC + PSK: JsonRpc, BraviaParsers, Capabilities, BraviaClient, Ircc
   grpc/     Sony-cloud plane: interface, field paths, PKCE, UnavailableSonyCloudPlane
   scenes/   Scene model, SceneEngine (plan / match / capture), SceneRunner, StarterScenes
+  hid/      Bluetooth HID: HidDescriptor, HidReports, KeyLayout (US, French AZERTY), MotionAccumulator,
+            TouchpadMotion, AirPointer (gyro pointer)
 :app       Android: Compose UI, Hilt, DataStore, Keystore secrets, socket/TLS/OkHttp transports
 ```
 
@@ -58,6 +60,28 @@ Bar on h2c port 55051, TV on a port advertised by mDNS `_sonysmarthome._tcp`; So
 
 Acoustic Center Sync, sound calibration, speaker placement and first setup: a shortcut opens the TV's sound settings (v2/IRCC keys), and "Recalibrer dans BRAVIA Connect" deep-links to Sony's app.
 
+### 6. Bluetooth HID: the phone as the TV's keyboard and mouse (optional, no LAN)
+
+Erwann, 2026-10-25: "clavier, souris, trackpad en mode Bluetooth si besoin", then "un mode pointeur sur l'écran". Settings › Bluetooth › Bluetooth keyboard and mouse. The phone pairs straight to the TV as a Bluetooth keyboard + mouse through Android's `BluetoothHidDevice` profile (API 28; tutti's minSdk is 29). Useful when the LAN link is down, and for what Remote v2 can't do: a real cursor, a physical keyboard's keys.
+
+**ADR (Maya, 2026-10-25).**
+- *Context.* Android lets **one app at a time** register as a HID device; Erwann already uses a third-party "Bluetooth Keyboard & Mouse" app and will compare. HID sends key *positions*, so text depends on the layout the TV has chosen for the keyboard. The open question of background sessions (tutti keeps no foreground service anywhere) applies here too. No new dependencies.
+- *Options.* (a) Register at app start and keep the role while tutti runs, with a foreground service to survive the background: always ready, but it squats the profile, breaks the other app, and adds a persistent notification and a battery cost for a fallback mode. (b) Register only while the Bluetooth screen is in front, unregister on leave: costs a reconnect (a second or two, unverified) each time the screen opens. (c) Route typing over Remote v2 when the LAN is up and HID only for the cursor: better accents, but one screen would then use two links with different failure modes (Iris: keep which link a gesture uses unambiguous).
+- *Decision.* (b). `HidLink` (`:app`, `platform/bluetooth/`) registers on the screen's ON_START, unregisters and closes the proxy on ON_STOP and on leaving; no foreground service, no background hold. It remembers the last connected TV's Bluetooth address (non-secret prefs, `bluetooth_hid`) and calls `connect()` once registered. A registration Android refuses (`registerApp` false, or `onAppStatusChanged(registered = false)` while we want it) reads "another app is using the phone as a Bluetooth keyboard". Report bytes, key mapping and pointer maths are in `:protocol/hid`, pure and tested; `:app` only registers, connects and sends.
+- *Consequences.* Never fights another HID app in the background; the cost is a reconnect each visit and nothing over Bluetooth while the screen is closed. If on-device use shows the reconnect is too slow, the next step is an explicit "keep Bluetooth on" switch (still no background grab without it), not a silent service.
+
+**Descriptor** (`HidDescriptor`, tested by walking its items): one composite device, SDP subclass 0xC0 (combo). Report 1 keyboard (boot layout, 8 bytes: modifiers, reserved, six usages, roll-over past six), report 2 mouse (3 buttons, relative X, Y, wheel as int8, 4 bytes), report 3 consumer control (one 16-bit usage: Home 0x223 and Back 0x224 as AC Home/AC Back, play/pause, next, previous, mute, volume up/down; Android's `Generic.kl` maps these). No LED output report.
+
+**Permissions.** `BLUETOOTH_CONNECT` (register, connect, send, read bonded names) and `BLUETOOTH_ADVERTISE` (the "make visible" request) on API 31+, asked on the Bluetooth screen only; `BLUETOOTH`/`BLUETOOTH_ADMIN` capped at API 30. No `BLUETOOTH_SCAN`: the TV scans, the phone is found. Bluetooth and gyroscope are `required="false"` features.
+
+**Pairing.** On the TV: Settings › Remotes & Accessories › Pair accessory (Google TV wording, the XR80's exact menu **unverified**). On the phone, with the screen open (so tutti is registered and advertises a keyboard/mouse class), "Make visible" asks Android for 120 s of discoverability; the TV lists the phone, both show a code, Android's own dialog confirms. Bonding is Android's: "Forget this TV" clears tutti's remembered address and opens Bluetooth settings, because removing a bond has no public API.
+
+**Support.** `HidLink.probe()` asks for the profile proxy and lets it go: a ROM that disables the HID device role returns false or never answers (3 s), and Settings then hides the Bluetooth section. Registration can still be refused later (another app), which the screen states with a retry.
+
+**Typing.** `KeyLayout` maps characters to positions for the layout the user says the TV uses (QWERTY US by default, which is what Android assumes for an unknown keyboard; or AZERTY French). On AZERTY: é è ç à ù are on their own keys; â ê î ô û and ä ë ï ö ü ÿ go through the dead ^ / ¨ key then the letter; € @ # { } [ ] | \ via AltGr. **Not typable** on either: É È À Ç Ù as capitals, œ æ, « », and on AZERTY ~ and ` (dead keys on AltGr). They are not sent and the screen lists them. On QWERTY US no accent can be typed at all. Remote v2's keyboard (the LAN one) sends text, so it types anything; that stays the better path for accents when the LAN is up.
+
+**Touchpad and pointer.** Touchpad: finger pixels with a mild acceleration (`TouchpadMotion`), tap = left click, two-finger drag = wheel (one detent per 48 px, natural direction), two-finger tap = right click (Android: Back). Pointer (`AirPointer`, LG Magic Remote style): `TYPE_GYROSCOPE` at `SENSOR_DELAY_GAME`, rotation about the screen's normal moves the cursor sideways, about x up and down; a 0.03 rad/s dead zone (subtracted, so motion starts from zero), an EMA (0.45), 3200 cursor units per radian at sensitivity 1 (0.25 to 3), fractions carried between reports (`MotionAccumulator`), int8 splitting. "Hold to recentre" is the clutch: nothing moves while held, the filter restarts from rest on release. The sensor listener exists only while the Pointer segment is in front and the TV is connected.
+
 ## Verified vs not
 
 | Item | Status |
@@ -94,6 +118,7 @@ Acoustic Center Sync, sound calibration, speaker placement and first setup: a sh
 | Sony picture mode values in starter scenes (`cinema`, `game`, `standard`) | Unverified; the editor offers the TV's own candidates |
 | Sony-cloud gRPC | Interface only, nothing on the wire |
 | v2 voice (search key → begin → 8 kHz PCM payloads → end) | Facts from androidtvremote2 (Python, Home Assistant's library); **never run by tutti against any TV**, the XR80 included. Whether the BRAVIA's assistant (Gemini or Google Assistant) accepts it, and whether 20 KiB chunks give a live transcript, are open |
+| Bluetooth HID mode (descriptor, pairing from the TV, reconnect on screen open, consumer keys, AZERTY dead keys, gyro axis signs and gain) | Encoders and maths unit-tested; **nothing run on a phone or against the XR80**. Whether Google TV picks the French layout for this keyboard by itself is **unverified** |
 | Wire 7.1.0, Hilt 2.58, KSP 2.3.12, Kotlin 2.3.20 | Tags verified upstream; AGP 8.13.0 and AndroidX versions chosen without access to Google Maven, settled by CI |
 
 ## Diagnostic (Réglages › Diagnostic)
@@ -115,7 +140,7 @@ The Compose group-mapping file is off (`includeComposeMappingFile`): it only dec
 
 ## Threat model
 
-Assets: the TV PSK, the TV pairing (client private key + TV pin), Sony OAuth tokens and session keys (opt-in), and control of the living-room devices.
+Assets: the TV PSK, the Bluetooth HID role (keyboard and mouse input to the TV), the TV pairing (client private key + TV pin), Sony OAuth tokens and session keys (opt-in), and control of the living-room devices.
 
 | Threat | Mitigation |
 | --- | --- |
@@ -127,5 +152,6 @@ Assets: the TV PSK, the TV pairing (client private key + TV pin), Sony OAuth tok
 | Sony account compromise via the app | Sign-in is opt-in, OAuth PKCE in a Custom Tab (the app never sees the password, no WebView), tokens scoped to device control and wiped by "Se déconnecter de Sony". |
 | Malicious or malformed device traffic | Every decoder is total: bad lines and frames become `Malformed` or close the connection; frame size is bounded (1 MiB), line length bounded (64 KiB). |
 | A tampered APK update | Releases are signed with one long-lived key held only in GitHub secrets; Android refuses updates signed otherwise. A final release fails without that key: it never publishes an unsigned APK, nor one signed with `app/debug.keystore`. Until the key exists, a `-dev` tag still ships the debug build as a pre-release (Erwann, 2026-10-25). That debug key is public (committed, password `android`), so anyone can sign an "update" over such a build: install those on test phones only. |
+| A HID keyboard can do anything a person at the TV can | The role is held only while the Bluetooth screen is in front, and only the TV that paired through Android's own dialog (code shown on both) can connect. Every report comes from a touch, a key or the gyroscope on that screen, never from the network. No secret is stored: the remembered TV is a Bluetooth address in plain prefs. The 120 s of discoverability is asked through Android's dialog, never silently. |
 
 Out of scope: a compromised phone OS, a compromised router, physical access to the TV.
