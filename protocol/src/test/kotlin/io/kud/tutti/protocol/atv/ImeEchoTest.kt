@@ -245,4 +245,34 @@ class ImeEchoTest {
         assertEquals("arte concert", state.ime?.text)
         assertEquals(emptyList(), state.imeEchoes)
     }
+
+    @Test
+    fun `typed before the tv reported any field, the first characters land and the echo opens the field`() {
+        val tv = FakeTv(imeCounter = 12, fieldCounter = 4)
+        // Only the key inject that starts the TV's keyboard: no show request, no batch edit yet.
+        var state = session.reduce(RemoteState(ready = true, currentApp = "com.example.tv"), tv.focus().first()).state
+        assertEquals(null, state.ime)
+        var step = session.type(state, "p")
+        state = step.state
+        val early = tv.receive(step.messages.single())!!
+        step = session.type(state, "ph")
+        state = step.state
+        val late = tv.receive(step.messages.single())!!
+        state = session.reduce(state, early).state
+        assertEquals("ph", state.ime?.text, "the early echo opens the field with what was typed since")
+        state = session.reduce(state, late).state
+        assertEquals("ph", state.ime?.text)
+        assertEquals("ph", tv.text)
+        assertEquals(emptyList(), tv.refused)
+        assertEquals(emptyList(), state.imeEchoes)
+    }
+
+    @Test
+    fun `a letter typed on the tv's own keyboard opens the field even without a show request`() {
+        val tv = FakeTv()
+        tv.text = "a"
+        val state = session.reduce(RemoteState(ready = true), tv.echo()).state
+        assertEquals("a", state.ime?.text)
+        assertEquals(tv.imeCounter, state.imeCounter)
+    }
 }

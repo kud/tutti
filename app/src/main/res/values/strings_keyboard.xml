@@ -6,7 +6,7 @@
     <string name="keyboard_dictation_unavailable">Dictation is not available on this phone</string>
     <string name="keyboard_live">Live on the TV</string>
     <string name="keyboard_waiting">No text field on the TV yet</string>
-    <string name="keyboard_waiting_hint">Pick a text field on the TV</string>
+    <string name="keyboard_waiting_hint">Type, or pick a text field on the TV</string>
     <string name="keyboard_sent_closed">Sent · the TV closed the field</string>
     <string name="keyboard_closed">The TV closed the field</string>
     <string name="keyboard_enter">Enter</string>

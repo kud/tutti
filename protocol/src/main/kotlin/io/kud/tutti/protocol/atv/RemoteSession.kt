@@ -9,7 +9,7 @@ data class TvVolume(val level: Int, val max: Int, val muted: Boolean)
  * own word, so a reconnect must hear them again: a TV switched off with its own remote while
  * the link was down would otherwise still read as on, and Power would switch it "off".
  */
-fun RemoteState.disconnected(): RemoteState = copy(ready = false, ime = null, powered = null, volume = null)
+fun RemoteState.disconnected(): RemoteState = copy(ready = false, ime = null, imeEchoes = emptyList(), powered = null, volume = null)
 
 /** The TV's focused text field, mirrored above the phone keyboard. */
 data class ImeField(val text: String, val label: String, val selectionStart: Int, val selectionEnd: Int)
@@ -81,7 +81,13 @@ class RemoteSession(private val deviceInfo: ClientDeviceInfo = ClientDeviceInfo(
             val imeCounter = inject.app_info?.counter?.takeIf { it != 0 } ?: state.imeCounter
             val fieldCounter = inject.text_field_status?.counter_field?.takeIf { it != 0 } ?: state.fieldCounter
             return RemoteStep(
-                state.copy(currentApp = app ?: state.currentApp, ime = ime, imeCounter = imeCounter, fieldCounter = fieldCounter),
+                state.copy(
+                    currentApp = app ?: state.currentApp,
+                    ime = ime,
+                    imeEchoes = if (app != null && app != state.currentApp) emptyList() else state.imeEchoes,
+                    imeCounter = imeCounter,
+                    fieldCounter = fieldCounter,
+                ),
             )
         }
         message.remote_ime_show_request?.let { show ->
@@ -100,14 +106,18 @@ class RemoteSession(private val deviceInfo: ClientDeviceInfo = ClientDeviceInfo(
         message.remote_ime_batch_edit?.let { edit ->
             val latest = edit.edit_info.lastOrNull()?.text_field_status
             val counted = state.copy(imeCounter = edit.ime_counter, fieldCounter = edit.field_counter)
-            if (latest == null || state.ime == null) return RemoteStep(counted)
+            if (latest == null) return RemoteStep(counted)
             val ours = state.imeEchoes.indexOf(latest.value_)
             if (ours >= 0) {
-                // Our own text coming back: the mirror already shows it, or something newer.
-                return RemoteStep(counted.copy(imeEchoes = state.imeEchoes.drop(ours + 1)))
+                // Our own text coming back: the mirror already shows it, or something newer. Typed
+                // before the TV said it had a field, it also tells us the field is there.
+                val text = state.imeEchoes.last()
+                val ime = state.ime ?: ImeField(text, "", text.length, text.length)
+                return RemoteStep(counted.copy(ime = ime, imeEchoes = state.imeEchoes.drop(ours + 1)))
             }
-            // The TV changed the field itself (its autocomplete, another remote): follow it.
-            val ime = state.ime.copy(text = latest.value_, selectionStart = latest.start, selectionEnd = latest.end)
+            // The TV changed the field itself (its own keyboard, autocomplete, another remote):
+            // follow it, and a batch edit is a field even when no show request came first.
+            val ime = (state.ime ?: ImeField("", "", 0, 0)).copy(text = latest.value_, selectionStart = latest.start, selectionEnd = latest.end)
             return RemoteStep(counted.copy(ime = ime, imeEchoes = emptyList()))
         }
         message.remote_start?.let { return RemoteStep(state.copy(powered = it.started)) }
@@ -124,16 +134,15 @@ class RemoteSession(private val deviceInfo: ClientDeviceInfo = ClientDeviceInfo(
      * Unchanged text sends nothing, so a composing-only change (Gboard underlining a word) is quiet.
      */
     fun type(state: RemoteState, text: String): TypeStep {
-        if (state.ime != null && state.ime.text == text) return TypeStep(state, emptyList())
+        val current = state.ime?.text ?: state.imeEchoes.lastOrNull()
+        if (current == text) return TypeStep(state, emptyList())
         val message = RemoteMessages.text(text, state.imeCounter, state.fieldCounter)
-        val next = if (state.ime == null) {
-            state
-        } else {
-            state.copy(
-                ime = state.ime.copy(text = text, selectionStart = text.length, selectionEnd = text.length),
-                imeEchoes = (state.imeEchoes + text).takeLast(ECHOES),
-            )
-        }
+        // Remembered even before the TV reported a field, so the echo of an early keystroke
+        // can't take the mirror back either.
+        val next = state.copy(
+            ime = state.ime?.copy(text = text, selectionStart = text.length, selectionEnd = text.length),
+            imeEchoes = (state.imeEchoes + text).takeLast(ECHOES),
+        )
         return TypeStep(next, listOf(message))
     }
 

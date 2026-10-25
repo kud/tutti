@@ -6,7 +6,7 @@
     <string name="keyboard_dictation_unavailable">Dictée indisponible sur ce téléphone</string>
     <string name="keyboard_live">En direct sur la TV</string>
     <string name="keyboard_waiting">Aucun champ de texte sur la TV</string>
-    <string name="keyboard_waiting_hint">Choisissez un champ de texte sur la TV</string>
+    <string name="keyboard_waiting_hint">Tapez, ou choisissez un champ sur la TV</string>
     <string name="keyboard_sent_closed">Envoyé · la TV a fermé le champ</string>
     <string name="keyboard_closed">La TV a fermé le champ</string>
     <string name="keyboard_enter">Valider</string>

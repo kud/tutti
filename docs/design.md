@@ -173,6 +173,7 @@ The rail drives the soundbar, `main.volumestep` on its own 0–100 scale (`Theat
 
 ## Keyboard
 - Auto-open when the TV reports a focused text field (IME show request); the pad shrinks above, still live.
+- Opened from the Keyboard key before the TV reports a field, the view is typable at once, the phone keyboard up: the text goes to whatever field the TV has focused, and the TV's first echo makes it live (Erwann, 2026-10-25: « pouvoir l'afficher dès le début »). A batch edit from the TV (its own keyboard typing) counts as a focused field too.
 - Mirror field at the top showing the TV's current text and label ("Rechercher sur YouTube").
 - Each keystroke sent live; Enter carries the TV's action. Chips: Coller, Dicter. Closes when the TV field loses focus or on swipe down.
 - Hardware keyboard: arrows → D-pad, Enter → OK, Esc → Back, text → IME.

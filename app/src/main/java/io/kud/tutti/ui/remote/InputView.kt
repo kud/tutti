@@ -132,6 +132,10 @@ fun InputView(
     val imeVisible = WindowInsets.isImeVisible
     val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
     val live = phase == FieldPhase.LIVE
+    // Waiting is typable too: opened from the Keyboard key before the TV said it has a field,
+    // the first character goes out with the counters the TV gave on focus, and its echo makes
+    // the field live (RemoteSession). Erwann, 2026-10-25: show it, and type, from the start.
+    val typable = live || phase == FieldPhase.WAITING
     var focused by remember { mutableStateOf(false) }
     var undo by remember { mutableStateOf<String?>(null) }
     var value by remember {
@@ -172,7 +176,10 @@ fun InputView(
             }
             // Once, not per keystroke.
             FieldPhase.UNREACHABLE -> if (was != null) haptics.reject()
-            FieldPhase.WAITING -> Unit
+            FieldPhase.WAITING -> if (mode.origin == InputOrigin.KEY) {
+                focus.requestFocus()
+                keyboard?.show()
+            }
         }
     }
     LaunchedEffect(undo) {
@@ -268,7 +275,7 @@ fun InputView(
                     onText(next.text)
                 }
             },
-            enabled = live,
+            enabled = typable,
             textStyle = MaterialTheme.typography.headlineSmall.copy(color = textColor),
             cursorBrush = SolidColor(scheme.onSurface),
             minLines = 1,
@@ -310,7 +317,7 @@ fun InputView(
                             undo = null
                             replace(restore)
                         }) { Text(stringResource(R.string.keyboard_undo)) }
-                    } else if (live && value.text.isNotEmpty()) {
+                    } else if (typable && value.text.isNotEmpty()) {
                         IconButton(onClick = {
                             haptics.click()
                             undo = value.text
@@ -330,7 +337,7 @@ fun InputView(
         val dictation = rememberPressSource(PressStyle.ROW) { haptics.click() }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             AssistChip(
-                enabled = live,
+                enabled = typable,
                 interactionSource = paste.interaction,
                 onClick = {
                     clipboard.getText()?.text?.takeIf { it.isNotEmpty() }?.let { replace(join(value.text, it)) }
@@ -339,7 +346,7 @@ fun InputView(
                 leadingIcon = { Icon(painterResource(R.drawable.ic_paste), contentDescription = null, modifier = Modifier.size(18.dp)) },
             )
             AssistChip(
-                enabled = live,
+                enabled = typable,
                 interactionSource = dictation.interaction,
                 onClick = {
                     val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
@@ -360,7 +367,7 @@ fun InputView(
         val press = rememberPressSource(PressStyle.KEY) { haptics.click() }
         Button(
             onClick = onEnter,
-            enabled = live,
+            enabled = typable,
             interactionSource = press.interaction,
             modifier = m.height(BAR_HEIGHT),
         ) { Text(stringResource(R.string.keyboard_enter)) }
@@ -385,7 +392,7 @@ fun InputView(
                 focus.requestFocus()
                 keyboard?.show()
             },
-            enabled = live,
+            enabled = typable,
             interactionSource = press.interaction,
             modifier = m.height(BAR_HEIGHT),
         ) {
