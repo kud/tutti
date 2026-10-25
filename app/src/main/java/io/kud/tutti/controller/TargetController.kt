@@ -17,6 +17,7 @@ import io.kud.tutti.protocol.devices.Device
 import io.kud.tutti.protocol.devices.DeviceKind
 import io.kud.tutti.protocol.devices.DeviceLink
 import io.kud.tutti.protocol.devices.DeviceList
+import io.kud.tutti.protocol.devices.DeviceMigration
 import io.kud.tutti.protocol.devices.ForegroundLog
 import io.kud.tutti.protocol.devices.HoldPlan
 import io.kud.tutti.protocol.devices.KeyAvailability
@@ -138,6 +139,17 @@ class TargetController @Inject constructor(
         scope.launch {
             store.migrateDevices()
             secure.migrate()
+        }
+        // The TV's Bluetooth link never points at a computer (a version-1 leftover); checked again
+        // whenever the bonded hosts are read, since only they say which address is a computer.
+        scope.launch {
+            val computers = hid.state.map { s -> s.bonded.filter { it.isComputer }.mapTo(mutableSetOf()) { it.address } }.distinctUntilChanged()
+            combine(store.deviceList, computers) { list, macs -> list to macs }.collect { (list, macs) ->
+                if (DeviceMigration.withoutStrayTvBluetooth(list, macs) != list) {
+                    Log.i(TAG, "dropped a tv bluetooth link that was a computer")
+                    store.updateDeviceList { DeviceMigration.withoutStrayTvBluetooth(it, macs) }
+                }
+            }
         }
         scope.launch {
             tvView.collect { (_, _, app) -> _foreground.update { it.seen(app, System.currentTimeMillis()) } }
@@ -394,6 +406,35 @@ class TargetController @Inject constructor(
 
     /** Settings › Devices opened: hold the role so bonded hosts can be listed and paired. */
     fun settingsShown() = hid.acquire(SETTINGS)
+
+    /**
+     * The TV row's Bluetooth pairing step opened: hold the role with no host asked for, so the TV
+     * can connect from its side (Remotes & accessories) and nothing else is dialled meanwhile.
+     */
+    fun tvPairingShown() {
+        hid.acquire(SETTINGS)
+        hid.hold(null)
+    }
+
+    /**
+     * A host connected during the pairing step becomes the TV's Bluetooth link, keeping its layout;
+     * never a computer (one added here, or one the phone reports as such). Returns whether it took.
+     */
+    suspend fun linkTvBluetooth(host: io.kud.tutti.platform.bluetooth.HidHost): Boolean {
+        val list = state.value.list
+        val tv = list.tv ?: return false
+        val computer = host.isComputer || list.devices.any { it.kind == DeviceKind.COMPUTER && it.bluetooth?.address == host.address }
+        if (computer || tv.bluetooth?.address == host.address) return false
+        store.updateDeviceList { l -> l.update(tv.id) { it.withLink(DeviceLink.Bluetooth(host.address, it.bluetooth?.layout)) } }
+        return true
+    }
+
+    /** "Oublier" on the TV's Bluetooth: the link only. Removing the pairing itself is Android's. */
+    suspend fun forgetTvBluetooth() {
+        val tv = state.value.list.tv ?: return
+        if (state.value.hidConnectedTo == tv.id) hid.disconnect()
+        store.updateDeviceList { l -> l.update(tv.id) { it.withoutLink<DeviceLink.Bluetooth>() } }
+    }
 
     /** "Forget": the device, its secrets, and the HID connection if it was the one. */
     suspend fun forget(id: String) {

@@ -113,7 +113,6 @@ fun SettingsScreen(
     onOpenUnlock: () -> Unit = {},
     onOpenTechnical: () -> Unit = {},
     hid: HidLink? = null,
-    onOpenBluetooth: () -> Unit = {},
 ) {
     val context = LocalContext.current
     var picker by remember { mutableStateOf<SecondaryButton?>(null) }
@@ -121,6 +120,7 @@ fun SettingsScreen(
     var forget by remember { mutableStateOf<Forget?>(null) }
     var appsDialog by remember { mutableStateOf(false) }
     var adding by remember { mutableStateOf(false) }
+    var tvBluetooth by remember { mutableStateOf(false) }
     val targets = rememberTargets()
     val target = targets?.state?.collectAsStateWithLifecycle()?.value
     // The phone can be a Bluetooth keyboard: the TV row offers it, and a computer can be added.
@@ -165,9 +165,10 @@ fun SettingsScreen(
                                 TextButton(onClick = onPair) { Text(stringResource(R.string.settings_pair_again)) }
                                 // The code on the TV first, the PSK inside (Erwann, 2026-10-25).
                                 TextButton(onClick = { ipDialog = true }) { Text(stringResource(if (ipRenew) R.string.ipc_renew_action else R.string.ipc_action)) }
-                                // The TV's Bluetooth fallback lives on its row now, not in a group of its own.
-                                if (hidSupported) {
-                                    TextButton(onClick = onOpenBluetooth) { Text(stringResource(R.string.bt_title)) }
+                                // Setup only (Erwann, 2026-10-25): pairing and « Oublier », never a
+                                // trackpad; the remote itself uses this link when the network drops.
+                                if (hidSupported && targets != null) {
+                                    TextButton(onClick = { tvBluetooth = true }) { Text(stringResource(R.string.bt_backup_title)) }
                                 }
                                 TextButton(onClick = { forget = Forget.TV }) { Text(stringResource(R.string.settings_forget)) }
                             }
@@ -369,6 +370,9 @@ fun SettingsScreen(
         }
     }
 
+    if (tvBluetooth && targets != null && hid != null) {
+        TvBluetoothDialog(targets, hid, onDismiss = { tvBluetooth = false })
+    }
     if (adding && targets != null) {
         AddDeviceFlow(
             targets = targets,

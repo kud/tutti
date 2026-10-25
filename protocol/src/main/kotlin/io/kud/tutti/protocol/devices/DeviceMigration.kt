@@ -22,8 +22,9 @@ object DeviceMigration {
 
     /**
      * [current] wins when present: running this twice changes nothing. Otherwise [legacyJson] (the
-     * old `devices` value) and [hidAddress] (the host the Bluetooth screen remembered; that screen
-     * only ever paired the TV) become the TV's and the bar's links. Null when there is nothing.
+     * old `devices` value) and [hidAddress] (the host the version-1 Bluetooth screen remembered,
+     * meant to be the TV; [withoutStrayTvBluetooth] drops it when it was a computer) become the
+     * TV's and the bar's links. Null when there is nothing.
      */
     fun migrate(current: DeviceList?, legacyJson: String?, hidAddress: String?): DeviceList? {
         if (current != null) return current
@@ -36,6 +37,21 @@ object DeviceMigration {
             legacy?.bar?.let { bar -> add(Device(Device.BAR_ID, bar.name, DeviceKind.SOUNDBAR, listOf(DeviceLink.BarIp(bar.host)))) }
         }
         return if (devices.isEmpty()) null else DeviceList(devices)
+    }
+
+    /**
+     * The TV's Bluetooth link, dropped when it points at a computer: one in [list], or a bonded
+     * host the phone reports as a computer ([computers], addresses). Version 1 remembered the last
+     * host its Bluetooth screen connected, and that screen offered every bonded device, so a Mac
+     * picked there became the TV's link at migration (Erwann, 2026-10-25: « kud · home » under the
+     * TV). Dropped, never guessed: the TV row's pairing step sets it again. Unchanged otherwise.
+     */
+    fun withoutStrayTvBluetooth(list: DeviceList, computers: Set<String>): DeviceList {
+        val tv = list.tv ?: return list
+        val address = tv.bluetooth?.address ?: return list
+        val others = computers + list.devices.filter { it.kind == DeviceKind.COMPUTER }.mapNotNull { it.bluetooth?.address }
+        val stray = others.any { it.equals(address, ignoreCase = true) }
+        return if (stray) list.update(tv.id) { it.withoutLink<DeviceLink.Bluetooth>() } else list
     }
 }
 

@@ -27,13 +27,13 @@
     <string name="conn_not_paired">not paired</string>
     <string name="conn_bluetooth_off">the phone\'s Bluetooth is off</string>
     <string name="conn_needs_permission">needs permission</string>
-    <string name="conn_busy">used by another app</string>
+    <string name="conn_busy">taken by another app: only one at a time can be the keyboard</string>
     <string name="conn_not_added">not added</string>
     <string name="conn_gives_google_tv">keys, keyboard, apps</string>
     <string name="conn_gives_sony_ip">icons, HDMI inputs, TV settings</string>
     <string name="conn_gives_bar">volume, sound, power</string>
     <string name="conn_gives_bt_computer">keys, trackpad, typing</string>
-    <string name="conn_gives_bt_tv">keys when the network is down</string>
+    <string name="conn_gives_bt_tv">keys, touchpad and keyboard when the network drops</string>
     <string name="conn_action_pair">Pair</string>
     <string name="conn_action_set_up">Set up</string>
     <string name="conn_action_add">Add</string>

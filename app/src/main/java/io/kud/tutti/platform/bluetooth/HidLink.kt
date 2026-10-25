@@ -53,20 +53,21 @@ data class HidHost(val address: String, val name: String, val isTv: Boolean, val
 data class HidState(
     val support: HidSupport = HidSupport.UNKNOWN,
     val phase: HidPhase = HidPhase.STOPPED,
-    /** The connected TV, or the one tutti will reconnect to. */
+    /** The host connected, or the one being connected to. */
     val host: HidHost? = null,
     val bonded: List<HidHost> = emptyList(),
 )
 
 /**
- * Bluetooth mode: the phone as a keyboard and mouse paired straight to the TV, through Android's
+ * The phone as a Bluetooth keyboard and mouse for the TV or a computer, through Android's
  * `BluetoothHidDevice` profile (API 28+). Reports are built in `:protocol` (`HidReports`); this
  * class only registers, connects and sends.
  *
- * Android lets one app at a time hold the HID device role, so tutti registers only while the
- * Bluetooth screen is in front ([start]) and unregisters when it leaves ([stop]): it never holds
- * the profile in the background, and no foreground service keeps it. A refusal reads [HidPhase.BUSY].
- * The TV it last talked to is remembered (an address, not a secret) so the next [start] reconnects.
+ * Android lets one app at a time hold the HID device role, so tutti registers only while someone
+ * needs it ([acquire]: the remote in front, a pairing step in Settings) and unregisters when the
+ * last one lets go: never in the background, and no foreground service keeps it. A refusal reads
+ * [HidPhase.BUSY]. It connects only to the host it is told to [hold] (a device's own Bluetooth
+ * link); it never falls back to whatever connected last, which once put a Mac under the TV.
  */
 @Singleton
 @SuppressLint("MissingPermission") // Every call that needs BLUETOOTH_CONNECT is behind hasConnect().
@@ -77,16 +78,15 @@ class HidLink @Inject constructor(@ApplicationContext private val context: Conte
     private val adapter: BluetoothAdapter? = context.getSystemService(BluetoothManager::class.java)?.adapter
     private val main = Handler(Looper.getMainLooper())
     private val sends = Executors.newSingleThreadExecutor { Thread(it, "tutti-hid") }
-    private val prefs = context.getSharedPreferences("bluetooth_hid", Context.MODE_PRIVATE)
 
     private var proxy: BluetoothHidDevice? = null
     private var wanted = false
     private var connected: BluetoothDevice? = null
 
-    /** Who wants the role now: the Bluetooth screen, the remote in front. Registered while any does. */
+    /** Who wants the role now: the remote in front, a pairing step in Settings. Registered while any does. */
     private val holders = mutableSetOf<String>()
 
-    /** The host the remote wants connected ([hold]); null leaves the choice to the last one used. */
+    /** The host the remote wants connected ([hold]); null waits for a host to connect on its own. */
     @Volatile private var desired: String? = null
 
     init {
@@ -128,12 +128,6 @@ class HidLink @Inject constructor(@ApplicationContext private val context: Conte
             if (_state.value.support == HidSupport.UNKNOWN) _state.update { it.copy(support = HidSupport.UNSUPPORTED) }
         }, PROBE_MS)
     }
-
-    /** The Bluetooth screen came to the front. */
-    fun start() = acquire(SCREEN)
-
-    /** The Bluetooth screen left. */
-    fun stop() = release(SCREEN)
 
     /** [tag] wants the HID role (the remote in front, the Bluetooth screen). */
     @Synchronized
@@ -189,9 +183,8 @@ class HidLink @Inject constructor(@ApplicationContext private val context: Conte
         _state.update { it.copy(phase = HidPhase.STOPPED) }
     }
 
-    fun reconnect(address: String? = _state.value.host?.address ?: prefs.getString(KEY_HOST, null)) {
+    private fun reconnect(address: String) {
         val p = proxy ?: return
-        val address = address ?: return
         if (!hasConnect() || !BluetoothAdapter.checkBluetoothAddress(address)) return
         val device = adapter?.getRemoteDevice(address) ?: return
         _state.update { it.copy(phase = HidPhase.CONNECTING, host = host(device)) }
@@ -202,13 +195,6 @@ class HidLink @Inject constructor(@ApplicationContext private val context: Conte
         val p = proxy ?: return
         val device = connected ?: return
         if (hasConnect()) p.disconnect(device)
-    }
-
-    /** Forget the remembered TV. Removing the pairing itself is Android's: Settings › Bluetooth. */
-    fun forget() {
-        disconnect()
-        prefs.edit().remove(KEY_HOST).apply()
-        _state.update { it.copy(host = null) }
     }
 
     fun type(strokes: List<KeyStroke>) = send { p, d ->
@@ -270,15 +256,14 @@ class HidLink @Inject constructor(@ApplicationContext private val context: Conte
                 return
             }
             _state.update { it.copy(support = HidSupport.SUPPORTED, phase = HidPhase.READY) }
-            val target = desired ?: pluggedDevice?.address ?: prefs.getString(KEY_HOST, null)
-            if (target != null) reconnect(target)
+            // Only the host asked for; a host that connects by itself (pairing) is still welcome.
+            desired?.let(::reconnect)
         }
 
         override fun onConnectionStateChanged(device: BluetoothDevice, state: Int) {
             when (state) {
                 BluetoothProfile.STATE_CONNECTED -> {
                     connected = device
-                    prefs.edit().putString(KEY_HOST, device.address).apply()
                     _state.update { it.copy(phase = HidPhase.CONNECTED, host = host(device)) }
                     refreshBonded()
                 }
@@ -321,8 +306,6 @@ class HidLink @Inject constructor(@ApplicationContext private val context: Conte
     }
 
     private companion object {
-        const val KEY_HOST = "host"
-        const val SCREEN = "bluetooth-screen"
         const val PROBE_MS = 3_000L
     }
 }

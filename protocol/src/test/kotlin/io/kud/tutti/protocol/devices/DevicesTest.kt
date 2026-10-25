@@ -35,6 +35,17 @@ class DevicesTest {
     }
 
     @Test
+    fun `a tv bluetooth link that is a computer is dropped, the tv's own is kept`() {
+        val onMac = room.update(Device.TV_ID) { it.withLink(DeviceLink.Bluetooth("00:11:22:33:44:66")) }
+        assertEquals(null, DeviceMigration.withoutStrayTvBluetooth(onMac, emptySet()).tv?.bluetooth)
+        val onBonded = room.update(Device.TV_ID) { it.withLink(DeviceLink.Bluetooth("aa:bb:cc:dd:ee:01")) }
+        assertEquals(null, DeviceMigration.withoutStrayTvBluetooth(onBonded, setOf("AA:BB:CC:DD:EE:01")).tv?.bluetooth)
+        val own = room.update(Device.TV_ID) { it.withLink(DeviceLink.Bluetooth("00:11:22:33:44:77", "US")) }
+        assertEquals(own, DeviceMigration.withoutStrayTvBluetooth(own, setOf("AA:BB:CC:DD:EE:01")))
+        assertEquals(room, DeviceMigration.withoutStrayTvBluetooth(room, setOf("00:11:22:33:44:77")))
+    }
+
+    @Test
     fun `migration is idempotent and never overwrites a list already written`() {
         val legacy = """{"tv":{"host":"192.168.1.20"}}"""
         val once = DeviceMigration.migrate(null, legacy, null)

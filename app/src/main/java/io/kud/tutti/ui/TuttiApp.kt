@@ -44,7 +44,6 @@ import io.kud.tutti.controller.TuttiEvent
 import io.kud.tutti.controller.TuttiUiState
 import io.kud.tutti.platform.bluetooth.HidLink
 import io.kud.tutti.platform.diagnostic.Diagnostics
-import io.kud.tutti.ui.bluetooth.BluetoothScreen
 import io.kud.tutti.platform.discovery.TvDiscovery
 import io.kud.tutti.protocol.apps.AppsScreenVerdict
 import io.kud.tutti.protocol.net.WakeAttempt
@@ -86,9 +85,6 @@ sealed interface Screen {
 
     data object Diagnostic : Screen
 
-    /** Bluetooth mode: the phone as the TV's keyboard and mouse, no LAN. */
-    data object Bluetooth : Screen
-
     /** The onboarding; [barOnly] opens it on the bar step alone, for a bar added after the TV. */
     data class Onboarding(val barOnly: Boolean = false, val cancellable: Boolean = false) : Screen
 
@@ -113,7 +109,6 @@ internal object ScreenKey {
         Screen.TvSettings -> "tv-settings"
         Screen.BarSettings -> "bar-settings"
         Screen.Diagnostic -> "diagnostic"
-        Screen.Bluetooth -> "bluetooth"
         is Screen.Onboarding -> "onboarding:${screen.barOnly}:${screen.cancellable}"
         Screen.About -> "about"
         is Screen.Unlock -> "unlock:" + screen.focus?.name.orEmpty()
@@ -129,7 +124,6 @@ internal object ScreenKey {
         key == "tv-settings" -> Screen.TvSettings
         key == "bar-settings" -> Screen.BarSettings
         key == "diagnostic" -> Screen.Diagnostic
-        key == "bluetooth" -> Screen.Bluetooth
         key.startsWith("onboarding:") -> key.split(':').let { Screen.Onboarding(it.getOrNull(1) == "true", it.getOrNull(2) == "true") }
         key == "about" -> Screen.About
         key.startsWith("unlock:") -> Screen.Unlock(io.kud.tutti.ui.settings.Unlock.entries.firstOrNull { it.name == key.removePrefix("unlock:") })
@@ -374,7 +368,6 @@ fun TuttiApp(
                             onOpenBar = { push(Screen.BarSettings) },
                             onOpenDiagnostic = { push(Screen.Diagnostic) },
                             hid = hid,
-                            onOpenBluetooth = { push(Screen.Bluetooth) },
                             onOpenAbout = { push(Screen.About) },
                             onEditLayout = {
                                 editingLayout = true
@@ -405,7 +398,6 @@ fun TuttiApp(
                         Screen.Technical -> TechnicalScreen(state = state, onOpen = controller::loadTechnical, onBack = ::pop)
                         Screen.BarSettings -> BarSettingsScreen(state = state, controller = controller, onBack = ::pop)
                         Screen.Diagnostic -> DiagnosticScreen(diagnostics = diagnostics, onBack = ::pop)
-                        Screen.Bluetooth -> BluetoothScreen(link = hid, onBack = ::pop)
                         is Screen.Onboarding -> OnboardingScreen(
                             state = state,
                             controller = controller,

@@ -26,13 +26,13 @@
     <string name="conn_not_paired">non associé</string>
     <string name="conn_bluetooth_off">Bluetooth du téléphone désactivé</string>
     <string name="conn_needs_permission">autorisation requise</string>
-    <string name="conn_busy">utilisé par une autre app</string>
+    <string name="conn_busy">pris par une autre app : une seule à la fois peut servir de clavier</string>
     <string name="conn_not_added">non ajouté</string>
     <string name="conn_gives_google_tv">touches, clavier, apps</string>
     <string name="conn_gives_sony_ip">icônes, entrées HDMI, réglages TV</string>
     <string name="conn_gives_bar">volume, son, marche / arrêt</string>
     <string name="conn_gives_bt_computer">touches, trackpad, saisie</string>
-    <string name="conn_gives_bt_tv">touches quand le réseau tombe</string>
+    <string name="conn_gives_bt_tv">touches, pavé et clavier quand le réseau tombe</string>
     <string name="conn_action_pair">Associer</string>
     <string name="conn_action_set_up">Configurer</string>
     <string name="conn_action_add">Ajouter</string>
