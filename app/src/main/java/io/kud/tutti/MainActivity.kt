@@ -11,6 +11,9 @@ import io.kud.tutti.platform.display.EveningDimmer
 import io.kud.tutti.platform.shortcuts.ACTION_KEYBOARD
 import io.kud.tutti.platform.shortcuts.ACTION_SCENE
 import io.kud.tutti.platform.shortcuts.EXTRA_SCENE_ID
+import io.kud.tutti.platform.shortcuts.EXTRA_TOKEN
+import io.kud.tutti.platform.shortcuts.ShortcutGuard
+import io.kud.tutti.platform.security.SecureStore
 import io.kud.tutti.platform.shortcuts.publishLauncherShortcuts
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -69,6 +72,8 @@ class MainActivity : ComponentActivity() {
 
     @Inject lateinit var store: TuttiStore
 
+    @Inject lateinit var secure: SecureStore
+
     override fun onCreate(savedInstanceState: Bundle?) {
         val splash = installSplashScreen()
         enableEdgeToEdge()
@@ -85,7 +90,9 @@ class MainActivity : ComponentActivity() {
         // The launcher's shortcuts follow his scenes (gesture audit item 10).
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
-                store.scenes.distinctUntilChanged().collect { publishLauncherShortcuts(this@MainActivity, it) }
+                // Scene shortcuts carry this install's token; without a readable one, none are rewritten.
+                val token = runCatching { secure.shortcutToken() }.getOrNull() ?: return@repeatOnLifecycle
+                store.scenes.distinctUntilChanged().collect { publishLauncherShortcuts(this@MainActivity, it, token) }
             }
         }
         // "Salle obscure": the window dims in the evening while the TV is on, only while in front.
@@ -138,10 +145,22 @@ class MainActivity : ComponentActivity() {
         handleShortcut(intent)
     }
 
-    /** A launcher shortcut: apply its scene, or open the keyboard view. */
+    /**
+     * A launcher shortcut: apply its scene, or open the keyboard view. This activity is exported, so
+     * a scene runs only with this install's token ([ShortcutGuard]); any other [ACTION_SCENE] just
+     * opens the app, silently. Read off the intent here, before the token check suspends.
+     */
     private fun handleShortcut(intent: Intent?) {
         when (intent?.action) {
-            ACTION_SCENE -> intent.getStringExtra(EXTRA_SCENE_ID)?.let(controller::applyScene)
+            ACTION_SCENE -> {
+                val sceneId = intent.getStringExtra(EXTRA_SCENE_ID)
+                val presented = intent.getStringExtra(EXTRA_TOKEN)
+                if (sceneId.isNullOrBlank() || presented.isNullOrBlank()) return
+                lifecycleScope.launch {
+                    val expected = runCatching { secure.shortcutToken() }.getOrNull()
+                    ShortcutGuard.sceneToRun(ACTION_SCENE, sceneId, presented, expected)?.let(controller::applyScene)
+                }
+            }
             ACTION_KEYBOARD -> controller.askKeyboard()
         }
     }

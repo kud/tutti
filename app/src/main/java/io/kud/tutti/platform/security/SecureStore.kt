@@ -2,12 +2,14 @@ package io.kud.tutti.platform.security
 
 import android.util.Base64
 import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import io.kud.tutti.protocol.bravia.AuthCookie
 import io.kud.tutti.protocol.devices.Device
 import io.kud.tutti.protocol.devices.SecretKeys
+import io.kud.tutti.platform.shortcuts.ShortcutGuard
 import io.kud.tutti.protocol.net.CertificatePin
 import kotlinx.coroutines.flow.first
 import javax.inject.Inject
@@ -58,6 +60,25 @@ class SecureStore @Inject constructor(
         store.edit { prefs -> SecretKeys.all(id).forEach { prefs.remove(stringPreferencesKey(it)) } }
     }
 
+    /**
+     * This install's launcher-shortcut token ([ShortcutGuard]), created on first use. Not a device
+     * secret: forgetting a device or signing out of Sony leaves it, so pinned shortcuts keep
+     * working. Unreadable (the Keystore key gone) means a new one, and the next publish of the
+     * shortcuts carries it.
+     */
+    suspend fun shortcutToken(): String {
+        read(SHORTCUT_TOKEN)?.let { return it }
+        var token = ""
+        store.edit { prefs ->
+            token = ensureShortcutToken(
+                prefs,
+                open = { encoded -> runCatching { Base64.decode(encoded, Base64.NO_WRAP) }.getOrNull()?.let(cipher::decrypt)?.decodeToString() },
+                seal = { plain -> Base64.encodeToString(cipher.encrypt(plain.encodeToByteArray()), Base64.NO_WRAP) },
+            )
+        }
+        return token
+    }
+
     /** Copies the version-1 keys to the per-device ones, once; safe to run on every start. */
     suspend fun migrate() {
         store.edit { SecretMigration.apply(it) }
@@ -82,6 +103,24 @@ class SecureStore @Inject constructor(
     companion object {
         const val SECURE = "secure"
         private const val TV = Device.TV_ID
+
+        /** Secure-store key of the launcher-shortcut token; outside [SecretKeys], which are per device. */
+        const val SHORTCUT_TOKEN = "shortcut/token"
+
+        /**
+         * Inside one edit: the readable token already stored, else a fresh one written in its place.
+         * [open] and [seal] are the cipher and its encoding; touches no other key.
+         */
+        internal fun ensureShortcutToken(
+            prefs: MutablePreferences,
+            open: (String) -> String?,
+            seal: (String) -> String,
+            fresh: () -> String = { ShortcutGuard.newToken() },
+        ): String {
+            val key = stringPreferencesKey(SHORTCUT_TOKEN)
+            prefs[key]?.let(open)?.takeIf { it.isNotBlank() }?.let { return it }
+            return fresh().also { prefs[key] = seal(it) }
+        }
 
         private fun legacyOf(name: String): String? = SecretKeys.legacy.entries.firstOrNull { it.value == name }?.key
 

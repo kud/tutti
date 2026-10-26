@@ -25,4 +25,10 @@ class LauncherShortcutsTest {
         assertEquals(listOf("scene-a", "keyboard"), launcherShortcuts(listOf(scene("a"), scene("b")), "K", max = 2).map { it.id })
         assertTrue(launcherShortcuts(listOf(scene("a")), "K", max = 0).isEmpty())
     }
+
+    @Test
+    fun pinnedShortcutsOfLiveScenesAreRepublished() {
+        val kept = pinnedSceneShortcuts(listOf("scene-d", "scene-gone"), listOf(scene("a"), scene("d")))
+        assertEquals(listOf(LauncherShortcut("scene-d", "Scene d", "d")), kept)
+    }
 }

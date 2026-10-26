@@ -28,30 +28,46 @@ const val EXTRA_SCENE_ID = "io.kud.tutti.extra.SCENE_ID"
 private const val KEYBOARD_ID = "keyboard"
 private const val SCENE_PREFIX = "scene-"
 
-/** Replaces the dynamic shortcuts with [scenes]'s; a deleted scene's pinned copy is disabled. */
-fun publishLauncherShortcuts(context: Context, scenes: List<Scene>) {
+/**
+ * Replaces the dynamic shortcuts with [scenes]'s; a deleted scene's pinned copy is disabled. Every
+ * scene shortcut carries [token] ([ShortcutGuard]), and a pinned scene shortcut that is no longer
+ * among the dynamic ones is rewritten with it too, so a shortcut pinned before the token existed (or
+ * before a new token) works again from the first time the app is opened after the update.
+ */
+fun publishLauncherShortcuts(context: Context, scenes: List<Scene>, token: String) {
     val max = ShortcutManagerCompat.getMaxShortcutCountPerActivity(context).coerceAtMost(4)
     val list = launcherShortcuts(scenes, context.getString(R.string.shortcut_keyboard), max)
-    val infos = list.mapIndexed { rank, shortcut ->
-        val intent = Intent(context, MainActivity::class.java)
-            .setAction(if (shortcut.sceneId == null) ACTION_KEYBOARD else ACTION_SCENE)
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-        shortcut.sceneId?.let { intent.putExtra(EXTRA_SCENE_ID, it) }
-        ShortcutInfoCompat.Builder(context, shortcut.id)
-            .setShortLabel(shortcut.label)
-            .setLongLabel(
-                if (shortcut.sceneId == null) context.getString(R.string.shortcut_keyboard_long) else context.getString(R.string.shortcut_scene_long, shortcut.label),
-            )
-            .setIcon(IconCompat.createWithResource(context, if (shortcut.sceneId == null) R.drawable.ic_keyboard else R.drawable.ic_scene))
-            .setIntent(intent)
-            .setRank(rank)
-            .build()
-    }
+    val infos = list.mapIndexed { rank, shortcut -> shortcutInfo(context, shortcut, token, rank) }
     runCatching {
         ShortcutManagerCompat.setDynamicShortcuts(context, infos)
         val live = list.map { it.id }.toSet()
-        val gone = ShortcutManagerCompat.getShortcuts(context, ShortcutManagerCompat.FLAG_MATCH_PINNED)
-            .map { it.id }.filter { it.startsWith(SCENE_PREFIX) && it !in live && scenes.none { s -> SCENE_PREFIX + s.id == it } }
+        val pinned = ShortcutManagerCompat.getShortcuts(context, ShortcutManagerCompat.FLAG_MATCH_PINNED)
+            .map { it.id }.filter { it.startsWith(SCENE_PREFIX) && it !in live }
+        val kept = pinnedSceneShortcuts(pinned, scenes)
+        if (kept.isNotEmpty()) ShortcutManagerCompat.updateShortcuts(context, kept.map { shortcutInfo(context, it, token, rank = 0) })
+        val gone = pinned.filter { id -> kept.none { it.id == id } }
         if (gone.isNotEmpty()) ShortcutManagerCompat.disableShortcuts(context, gone, null)
     }
+}
+
+/** The pinned scene shortcuts among [pinnedIds] whose scene still exists, to republish with the token. */
+fun pinnedSceneShortcuts(pinnedIds: List<String>, scenes: List<Scene>): List<LauncherShortcut> =
+    pinnedIds.mapNotNull { id ->
+        scenes.firstOrNull { SCENE_PREFIX + it.id == id }?.let { LauncherShortcut(id, it.name, it.id) }
+    }
+
+private fun shortcutInfo(context: Context, shortcut: LauncherShortcut, token: String, rank: Int): ShortcutInfoCompat {
+    val intent = Intent(context, MainActivity::class.java)
+        .setAction(if (shortcut.sceneId == null) ACTION_KEYBOARD else ACTION_SCENE)
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+    shortcut.sceneId?.let { intent.putExtra(EXTRA_SCENE_ID, it).putExtra(EXTRA_TOKEN, token) }
+    return ShortcutInfoCompat.Builder(context, shortcut.id)
+        .setShortLabel(shortcut.label)
+        .setLongLabel(
+            if (shortcut.sceneId == null) context.getString(R.string.shortcut_keyboard_long) else context.getString(R.string.shortcut_scene_long, shortcut.label),
+        )
+        .setIcon(IconCompat.createWithResource(context, if (shortcut.sceneId == null) R.drawable.ic_keyboard else R.drawable.ic_scene))
+        .setIntent(intent)
+        .setRank(rank)
+        .build()
 }
