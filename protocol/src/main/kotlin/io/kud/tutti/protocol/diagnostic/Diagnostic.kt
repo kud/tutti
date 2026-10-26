@@ -58,6 +58,12 @@ object DiagnosticSteps {
         RestRead("rest.inputs", "avContent", "getCurrentExternalInputsStatus"),
         RestRead("rest.playing", "avContent", "getPlayingContentInfo", raw = true),
         RestRead("rest.apps", "appControl", "getApplicationList"),
+        // Read-only getters that settle "unverified" rows on his own TV (architecture.md, "Verified vs not").
+        RestRead("rest.time", "system", "getCurrentTime"),
+        RestRead("rest.wol", "system", "getWolMode"),
+        RestRead("rest.scene", "videoScreen", "getSceneSetting"),
+        // Pro-display in Sony's reference: asked only where getMethodTypes lists it, under whichever service.
+        RestRead("rest.settings_schema", "system", "getSettingsSchema", anyService = true),
     )
 
     val ALL: List<Pair<String, Plane>> = buildList {
@@ -83,7 +89,8 @@ object DiagnosticSteps {
 /**
  * [target]: the method takes `[{"target":""}]` (every setting). [raw]: in developer mode the
  * report also keeps the reply itself, scrubbed, not only its shape (the playing content, whose
- * answer while an app plays is undocumented).
+ * answer while an app plays is undocumented). [anyService]: the service is not documented for
+ * this TV; the read goes to whichever service the discovery lists it under, and only there.
  */
 data class RestRead(
     val id: String,
@@ -91,6 +98,7 @@ data class RestRead(
     val method: String,
     val target: Boolean = false,
     val raw: Boolean = false,
+    val anyService: Boolean = false,
 )
 
 /** Short, stable error classes, so two reports can be compared at a glance. */

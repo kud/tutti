@@ -168,6 +168,30 @@ class DiagnosticRunnerTest {
     private fun List<StepResult>.of(id: String) = first { it.id == id }
 
     @Test
+    fun `the extra reads go only where the TV lists them, and settings schema under its own service`() = runTest {
+        val rest = FakeRest { method ->
+            when (method) {
+                "getMethodTypes" -> ok("""[["getCurrentTime","[]","[\"string\"]","1.0"],["getSettingsSchema","[]","[]","1.0"]]""")
+                "getCurrentTime" -> ok("""["2026-10-26T21:40:00+0100"]""")
+                "getSettingsSchema" -> ok("""[{"target":"x","type":"string"}]""")
+                else -> livingRoomTv(method)
+            }
+        }
+        val runner = DiagnosticRunner(targets(bar = null), rest, RefusingTls, FakeTcp(null), { client }, null, "unavailable")
+        runner.run()
+        val steps = runner.steps.value
+        assertEquals(StepStatus.OK, steps.of("rest.time").status)
+        assertEquals(StepStatus.OK, steps.of("rest.settings_schema").status)
+        assertTrue(steps.of("rest.settings_schema").facts.any { it.first == "call" && it.second.startsWith("system.getSettingsSchema") })
+        // Listed nowhere (every service answered getMethodTypes with the same list here, so videoScreen lists no scene getter).
+        assertEquals(StepStatus.SKIPPED, steps.of("rest.scene").status)
+        assertEquals("not_listed", steps.of("rest.scene").errorClass)
+        assertFalse("getSceneSetting" in rest.methods)
+        // Nothing but getters went out.
+        assertTrue(rest.methods.all { it.startsWith("get") }, rest.methods.toString())
+    }
+
+    @Test
     fun `nothing configured skips every step without touching the network`() = runTest {
         val tcp = FakeTcp(null)
         val runner = DiagnosticRunner(targets(tv = null, bar = null, psk = null, pin = null), null, RefusingTls, tcp, { null }, null, "unavailable")

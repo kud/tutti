@@ -193,15 +193,23 @@ class DiagnosticRunner(
         }
 
         for (read in DiagnosticSteps.REST_READS) {
-            val service = BraviaService.entries.first { it.id == read.service }
             val caps = client.capabilities
+            val service = if (read.anyService) {
+                BraviaService.entries.firstOrNull { caps.supports(it, read.method) }
+            } else {
+                BraviaService.entries.first { it.id == read.service }
+            }
+            if (service == null) {
+                skip(read.id, "${read.method} not listed by any service", "not_listed")
+                continue
+            }
             if (caps.isKnown(service) && !caps.supports(service, read.method)) {
                 skip(read.id, "${read.method} not listed by getMethodTypes", "not_listed")
                 continue
             }
             step(read.id) {
                 val version = caps.version(service, read.method) ?: BraviaClient.DEFAULT_VERSIONS[read.method] ?: "1.0"
-                fact("call", "${read.service}.${read.method}@$version")
+                fact("call", "${service.id}.${read.method}@$version")
                 val params = if (read.target) listOf(buildJsonObject { put("target", "") }) else emptyList()
                 val result = expect(client.call(service, read.method, params))
                 fact("shape", JsonShape.of(result, scrub))
