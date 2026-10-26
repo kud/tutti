@@ -335,6 +335,17 @@ class BraviaSimTest {
     }
 
     @Test
+    fun `an HTTP icon redirected to HTTPS is asked over HTTPS from the pinned TV, never by following the redirect`() = runBlocking {
+        tv.files["/DIAL/icon/a.png"] = png
+        tv.httpGetsRedirect = true
+        val unpinned = transport()
+        assertEquals(IconAttempt(IconOutcome.HTTP_STATUS, "301"), unpinned.fetchIcon("http://$HOST:${tv.http.port}/DIAL/icon/a.png").failure())
+        val transport = pinnedTransport()
+        val got = transport.fetchIcon("http://$HOST:${tv.http.port}/DIAL/icon/a.png")
+        assertTrue("$got", got is OkHttpBraviaTransport.IconFetch.Image)
+    }
+
+    @Test
     fun `HTTPS icons wait for a pin, and other hosts are refused`() = runBlocking {
         tv.files["/DIAL/icon/a.png"] = png
         val transport = transport()

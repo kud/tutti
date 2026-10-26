@@ -52,6 +52,32 @@ object BrandColours {
         return ratio in 0.8..1.25
     }
 
+    /** How a decoded TV icon sits in its tile. */
+    sealed interface TvLook {
+        /** Square enough: cropped edge to edge. */
+        data object Crop : TvLook
+
+        /** A banner fitted to the width on its corners' shared colour. */
+        data class Fill(val colour: Int) : TvLook
+
+        /**
+         * A banner whose corners disagree (a gradient or a photo, as most Android TV banners are):
+         * fitted to the width over a blurred copy of itself cropped to the tile, so neither a seam
+         * nor a cropped wordmark shows (Iris, 2026-10-26).
+         */
+        data object Backdrop : TvLook
+    }
+
+    /**
+     * The look for a decoded TV icon of [width] x [height]; [corners] is read only for a banner.
+     * Null only when nothing decoded: then, and only then, the tile falls through to the next source.
+     */
+    fun tvLook(width: Int, height: Int, corners: () -> IntArray): TvLook? = when {
+        width <= 0 || height <= 0 -> null
+        isSquareish(width, height) -> TvLook.Crop
+        else -> bannerFill(corners())?.let { TvLook.Fill(it) } ?: TvLook.Backdrop
+    }
+
     /**
      * The flat colour a banner can be letterboxed with: its corners' shared colour, or null when
      * they disagree (a gradient or photo behind the wordmark would show a seam). Iris, 2026-10-25.

@@ -1,6 +1,7 @@
 package io.kud.tutti.protocol.apps
 
 import io.kud.tutti.protocol.atv.AppCatalog
+import io.kud.tutti.protocol.bravia.HtmlText
 import io.kud.tutti.protocol.bravia.TvApp
 import kotlinx.serialization.Serializable
 
@@ -58,10 +59,14 @@ object AppLibrary {
         return byPackage.values.sortedBy { it.name.lowercase() }
     }
 
-    /** Everything to show: every app ever seen, plus the catalog entries the TV never listed. */
+    /**
+     * Everything to show: every app ever seen, plus the catalog entries the TV never listed. A name
+     * stored before titles were decoded ("Live TV &amp; Catch Up") is decoded here, until the TV
+     * lists it again.
+     */
     fun all(seen: List<KnownApp>): List<KnownApp> {
         val known = seen.associateBy { it.packageName }
         val catalog = AppCatalog.apps.filter { it.packageName !in known }.map { KnownApp(it.packageName, it.name) }
-        return (seen + catalog).sortedBy { it.name.lowercase() }
+        return (seen.map { it.copy(name = HtmlText.decode(it.name)) } + catalog).sortedBy { it.name.lowercase() }
     }
 }

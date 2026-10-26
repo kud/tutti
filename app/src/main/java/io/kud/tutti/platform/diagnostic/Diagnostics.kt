@@ -6,6 +6,7 @@ import android.net.NetworkCapabilities
 import android.os.Build
 import dagger.hilt.android.qualifiers.ApplicationContext
 import io.kud.tutti.controller.TuttiController
+import io.kud.tutti.platform.data.IconBitmaps
 import io.kud.tutti.platform.data.PhoneIconBitmaps
 import io.kud.tutti.platform.discovery.DiscoveredTv
 import io.kud.tutti.platform.discovery.TvDiscovery
@@ -24,6 +25,7 @@ import io.kud.tutti.protocol.atv.ImeFieldKind
 import io.kud.tutti.protocol.net.Redact
 import io.kud.tutti.protocol.net.TcpConnector
 import io.kud.tutti.protocol.net.TlsConnector
+import io.kud.tutti.ui.common.BrandColours
 import io.kud.tutti.ui.common.brandFace
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -184,8 +186,27 @@ class Diagnostics @Inject constructor(
                 else -> "letter"
             }
         }
-        return listOf("app icons" to lines.first()) +
+        return listOf("app icons" to lines.first(), "tv icon looks" to tvIconLooks()) +
             lines.drop(1).mapIndexed { i, line -> "app icon %02d".format(i + 1) to line }
+    }
+
+    /**
+     * How each cached TV icon is drawn ([BrandColours.tvLook]): "cached" alone once hid a sheet of
+     * letter tiles, since every banner whose corners disagreed was dropped after a good fetch.
+     */
+    private fun tvIconLooks(): String {
+        val paths = controller.state.value.appIcons.values
+        if (paths.isEmpty()) return "none cached"
+        val looks = paths.map { path ->
+            val bitmap = runCatching { IconBitmaps.load(path, 64) }.getOrNull()
+            when (bitmap?.let { b -> BrandColours.tvLook(b.width, b.height) { intArrayOf(b.getPixel(0, 0), b.getPixel(b.width - 1, 0), b.getPixel(0, b.height - 1), b.getPixel(b.width - 1, b.height - 1)) } }) {
+                null -> "undecodable"
+                BrandColours.TvLook.Crop -> "square"
+                is BrandColours.TvLook.Fill -> "banner on flat corners"
+                BrandColours.TvLook.Backdrop -> "banner on its backdrop"
+            }
+        }
+        return looks.groupingBy { it }.eachCount().entries.sortedBy { it.key }.joinToString { "${it.key} ${it.value}" }
     }
 
     /**
