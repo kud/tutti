@@ -29,6 +29,16 @@ class ConnectionsTest {
         connections(input).first { it.id == device }.lines.first { it.link == link }
 
     @Test
+    fun aBarFoundElsewhereIsAnOfferWithItsOneStepNeverAMove() {
+        val moved = room.copy(bar = Link.UNREACHABLE, barOffer = true)
+        assertEquals(ConnLine(ConnLink.NETWORK, ConnWords.MOVED, ConnAction.USE_NEW_ADDRESS), line(moved, "bar", ConnLink.NETWORK))
+        assertEquals(ConnFocus("bar", ConnLink.NETWORK), problemLine(connections(moved)))
+        // Back at its own address, the offer no longer shows.
+        assertEquals(ConnLine(ConnLink.NETWORK, ConnWords.CONNECTED), line(room.copy(barOffer = true), "bar", ConnLink.NETWORK))
+        assertEquals(ConnAction.SET_UP_BAR, line(room.copy(bar = Link.UNREACHABLE), "bar", ConnLink.NETWORK).action)
+    }
+
+    @Test
     fun allWellSaysConnectedAndOffersNothing() {
         val tv = connections(room).first()
         assertEquals(listOf(ConnLink.GOOGLE_TV, ConnLink.SONY_IP), tv.lines.map { it.link })

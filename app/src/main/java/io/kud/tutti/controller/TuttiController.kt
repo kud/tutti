@@ -69,6 +69,10 @@ import io.kud.tutti.protocol.bravia.Registration
 import io.kud.tutti.protocol.bravia.getOrNull
 import io.kud.tutti.protocol.grpc.SonyCloudPlane
 import io.kud.tutti.protocol.net.LanAddress
+import io.kud.tutti.protocol.net.BarAddressOffer
+import io.kud.tutti.protocol.net.PublicKeyPin
+import io.kud.tutti.protocol.net.Rediscovery
+import io.kud.tutti.protocol.theatre.BarProbe
 import io.kud.tutti.protocol.net.ClientIdentity
 import io.kud.tutti.protocol.diagnostic.ErrorClass
 import io.kud.tutti.protocol.diagnostic.FailureReport
@@ -158,9 +162,10 @@ class TuttiController @Inject constructor(
     private val secure: SecureStore,
     private val identities: ClientIdentityStore,
     private val tls: io.kud.tutti.protocol.net.TlsConnector,
-    tcp: io.kud.tutti.protocol.net.TcpConnector,
+    private val tcp: io.kud.tutti.protocol.net.TcpConnector,
     val cloud: SonyCloudPlane,
     cast: io.kud.tutti.protocol.cast.CastConnector,
+    private val discovery: io.kud.tutti.platform.discovery.TvDiscovery,
 ) {
     /** Application-lifetime scope; widgets may launch into it. */
     val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default + loggingHandler { Log.e(TAG, it) })
@@ -225,6 +230,22 @@ class TuttiController @Inject constructor(
     @Volatile private var tvWasUp = false
 
     @Volatile private var tvDownSince: Long? = null
+
+    /** When each device was last looked for by mDNS (elapsedRealtime), for [Rediscovery.due]. */
+    @Volatile private var tvBrowsedAt: Long? = null
+
+    @Volatile private var barBrowsedAt: Long? = null
+
+    /** The bar's model as it last named it, so an offer is only ever the same model. */
+    @Volatile private var barModel: String? = null
+
+    private val barOffer = MutableStateFlow<BarAddressOffer?>(null)
+
+    /**
+     * The soundbar seems to answer at another address ([Rediscovery.barOffer]): an offer the
+     * Connexions sheet shows, applied only by [useBarAddressOffer]. Never applied on its own.
+     */
+    val barAddressOffer: StateFlow<BarAddressOffer?> = barOffer
 
     private val mutableEvents = MutableSharedFlow<TuttiEvent>(extraBufferCapacity = 16)
     val events: SharedFlow<TuttiEvent> = mutableEvents.asSharedFlow()
@@ -505,6 +526,7 @@ class TuttiController @Inject constructor(
             return
         }
         var wait = MIN_BACKOFF_MS
+        var failures = 0
         try {
             while (scope.isActive) {
                 links.update { it.copy(bar = Link.CONNECTING) }
@@ -520,9 +542,14 @@ class TuttiController @Inject constructor(
                 if (connected) {
                     links.update { it.copy(bar = Link.ONLINE) }
                     linkNotes.update { it.copy(bar = null) }
+                    barOffer.value = null
+                    failures = 0
                     wait = MIN_BACKOFF_MS
                     coroutineScope {
                         val probe = launch { voiceZoom.value = theatre.probe(TheatreFeature.VOICE_ZOOM) }
+                        val model = launch {
+                            theatre.state.map { it.confirmed[TheatreFeature.MODEL.key] }.filterNotNull().collect { barModel = it }
+                        }
                         val poll = launch {
                             // DRC and Auto Volume never notify; polling also proves the link is alive:
                             // a bar that died without closing the socket answers nothing (SilenceWatch).
@@ -546,11 +573,19 @@ class TuttiController @Inject constructor(
                         }
                         theatre.state.first { !it.connected }
                         probe.cancel()
+                        model.cancel()
                         poll.cancel()
                     }
                     linkNotes.update { it.copy(bar = failureDetail("soundbar: session", outcome = "connected, then the bar closed the link or stopped answering")) }
+                } else {
+                    failures++
                 }
                 links.update { it.copy(bar = Link.UNREACHABLE) }
+                val now = SystemClock.elapsedRealtime()
+                if (Rediscovery.due(failures, barBrowsedAt, now)) {
+                    barBrowsedAt = now
+                    lookForBar(bar)
+                }
                 backoff(wait)
                 wait = (wait * 2).coerceAtMost(MAX_BACKOFF_MS)
             }
@@ -594,6 +629,7 @@ class TuttiController @Inject constructor(
         }
         var wait = MIN_BACKOFF_MS
         var handshakeFailures = 0
+        var unreachable = 0
         try {
             while (scope.isActive) {
                 // Once the TV has refused our certificate twice, it keeps reading "pair again" between tries.
@@ -630,21 +666,119 @@ class TuttiController @Inject constructor(
                 }
                 if (outcome == Link.ONLINE) {
                     handshakeFailures = 0
+                    unreachable = 0
                     tvLastConnect = null
                     wait = MIN_BACKOFF_MS
                     links.update { it.copy(tv = Link.ONLINE) }
                     linkNotes.update { it.copy(tv = null) }
                     atv.state.first { !it.ready }
                     linkNotes.update { it.copy(tv = failureDetail("tv remote: session", outcome = "connected, then the link dropped")) }
+                } else {
+                    unreachable++
                 }
                 atv.disconnect()
                 links.update { it.copy(tv = Link.UNREACHABLE) }
+                val now = SystemClock.elapsedRealtime()
+                // A new address restarts every session (the stored host changed), this loop included.
+                if (Rediscovery.due(unreachable, tvBrowsedAt, now)) {
+                    tvBrowsedAt = now
+                    lookForTv(device, identity, pin)
+                }
                 backoff(wait)
                 wait = (wait * 2).coerceAtMost(MAX_BACKOFF_MS)
             }
         } finally {
             atv.disconnect()
             links.update { it.copy(tv = it.tv.stopped()) }
+        }
+    }
+
+    /**
+     * The TV stopped answering at its stored address: browse `_androidtvremote2._tcp` once and move
+     * to an address that presents the pinned Remote v2 certificate, or failing that the pinned REST
+     * public key ([Rediscovery.tvConfirmed]). Nothing is sent but the TLS handshake and, for REST,
+     * one unauthenticated getInterfaceInformation; a host that proves nothing is left alone.
+     */
+    private suspend fun lookForTv(device: TvDevice, identity: ClientIdentity, pin: io.kud.tutti.protocol.net.CertificatePin) {
+        val found = discovery.hosts(listOf(io.kud.tutti.platform.discovery.TvDiscovery.SERVICE_TYPE), REDISCOVERY_WINDOW_MS)
+        val others = listOfNotNull(store.devices.first().bar?.host)
+        val candidates = Rediscovery.candidates(found, device.host, others)
+        if (candidates.isEmpty()) return
+        val restPin = secure.tvRestPin()
+        for (host in candidates) {
+            val remoteSeen = seenRemotePin(host, identity, pin)
+            val restSeen = if (remoteSeen == null && restPin is PublicKeyPin) seenRestKey(host, restPin) else null
+            if (!Rediscovery.tvConfirmed(remoteSeen, restSeen, pin, restPin)) continue
+            Log.i(TAG, "tv found again at a new address by mDNS (${if (remoteSeen != null) "remote pin" else "rest key"})")
+            store.updateDevices { devices ->
+                val current = devices.tv
+                if (current == null || current.host != device.host) devices else devices.copy(tv = current.copy(host = host))
+            }
+            return
+        }
+    }
+
+    /** The Remote v2 certificate [host] presents, if it is the pinned one (the connector refuses any other). */
+    private suspend fun seenRemotePin(host: String, identity: ClientIdentity, pin: io.kud.tutti.protocol.net.CertificatePin): io.kud.tutti.protocol.net.CertificatePin? {
+        val connection = try {
+            withTimeoutOrNull(PROBE_TIMEOUT_MS) { tls.connect(host, AtvRemote.PORT, identity, pin) } ?: return null
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            return null
+        }
+        return try {
+            io.kud.tutti.protocol.net.CertificatePin.of(connection.peerCertificate)
+        } finally {
+            connection.close()
+        }
+    }
+
+    /** The REST public key [host] presents over HTTPS when it is [pin]: one unauthenticated getInterfaceInformation. */
+    private suspend fun seenRestKey(host: String, pin: PublicKeyPin): PublicKeyPin? {
+        val transport = OkHttpBraviaTransport(host, pin) { }
+        return try {
+            withTimeoutOrNull(PROBE_TIMEOUT_MS) {
+                transport.post(
+                    BraviaService.SYSTEM.path,
+                    io.kud.tutti.protocol.bravia.JsonRpc.request("getInterfaceInformation", 1, emptyList(), "1.0"),
+                    mapOf("Content-Type" to "application/json; charset=UTF-8"),
+                )
+                transport.observedPin
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    /**
+     * The bar stopped answering at its stored address: browse what a bar may advertise, ask each
+     * new private address its model on port 33336 (one read-only `get`), and offer the first that
+     * answers as the same model. Never moves the bar: the user applies the offer
+     * ([useBarAddressOffer]), since nothing on that port proves which bar it is.
+     */
+    private suspend fun lookForBar(bar: BarDevice) {
+        val found = discovery.hosts(io.kud.tutti.platform.discovery.TvDiscovery.BAR_SERVICE_TYPES, REDISCOVERY_WINDOW_MS / 2)
+        val others = listOfNotNull(store.devices.first().tv?.host)
+        for (host in Rediscovery.candidates(found, bar.host, others)) {
+            val offer = Rediscovery.barOffer(host, BarProbe.model(tcp, host), barModel) ?: continue
+            Log.i(TAG, "a soundbar answers at another address: offered, not applied")
+            barOffer.value = offer
+            return
+        }
+    }
+
+    /** Applies the bar's [barAddressOffer]: the bar's stored address becomes the offered one, and its session restarts there. */
+    fun useBarAddressOffer() {
+        val offer = barOffer.value ?: return
+        barOffer.value = null
+        scope.launch {
+            store.updateDevices { devices ->
+                val current = devices.bar ?: return@updateDevices devices
+                devices.copy(bar = current.copy(host = offer.host))
+            }
         }
     }
 
@@ -2551,6 +2685,12 @@ class TuttiController @Inject constructor(
         private const val MIN_BACKOFF_MS = 1_000L
         private const val MAX_BACKOFF_MS = 30_000L
         private const val READY_TIMEOUT_MS = 8_000L
+
+        /** How long one mDNS browse listens before the candidates are probed. */
+        private const val REDISCOVERY_WINDOW_MS = 6_000L
+
+        /** One identity probe of a candidate address (TLS handshake, or one REST call). */
+        private const val PROBE_TIMEOUT_MS = 5_000L
         private const val POLL_BAR_MS = 20_000L
         private const val REASK_EVERY_POLLS = 3
         private const val OVERRIDE_MS = 2_500L

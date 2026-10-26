@@ -40,6 +40,12 @@ enum class ConnWords {
     /** Another app holds the phone's keyboard-and-mouse role. */
     BUSY,
     NOT_ADDED,
+
+    /**
+     * The bar no longer answers at its address, and a bar of the same model answers at another one
+     * (mDNS, then port 33336): an offer, never applied without the user ([ConnAction.USE_NEW_ADDRESS]).
+     */
+    MOVED,
     ;
 
     val mark: ConnMark get() = when (this) {
@@ -47,7 +53,7 @@ enum class ConnWords {
         CONNECTING, RECONNECTING -> ConnMark.WORKING
         STANDBY -> ConnMark.ASLEEP
         READY, NOT_SET_UP, NOT_PAIRED, NOT_ADDED -> ConnMark.TODO
-        UNREACHABLE, KEY_REFUSED, CODE_TO_RENEW, NEEDS_PAIRING, BLUETOOTH_OFF, NEEDS_PERMISSION, BUSY -> ConnMark.PROBLEM
+        UNREACHABLE, KEY_REFUSED, CODE_TO_RENEW, NEEDS_PAIRING, BLUETOOTH_OFF, NEEDS_PERMISSION, BUSY, MOVED -> ConnMark.PROBLEM
     }
 }
 
@@ -68,6 +74,9 @@ enum class ConnAction {
     /** The soundbar step of "What tutti can do": External control in BRAVIA Connect. */
     SET_UP_BAR,
     ADD_BAR,
+
+    /** Move the bar to the address it was found answering at ([TuttiController.useBarAddressOffer]). */
+    USE_NEW_ADDRESS,
 
     /** Point the remote at this computer: the Bluetooth link follows the target. */
     CONTROL,
@@ -109,6 +118,8 @@ data class ConnInput(
     val barId: String? = null,
     val barName: String? = null,
     val bar: Link = Link.ABSENT,
+    /** A bar of the same model answers at another address ([TuttiController.barAddressOffer]). */
+    val barOffer: Boolean = false,
     val computers: List<ConnComputer> = emptyList(),
     val hidPhase: HidPhase = HidPhase.STOPPED,
     val hidConnectedTo: String? = null,
@@ -116,7 +127,7 @@ data class ConnInput(
     val targetId: String? = null,
 )
 
-fun connInput(state: TuttiUiState, t: TargetState): ConnInput {
+fun connInput(state: TuttiUiState, t: TargetState, barOffer: Boolean = false): ConnInput {
     val tv = t.list.tv
     return ConnInput(
         tvId = tv?.id,
@@ -130,6 +141,7 @@ fun connInput(state: TuttiUiState, t: TargetState): ConnInput {
         barId = t.list.bar?.id,
         barName = state.devices.bar?.name,
         bar = state.links.bar,
+        barOffer = barOffer,
         computers = t.list.devices.filter { it.kind == DeviceKind.COMPUTER }.map { ConnComputer(it.id, it.name, it.bluetooth?.address) },
         hidPhase = t.hidPhase,
         hidConnectedTo = t.hidConnectedTo,
@@ -167,7 +179,7 @@ fun connections(input: ConnInput): List<ConnDevice> = buildList {
             add(ConnDevice(BAR_SLOT, null, DeviceKind.SOUNDBAR, listOf(ConnLine(ConnLink.NETWORK, ConnWords.NOT_ADDED, ConnAction.ADD_BAR))))
         }
     } else {
-        add(ConnDevice(input.barId ?: BAR_SLOT, input.barName, DeviceKind.SOUNDBAR, listOf(barNetwork(input.bar))))
+        add(ConnDevice(input.barId ?: BAR_SLOT, input.barName, DeviceKind.SOUNDBAR, listOf(barNetwork(input.bar, input.barOffer))))
     }
     for (computer in input.computers) {
         add(
@@ -207,6 +219,12 @@ private fun sonyIp(input: ConnInput): ConnLine = when {
             if (input.tvAsleep) ConnLine(ConnLink.SONY_IP, ConnWords.STANDBY) else ConnLine(ConnLink.SONY_IP, ConnWords.UNREACHABLE, ConnAction.SET_UP_IP)
         Link.CONNECTING, Link.ABSENT -> ConnLine(ConnLink.SONY_IP, ConnWords.CONNECTING)
     }
+}
+
+private fun barNetwork(link: Link, offer: Boolean): ConnLine = when {
+    link == Link.ONLINE -> ConnLine(ConnLink.NETWORK, ConnWords.CONNECTED)
+    offer -> ConnLine(ConnLink.NETWORK, ConnWords.MOVED, ConnAction.USE_NEW_ADDRESS)
+    else -> barNetwork(link)
 }
 
 private fun barNetwork(link: Link): ConnLine = when (link) {

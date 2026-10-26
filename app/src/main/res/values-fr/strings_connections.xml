@@ -28,6 +28,7 @@
     <string name="conn_needs_permission">autorisation requise</string>
     <string name="conn_busy">pris par une autre app : une seule à la fois peut servir de clavier</string>
     <string name="conn_not_added">non ajouté</string>
+    <string name="conn_moved">semble répondre à une nouvelle adresse</string>
     <string name="conn_gives_google_tv">touches, clavier, apps</string>
     <string name="conn_gives_sony_ip">icônes, entrées HDMI, réglages TV</string>
     <string name="conn_gives_bar">volume, son, marche / arrêt</string>
@@ -36,6 +37,7 @@
     <string name="conn_action_pair">Associer</string>
     <string name="conn_action_set_up">Configurer</string>
     <string name="conn_action_add">Ajouter</string>
+    <string name="conn_action_use_address">L’utiliser</string>
     <string name="conn_action_control">Contrôler</string>
     <string name="conn_action_devices">Ouvrir Appareils</string>
 </resources>

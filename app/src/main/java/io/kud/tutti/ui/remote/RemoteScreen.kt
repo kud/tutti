@@ -757,7 +757,8 @@ fun RemoteScreen(
 
     if (connectionsSheet) {
         // A pill that says something is wrong lands on that device's line (problemLine).
-        val connDevices = connections(connInput(state, targets))
+        val barOffer by controller.barAddressOffer.collectAsState()
+        val connDevices = connections(connInput(state, targets, barOffer = barOffer != null))
         ConnectionsSheet(
             devices = connDevices,
             focus = problemLine(connDevices),
@@ -766,6 +767,7 @@ fun RemoteScreen(
                 when (action) {
                     ConnAction.WAKE_TV -> controller.power(PowerTarget.TV, on = true)
                     ConnAction.CONTROL -> target.setTarget(device.id)
+                    ConnAction.USE_NEW_ADDRESS -> controller.useBarAddressOffer()
                     else -> onConnectionStep(action)
                 }
             },

@@ -9,6 +9,7 @@ import io.kud.tutti.protocol.net.LanAddress
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.withTimeoutOrNull
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -21,8 +22,25 @@ data class DiscoveredTv(val name: String, val host: String)
  */
 @Singleton
 class TvDiscovery @Inject constructor(@ApplicationContext private val context: Context) {
+    fun discover(): Flow<List<DiscoveredTv>> = discover(SERVICE_TYPE)
+
+    /**
+     * The private addresses answering for [serviceTypes] within [windowMs] per type, one type after
+     * the other (NsdManager resolves one service at a time before Android 14). For rediscovery
+     * ([io.kud.tutti.protocol.net.Rediscovery]): names are dropped, only hosts come back.
+     */
+    suspend fun hosts(serviceTypes: List<String>, windowMs: Long): Set<String> {
+        val hosts = linkedSetOf<String>()
+        for (type in serviceTypes) {
+            withTimeoutOrNull(windowMs) {
+                discover(type).collect { found -> found.mapTo(hosts) { it.host } }
+            }
+        }
+        return hosts
+    }
+
     @Suppress("DEPRECATION")
-    fun discover(): Flow<List<DiscoveredTv>> = callbackFlow {
+    private fun discover(serviceType: String): Flow<List<DiscoveredTv>> = callbackFlow {
         val nsd = context.getSystemService(Context.NSD_SERVICE) as NsdManager
         val wifi = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
         val lock = wifi.createMulticastLock("tutti-discovery").apply {
@@ -76,14 +94,20 @@ class TvDiscovery @Inject constructor(@ApplicationContext private val context: C
             }
         }
         trySend(emptyList())
-        nsd.discoverServices(SERVICE_TYPE, NsdManager.PROTOCOL_DNS_SD, listener)
+        nsd.discoverServices(serviceType, NsdManager.PROTOCOL_DNS_SD, listener)
         awaitClose {
             runCatching { nsd.stopServiceDiscovery(listener) }
             runCatching { lock.release() }
         }
     }
 
-    private companion object {
+    companion object {
         const val SERVICE_TYPE = "_androidtvremote2._tcp"
+
+        /**
+         * What a BRAVIA Theatre bar may advertise: Chromecast built-in, AirPlay, Spotify Connect.
+         * Which of them the Bar 9 actually answers is unverified; port 33336 decides ([io.kud.tutti.protocol.theatre.BarProbe]).
+         */
+        val BAR_SERVICE_TYPES = listOf("_googlecast._tcp", "_airplay._tcp", "_spotify-connect._tcp")
     }
 }
