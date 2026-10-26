@@ -27,6 +27,11 @@ data class CastNowPlaying(
     val durationSec: Double?,
     val playbackRate: Double,
     val readAtMillis: Long,
+    /**
+     * True when [positionSec] is not what the receiver said but our inference from its last
+     * trusted reading (see [CastStatusReducer]): the receiver's own number was at the end.
+     */
+    val inferred: Boolean = false,
 ) {
     /**
      * Whether the reading itself holds together: a position, inside the duration when there is
@@ -200,11 +205,12 @@ class CastStatusReducer {
     fun reset() {
         media = null
         lastSessionId = null
+        anchor = null
     }
 
     /** The new view, or null when nothing worth showing is reported (no title, idle, no session). */
     fun onMediaStatus(payload: JsonObject, nowMillis: Long): CastNowPlaying? = with(CastStatusParser) {
-        val entry = mediaEntries(payload).firstOrNull() ?: run { media = null; lastReading = null; return null }
+        val entry = mediaEntries(payload).firstOrNull() ?: run { media = null; lastReading = null; anchor = null; return null }
         val sessionId = entry.long("mediaSessionId")
         val rawState = entry.string("playerState")
         lastReading = CastReading(
@@ -237,16 +243,73 @@ class CastStatusReducer {
             else -> CastPlayerState.IDLE
         }
         val title = snapshot.title
-        if (state == CastPlayerState.IDLE || title == null) return null
-        CastNowPlaying(
-            title = title,
-            secondary = snapshot.secondary,
-            state = state,
-            positionSec = entry.number("currentTime")?.takeIf { it >= 0 },
-            durationSec = snapshot.duration,
-            playbackRate = entry.number("playbackRate")?.takeIf { it > 0 } ?: 1.0,
-            readAtMillis = nowMillis,
+        if (state == CastPlayerState.IDLE || title == null) {
+            anchor = null
+            return null
+        }
+        settle(
+            CastNowPlaying(
+                title = title,
+                secondary = snapshot.secondary,
+                state = state,
+                positionSec = entry.number("currentTime")?.takeIf { it >= 0 },
+                durationSec = snapshot.duration,
+                playbackRate = entry.number("playbackRate")?.takeIf { it > 0 } ?: 1.0,
+                readAtMillis = nowMillis,
+            ),
+            sessionId,
         )
+    }
+
+    /**
+     * The last reading whose position held together, and, when it was not playing, the moment
+     * PLAYING was first seen after it. YouTube's receiver (seen on the BRAVIA, 2026-10-26) gives
+     * a sane `currentTime` while paused but, once playing, `currentTime == duration` on every
+     * status, frozen. From this anchor we infer the position instead.
+     */
+    private data class Anchor(
+        val sessionId: Long?,
+        val positionSec: Double,
+        val durationSec: Double?,
+        val readAtMillis: Long,
+        val playing: Boolean,
+        val resumedAtMillis: Long? = null,
+    )
+
+    private var anchor: Anchor? = null
+
+    /**
+     * INFERENCE, not a reading: a PLAYING status whose position can't be trusted gets
+     * anchor position + time since it started running × rate, marked [CastNowPlaying.inferred].
+     * Started running = the anchor's own reading when it was playing, else the first PLAYING
+     * status after it (receivers push one on resume; when we only see it on our next poll the
+     * time runs up to one refresh behind). The anchor goes on a new session, a new duration, any
+     * state but PLAYING that can't be trusted (buffering after a seek, idle), a new trusted
+     * reading, and the moment the inference would reach the end: no time beats a wrong one.
+     */
+    private fun settle(view: CastNowPlaying, sessionId: Long?): CastNowPlaying {
+        val now = view.readAtMillis
+        if (view.readingTrusted) {
+            anchor = Anchor(sessionId, view.positionSec ?: return view, view.durationSec, now, view.state == CastPlayerState.PLAYING)
+            return view
+        }
+        val a = anchor
+        if (view.state != CastPlayerState.PLAYING || a == null || a.sessionId != sessionId || a.durationSec != view.durationSec) {
+            anchor = null
+            return view
+        }
+        val startedAt = when {
+            a.playing -> a.readAtMillis
+            a.resumedAtMillis != null -> a.resumedAtMillis
+            else -> now.also { anchor = a.copy(resumedAtMillis = it) }
+        }
+        val at = a.positionSec + (now - startedAt).coerceAtLeast(0) / 1000.0 * view.playbackRate
+        val duration = view.durationSec
+        if (duration != null && at >= duration) {
+            anchor = null
+            return view
+        }
+        return view.copy(positionSec = at, inferred = true)
     }
 
     private companion object {
