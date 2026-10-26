@@ -131,8 +131,8 @@ class OkHttpBraviaTransport internal constructor(
     /**
      * One app icon, from this TV only ([AppIcons.plan] aims every icon URL at it). HTTPS goes
      * through the same pinned client (no pin yet, no icon); HTTP only to a private address. An
-     * HTTP icon on a TV that refuses port 80 but is pinned is asked again over HTTPS at the same
-     * path. No PSK (or [cookie], which wins when both are given) goes with the first request; a
+     * HTTP icon on a pinned TV that refuses port 80, or answers there with a redirect, is asked
+     * again over HTTPS at the same path. No PSK (or [cookie], which wins when both are given) goes with the first request; a
      * 401 or 403 is asked once more with it, since it is this TV's own key going to this TV. A stale pooled connection is retried once, as
      * for [post]. Anything that is not an image, or over [maxBytes], is refused.
      */
@@ -191,9 +191,18 @@ class OkHttpBraviaTransport internal constructor(
             failed(IconOutcome.NETWORK, e.javaClass.simpleName)
         }
         var result = attempt()
-        if (result is IconFetch.Failed && result.attempt.outcome == IconOutcome.REFUSED && parsed.scheme == "http" && pinned) {
+        // Port 80 shut, or open only to send everything to HTTPS: ask the pinned TV itself over
+        // HTTPS at the same path. The redirect's Location is never read, so it can't aim us elsewhere.
+        val upgrade = (result as? IconFetch.Failed)?.attempt?.let { failure ->
+            when {
+                failure.outcome == IconOutcome.REFUSED -> "http refused, https"
+                failure.outcome == IconOutcome.HTTP_STATUS && failure.detail?.toIntOrNull() in 300..399 -> "http ${failure.detail}, https"
+                else -> null
+            }
+        }
+        if (upgrade != null && parsed.scheme == "http" && pinned) {
             target = parsed.newBuilder().scheme("https").port(httpsPort).build()
-            note = "http refused, https"
+            note = upgrade
             result = attempt()
         }
         if (result is IconFetch.Failed && note != null) failed(result.attempt.outcome, listOfNotNull(note, result.attempt.detail).joinToString(": ")) else result
