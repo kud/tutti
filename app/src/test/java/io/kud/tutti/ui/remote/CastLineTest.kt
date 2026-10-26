@@ -39,6 +39,17 @@ class CastLineTest {
     }
 
     @Test
+    fun `no time rather than a wrong one`() {
+        // 2026-10-26: "43:09 / 43:09" and a full bar while YouTube played.
+        assertNull(castTime(cast(CastPlayerState.PLAYING, position = 2589.0, duration = 2589.0), 1_000_000))
+        assertNull(castTime(cast(CastPlayerState.PLAYING), 1_000_000 + 43 * 60_000L))
+        val stale = castPlayback(cast(CastPlayerState.PLAYING), nowWallMs = 1_000_000 + 60_000, nowElapsedMs = 90_000)
+        assertEquals(android.media.session.PlaybackState.PLAYBACK_POSITION_UNKNOWN, stale.positionMs)
+        val atEnd = castPlayback(cast(CastPlayerState.PLAYING, position = 2470.0), nowWallMs = 1_000_000, nowElapsedMs = 0)
+        assertEquals(android.media.session.PlaybackState.PLAYBACK_POSITION_UNKNOWN, atEnd.positionMs)
+    }
+
+    @Test
     fun `talkback hears the time when paused, never the tick while playing`() {
         assertEquals("An invented film, 12 of 41 minutes, paused", castSpoken(cast(CastPlayerState.PAUSED), 1_000_000, words))
         val a = castSpoken(cast(CastPlayerState.PLAYING), 1_000_000, words)
