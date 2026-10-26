@@ -52,11 +52,12 @@ fun rowButtonLabel(button: RowButton): String = stringResource(
     },
 )
 
-/** The three that take a long-press action of his own. */
+/** The four that take a long-press action of his own. */
 private fun RowButton.secondary(): SecondaryButton? = when (this) {
     RowButton.BACK -> SecondaryButton.BACK
     RowButton.HOME -> SecondaryButton.HOME
     RowButton.PLAY -> SecondaryButton.PLAY
+    RowButton.INPUT -> SecondaryButton.INPUT
     else -> null
 }
 
@@ -99,6 +100,8 @@ fun LiveRowButton(
     keyDownReason: String? = null,
     /** What the key means on the target, for TalkBack ("Escape on the computer"); null keeps the TV's. */
     keyMeaning: (Int) -> String? = { null },
+    /** Input's tap: tutti's own input chooser ([TvInputSheet]). */
+    onInputs: () -> Unit = {},
 ) {
     // One rule for every control (controlLink): a TV key goes down with the TV's link, Mute with
     // the bar's, connecting and out of reach alike, and a down key bumps and sends nothing.
@@ -153,6 +156,29 @@ fun LiveRowButton(
                 unreachable = bar.down,
                 size = size,
                 stateDescription = controlLinkReason(bar, Owner.BAR, state) ?: if (muted) stringResource(R.string.volume_muted) else null,
+            )
+        }
+        // Input is a door, like Apps (Erwann, 2026-10-26): a tap opens tutti's input chooser, which
+        // says in words why it can't switch, so the key never wears the down dress and always opens.
+        // Its long press is a key's, the TV's own input menu by default (RowGestures), and like every
+        // TV key's it is refused with a bump and the reason while the TV's link is down.
+        RowButton.INPUT -> {
+            val secondary = SecondaryButton.INPUT
+            TonalRoundButton(
+                icon = rowButtonIcon(button),
+                contentDescription = rowButtonLabel(button),
+                onClick = onInputs,
+                onLongClick = {
+                    if (tv.down) {
+                        haptics.bump()
+                        tvReason?.let { messages?.show(it) }
+                    } else {
+                        onSecondary(secondary)
+                    }
+                },
+                onLongClickLabel = state.dock.longPress[secondary]?.let { actionLabel(it, state) }
+                    ?: rowDefault(secondary)?.let { stringResource(it.label) },
+                size = size,
             )
         }
         else -> {

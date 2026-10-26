@@ -5,6 +5,7 @@
     <string name="pad_skip_times">%1$s ×%2$d</string>
     <string name="row_long_previous_app">App précédente</string>
     <string name="row_long_recent_apps">Apps récentes</string>
+    <string name="row_long_tv_input_menu">Menu des entrées de la TV</string>
     <string name="row_long_default_said">Appui long : %1$s</string>
     <string name="row_long_change">Changer</string>
     <string name="row_long_no_previous">Pas encore d\'app précédente</string>

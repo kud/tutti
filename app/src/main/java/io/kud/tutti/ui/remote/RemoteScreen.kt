@@ -352,7 +352,8 @@ fun RemoteScreen(
             picker = PickerTarget.LongPress(button)
             return
         }
-        if (tvAsleepAlone()) return
+        val menuKey = V2Key.TV_INPUT.takeIf { fallback == RowDefault.TV_INPUT_MENU }
+        if (tvAsleepAlone(menuKey)) return
         val change = { picker = PickerTarget.LongPress(button) }
         val ran = when (fallback) {
             RowDefault.PREVIOUS_APP -> controller.launchPreviousApp()
@@ -361,6 +362,8 @@ fun RemoteScreen(
                 sheet2 = RemoteSheet.APPS
                 true
             }
+            // The TV's own input menu, driven with the pad; a key refused says why itself (sendKey).
+            RowDefault.TV_INPUT_MENU -> if (sendKey(V2Key.TV_INPUT)) true else return
         }
         if (!ran) {
             messages?.show(noPreviousWords, actionLabel = changeWords, onAction = change)
@@ -713,6 +716,7 @@ fun RemoteScreen(
                                 keyDown = ::keyDown,
                                 keyDownReason = computerUnavailable,
                                 keyMeaning = ::keyMeaning,
+                                onInputs = { sheet2 = RemoteSheet.INPUTS },
                             )
                         }
                     }
@@ -1029,6 +1033,33 @@ fun RemoteScreen(
                 keysPinner.request(DockAction.Input(uri, name), name)
             },
         )
+        // The Input button's tap (Erwann, 2026-10-26): the Apps sheet's inputs as a list, and the
+        // TV's own input menu below them. Picked like there: it switches and the sheet goes.
+        RemoteSheet.INPUTS -> InputSheet(
+            sheet = tvInputSheet(
+                ipControl = state.ipControlSet,
+                inputs = state.tv.inputs,
+                currentUri = state.tv.input,
+                restOnline = state.links.rest == Link.ONLINE,
+                tvPowered = tvPowered(state),
+                noIpReason = stringResource(R.string.tv_input_no_ip),
+                downReason = stringResource(R.string.power_sleep_down),
+                standbyReason = stringResource(R.string.power_sleep_standby),
+                unlistedReason = stringResource(R.string.tv_input_unlisted),
+            ),
+            onInput = { uri ->
+                haptics.select()
+                controller.switchInput(uri)
+                sheet2 = null
+            },
+            onPin = { uri, name ->
+                haptics.longPress()
+                keysPinner.request(DockAction.Input(uri, name), name)
+            },
+            onTvMenu = { sheetKey(V2Key.TV_INPUT) { sheet2 = null } },
+            onDismiss = { sheet2 = null },
+            onOpen = { if (state.ipControlSet) controller.refreshInputs() },
+        )
         RemoteSheet.KEYS -> MoreKeysSheet(
             onKey = { code -> sheetKey(code) { sheet2 = null } },
             onDismiss = { sheet2 = null },
@@ -1089,10 +1120,11 @@ fun secondaryLabel(button: SecondaryButton): String = when (button) {
     SecondaryButton.HOME -> stringResource(R.string.action_home)
     SecondaryButton.BACK -> stringResource(R.string.action_back)
     SecondaryButton.PLAY -> stringResource(R.string.action_play_pause)
+    SecondaryButton.INPUT -> stringResource(R.string.row_input)
 }
 
 /** The full-height sheets the bottom row's doors open. */
-private enum class RemoteSheet { APPS, KEYS }
+private enum class RemoteSheet { APPS, KEYS, INPUTS }
 
 /** How far the input view rises when the TV opens it. */
 private val INPUT_RISE = 24.dp
