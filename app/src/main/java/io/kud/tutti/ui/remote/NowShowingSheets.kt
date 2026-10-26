@@ -77,14 +77,10 @@ private fun NowShowingSheetHeader(
     val words = cardWords(showing, tvName).let { words ->
         if (cast == null) words else CardWords(cast.title, cast.secondary ?: words.title)
     }
-    // A title cut to one line opens in place on a tap anywhere on the header, which has no other tap
-    // (Erwann, 2026-10-26); TalkBack hears the whole title anyway, and the action by its name.
-    val fold = rememberTitleFold(words.title)
-    val foldLabel = stringResource(if (fold.open) R.string.cast_title_less else R.string.cast_title_more)
+    // The sheet has the room, so the title shows whole, with no tap to open it (Erwann, 2026-10-26).
     Row(
         Modifier
             .fillMaxWidth()
-            .then(if (fold.offered) Modifier.clickable(onClickLabel = foldLabel, onClick = fold::toggle) else Modifier)
             .padding(start = 16.dp, end = 16.dp, bottom = 16.dp)
             .semantics(mergeDescendants = true) { heading() },
         verticalAlignment = Alignment.CenterVertically,
@@ -96,9 +92,6 @@ private fun NowShowingSheetHeader(
             Text(
                 words.title,
                 style = MaterialTheme.typography.titleLarge,
-                maxLines = if (fold.open) Int.MAX_VALUE else 1,
-                overflow = TextOverflow.Ellipsis,
-                onTextLayout = fold::measured,
             )
             words.detail?.let {
                 Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
