@@ -86,6 +86,7 @@ import io.kud.tutti.protocol.scenes.SceneStep
 import io.kud.tutti.protocol.scenes.SceneUndo
 import io.kud.tutti.protocol.scenes.SceneValue
 import io.kud.tutti.protocol.theatre.BarHttpClient
+import io.kud.tutti.protocol.theatre.BarHttpUnavailable
 import io.kud.tutti.protocol.theatre.FeatureKind
 import io.kud.tutti.protocol.theatre.SilenceWatch
 import io.kud.tutti.protocol.theatre.TheatreClient
@@ -1724,15 +1725,26 @@ class TuttiController @Inject constructor(
         if (bar != null) {
             scope.launch {
                 technical.update { it.copy(barHttpFetch = Fetch.LOADING) }
+                var fetch = Fetch.DONE
                 val readouts = try {
-                    BarHttpClient(OkHttpBarHttpTransport(bar.host)).readouts()
+                    BarHttpClient(OkHttpBarHttpTransport(bar.host)).readouts().also {
+                        if (it == null) fetch = Fetch.UNSUPPORTED
+                    }
                 } catch (e: CancellationException) {
                     throw e
+                } catch (e: BarHttpUnavailable) {
+                    fetch = Fetch.UNSUPPORTED
+                    null
                 } catch (e: Exception) {
+                    fetch = Fetch.FAILED
                     null
                 }
                 technical.update {
-                    if (readouts != null) it.copy(barHttp = readouts, barHttpFetch = Fetch.DONE) else it.copy(barHttpFetch = Fetch.FAILED)
+                    if (readouts != null) {
+                        it.copy(barHttp = readouts, barHttpFetch = Fetch.DONE)
+                    } else {
+                        it.copy(barHttp = null, barHttpFetch = fetch)
+                    }
                 }
             }
         }
