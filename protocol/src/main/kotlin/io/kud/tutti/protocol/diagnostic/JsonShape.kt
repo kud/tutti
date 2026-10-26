@@ -13,11 +13,16 @@ import kotlinx.serialization.json.booleanOrNull
  * current value…), an array as its length and its first element. Values under identifying
  * keys (serial, MAC, ids, IPs, names) are replaced and handed to [sensitive], so the report
  * can scrub them anywhere else they turn up.
+ *
+ * [public] lists keys that identify nobody in this one reply although they usually would: the
+ * `name` of each getRemoteControllerInfo entry is a button ("Red", "Play", "Mute"), and handing
+ * those to the scrub list once redacted half the words of a report.
  */
 object JsonShape {
-    fun of(element: JsonElement, sensitive: MutableSet<String>, maxLength: Int = 700): String {
-        collect(element, null, sensitive)
-        val text = render(element, null, 0)
+    fun of(element: JsonElement, sensitive: MutableSet<String>, maxLength: Int = 700, public: Set<String> = emptySet()): String {
+        val shape = Shape(public.mapTo(HashSet()) { it.lowercase() })
+        shape.collect(element, null, sensitive)
+        val text = shape.render(element, null, 0)
         return if (text.length > maxLength) text.take(maxLength) + "…" else text
     }
 
@@ -27,38 +32,42 @@ object JsonShape {
             "token" in k || "secret" in k || "password" in k || k.startsWith("ip")
     }
 
-    private fun collect(element: JsonElement, key: String?, sensitive: MutableSet<String>) {
-        when (element) {
-            is JsonObject -> element.forEach { (k, v) -> collect(v, k, sensitive) }
-            is JsonArray -> element.forEach { collect(it, key, sensitive) }
-            is JsonPrimitive -> if (key != null && element !is JsonNull && isSensitiveKey(key)) {
-                element.content.takeIf { it.isNotBlank() }?.let(sensitive::add)
+    private class Shape(private val public: Set<String>) {
+        private fun hidden(key: String?): Boolean = key != null && isSensitiveKey(key) && key.lowercase() !in public
+
+        fun collect(element: JsonElement, key: String?, sensitive: MutableSet<String>) {
+            when (element) {
+                is JsonObject -> element.forEach { (k, v) -> collect(v, k, sensitive) }
+                is JsonArray -> element.forEach { collect(it, key, sensitive) }
+                is JsonPrimitive -> if (element !is JsonNull && hidden(key)) {
+                    element.content.takeIf { it.isNotBlank() }?.let(sensitive::add)
+                }
             }
         }
-    }
 
-    private fun render(element: JsonElement, key: String?, depth: Int): String = when {
-        depth > MAX_DEPTH -> "…"
-        element is JsonNull -> "null"
-        element is JsonObject -> element.entries.joinToString(",", "{", "}") { (k, v) -> "\"$k\":" + render(v, k, depth + 1) }
-        element is JsonArray -> when (element.size) {
-            0 -> "[]"
-            1 -> "[" + render(element[0], key, depth + 1) + "]"
-            else -> "[${element.size}x " + render(element[0], key, depth + 1) + "]"
+        fun render(element: JsonElement, key: String?, depth: Int): String = when {
+            depth > MAX_DEPTH -> "…"
+            element is JsonNull -> "null"
+            element is JsonObject -> element.entries.joinToString(",", "{", "}") { (k, v) -> "\"$k\":" + render(v, k, depth + 1) }
+            element is JsonArray -> when (element.size) {
+                0 -> "[]"
+                1 -> "[" + render(element[0], key, depth + 1) + "]"
+                else -> "[${element.size}x " + render(element[0], key, depth + 1) + "]"
+            }
+            element is JsonPrimitive -> primitive(element, key)
+            else -> "?"
         }
-        element is JsonPrimitive -> primitive(element, key)
-        else -> "?"
-    }
 
-    private fun primitive(p: JsonPrimitive, key: String?): String {
-        if (key != null && isSensitiveKey(key)) return "<redacted>"
-        p.booleanOrNull?.let { if (!p.isString) return it.toString() }
-        val keep = key != null && key.lowercase() in KEEP
-        return when {
-            p.isString && keep -> "\"" + p.content.take(48) + "\""
-            p.isString -> "str(${p.content.length})"
-            keep -> p.content
-            else -> "num"
+        private fun primitive(p: JsonPrimitive, key: String?): String {
+            if (hidden(key)) return "<redacted>"
+            p.booleanOrNull?.let { if (!p.isString) return it.toString() }
+            val keep = key != null && key.lowercase() in KEEP
+            return when {
+                p.isString && keep -> "\"" + p.content.take(48) + "\""
+                p.isString -> "str(${p.content.length})"
+                keep -> p.content
+                else -> "num"
+            }
         }
     }
 

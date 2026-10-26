@@ -50,7 +50,7 @@ object DiagnosticSteps {
         RestRead("rest.power", "system", "getPowerStatus"),
         RestRead("rest.power_saving", "system", "getPowerSavingMode"),
         RestRead("rest.supported_functions", "system", "getSystemSupportedFunction"),
-        RestRead("rest.ircc_codes", "system", "getRemoteControllerInfo"),
+        RestRead("rest.ircc_codes", "system", "getRemoteControllerInfo", public = setOf("name")),
         RestRead("rest.volume", "audio", "getVolumeInformation"),
         RestRead("rest.sound", "audio", "getSoundSettings", target = true),
         RestRead("rest.speaker", "audio", "getSpeakerSettings", target = true),
@@ -91,6 +91,7 @@ object DiagnosticSteps {
  * report also keeps the reply itself, scrubbed, not only its shape (the playing content, whose
  * answer while an app plays is undocumented). [anyService]: the service is not documented for
  * this TV; the read goes to whichever service the discovery lists it under, and only there.
+ * [public]: keys that identify nobody in this reply (see [JsonShape.of]).
  */
 data class RestRead(
     val id: String,
@@ -99,6 +100,7 @@ data class RestRead(
     val target: Boolean = false,
     val raw: Boolean = false,
     val anyService: Boolean = false,
+    val public: Set<String> = emptySet(),
 )
 
 /** Short, stable error classes, so two reports can be compared at a glance. */
