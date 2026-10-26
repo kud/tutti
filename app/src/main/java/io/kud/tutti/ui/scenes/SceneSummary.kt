@@ -12,6 +12,7 @@ import io.kud.tutti.protocol.theatre.TheatreFeature
 import io.kud.tutti.ui.common.barValueLabel
 import io.kud.tutti.ui.remote.signed
 import io.kud.tutti.ui.settings.outputNames
+import io.kud.tutti.ui.settings.tvValueName
 
 fun appName(packageName: String): String = AppCatalog.byPackage(packageName)?.name ?: packageName
 
@@ -51,7 +52,7 @@ fun settingChip(key: SceneKey, value: SceneValue, state: TuttiUiState, targets: 
     return when (key) {
         SceneKey.TV_INPUT -> inputName(text, state)
         SceneKey.TV_APP -> appName(text)
-        SceneKey.PICTURE_MODE -> stringResource(R.string.summary_picture, text)
+        SceneKey.PICTURE_MODE -> stringResource(R.string.summary_picture, tvValueName(text, state.tv.settings.picture.firstOrNull { it.target == "pictureMode" }))
         SceneKey.TV_AUDIO_OUTPUT -> stringResource(R.string.summary_tv_output, outputNames()[text] ?: text)
         SceneKey.PICTURE_OFF -> stringResource(if (flag == true) R.string.screen_off_summary_on else R.string.screen_off_summary_off)
         SceneKey.BAR_INPUT -> stringResource(R.string.summary_bar_input, barValueLabel(TheatreFeature.INPUT, text))

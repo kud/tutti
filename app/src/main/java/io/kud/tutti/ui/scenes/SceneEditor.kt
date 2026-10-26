@@ -75,6 +75,7 @@ import io.kud.tutti.protocol.theatre.FeatureKind
 import io.kud.tutti.protocol.theatre.TheatreFeature
 import io.kud.tutti.ui.common.barValueLabel
 import io.kud.tutti.ui.settings.outputNames
+import io.kud.tutti.ui.settings.tvValueName
 import io.kud.tutti.ui.common.ChoiceRow
 import io.kud.tutti.ui.common.LocalMessages
 import io.kud.tutti.ui.common.SceneGlyphs
@@ -444,7 +445,7 @@ private fun SettingDialog(
                         SceneKey.TV_APP -> AppCatalog.apps.map { it.packageName to it.name }
                         SceneKey.PICTURE_MODE -> state.tv.settings.picture
                             .firstOrNull { it.target == "pictureMode" }
-                            ?.candidates?.map { it.value to (it.title ?: it.value) }
+                            ?.let { mode -> mode.candidates.map { it.value to tvValueName(it.value, mode) } }
                             .orEmpty()
                         SceneKey.TV_AUDIO_OUTPUT -> outputNames().let { names -> TvSetting.OUTPUT_TERMINALS.map { it to (names[it] ?: it) } }
                         SceneKey.BAR_INPUT -> (TheatreFeature.INPUT.kind as FeatureKind.Choice).options.map { it to barValueLabel(TheatreFeature.INPUT, it) }

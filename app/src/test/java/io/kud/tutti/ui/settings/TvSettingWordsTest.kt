@@ -31,6 +31,14 @@ class TvSettingWordsTest {
         assertTrue(listOf("medium", "off", "custom", "cinema", "low").all { TvSettingWords.value(it) != null })
     }
 
+    /** Sound and speakers (2026-10-26): every documented target and its values have words. */
+    @Test
+    fun soundAndSpeakerTargetsAndValuesAreNamed() {
+        val targets = listOf("outputTerminal", "soundMode", "tvPosition", "subwooferLevel", "subwooferFreq", "subwooferPhase", "subwooferPower")
+        assertEquals(emptyList<String>(), targets.filter { TvSettingWords.target(it) == null || !TvSettingCatalog.isNamed(it) })
+        assertEquals(emptyList<String>(), listOf("tableTop", "wallMount", "normal", "reverse", "on", "off").filter { TvSettingWords.value(it) == null })
+    }
+
     @Test
     fun everyColourPartAndSectionHasWords() {
         TvSettingCatalog.Hue.entries.forEach { TvSettingWords.hue(it) }

@@ -3,7 +3,9 @@ package io.kud.tutti.protocol.bravia
 import io.kud.tutti.protocol.bravia.TvSettingCatalog.PictureSection
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class TvSettingCatalogTest {
 
@@ -57,6 +59,25 @@ class TvSettingCatalogTest {
     fun unknownTargetsKeepTheTvsOrder() {
         val settings = listOf(setting("zeta"), setting("alpha"), setting("brightness"))
         assertEquals(listOf("zeta", "alpha"), TvSettingCatalog.arrange(settings, true).last().second.map { it.target })
+    }
+
+    @Test
+    fun soundAndSpeakerFollowSonysOrderThenTheTvs() {
+        val settings = listOf(
+            setting("zeta"), setting("subwooferPhase"), setting("soundMode", available = false), setting("alpha"),
+            setting("outputTerminal"), setting("tvPosition"),
+        )
+        assertEquals(
+            listOf("outputTerminal", "soundMode", "tvPosition", "subwooferPhase", "zeta", "alpha"),
+            TvSettingCatalog.arrangeSound(settings, showUnavailable = true).map { it.target },
+        )
+        assertEquals(
+            listOf("outputTerminal", "tvPosition", "subwooferPhase", "zeta", "alpha"),
+            TvSettingCatalog.arrangeSound(settings, showUnavailable = false).map { it.target },
+        )
+        assertTrue(TvSettingCatalog.isNamed("subwooferPower"))
+        assertTrue(TvSettingCatalog.isNamed("blueGain"))
+        assertFalse(TvSettingCatalog.isNamed("zeta"))
     }
 
     @Test

@@ -202,4 +202,16 @@
         <item quantity="one">%1$d indisponible avec l’entrée ou le mode actuels</item>
         <item quantity="other">%1$d indisponibles avec l’entrée ou le mode actuels</item>
     </plurals>
+    <string name="tv_section_sound">Son de la TV</string>
+    <string name="tv_target_sound_mode">Mode son</string>
+    <string name="tv_value_table_top">Sur pied</string>
+    <string name="tv_value_wall_mount">Fixation murale</string>
+    <string name="tv_value_normal">Normal</string>
+    <string name="tv_value_reverse">Inversé</string>
+    <string name="tv_value_dialogue">Dialogue</string>
+    <string name="tv_value_music">Musique</string>
+    <string name="bar_value_wired">Filaire</string>
+    <string name="bar_value_wireless">Wi-Fi</string>
+    <string name="bar_value_connected">Connecté</string>
+    <string name="bar_value_not_connected">Non connecté</string>
 </resources>

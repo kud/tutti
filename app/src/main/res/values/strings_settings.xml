@@ -202,4 +202,16 @@
         <item quantity="one">%1$d unavailable with the current input or mode</item>
         <item quantity="other">%1$d unavailable with the current input or mode</item>
     </plurals>
+    <string name="tv_section_sound">TV sound</string>
+    <string name="tv_target_sound_mode">Sound mode</string>
+    <string name="tv_value_table_top">Table-top stand</string>
+    <string name="tv_value_wall_mount">Wall mount</string>
+    <string name="tv_value_normal">Normal</string>
+    <string name="tv_value_reverse">Reverse</string>
+    <string name="tv_value_dialogue">Dialogue</string>
+    <string name="tv_value_music">Music</string>
+    <string name="bar_value_wired">Wired</string>
+    <string name="bar_value_wireless">Wi-Fi</string>
+    <string name="bar_value_connected">Connected</string>
+    <string name="bar_value_not_connected">Not connected</string>
 </resources>

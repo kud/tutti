@@ -36,8 +36,29 @@ object TvSettingCatalog {
     private val index: Map<String, Pair<PictureSection, Int>> =
         named.flatMap { (section, targets) -> targets.mapIndexed { i, t -> t to (section to i) } }.toMap()
 
+    /**
+     * Sound (getSoundSettings) and speaker (getSpeakerSettings) targets in Sony's menu order:
+     * the documented ones (`outputTerminal`; TV position and the subwoofer's four), then sound mode,
+     * which Sony's menu has and the TV may list. Unknown targets follow in the TV's order.
+     */
+    private val soundOrder: List<String> = listOf(
+        TvSetting.OUTPUT_TERMINAL, "soundMode",
+        "tvPosition", "subwooferLevel", "subwooferFreq", "subwooferPhase", "subwooferPower",
+    )
+
     /** Every target with a fixed place, for the test that each one has words in both languages. */
-    val namedTargets: Set<String> get() = index.keys
+    val namedTargets: Set<String> get() = index.keys + soundOrder
+
+    /** Whether the screen has words for [target], or shows it as the TV names it. */
+    fun isNamed(target: String): Boolean = target in index || target in soundOrder || colourTarget(target) != null
+
+    /** A sound or speaker list in Sony's order, unavailable rows left out unless [showUnavailable]. */
+    fun arrangeSound(settings: List<TvSetting>, showUnavailable: Boolean): List<TvSetting> =
+        settings
+            .filter { showUnavailable || it.isAvailable }
+            .withIndex()
+            .sortedWith(compareBy({ soundOrder.indexOf(it.value.target).let { i -> if (i < 0) Int.MAX_VALUE else i } }, { it.index }))
+            .map { it.value }
 
     fun colourTarget(target: String): ColourTarget? {
         val hue = Hue.entries.firstOrNull { target.startsWith(it.key) } ?: return null
