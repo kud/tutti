@@ -37,6 +37,9 @@
     <!-- Under a TV that is set up but out of reach: why, and what keeps it reachable. Never a setup prompt. -->
     <string name="conn_note_tv_off_network">La TV est peut-être en veille, réseau coupé. Pour qu’elle reste joignable, activez Démarrage à distance sur la TV : Paramètres › Réseau et Internet › Démarrage à distance.</string>
     <string name="conn_note_tv_remote_start_on">Le Démarrage à distance est activé, la TV reste donc joignable en veille : vérifiez qu’elle est branchée et sur le Wi-Fi de ce téléphone.</string>
+    <!-- Under a bar that is set up but out of reach: why, and what keeps it reachable. Never a setup prompt. -->
+    <string name="conn_note_bar_off_network">La barre est peut-être en veille, réseau coupé. Pour qu’elle reste joignable, activez Veille réseau / Bluetooth pour la barre dans BRAVIA Connect, et gardez-la sur le Wi-Fi de ce téléphone.</string>
+    <string name="conn_note_bar_standby_on">La Veille réseau / Bluetooth est activée, la barre reste donc joignable en veille : vérifiez qu’elle est branchée et sur le Wi-Fi de ce téléphone.</string>
     <string name="conn_action_pair">Associer</string>
     <string name="conn_action_set_up">Configurer</string>
     <string name="conn_action_add">Ajouter</string>

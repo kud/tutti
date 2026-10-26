@@ -340,7 +340,6 @@ fun TuttiApp(
                                     // IP control's home is its checklist step: the TV's menu path and
                                     // tutti's own field for the key (the PIN, once it lands there).
                                     ConnAction.SET_UP_IP -> push(Screen.Unlock(io.kud.tutti.ui.settings.Unlock.IP_CONTROL))
-                                    ConnAction.SET_UP_BAR -> push(Screen.Unlock(io.kud.tutti.ui.settings.Unlock.SOUNDBAR))
                                     ConnAction.ADD_BAR -> push(Screen.Onboarding(barOnly = true, cancellable = true))
                                     else -> push(Screen.Settings)
                                 }

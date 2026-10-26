@@ -35,7 +35,36 @@ class ConnectionsTest {
         assertEquals(ConnFocus("bar", ConnLink.NETWORK), problemLine(connections(moved)))
         // Back at its own address, the offer no longer shows.
         assertEquals(ConnLine(ConnLink.NETWORK, ConnWords.CONNECTED), line(room.copy(barOffer = true), "bar", ConnLink.NETWORK))
-        assertEquals(ConnAction.SET_UP_BAR, line(room.copy(bar = Link.UNREACHABLE), "bar", ConnLink.NETWORK).action)
+        // The offer comes alone: no off-network note beside it.
+        assertNull(connections(moved).first { it.id == "bar" }.note)
+    }
+
+    /** dev.17: a set-up bar not answering still read "Set up". Out of reach, a note, no button. */
+    @Test
+    fun aSetUpBarOffTheNetworkIsOutOfReachWithANoteAndNoSetUp() {
+        val off = room.copy(bar = Link.UNREACHABLE)
+        val bar = connections(off).first { it.id == "bar" }
+        // Same word as the TV's lines, and no button: tutti can't wake a bar that is off the network.
+        assertEquals(listOf(ConnLine(ConnLink.NETWORK, ConnWords.UNREACHABLE)), bar.lines)
+        assertEquals(ConnWords.UNREACHABLE, line(room.copy(tvShown = TvShown(Link.UNREACHABLE)), "tv", ConnLink.GOOGLE_TV).words)
+        assertEquals(ConnMark.PROBLEM, bar.lines.single().words.mark)
+        assertEquals(ConnNote.BAR_OFF_NETWORK, bar.note)
+        assertEquals(ConnFocus("bar", ConnLink.NETWORK), problemLine(connections(off)))
+        // Network / Bluetooth standby known on: standby isn't the likely cause.
+        assertEquals(ConnNote.BAR_OFF_NETWORK_STANDBY_ON, connections(off.copy(barStandby = true)).first { it.id == "bar" }.note)
+        assertEquals(ConnNote.BAR_OFF_NETWORK, connections(off.copy(barStandby = false)).first { it.id == "bar" }.note)
+        // Every state of a set-up bar: never a setup step, and the only action is the offer's.
+        for (link in Link.entries) {
+            for (offer in listOf(false, true)) {
+                val device = connections(room.copy(bar = link, barOffer = offer)).first { it.id == "bar" }
+                val action = device.lines.single().action
+                assertTrue("$link offer=$offer: $action", action == null || action == ConnAction.USE_NEW_ADDRESS)
+                if (device.note != null) assertEquals(ConnWords.UNREACHABLE, device.lines.single().words)
+            }
+        }
+        // Connecting or connected: no note.
+        assertNull(connections(room.copy(bar = Link.CONNECTING)).first { it.id == "bar" }.note)
+        assertNull(connections(room).first { it.id == "bar" }.note)
     }
 
     @Test
@@ -143,7 +172,7 @@ class ConnectionsTest {
         assertNull(problemLine(connections(room)))
         assertEquals(ConnFocus("tv", ConnLink.SONY_IP), problemLine(connections(room.copy(ipSet = false, rest = Link.ABSENT))))
         assertEquals(ConnFocus("tv", ConnLink.SONY_IP), problemLine(connections(room.copy(ipSet = false, ipRenew = true))))
-        // A fault with a step wins over a step not done yet, the bar's included.
+        // A fault wins over a step not done yet, the bar's included, even with no step of its own.
         val both = room.copy(ipSet = false, bar = Link.UNREACHABLE)
         assertEquals(ConnFocus("bar", ConnLink.NETWORK), problemLine(connections(both)))
         assertEquals(ConnFocus("tv", ConnLink.GOOGLE_TV), problemLine(connections(room.copy(tvShown = TvShown(Link.CONNECTING)))))
