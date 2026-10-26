@@ -14,6 +14,7 @@ import io.kud.tutti.protocol.net.Connection
 import io.kud.tutti.protocol.net.TcpConnector
 import io.kud.tutti.protocol.net.TlsConnection
 import io.kud.tutti.protocol.net.TlsConnector
+import io.kud.tutti.protocol.theatre.BarHttpUnavailable
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.consumeAsFlow
@@ -193,6 +194,53 @@ class DiagnosticRunnerTest {
         assertTrue(steps.filter { it.plane == Plane.REST && it.id != DiagnosticSteps.REST_INTERFACE }.all { it.status == StepStatus.SKIPPED })
         assertEquals("tls_handshake", steps.of(DiagnosticSteps.REMOTE_TLS).errorClass)
         assertEquals(StepStatus.SKIPPED, steps.of(DiagnosticSteps.REMOTE_SESSION).status)
+    }
+
+    @Test
+    fun `optional bar HTTP rejection is unavailable, not a broken soundbar`() = runTest {
+        val unavailable = object : io.kud.tutti.protocol.theatre.BarHttpTransport {
+            override suspend fun post(body: String): String = throw BarHttpUnavailable(500)
+        }
+        val runner = DiagnosticRunner(
+            targets(tv = null, bar = BAR, psk = null, pin = null),
+            null,
+            RefusingTls,
+            FakeTcp(null),
+            { null },
+            null,
+            "unavailable",
+            barHttp = unavailable,
+        )
+
+        runner.run()
+
+        val step = runner.steps.value.of(DiagnosticSteps.BAR_HTTP)
+        assertEquals(StepStatus.SKIPPED, step.status)
+        assertEquals("unsupported", step.errorClass)
+        assertTrue(step.message.orEmpty().contains("HTTP 500"))
+    }
+
+    @Test
+    fun `a listener on 54545 that is not the management plane is unavailable`() = runTest {
+        val other = object : io.kud.tutti.protocol.theatre.BarHttpTransport {
+            override suspend fun post(body: String): String = """{"type":"something_else"}"""
+        }
+        val runner = DiagnosticRunner(
+            targets(tv = null, bar = BAR, psk = null, pin = null),
+            null,
+            RefusingTls,
+            FakeTcp(null),
+            { null },
+            null,
+            "unavailable",
+            barHttp = other,
+        )
+
+        runner.run()
+
+        val step = runner.steps.value.of(DiagnosticSteps.BAR_HTTP)
+        assertEquals(StepStatus.SKIPPED, step.status)
+        assertEquals("unsupported", step.errorClass)
     }
 
     @Test
