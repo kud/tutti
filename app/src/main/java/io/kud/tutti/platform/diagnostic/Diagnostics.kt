@@ -164,7 +164,9 @@ class Diagnostics @Inject constructor(
             "tv foreground" to target.get().foregroundLog.value.entries.joinToString { it.first }.ifEmpty { "none this session" },
             "bar settings" to "answered ${ui.bar.confirmed.size}, refused ${ui.bar.refused.sorted().joinToString().ifEmpty { "none" }}, " +
                 "silent ${ui.bar.silent.sorted().joinToString().ifEmpty { "none" }}",
-        ) + controller.linkTimings.report() + appIcons() + liveBarWire()
+        ) + controller.linkTimings.report() +
+            // Cast's raw numbers (currentTime, duration, state, rate, age, gap), never a title: what settles a wrong timer.
+            controller.castReadings.report(System.currentTimeMillis()) + appIcons() + liveBarWire()
     }
 
     /**

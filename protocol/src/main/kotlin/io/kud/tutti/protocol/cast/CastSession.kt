@@ -51,6 +51,8 @@ class CastSession(
     private val roots: List<X509Certificate> = CastRoots.all,
     private val heartbeatMillis: Long = HEARTBEAT_MS,
     private val refreshMillis: Long = REFRESH_MS,
+    /** The raw numbers of every media status from the app in front, for the diagnostic. */
+    private val onReading: (CastReading) -> Unit = {},
 ) {
     private val decoder = CastFrameDecoder()
     private val reducer = CastStatusReducer()
@@ -126,7 +128,9 @@ class CastSession(
             }
             CastNamespaces.RECEIVER -> if (CastStatusParser.type(payload) == "RECEIVER_STATUS") onReceiverStatus(payload)
             CastNamespaces.MEDIA -> if (CastStatusParser.type(payload) == "MEDIA_STATUS" && m.source_id == app?.transportId) {
-                onNowPlaying(reducer.onMediaStatus(payload, clock()))
+                val now = reducer.onMediaStatus(payload, clock())
+                reducer.lastReading?.let(onReading)
+                onNowPlaying(now)
             }
             CastNamespaces.CONNECTION -> if (CastStatusParser.type(payload) == "CLOSE" && m.source_id == app?.transportId) {
                 app = null

@@ -234,6 +234,9 @@ class TuttiController @Inject constructor(
     /** Time to ready per link, for the diagnostic ([LinkTimings]). */
     val linkTimings = io.kud.tutti.protocol.diagnostic.LinkTimings()
 
+    /** The raw numbers of the last Cast media statuses (time, duration, state), for the diagnostic. Never a title. */
+    val castReadings = io.kud.tutti.protocol.cast.CastReadings()
+
     /** When each device was last looked for by mDNS (elapsedRealtime), for [Rediscovery.due]. */
     @Volatile private var tvBrowsedAt: Long? = null
 
@@ -345,6 +348,7 @@ class TuttiController @Inject constructor(
         clock = System::currentTimeMillis,
         log = { Log.i(TAG, it) },
         onReady = { linkTimings.record(io.kud.tutti.protocol.diagnostic.TimedLink.CAST, it) },
+        onReading = castReadings::record,
     )
 
     /**
