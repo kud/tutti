@@ -195,6 +195,28 @@ class DiagnosticRunnerTest {
     }
 
     @Test
+    fun `a service discovery never listed is skipped while others answered`() = runTest {
+        val asked = mutableListOf<String>()
+        val rest = object : BraviaTransport {
+            override suspend fun post(path: String, body: String, headers: Map<String, String>): HttpReply {
+                val method = Json.parseToJsonElement(body).jsonObject["method"]!!.jsonPrimitive.content
+                asked += "$path $method"
+                // The XR80 has no videoScreen endpoint (2026-10-26).
+                if (path == "/sony/videoScreen") return HttpReply(404, "")
+                return livingRoomTv(method)
+            }
+
+            override val scheme: String get() = "https"
+        }
+        val runner = DiagnosticRunner(targets(bar = null), rest, RefusingTls, FakeTcp(null), { client }, null, "unavailable")
+        runner.run()
+        val scene = runner.steps.value.of("rest.scene")
+        assertEquals(StepStatus.SKIPPED, scene.status)
+        assertEquals("not_listed", scene.errorClass)
+        assertFalse(asked.any { it.endsWith("getSceneSetting") }, asked.toString())
+    }
+
+    @Test
     fun `nothing configured skips every step without touching the network`() = runTest {
         val tcp = FakeTcp(null)
         val runner = DiagnosticRunner(targets(tv = null, bar = null, psk = null, pin = null), null, RefusingTls, tcp, { null }, null, "unavailable")
