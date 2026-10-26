@@ -41,6 +41,20 @@ object IconBitmaps {
         return bitmap
     }
 
+    /**
+     * A banner's soft backdrop: its centre square, shrunk to [BACKDROP_PX] a side in two filtered
+     * steps (so each pixel averages an area rather than sampling one point), to be drawn stretched
+     * over the tile with bilinear filtering, which blurs it on every API level.
+     */
+    fun backdrop(banner: Bitmap): Bitmap {
+        val side = minOf(banner.width, banner.height)
+        val square = Bitmap.createBitmap(banner, (banner.width - side) / 2, (banner.height - side) / 2, side, side)
+        val mid = if (side > BACKDROP_PX * 4) Bitmap.createScaledBitmap(square, BACKDROP_PX * 4, BACKDROP_PX * 4, true) else square
+        return Bitmap.createScaledBitmap(mid, BACKDROP_PX, BACKDROP_PX, true)
+    }
+
+    private const val BACKDROP_PX = 8
+
     /** The largest power of two that keeps both sides at least [targetPx]; 1 when already small. */
     internal fun sampleSize(width: Int, height: Int, targetPx: Int): Int {
         if (targetPx <= 0) return 1

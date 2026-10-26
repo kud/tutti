@@ -100,6 +100,9 @@ class FakeBraviaTv(
     /** Whether a GET for [files] wants the PSK too, as some firmware may. */
     @Volatile var filesNeedPsk: Boolean = false
 
+    /** Whether a GET on the plain HTTP port answers 301 to the same path over HTTPS, as an HTTPS-only unit with port 80 open might. */
+    @Volatile var httpGetsRedirect: Boolean = false
+
     /** GET paths in the order they arrived. */
     val gets = CopyOnWriteArrayList<String>()
 
@@ -165,6 +168,11 @@ class FakeBraviaTv(
                 if (request.headers.containsKey("cookie") || request.headers.containsKey("authorization")) credentialSeen.incrementAndGet()
                 if (!link.received()) continue
                 var setCookie: String? = null
+                if (request.method == "GET" && tlsServer == null && httpGetsRedirect) {
+                    gets += request.path
+                    link.write("HTTP/1.1 301 Moved Permanently\r\nLocation: https://${request.headers["host"]?.substringBefore(':')}${request.path}\r\nContent-Length: 0\r\n\r\n".encodeToByteArray())
+                    continue
+                }
                 val (status, bytes, type) = if (request.method == "GET") file(request) else if (request.path == "/sony/ircc") irccAnswer(request) else answer(request).let { (status, body, cookie) ->
                     setCookie = cookie
                     Triple(status, body.encodeToByteArray(), "application/json")
