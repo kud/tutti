@@ -108,7 +108,7 @@
     <string name="tv_rest_offline_title">The TV’s IP control isn’t answering</string>
     <string name="tv_rest_offline_body">These settings go through the TV’s IP control. To turn it on, on the TV:\n\n1. Settings › Network &amp; Internet › Home network › IP control (the path in Sony’s guide).\n2. Authentication: “Normal” or “Normal and Pre-Shared Key”.\n3. Back in tutti, “IP control” shows a code on the TV to type here (or takes a PSK).\n4. Also turn on “Remote start”, so the TV answers in standby.\n\nThe TV and the phone must be on the same network.</string>
     <string name="tv_rest_unauthorized_title">The TV refuses tutti’s access</string>
-    <string name="tv_rest_unauthorized_body">The TV answers, but no longer accepts tutti’s code, or the PSK doesn’t match. Show a new code on the TV with “IP control”, or enter the PSK exactly as set on the TV.</string>
+    <string name="tv_rest_unauthorized_body">The TV answers, but refuses tutti’s code or PSK. Check the key on the TV (Settings › Network &amp; Internet › Home network › IP control › Pre-Shared Key) and enter that same key again with “IP control”, exactly as shown. Or use a code instead: “IP control” shows one on the TV.</string>
     <string name="tv_rest_connecting">Connecting to the TV’s IP control…</string>
     <string name="tv_rest_enter_psk">IP control…</string>
     <string name="tv_power">Power</string>
