@@ -498,7 +498,8 @@ fun choiceLabel(value: String?): String = when (value) {
     "on" -> stringResource(R.string.toggle_state_on)
     "off" -> stringResource(R.string.toggle_state_off)
     null -> "—"
-    else -> value
+    // A value outside the documented vocabulary: readable rather than raw ("main_sub" → "Main sub").
+    else -> io.kud.tutti.protocol.bravia.TvSettingCatalog.readable(value)
 }
 
 /** A level slider that moves locally while dragging and sends once on release. */

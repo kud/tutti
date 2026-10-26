@@ -113,10 +113,17 @@ fun TvSettingsScreen(state: TuttiUiState, controller: TuttiController, onBack: (
                     )
                 }
             }
-            val sound = settings.sound.filter { showAll || it.isAvailable }
-            val speaker = settings.speaker.filter { showAll || it.isAvailable }
-            if (sound.isNotEmpty()) SettingsGroup(stringResource(R.string.tv_sound_output)) {
-                sound.forEach { TvSettingRow(it, TvSettingGroup.SOUND, controller, pin) }
+            // Sound and speakers get the picture's treatment (Erwann, 2026-10-26: « Mets aussi le son
+            // de la barre en mots clairs »): Sony's order, words, unknown targets last and said so.
+            val sound = TvSettingCatalog.arrangeSound(settings.sound, showAll)
+            val speaker = TvSettingCatalog.arrangeSound(settings.speaker, showAll)
+            if (sound.isNotEmpty()) {
+                // "Sound output" while that is all the TV lists; "TV sound" once it lists more.
+                val title = if (sound.all { it.target == TvSetting.OUTPUT_TERMINAL }) R.string.tv_sound_output else R.string.tv_section_sound
+                SettingsGroup(stringResource(title)) {
+                    sound.forEach { TvSettingRow(it, TvSettingGroup.SOUND, controller, pin) }
+                }
+                RawNamesNote(sound)
             } else if (settings.sound.isEmpty() && settings.outputWriteOnly) SettingsGroup(stringResource(R.string.tv_sound_output)) {
                 val outputs = outputNames()
                 ChoiceRow(
@@ -131,6 +138,7 @@ fun TvSettingsScreen(state: TuttiUiState, controller: TuttiController, onBack: (
             if (speaker.isNotEmpty()) SettingsGroup(stringResource(R.string.tv_speaker)) {
                 speaker.forEach { TvSettingRow(it, TvSettingGroup.SPEAKER, controller, pin) }
             }
+            if (speaker.isNotEmpty()) RawNamesNote(speaker)
             if (unavailable > 0) SettingsGroup(null, Modifier.padding(top = 16.dp)) {
                 SwitchRow(
                     label = stringResource(R.string.tv_show_unavailable),
@@ -248,6 +256,18 @@ internal fun outputNames(): Map<String, String> = mapOf(
     "hdmi" to stringResource(R.string.tv_output_hdmi),
     "audioSystem" to stringResource(R.string.tv_output_audio_system),
 )
+
+/** Under a group holding targets tutti has no words for: they carry the TV's own names, on purpose. */
+@Composable
+private fun RawNamesNote(rows: List<TvSetting>) {
+    if (rows.all { TvSettingCatalog.isNamed(it.target) }) return
+    Text(
+        stringResource(R.string.tv_section_other_note),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(start = 32.dp, end = 32.dp, top = 8.dp),
+    )
+}
 
 @Composable
 private fun SceneRow(scene: TvSetting, controller: TuttiController) {

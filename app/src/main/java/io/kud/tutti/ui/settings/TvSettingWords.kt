@@ -54,6 +54,7 @@ internal object TvSettingWords {
         "hdmiVideoRange" -> R.string.tv_target_hdmi_video_range
         "pixelShift" -> R.string.tv_target_pixel_shift
         "outputTerminal" -> R.string.tv_target_output_terminal
+        "soundMode" -> R.string.tv_target_sound_mode
         "tvPosition" -> R.string.tv_target_tv_position
         "subwooferLevel" -> R.string.tv_target_subwoofer_level
         "subwooferFreq" -> R.string.tv_target_subwoofer_freq
@@ -119,6 +120,12 @@ internal object TvSettingWords {
         "smooth" -> R.string.tv_value_smooth
         "clear" -> R.string.tv_value_clear
         "trueCinema" -> R.string.tv_value_true_cinema
+        "tableTop" -> R.string.tv_value_table_top
+        "wallMount" -> R.string.tv_value_wall_mount
+        "normal" -> R.string.tv_value_normal
+        "reverse" -> R.string.tv_value_reverse
+        "dialog", "dialogue" -> R.string.tv_value_dialogue
+        "music" -> R.string.tv_value_music
         else -> null
     }
 }
@@ -139,3 +146,8 @@ internal fun settingValue(setting: TvSetting, value: String): String {
     TvSettingWords.value(value)?.let { return stringResource(it) }
     return setting.candidates.firstOrNull { it.value == value }?.title ?: TvSettingCatalog.readable(value)
 }
+
+/** A value of a TV setting known only by its value (a scene's picture mode): tutti's words, the TV's title when [setting] carries one, else readable. */
+@Composable
+internal fun tvValueName(value: String, setting: TvSetting?): String =
+    if (setting != null) settingValue(setting, value) else TvSettingWords.value(value)?.let { stringResource(it) } ?: TvSettingCatalog.readable(value)

@@ -218,8 +218,25 @@ fun barValueLabel(feature: TheatreFeature, value: String): String = when (val ki
         // The bar's raw "rx" / "tx" read as jargon (seen on the Bar 9, 2026-10-24).
         feature == TheatreFeature.BLUETOOTH_MODE && value == "rx" -> stringResource(R.string.bar_bt_mode_rx)
         feature == TheatreFeature.BLUETOOTH_MODE && value == "tx" -> stringResource(R.string.bar_bt_mode_tx)
+        feature == TheatreFeature.NETWORK_MODE || feature == TheatreFeature.NETWORK_DHCP -> barWord(value) ?: value
         else -> value
     }
+}
+
+/**
+ * The bar's network words, as the Technical details screen reads them (Erwann, 2026-10-26: « en mots
+ * clairs »): wired or Wi-Fi, connected or not, on or off. Null for a word tutti doesn't know, which
+ * the screen then shows as the bar spells it: these vocabularies are unverified on the Bar 9.
+ */
+@Composable
+fun barWord(value: String): String? = when (value.lowercase()) {
+    "wired", "ethernet" -> stringResource(R.string.bar_value_wired)
+    "wireless", "wifi", "wlan" -> stringResource(R.string.bar_value_wireless)
+    "connected" -> stringResource(R.string.bar_value_connected)
+    "disconnected", "notconnected", "not_connected" -> stringResource(R.string.bar_value_not_connected)
+    "on" -> stringResource(R.string.toggle_state_on)
+    "off" -> stringResource(R.string.toggle_state_off)
+    else -> null
 }
 
 /** Icons a pin can wear instead of its action's, by name (stored in DockSlot.icon). */

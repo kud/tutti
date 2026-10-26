@@ -30,6 +30,8 @@ import io.kud.tutti.protocol.theatre.TheatreFeature
 import io.kud.tutti.platform.diagnostic.AppVersion
 import io.kud.tutti.ui.common.SettingsGroup
 import io.kud.tutti.ui.common.SettingsRow
+import io.kud.tutti.ui.common.barValueLabel
+import io.kud.tutti.ui.common.barWord
 import io.kud.tutti.ui.common.featureLabel
 
 /**
@@ -107,7 +109,11 @@ fun TechnicalScreen(state: TuttiUiState, onOpen: () -> Unit, onBack: () -> Unit)
                     for (feature in BAR_TCP_READOUTS) Fact(featureLabel(feature), tcpReadout(state, feature))
                     for ((key, label) in BAR_HTTP_READOUTS) Fact(label, httpReadout(state, key))
                     if (state.bar.refused.isNotEmpty()) {
-                        Fact(R.string.technical_bar_refused, state.bar.refused.sorted().joinToString(", "))
+                        // By name where tutti has one, else the bar's key, so it can still be looked up.
+                        val refused = state.bar.refused.sorted().map { key ->
+                            TheatreFeature.entries.firstOrNull { it.key == key }?.let { stringResource(featureLabel(it)) } ?: key
+                        }
+                        Fact(R.string.technical_bar_refused, refused.joinToString(", "))
                     }
                 }
             }
@@ -150,7 +156,7 @@ private fun from(value: String, source: Int): String = stringResource(R.string.t
 @Composable
 private fun tcpReadout(state: TuttiUiState, feature: TheatreFeature): String {
     val bar = state.bar
-    bar.confirmed[feature.key]?.let { return from(it, R.string.technical_source_tcp) }
+    bar.confirmed[feature.key]?.let { return from(barValueLabel(feature, it), R.string.technical_source_tcp) }
     val asking = bar.outstanding.values.any { !it.isSet && it.feature == feature.key }
     return stringResource(
         when {
@@ -176,7 +182,10 @@ private fun httpReadout(state: TuttiUiState, key: BarHttpKey): String {
         )
     }
     return when (val value = readouts[key]) {
-        is BarHttpValue.Answered -> from(value.value, R.string.technical_source_http)
+        is BarHttpValue.Answered -> from(
+            if (key == BarHttpKey.NETWORK_TYPE || key == BarHttpKey.INTERNET) barWord(value.value) ?: value.value else value.value,
+            R.string.technical_source_http,
+        )
         BarHttpValue.Refused -> stringResource(R.string.technical_refused)
         BarHttpValue.NotReported -> stringResource(R.string.technical_unknown)
     }
