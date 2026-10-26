@@ -213,7 +213,7 @@ class DiagnosticRunner(
                 fact("call", "${service.id}.${read.method}@$version")
                 val params = if (read.target) listOf(buildJsonObject { put("target", "") }) else emptyList()
                 val result = expect(client.call(service, read.method, params))
-                fact("shape", JsonShape.of(result, scrub))
+                fact("shape", JsonShape.of(result, scrub, public = read.public))
                 if (developer && read.raw) fact("raw", Redact.text(result.toString(), scrub).take(RAW_MAX))
             }
         }

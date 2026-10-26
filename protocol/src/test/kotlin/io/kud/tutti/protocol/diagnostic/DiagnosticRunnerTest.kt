@@ -388,4 +388,17 @@ class DiagnosticRunnerTest {
         assertEquals("""[{"model":"K-65XR80","serial":<redacted>,"macAddr":<redacted>,"inputs":[2x {"uri":str(20)}]}]""", shape)
         assertEquals(setOf(SERIAL, MAC), sensitive)
     }
+
+    @Test
+    fun `button names are not identifying, so they never reach the scrub list`() {
+        val sensitive = mutableSetOf<String>()
+        val json = Json.parseToJsonElement("""[{"bundled":true,"type":"IR_REMOTE_BUNDLE_TYPE_AEP_N"},[{"name":"Red","value":"AAAAAgAAAJcAAAAlAw=="},{"name":"Play","value":"x"}]]""")
+        JsonShape.of(json, sensitive, public = setOf("name"))
+        assertTrue(sensitive.isEmpty(), sensitive.toString())
+        val ircc = DiagnosticSteps.REST_READS.first { it.method == "getRemoteControllerInfo" }
+        assertEquals(setOf("name"), ircc.public)
+        // Elsewhere a name is still someone's: the bar's, an input's.
+        JsonShape.of(Json.parseToJsonElement("""{"name":"Invented Lounge"}"""), sensitive)
+        assertEquals(setOf("Invented Lounge"), sensitive)
+    }
 }
