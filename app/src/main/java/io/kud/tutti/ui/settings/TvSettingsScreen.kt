@@ -25,6 +25,15 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.liveRegion
+import io.kud.tutti.controller.TvSettingsPart
+import io.kud.tutti.ui.common.LocalReducedMotion
+import io.kud.tutti.ui.common.SettingsRow
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -67,6 +76,7 @@ fun TvSettingsScreen(state: TuttiUiState, controller: TuttiController, onBack: (
     LaunchedEffect(rest) { if (rest == Link.ONLINE) controller.loadTvSettings() }
     var pskDialog by remember { mutableStateOf(false) }
     var showUnavailable by rememberSaveable { mutableStateOf(false) }
+    var showAdvanced by rememberSaveable { mutableStateOf(false) }
     val settings = state.tv.settings
     // Picture modes and sound outputs pin to the dock from their own menu (design.md, gestures).
     // The rows only exist while REST is online, so no long press here can meet a down link.
@@ -91,27 +101,57 @@ fun TvSettingsScreen(state: TuttiUiState, controller: TuttiController, onBack: (
                 RestExplainer(rest, note = state.linkNotes.rest, onEnterPsk = { pskDialog = true }, onOpenUnlock = onOpenUnlock)
                 return@Column
             }
-            if (settings.loading) BusyBar(Modifier.fillMaxWidth())
+            // While IP control answers, a line in words says so; each part still on its way holds its
+            // place with a waiting row, and what is already known shows as it is (Iris, 2026-10-26).
+            val firstLoad = !settings.loaded
+            val waitingFor = { part: TvSettingsPart -> settings.loading && firstLoad && part in settings.waiting }
+            if (settings.loading) LoadingNote(firstLoad)
 
-            // Sony's menu order in sections, not the TV's alphabetical list; rows the TV can't change
-            // now are hidden until asked for, then shown in place (Iris, 2026-10-26).
+            // The everyday handful first, the rest folded behind Advanced in Sony's order (Erwann,
+            // 2026-10-26: "Put the expert settings behind Advanced"). Rows the TV can't change now are
+            // hidden until asked for, then shown in place.
             val unavailable = (settings.picture + settings.sound + settings.speaker).count { !it.isAvailable }
             val showAll = showUnavailable || unavailable == 0
-            val sections = TvSettingCatalog.arrange(settings.picture, showAll).toMutableList()
-            if (settings.scene != null && sections.none { it.first == PictureSection.PICTURE }) sections.add(0, PictureSection.PICTURE to emptyList())
-            for ((section, rows) in sections) {
-                SettingsGroup(stringResource(TvSettingWords.section(section))) {
-                    rows.forEach { TvSettingRow(it, TvSettingGroup.PICTURE, controller, pin) }
-                    if (section == PictureSection.PICTURE) settings.scene?.let { scene -> SceneRow(scene, controller) }
+            val everyday = TvSettingCatalog.everyday(settings.picture, showAll)
+            if (waitingFor(TvSettingsPart.PICTURE)) {
+                SettingsGroup(stringResource(R.string.tv_picture)) {
+                    // The picture mode rides the remote's own poll, so it is known before this load.
+                    state.tv.pictureMode?.let { mode ->
+                        SettingsRow(title = stringResource(R.string.tv_target_picture_mode), detail = tvValueName(mode, null))
+                    }
+                    WaitingRow(stringResource(R.string.tv_waiting_picture))
                 }
-                if (section == PictureSection.OTHER) {
-                    Text(
-                        stringResource(R.string.tv_section_other_note),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(start = 32.dp, end = 32.dp, top = 8.dp),
+            } else if (everyday.isNotEmpty() || settings.scene != null) {
+                SettingsGroup(stringResource(R.string.tv_picture)) {
+                    val scene: @Composable () -> Unit = { settings.scene?.let { SceneRow(it, controller) } }
+                    if (everyday.none { it.target == "pictureMode" }) scene()
+                    everyday.forEach {
+                        TvSettingRow(it, TvSettingGroup.PICTURE, controller, pin)
+                        if (it.target == "pictureMode") scene()
+                    }
+                }
+            }
+            val advanced = TvSettingCatalog.advanced(settings.picture, showAll)
+            if (advanced.isNotEmpty()) {
+                SettingsGroup(stringResource(R.string.tv_advanced)) {
+                    AdvancedToggle(
+                        unfolded = showAdvanced,
+                        count = advanced.sumOf { it.second.size },
+                        sections = advanced.map { stringResource(TvSettingWords.section(it.first)) },
+                        onToggle = { showAdvanced = !showAdvanced },
                     )
                 }
+                if (showAdvanced) {
+                    for ((section, rows) in advanced) {
+                        SettingsGroup(stringResource(TvSettingWords.section(section))) {
+                            rows.forEach { TvSettingRow(it, TvSettingGroup.PICTURE, controller, pin) }
+                        }
+                        if (section == PictureSection.OTHER) RawNamesNote(rows)
+                    }
+                }
+            }
+            if (waitingFor(TvSettingsPart.SOUND)) {
+                SettingsGroup(stringResource(R.string.tv_sound_output)) { WaitingRow(stringResource(R.string.tv_target_output_terminal)) }
             }
             // Sound and speakers get the picture's treatment (Erwann, 2026-10-26: « Mets aussi le son
             // de la barre en mots clairs »): Sony's order, words, unknown targets last and said so.
@@ -164,7 +204,9 @@ fun TvSettingsScreen(state: TuttiUiState, controller: TuttiController, onBack: (
                     )
                 }
             }
-            if (settings.powerSavingSupported || settings.wol != null || settings.sleepCode != null) SettingsGroup(stringResource(R.string.tv_power)) {
+            if (waitingFor(TvSettingsPart.POWER)) {
+                SettingsGroup(stringResource(R.string.tv_power)) { WaitingRow(stringResource(R.string.tv_waiting_power)) }
+            } else if (settings.powerSavingSupported || settings.wol != null || settings.sleepCode != null) SettingsGroup(stringResource(R.string.tv_power)) {
                 if (settings.powerSavingSupported) {
                     val modes = listOf(
                         "off" to stringResource(R.string.tv_power_saving_off),
@@ -246,6 +288,76 @@ private fun RestExplainer(rest: Link, note: String?, onEnterPsk: () -> Unit, onO
         }
         if (rest != Link.CONNECTING) ProblemNote(message = null, detail = note, modifier = Modifier.padding(top = 8.dp))
     }
+}
+
+/**
+ * The load in words, under a progress bar: what is being asked and that what is shown is already
+ * the TV's. The bar alone was a thin line Erwann read past (2026-10-26); the words carry the state,
+ * so it never rests on motion or colour.
+ */
+@Composable
+private fun LoadingNote(firstLoad: Boolean) {
+    BusyBar(Modifier.fillMaxWidth())
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite }
+            .padding(start = 32.dp, end = 32.dp, top = 12.dp),
+    ) {
+        Text(stringResource(if (firstLoad) R.string.tv_loading_first else R.string.tv_loading_again), style = MaterialTheme.typography.bodyMedium)
+        if (firstLoad) {
+            Text(
+                stringResource(R.string.tv_loading_known),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 2.dp),
+            )
+        }
+    }
+}
+
+/**
+ * A part of the screen the TV hasn't answered yet, in the place it will take: its name and
+ * "Waiting for the TV…" in words, with a small spinner (a still glyph under reduced motion).
+ */
+@Composable
+private fun WaitingRow(title: String) {
+    SettingsRow(
+        title = title,
+        detail = stringResource(R.string.tv_waiting),
+        trailing = {
+            if (LocalReducedMotion.current) {
+                Icon(painterResource(R.drawable.ic_refresh), contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            } else {
+                CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        },
+    )
+}
+
+/**
+ * The Advanced fold's one row. Its title says what a tap does ("Show 48 more settings", "Hide
+ * advanced settings"), its line names the sections inside, and the chevron turns down when open:
+ * the state is in words first, and TalkBack hears "Folded" or "Unfolded".
+ */
+@Composable
+private fun AdvancedToggle(unfolded: Boolean, count: Int, sections: List<String>, onToggle: () -> Unit) {
+    val state = stringResource(if (unfolded) R.string.tv_advanced_unfolded else R.string.tv_advanced_folded)
+    SettingsRow(
+        title = if (unfolded) stringResource(R.string.tv_advanced_hide) else pluralStringResource(R.plurals.tv_advanced_show, count, count),
+        detail = sections.joinToString(", "),
+        onClick = onToggle,
+        role = Role.Button,
+        modifier = Modifier.semantics { stateDescription = state },
+        trailing = {
+            Icon(
+                painterResource(R.drawable.ic_chevron_right),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.rotate(if (unfolded) 90f else 0f),
+            )
+        },
+    )
 }
 
 /** The TV's sound outputs in words, by their `outputTerminal` value (scenes say them too). */

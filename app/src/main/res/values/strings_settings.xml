@@ -214,4 +214,24 @@
     <string name="bar_value_wireless">Wi-Fi</string>
     <string name="bar_value_connected">Connected</string>
     <string name="bar_value_not_connected">Not connected</string>
+    <!-- TV settings, round 3 (Iris, 2026-10-26): the XR80's leftovers, the Advanced fold, the loading state. -->
+    <string name="tv_target_sensor_auto_adjustment">Light sensor auto adjustment</string>
+    <string name="tv_target_content_type">Content type</string>
+    <string name="tv_part_offset">%1$s offset</string>
+    <string name="tv_section_automatic">Automatic picture</string>
+    <string name="tv_value_video">Video</string>
+    <string name="tv_advanced">Advanced</string>
+    <plurals name="tv_advanced_show">
+        <item quantity="one">Show %1$d more setting</item>
+        <item quantity="other">Show %1$d more settings</item>
+    </plurals>
+    <string name="tv_advanced_hide">Hide advanced settings</string>
+    <string name="tv_advanced_folded">Folded</string>
+    <string name="tv_advanced_unfolded">Unfolded</string>
+    <string name="tv_loading_first">Asking the TV for its settings over IP control…</string>
+    <string name="tv_loading_again">Checking the TV’s settings again…</string>
+    <string name="tv_loading_known">What the TV already told tutti is shown as it is.</string>
+    <string name="tv_waiting">Waiting for the TV…</string>
+    <string name="tv_waiting_picture">Brightness, colour and the rest</string>
+    <string name="tv_waiting_power">Power saving and wake from the network</string>
 </resources>

@@ -39,6 +39,17 @@ class TvSettingWordsTest {
         assertEquals(emptyList<String>(), listOf("tableTop", "wallMount", "normal", "reverse", "on", "off").filter { TvSettingWords.value(it) == null })
     }
 
+    /** dev.14's screenshot (2026-10-26): the XR80's last raw rows have words, the offsets through their colour and part. */
+    @Test
+    fun theXr80LeftoversAreNamed() {
+        assertEquals(emptyList<String>(), listOf("contentType", "sensorAutoAdjustment").filter { TvSettingWords.target(it) == null })
+        for (target in listOf("redOffset", "greenOffset", "blueOffset")) {
+            assertNull(TvSettingWords.target(target))
+            assertEquals(target, TvSettingCatalog.Part.OFFSET, TvSettingCatalog.colourTarget(target)?.part)
+        }
+        assertTrue(listOf("video", "off", "on").all { TvSettingWords.value(it) != null })
+    }
+
     @Test
     fun everyColourPartAndSectionHasWords() {
         TvSettingCatalog.Hue.entries.forEach { TvSettingWords.hue(it) }

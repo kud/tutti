@@ -22,6 +22,7 @@ internal object TvSettingWords {
         "pictureMode" -> R.string.tv_target_picture_mode
         "autoPictureMode" -> R.string.tv_target_auto_picture_mode
         "lightSensor" -> R.string.tv_target_light_sensor
+        "sensorAutoAdjustment" -> R.string.tv_target_sensor_auto_adjustment
         "brightness" -> R.string.tv_target_brightness
         "contrast" -> R.string.tv_target_contrast
         "gamma" -> R.string.tv_target_gamma
@@ -52,6 +53,7 @@ internal object TvSettingWords {
         "hdrMode" -> R.string.tv_target_hdr_mode
         "colorSpace" -> R.string.tv_target_color_space
         "hdmiVideoRange" -> R.string.tv_target_hdmi_video_range
+        "contentType" -> R.string.tv_target_content_type
         "pixelShift" -> R.string.tv_target_pixel_shift
         "outputTerminal" -> R.string.tv_target_output_terminal
         "soundMode" -> R.string.tv_target_sound_mode
@@ -78,6 +80,7 @@ internal object TvSettingWords {
     fun part(part: Part): Int = when (part) {
         Part.GAIN -> R.string.tv_part_gain
         Part.BIAS -> R.string.tv_part_bias
+        Part.OFFSET -> R.string.tv_part_offset
         Part.HUE -> R.string.tv_part_hue
         Part.SATURATION -> R.string.tv_part_saturation
         Part.LIGHTNESS -> R.string.tv_part_lightness
@@ -85,7 +88,7 @@ internal object TvSettingWords {
 
     @StringRes
     fun section(section: PictureSection): Int = when (section) {
-        PictureSection.PICTURE -> R.string.tv_picture
+        PictureSection.PICTURE -> R.string.tv_section_automatic
         PictureSection.BRIGHTNESS -> R.string.tv_section_brightness
         PictureSection.COLOUR -> R.string.tv_section_colour
         PictureSection.WHITE_BALANCE -> R.string.tv_section_white_balance
@@ -111,6 +114,7 @@ internal object TvSettingWords {
         "vivid" -> R.string.tv_value_vivid
         "game" -> R.string.tv_value_game
         "graphics" -> R.string.tv_value_graphics
+        "video" -> R.string.tv_value_video
         "photo" -> R.string.tv_value_photo
         "sports" -> R.string.tv_value_sports
         "animation" -> R.string.tv_value_animation
