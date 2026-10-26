@@ -28,7 +28,7 @@
     <string name="ipc_failed_unreachable">La TV n’a pas répondu. Vérifiez qu’elle est allumée et sur le même réseau que le téléphone.</string>
     <string name="ipc_failed_not_enabled">La TV répond mais refuse de donner un code. Vérifiez que le contrôle IP est activé, avec l’authentification « Normale » ou « Normale et clé pré-partagée ».</string>
     <string name="ipc_failed_screen_off">L’écran de la TV est éteint, elle ne peut pas afficher de code. Allumez la TV et réessayez.</string>
-    <string name="ipc_failed_certificate">Cette TV n’est pas celle que tutti connaît (son certificat a changé). Oubliez la TV puis ajoutez-la de nouveau.</string>
+    <string name="ipc_failed_certificate">L’identité sécurisée de la TV a changé. Associez à nouveau la TV pour lui faire confiance.</string>
     <string name="ipc_failed_other">Ça n’a pas marché. Réessayez, ou utilisez plutôt une clé PSK.</string>
     <string name="ipc_row_renew">Contrôle IP : code à renouveler</string>
     <string name="ipc_renew_action">Renouveler le code</string>

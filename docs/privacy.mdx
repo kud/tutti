@@ -11,7 +11,7 @@ Every connection goes to a private LAN address. Plain HTTP is refused for anythi
 
 ## Trust on first use
 
-The TV's and the bar's certificates are pinned the first time tutti meets them. A changed certificate is refused rather than silently accepted, and TLS verification is never switched off.
+The TV is trusted explicitly. Android TV Remote v2 keeps the exact certificate established by pairing. BRAVIA REST over HTTPS pins the TV's public key, so a reissued certificate using the same key keeps working; a new key is refused until you pair the TV again. TLS verification is never switched off. The soundbar's TCP 33336 protocol has no device authentication, so tutti does not claim one.
 
 ## Secrets on the phone
 
