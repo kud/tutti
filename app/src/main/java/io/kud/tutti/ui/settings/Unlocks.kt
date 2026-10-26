@@ -68,7 +68,7 @@ fun statusOf(step: Unlock, state: TuttiUiState): UnlockStatus {
     return when (step) {
         Unlock.PAIR_TV -> when {
             tv == null -> UnlockStatus.TODO
-            state.links.tv == Link.NEEDS_PAIRING -> UnlockStatus.ATTENTION
+            state.links.tv == Link.NEEDS_PAIRING || state.links.rest == Link.NEEDS_PAIRING -> UnlockStatus.ATTENTION
             else -> UnlockStatus.DONE
         }
         Unlock.IP_CONTROL -> when {

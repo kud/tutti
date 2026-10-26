@@ -170,6 +170,7 @@ private fun httpReadout(state: TuttiUiState, key: BarHttpKey): String {
         return stringResource(
             when (state.technical.barHttpFetch) {
                 Fetch.IDLE, Fetch.LOADING -> R.string.technical_asking
+                Fetch.UNSUPPORTED -> R.string.technical_http_unavailable
                 else -> R.string.technical_http_no_answer
             },
         )

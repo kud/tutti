@@ -1,24 +1,23 @@
 package io.kud.tutti.platform.net
 
-import io.kud.tutti.protocol.net.CertificatePin
+import io.kud.tutti.protocol.net.ServerIdentityPin
 import java.security.cert.CertificateException
 import java.security.cert.X509Certificate
 import javax.net.ssl.X509TrustManager
 
 /**
- * Trust-on-first-use for the TV's self-signed certificates.
+ * Trust-on-first-use for the TV's self-signed TLS identity.
  *
- * - [expected] set: the handshake fails unless the leaf certificate matches it.
- * - [expected] null: first contact. The leaf is accepted and reported through [onFirstUse];
- *   the caller persists it only once the user has confirmed (pairing code, or a successful
- *   authenticated REST call). Every later connection is pinned.
+ * [expected] may pin the exact certificate (Remote v2) or its public key (BRAVIA REST). With no
+ * pin, the leaf is accepted only so the caller can run its own trust ceremony. [onPeerCertificate]
+ * observes every tested leaf but never changes trust by itself.
  *
- * Chain building and validity dates are deliberately not checked: these certificates are
- * self-signed and the pin is the identity. This is never "trust all": a set pin is enforced.
+ * Chain building and validity dates are deliberately not checked: these device certificates are
+ * self-signed. This is never "trust all": once [expected] is set it is enforced.
  */
 internal class PinningTrustManager(
-    @Volatile var expected: CertificatePin?,
-    private val onFirstUse: (CertificatePin) -> Unit = {},
+    @Volatile var expected: ServerIdentityPin?,
+    private val onPeerCertificate: (X509Certificate) -> Unit = {},
 ) : X509TrustManager {
     override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?) {
         throw CertificateException("client mode only")
@@ -26,16 +25,13 @@ internal class PinningTrustManager(
 
     override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?) {
         val leaf = chain?.firstOrNull() ?: throw CertificateException("empty certificate chain")
-        val pin = expected
-        if (pin == null) {
-            onFirstUse(CertificatePin.of(leaf))
-            return
-        }
+        onPeerCertificate(leaf)
+        val pin = expected ?: return
         if (!pin.matches(leaf)) throw PinMismatchException()
     }
 
     override fun getAcceptedIssuers(): Array<X509Certificate> = emptyArray()
 }
 
-/** The device presented a different certificate than the one recorded: re-pair, never retry blindly. */
-class PinMismatchException : CertificateException("certificate does not match the recorded pin")
+/** The device presented a different pinned identity: pair again, never retry blindly. */
+class PinMismatchException : CertificateException("server identity does not match the recorded pin")

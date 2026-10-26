@@ -28,7 +28,7 @@
     <string name="ipc_failed_unreachable">The TV didn’t answer. Check it’s on and on the same network as the phone.</string>
     <string name="ipc_failed_not_enabled">The TV answered but won’t give a code. Check that IP control is on, with authentication “Normal” or “Normal and Pre-Shared Key”.</string>
     <string name="ipc_failed_screen_off">The TV’s screen is off, so it can’t show a code. Turn the TV on and try again.</string>
-    <string name="ipc_failed_certificate">The TV isn’t the one tutti knows (its certificate changed). Forget the TV and add it again.</string>
+    <string name="ipc_failed_certificate">The TV’s secure identity changed. Pair the TV again to trust it.</string>
     <string name="ipc_failed_other">That didn’t work. Try again, or use a PSK instead.</string>
     <string name="ipc_row_renew">IP control: code to renew</string>
     <string name="ipc_renew_action">Renew the code</string>

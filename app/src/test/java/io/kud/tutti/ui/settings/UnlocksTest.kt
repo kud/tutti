@@ -48,6 +48,17 @@ class UnlocksTest {
     }
 
     @Test
+    fun `a changed REST certificate makes pairing the next step`() {
+        val state = TuttiUiState(
+            devices = Devices(tv = tv),
+            links = Links(tv = Link.ONLINE, rest = Link.NEEDS_PAIRING),
+            pskSet = true,
+        )
+        assertEquals(UnlockStatus.ATTENTION, state.status(Unlock.PAIR_TV))
+        assertEquals(Unlock.PAIR_TV, unlockSummary(unlocks(state)).next)
+    }
+
+    @Test
     fun `a stored key reads by what the TV answers`() {
         fun with(rest: Link) = TuttiUiState(devices = Devices(tv = tv), links = Links(rest = rest), pskSet = true).status(Unlock.IP_CONTROL)
         assertEquals(UnlockStatus.DONE, with(Link.ONLINE))

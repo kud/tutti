@@ -136,9 +136,18 @@ object BarHttpCodec {
     private val REFUSALS = setOf("NAK", "ERR")
 }
 
+/**
+ * The optional 54545 management plane answered HTTP but does not accept this read protocol.
+ * Distinct from a network failure: callers may present it as unsupported rather than a broken bar.
+ */
+class BarHttpUnavailable(val status: Int) : java.io.IOException("HTTP $status")
+
 /** HTTP POST to the bar's 54545. `:app` implements it: plain HTTP, private LAN addresses only. */
 interface BarHttpTransport {
-    /** Posts [body] as JSON to [BarHttpKey.PATH] and returns the reply body. Throws on network failure or a non-2xx. */
+    /**
+     * Posts [body] as JSON to [BarHttpKey.PATH] and returns the reply body. Throws
+     * [BarHttpUnavailable] when the HTTP endpoint answers non-2xx, or an I/O error when unreachable.
+     */
     suspend fun post(body: String): String
 }
 

@@ -9,7 +9,11 @@ import io.kud.tutti.protocol.bravia.BraviaError
 import io.kud.tutti.protocol.bravia.BraviaResult
 import io.kud.tutti.protocol.bravia.PowerStatus
 import io.kud.tutti.protocol.bravia.Registration
+import io.kud.tutti.protocol.atv.ClientCertificates
 import io.kud.tutti.protocol.net.CertificatePin
+import io.kud.tutti.protocol.net.ClientIdentity
+import io.kud.tutti.protocol.net.PublicKeyPin
+import io.kud.tutti.protocol.net.ServerIdentityPin
 import io.kud.tutti.protocol.sim.FakeBraviaTv
 import io.kud.tutti.protocol.sim.SimKeys
 import kotlinx.coroutines.runBlocking
@@ -23,12 +27,12 @@ import java.util.concurrent.CopyOnWriteArrayList
 /** The real OkHttp transport and BRAVIA client against the simulated TV's REST ports on loopback. */
 class BraviaSimTest {
     private val tv = FakeBraviaTv(psk = "1234").start()
-    private val saved = CopyOnWriteArrayList<CertificatePin>()
+    private val saved = CopyOnWriteArrayList<PublicKeyPin>()
 
     @After
     fun stop() = tv.close()
 
-    private fun transport(pin: CertificatePin? = null, readTimeoutMs: Long = 2_000) =
+    private fun transport(pin: ServerIdentityPin? = null, readTimeoutMs: Long = 2_000) =
         OkHttpBraviaTransport(HOST, pin, { saved += it }, tv.https.port, tv.http.port, ::loopbackOnly, readTimeoutMs)
 
     private fun client(transport: OkHttpBraviaTransport = transport(), psk: String = "1234") = BraviaClient(transport) { psk }
@@ -45,7 +49,7 @@ class BraviaSimTest {
         assertEquals(PowerStatus.ACTIVE, client.powerStatus().ok())
         assertEquals(12, client.volumeInformation().ok().single().volume)
         assertEquals("https", transport.scheme)
-        assertEquals(listOf(CertificatePin.of(SimKeys.tv.certificate)), saved)
+        assertEquals(listOf(PublicKeyPin.of(SimKeys.tv.certificate)), saved)
         assertTrue(tv.http.accepted.get() == 0)
     }
 
@@ -125,6 +129,15 @@ class BraviaSimTest {
     }
 
     @Test
+    fun `an unauthenticated probe exposes the HTTPS pin without sending the key`() = runBlocking {
+        val transport = transport()
+        BraviaClient(transport) { null }.discover().ok()
+        assertEquals(PublicKeyPin.of(SimKeys.tv.certificate), transport.observedPin)
+        assertEquals(0, tv.https.credentialSeen.get())
+        assertTrue(saved.isEmpty())
+    }
+
+    @Test
     fun `the pin is kept only after an authenticated call succeeds`() = runBlocking {
         val transport = transport()
         client(transport, psk = "9999").discover().ok()
@@ -132,7 +145,7 @@ class BraviaSimTest {
         assertEquals(BraviaError.Unauthorized, client(transport, psk = "9999").powerStatus().error())
         assertTrue("a refused key pins nothing", saved.isEmpty())
         client(transport).powerStatus().ok()
-        assertEquals(listOf(CertificatePin.of(SimKeys.tv.certificate)), saved)
+        assertEquals(listOf(PublicKeyPin.of(SimKeys.tv.certificate)), saved)
     }
 
     @Test
@@ -162,13 +175,40 @@ class BraviaSimTest {
     }
 
     @Test
-    fun `a changed certificate fails against the pin, never falls back, never re-pins`() = runBlocking {
+    fun `a reissued certificate with the same public key keeps working`() = runBlocking {
+        val transport = transport()
+        val client = client(transport)
+        assertEquals(PowerStatus.ACTIVE, client.powerStatus().ok())
+        val renewed = ClientIdentity(
+            ClientCertificates.selfSign(
+                SimKeys.tv.certificate.publicKey,
+                SimKeys.tv.privateKey,
+                "BRAVIA simulator, renewed certificate",
+            ),
+            SimKeys.tv.privateKey,
+        )
+        tv.https.changeCertificate(renewed)
+        tv.https.dropConnections()
+        assertEquals(PowerStatus.ACTIVE, client.powerStatus().ok())
+        assertEquals(listOf(PublicKeyPin.of(SimKeys.tv.certificate)), saved)
+    }
+
+    @Test
+    fun `a legacy full-certificate REST pin promotes to the public key after authenticated success`() = runBlocking {
+        val legacy = CertificatePin.of(SimKeys.tv.certificate)
+        val transport = transport(pin = legacy)
+        assertEquals(PowerStatus.ACTIVE, client(transport).powerStatus().ok())
+        assertEquals(listOf(PublicKeyPin.of(SimKeys.tv.certificate)), saved)
+    }
+
+    @Test
+    fun `a changed public key fails against the pin, never falls back, never re-pins`() = runBlocking {
         val client = client(transport())
         assertEquals(PowerStatus.ACTIVE, client.powerStatus().ok())
         tv.https.changeCertificate(SimKeys.tvAfterReset)
         tv.https.dropConnections()
         assertEquals(BraviaError.PinMismatch, client.powerStatus().error())
-        assertEquals(listOf(CertificatePin.of(SimKeys.tv.certificate)), saved)
+        assertEquals(listOf(PublicKeyPin.of(SimKeys.tv.certificate)), saved)
         assertEquals(0, tv.http.accepted.get())
     }
 
@@ -198,7 +238,7 @@ class BraviaSimTest {
         assertEquals(1, tv.codesShown.get())
         assertTrue("asking for the code pins nothing", saved.isEmpty())
         val cookie = registered(api.submitCode(clientId, "4821"))
-        assertEquals(listOf(CertificatePin.of(SimKeys.tv.certificate)), saved)
+        assertEquals(listOf(PublicKeyPin.of(SimKeys.tv.certificate)), saved)
         val withCookie = cookieClient(transport) { cookie.value }
         assertEquals(PowerStatus.ACTIVE, withCookie.powerStatus().ok())
         assertEquals("https", transport.scheme)

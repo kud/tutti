@@ -51,7 +51,7 @@ enum class TvCodeFailure {
     /** Sony's 40005: the screen is off, so there is nowhere to show the code. */
     SCREEN_OFF,
 
-    /** Another certificate than the pinned one: the TV was reset, or someone is in between. */
+    /** REST presented another pinned server key: pair again before trusting it. */
     CERTIFICATE,
     OTHER,
 }
@@ -64,7 +64,7 @@ enum class Link {
     ONLINE,
     UNREACHABLE,
 
-    /** The TV forgot us or changed certificate: "Associer à nouveau". */
+    /** The TV forgot us or a pinned TV identity changed: "Associer à nouveau". */
     NEEDS_PAIRING,
 
     /** REST answered 401/403: the PSK or the code's cookie is wrong, expired or missing. */

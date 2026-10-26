@@ -11,6 +11,8 @@ import io.kud.tutti.protocol.devices.Device
 import io.kud.tutti.protocol.devices.SecretKeys
 import io.kud.tutti.platform.shortcuts.ShortcutGuard
 import io.kud.tutti.protocol.net.CertificatePin
+import io.kud.tutti.protocol.net.PublicKeyPin
+import io.kud.tutti.protocol.net.ServerIdentityPin
 import kotlinx.coroutines.flow.first
 import javax.inject.Inject
 import javax.inject.Named
@@ -21,7 +23,7 @@ import javax.inject.Singleton
  * from backup (res/xml/data_extraction_rules.xml and backup_rules.xml). Every value is encrypted by [SecretCipher]. Nothing here
  * is ever logged; use Redact if a value must be mentioned.
  *
- * Keys are per device (`psk/<id>`, `ipcookie/<id>`, `pin/<id>/remote`, `pin/<id>/rest`, [SecretKeys]). For one
+ * Keys are per device (`psk/<id>`, `ipcookie/<id>`, `pin/<id>/remote`, REST pin keys, [SecretKeys]). For one
  * release the TV's are also written to, and read back from, the version-1 flat keys, so neither a
  * crash mid-migration nor a downgrade can lose the PSK or the pairing.
  */
@@ -47,10 +49,20 @@ class SecureStore @Inject constructor(
 
     suspend fun setTvRemotePin(pin: CertificatePin?) = write(SecretKeys.remotePin(TV), pin?.sha256Hex)
 
-    /** Pin of the TV's REST (HTTPS) certificate, recorded on first successful call. */
-    suspend fun tvRestPin(): CertificatePin? = read(SecretKeys.restPin(TV))?.let(::CertificatePin)
+    /**
+     * REST HTTPS identity. New installs pin SubjectPublicKeyInfo; the old full-certificate digest
+     * remains readable and is promoted after the next authenticated HTTPS success.
+     */
+    suspend fun tvRestPin(): ServerIdentityPin? =
+        read(SecretKeys.restPublicKeyPin(TV))?.let(::PublicKeyPin)
+            ?: read(SecretKeys.restPin(TV))?.let(::CertificatePin)
 
-    suspend fun setTvRestPin(pin: CertificatePin?) = write(SecretKeys.restPin(TV), pin?.sha256Hex)
+    suspend fun setTvRestPin(pin: PublicKeyPin?) {
+        write(SecretKeys.restPublicKeyPin(TV), pin?.sha256Hex)
+        // HTTP-only after an explicit pairing: remove both generations. A new SPKI pin deliberately
+        // leaves the old cert digest alone so an immediate downgrade still fails closed, not open.
+        if (pin == null) write(SecretKeys.restPin(TV), null)
+    }
 
     /** "Oublier l'appareil" (TV): PSK, IP-control cookie and both pins, old keys included. */
     suspend fun forgetTv() = forgetDevice(TV)

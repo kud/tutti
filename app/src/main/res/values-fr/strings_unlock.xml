@@ -95,6 +95,7 @@
     <string name="technical_refused">refusé par la barre</string>
     <string name="technical_needs_bar_link">nécessite la liaison de contrôle (33336)</string>
     <string name="technical_http_no_answer">pas de réponse sur le port 54545</string>
+    <string name="technical_http_unavailable">non disponible sur cette barre de son</string>
     <string name="technical_needs_psk">nécessite le contrôle IP</string>
     <string name="technical_not_listed">non proposé par cette TV</string>
     <string name="technical_no_answer">pas de réponse</string>
