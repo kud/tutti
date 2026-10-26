@@ -209,7 +209,8 @@ data class CastPlayback(val state: Int, val positionMs: Long, val speed: Float, 
 /**
  * Maps a Cast report onto the media session. The report's time is wall-clock; the session wants
  * [android.os.SystemClock.elapsedRealtime], so it is shifted by how long ago the report was read.
- * Unknown position stays unknown; live content has no duration.
+ * A position the card wouldn't show ([CastNowPlaying.positionAt] null: unknown, past the end,
+ * or a reading too old) is unknown here too; live content has no duration.
  */
 fun castPlayback(cast: CastNowPlaying, nowWallMs: Long, nowElapsedMs: Long): CastPlayback {
     val state = when (cast.state) {
@@ -218,7 +219,8 @@ fun castPlayback(cast: CastNowPlaying, nowWallMs: Long, nowElapsedMs: Long): Cas
         CastPlayerState.BUFFERING -> PlaybackState.STATE_BUFFERING
         CastPlayerState.IDLE -> PlaybackState.STATE_STOPPED
     }
-    val position = cast.positionSec?.let { (it * 1000).toLong() } ?: PlaybackState.PLAYBACK_POSITION_UNKNOWN
+    val position = cast.positionSec?.takeIf { cast.positionAt(nowWallMs) != null }?.let { (it * 1000).toLong() }
+        ?: PlaybackState.PLAYBACK_POSITION_UNKNOWN
     val speed = if (cast.state == CastPlayerState.PLAYING) cast.playbackRate.toFloat() else 0f
     val updateTime = nowElapsedMs - (nowWallMs - cast.readAtMillis).coerceAtLeast(0)
     return CastPlayback(state, position, speed, updateTime, cast.durationSec?.let { (it * 1000).toLong() })

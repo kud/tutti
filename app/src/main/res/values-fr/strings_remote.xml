@@ -67,6 +67,8 @@
     <string name="cast_spoken_loading">%1$s, chargement</string>
     <string name="cast_spoken_paused">%1$s, en pause</string>
     <string name="cast_spoken_paused_at">%1$s, %2$d sur %3$d minutes, en pause</string>
+    <string name="cast_title_more">Afficher le titre en entier</string>
+    <string name="cast_title_less">Afficher le titre sur une ligne</string>
     <string name="card_input">Entrée externe</string>
     <string name="card_standby">TV en veille</string>
     <string name="card_bar_stays_on">La barre reste allumée</string>

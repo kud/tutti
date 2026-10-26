@@ -4,6 +4,7 @@ import io.kud.tutti.protocol.cast.CastConnection
 import io.kud.tutti.protocol.cast.CastConnector
 import io.kud.tutti.protocol.cast.CastEnd
 import io.kud.tutti.protocol.cast.CastNowPlaying
+import io.kud.tutti.protocol.cast.CastReading
 import io.kud.tutti.protocol.cast.CastSession
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -51,8 +52,10 @@ class CastWatcher(
     private val log: (String) -> Unit = {},
     /** Time to ready of a session, ms: from the connect to its first status read (device auth passed). */
     private val onReady: (Long) -> Unit = {},
+    /** The raw numbers of each media status, for the diagnostic; never a title. */
+    onReading: (CastReading) -> Unit = {},
     private val runSession: suspend (CastConnection, (CastNowPlaying?) -> Unit) -> CastEnd = { connection, emit ->
-        CastSession(connection, emit).run()
+        CastSession(connection, emit, onReading = onReading).run()
     },
 ) {
     private val mutable = MutableStateFlow<CastNowPlaying?>(null)
