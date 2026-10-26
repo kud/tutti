@@ -1,6 +1,7 @@
 package io.kud.tutti.ui.remote
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -15,16 +16,23 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.kud.tutti.R
@@ -51,14 +59,28 @@ internal fun CastLine(cast: CastNowPlaying, modifier: Modifier = Modifier) {
         }
     }
     val spoken = castSpoken(cast, now) { id, args -> context.getString(id, *args) }
-    Column(modifier.clearAndSetSemantics { contentDescription = spoken }) {
+    val fold = rememberTitleFold(cast.title)
+    val foldLabel = stringResource(if (fold.open) R.string.cast_title_less else R.string.cast_title_more)
+    Column(
+        modifier.clearAndSetSemantics {
+            contentDescription = spoken
+            // The card's own node takes this action (TalkBack's actions menu); its tap still opens playback.
+            if (fold.offered) customActions = listOf(CustomAccessibilityAction(foldLabel) { fold.toggle(); true })
+        },
+    ) {
+        // Only the title's own width takes the tap, and only when it is cut or open: the rest of
+        // the card, the chevron included, still opens playback.
         Text(
             cast.title,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurface,
-            maxLines = 1,
+            maxLines = if (fold.open) CARD_TITLE_OPEN_LINES else 1,
             overflow = TextOverflow.Ellipsis,
+            onTextLayout = fold::measured,
+            modifier = if (fold.offered) Modifier.clickable(onClickLabel = foldLabel, onClick = fold::toggle) else Modifier,
         )
+        // Open, the title takes the track's room: the card keeps its height.
+        if (fold.open) return@Column
         Spacer(Modifier.height(4.dp))
         BoxWithConstraints(Modifier.fillMaxWidth()) {
             val progress = cast.progressAt(now)
@@ -153,3 +175,32 @@ internal fun castSpoken(cast: CastNowPlaying, nowMillis: Long, string: (Int, Arr
 }
 
 private fun minutesOf(seconds: Double): Long = (seconds / 60.0).roundToLong()
+
+/** Lines a Cast title may take open on the 104 dp card: overline, app name and three lines fill it. */
+private const val CARD_TITLE_OPEN_LINES = 3
+
+/**
+ * A title cut to one line that a tap shows whole and a second tap folds back (Erwann, 2026-10-26:
+ * « cliquer sur le titre pour avoir la vue entière »). The tap is offered only while the title is
+ * cut or open, so a title that fits leaves the tap to whatever is under it. A new title starts folded.
+ */
+@Stable
+internal class TitleFold {
+    var open by mutableStateOf(false)
+        private set
+    private var cut by mutableStateOf(false)
+
+    val offered: Boolean get() = open || cut
+
+    fun toggle() {
+        open = !open
+    }
+
+    /** Folded, the layout says whether the title is cut; open, it keeps what folded said. */
+    fun measured(layout: TextLayoutResult) {
+        if (!open) cut = layout.hasVisualOverflow
+    }
+}
+
+@Composable
+internal fun rememberTitleFold(title: String): TitleFold = remember(title) { TitleFold() }
