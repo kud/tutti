@@ -65,6 +65,11 @@
     <string name="tv_input_current">Entrée actuelle</string>
     <string name="tv_input_connected">Branchée</string>
     <string name="tv_input_disconnected">Rien de branché</string>
+    <string name="tv_input_sheet_title">Entrée de la TV</string>
+    <string name="tv_input_no_ip">Le contrôle IP est désactivé sur la TV : tutti ne peut pas lister ses entrées. Activez-le pour en choisir une ici, ou utilisez le menu de la TV ci-dessous.</string>
+    <string name="tv_input_unlisted">La TV n\'a pas encore listé ses entrées</string>
+    <string name="tv_input_menu">Ouvrir le menu des entrées de la TV</string>
+    <string name="tv_input_menu_detail">La liste de la TV, à parcourir avec le pavé</string>
     <string name="tv_power_saving">Économie d’énergie</string>
     <string name="tv_power_saving_off">Désactivée</string>
     <string name="tv_power_saving_low">Faible</string>
