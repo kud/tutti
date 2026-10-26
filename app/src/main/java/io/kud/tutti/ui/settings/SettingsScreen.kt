@@ -267,6 +267,7 @@ fun SettingsScreen(
                             SecondaryButton.HOME -> R.drawable.ic_home
                             SecondaryButton.BACK -> R.drawable.ic_tv_back
                             SecondaryButton.PLAY -> R.drawable.ic_play_pause
+                            SecondaryButton.INPUT -> R.drawable.ic_input
                         },
                     )
                 }

@@ -9,8 +9,8 @@ import org.junit.Test
 class RemoteLayoutCompatTest {
     private val stored = """{"haptics":false,"theme":"DARK","trueBlack":true,"hiddenApps":["com.x"],"padMode":"DPAD","onboarded":true}"""
 
-    // Today's row: mute moved to the volume rail's foot (2026-10-24).
-    private val shipped = listOf(RowButton.BACK, RowButton.HOME, RowButton.PLAY, RowButton.VOICE, RowButton.KEYBOARD)
+    // Today's row: mute moved to the volume rail's foot (2026-10-24), Input joined (2026-10-26).
+    private val shipped = listOf(RowButton.BACK, RowButton.HOME, RowButton.PLAY, RowButton.VOICE, RowButton.KEYBOARD, RowButton.INPUT)
 
     @Test
     fun `prefs stored before layouts read as today's screen`() {
@@ -52,11 +52,13 @@ class RemoteLayoutCompatTest {
 
     @Test
     fun `the row never holds more than six or a button twice`() {
-        val full = RemoteLayout().withAdded(RowButton.INFO)
+        val full = RemoteLayout().withRemoved(RowButton.INPUT).withAdded(RowButton.INFO)
         assertEquals(RemoteLayout.MAX_ROW, full.shownRow.size)
         assertSame(full, full.withAdded(RowButton.CAPTIONS))
+        val fresh = RemoteLayout()
+        assertSame(fresh, fresh.withAdded(RowButton.INFO))
         val crowded = RemoteLayout(row = shipped + RowButton.INFO + RowButton.CAPTIONS + RowButton.BACK)
-        assertEquals(shipped + RowButton.INFO, crowded.shownRow)
+        assertEquals(shipped, crowded.shownRow)
         val twice = RemoteLayout(row = listOf(RowButton.BACK, RowButton.BACK, RowButton.HOME))
         assertEquals(listOf(RowButton.BACK, RowButton.HOME), twice.shownRow)
         assertTrue(RowButton.BACK !in twice.addable)
@@ -64,9 +66,9 @@ class RemoteLayoutCompatTest {
 
     @Test
     fun `remove, add and move edit the row in place`() {
-        val layout = RemoteLayout().withRemoved(RowButton.VOICE).withAdded(RowButton.CAPTIONS).withMoved(4, 0)
+        val layout = RemoteLayout().withRemoved(RowButton.VOICE).withAdded(RowButton.CAPTIONS).withMoved(5, 0)
         assertEquals(
-            listOf(RowButton.CAPTIONS, RowButton.BACK, RowButton.HOME, RowButton.PLAY, RowButton.KEYBOARD),
+            listOf(RowButton.CAPTIONS, RowButton.BACK, RowButton.HOME, RowButton.PLAY, RowButton.KEYBOARD, RowButton.INPUT),
             layout.shownRow,
         )
         assertEquals(layout, layout.withMoved(9, 2))
@@ -74,9 +76,10 @@ class RemoteLayoutCompatTest {
 
     @Test
     fun `a stored row with the old mute key draws without it and never offers it back`() {
-        val old = RemoteLayout(row = listOf(RowButton.BACK, RowButton.HOME, RowButton.PLAY, RowButton.VOICE, RowButton.KEYBOARD, RowButton.MUTE))
+        // An arranged row: mute is dropped, the rest kept as he left it.
+        val old = RemoteLayout(row = listOf(RowButton.INFO, RowButton.HOME, RowButton.MUTE), rowChosen = true)
         val again = StoreJson.decodeFromString(RemoteLayout.serializer(), StoreJson.encodeToString(RemoteLayout.serializer(), old))
-        assertEquals(shipped, again.shownRow)
+        assertEquals(listOf(RowButton.INFO, RowButton.HOME), again.shownRow)
         assertTrue(RowButton.MUTE !in again.addable)
         assertEquals(again.shownRow, again.withAdded(RowButton.MUTE).shownRow)
     }
@@ -103,10 +106,10 @@ class RemoteLayoutCompatTest {
 
     @Test
     fun `a move on screen lands where it was dropped, for either hand`() {
-        val right = RemoteLayout(hand = Hand.RIGHT).withMovedOnScreen(from = 4, to = 0)
+        val right = RemoteLayout(hand = Hand.RIGHT).withMovedOnScreen(from = 5, to = 0)
         assertEquals(RowButton.BACK, right.rowOnScreen.first())
         assertEquals(RowButton.BACK, right.shownRow.last())
-        val left = RemoteLayout(hand = Hand.LEFT).withMovedOnScreen(from = 0, to = 4)
+        val left = RemoteLayout(hand = Hand.LEFT).withMovedOnScreen(from = 0, to = 5)
         assertEquals(RowButton.BACK, left.rowOnScreen.last())
     }
 }

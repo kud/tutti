@@ -65,6 +65,11 @@
     <string name="tv_input_current">Current input</string>
     <string name="tv_input_connected">Connected</string>
     <string name="tv_input_disconnected">Nothing connected</string>
+    <string name="tv_input_sheet_title">TV input</string>
+    <string name="tv_input_no_ip">IP control is off on the TV, so tutti can\'t list its inputs. Turn it on to choose one here, or use the TV\'s own menu below.</string>
+    <string name="tv_input_unlisted">The TV hasn\'t listed its inputs yet</string>
+    <string name="tv_input_menu">Open the TV\'s input menu</string>
+    <string name="tv_input_menu_detail">The TV\'s own list, chosen with the pad</string>
     <string name="tv_power_saving">Power saving</string>
     <string name="tv_power_saving_off">Off</string>
     <string name="tv_power_saving_low">Low</string>

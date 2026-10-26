@@ -6,18 +6,22 @@ import io.kud.tutti.platform.data.SecondaryButton
 /**
  * What a round key's long press does while he hasn't chosen one of his own (Iris's gesture
  * audit, 2026-10-25, item 4): Back goes back to the previous app, Home opens the Apps sheet, recent
- * apps first. Play has no default yet: its first long press still opens the picker. An assigned action
- * always wins, and the default says itself once with "Change" beside it, never imposed in silence.
+ * apps first, and Input, whose tap opens tutti's own input chooser, sends the TV's Input key, its
+ * own input menu (Erwann, 2026-10-26). Play has no default yet: its first long press still opens
+ * the picker. An assigned action always wins, and the default says itself once with "Change"
+ * beside it, never imposed in silence.
  */
 internal enum class RowDefault(val label: Int) {
     PREVIOUS_APP(R.string.row_long_previous_app),
     RECENT_APPS(R.string.row_long_recent_apps),
+    TV_INPUT_MENU(R.string.row_long_tv_input_menu),
 }
 
 internal fun rowDefault(button: SecondaryButton): RowDefault? = when (button) {
     SecondaryButton.BACK -> RowDefault.PREVIOUS_APP
     SecondaryButton.HOME -> RowDefault.RECENT_APPS
     SecondaryButton.PLAY -> null
+    SecondaryButton.INPUT -> RowDefault.TV_INPUT_MENU
 }
 
 /** Long-press Keyboard (audit item 8): what pasting the phone's clipboard into the TV's field does. */

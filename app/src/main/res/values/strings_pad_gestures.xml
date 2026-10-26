@@ -7,6 +7,7 @@
     <!-- Round keys' default long presses. -->
     <string name="row_long_previous_app">Previous app</string>
     <string name="row_long_recent_apps">Recent apps</string>
+    <string name="row_long_tv_input_menu">The TV\'s input menu</string>
     <string name="row_long_default_said">Long press: %1$s</string>
     <string name="row_long_change">Change</string>
     <string name="row_long_no_previous">No previous app yet</string>
