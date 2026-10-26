@@ -75,7 +75,7 @@
     <string name="card_home">Écran d’accueil</string>
     <string name="card_home_detail">Aucune app en cours</string>
     <string name="card_offline">TV injoignable</string>
-    <string name="card_offline_detail">Vérifiez qu’elle est allumée et sur le même Wi-Fi</string>
+    <string name="card_offline_detail">Elle est peut-être en veille, réseau coupé</string>
     <!-- The TV's link, calm rule (TvLinkRule): past a blip, then a key pressed while it's down. -->
     <string name="system_reconnecting_tv">Reconnexion à la TV…</string>
     <string name="card_reconnecting">Reconnexion…</string>

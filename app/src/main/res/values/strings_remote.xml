@@ -79,7 +79,7 @@
     <string name="card_home">Home screen</string>
     <string name="card_home_detail">No app playing</string>
     <string name="card_offline">TV out of reach</string>
-    <string name="card_offline_detail">Check it’s on and on the same Wi-Fi</string>
+    <string name="card_offline_detail">It may be on standby with its network off</string>
     <!-- The TV's link, calm rule (TvLinkRule): past a blip, then a key pressed while it's down. -->
     <string name="system_reconnecting_tv">Reconnecting to the TV…</string>
     <string name="card_reconnecting">Reconnecting…</string>

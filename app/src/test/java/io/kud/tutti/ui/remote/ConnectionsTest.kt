@@ -63,8 +63,35 @@ class ConnectionsTest {
     @Test
     fun tvLinkStatesEachHaveTheirStep() {
         assertEquals(ConnWords.RECONNECTING, line(room.copy(tvShown = TvShown(Link.CONNECTING, reconnecting = true)), "tv", ConnLink.GOOGLE_TV).words)
-        assertEquals(ConnAction.WAKE_TV, line(room.copy(tvShown = TvShown(Link.UNREACHABLE)), "tv", ConnLink.GOOGLE_TV).action)
+        assertEquals(ConnAction.WAKE_TV, line(room.copy(tvWakeable = true, tvShown = TvShown(Link.UNREACHABLE)), "tv", ConnLink.GOOGLE_TV).action)
         assertEquals(ConnAction.PAIR_TV, line(room.copy(tvShown = TvShown(Link.NEEDS_PAIRING)), "tv", ConnLink.GOOGLE_TV).action)
+    }
+
+    /** dev.16: a set-up TV in deep standby, every port timing out. Out of reach, never "Set up". */
+    @Test
+    fun aSetUpTvOffTheNetworkOffersTurnOnOnceAndNeverSetUp() {
+        val off = room.copy(tvShown = TvShown(Link.UNREACHABLE), rest = Link.UNREACHABLE, tvWakeable = true)
+        val tv = connections(off).first { it.id == "tv" }
+        assertEquals(ConnLine(ConnLink.GOOGLE_TV, ConnWords.UNREACHABLE, ConnAction.WAKE_TV), tv.lines[0])
+        assertEquals(ConnLine(ConnLink.SONY_IP, ConnWords.UNREACHABLE), tv.lines[1])
+        assertEquals(ConnNote.TV_OFF_NETWORK, tv.note)
+        assertEquals(ConnFocus("tv", ConnLink.GOOGLE_TV), problemLine(connections(off)))
+        // No MAC: "Turn on" could only retry, which runs anyway, so neither line offers it.
+        val noMac = connections(off.copy(tvWakeable = false)).first { it.id == "tv" }
+        assertTrue(noMac.lines.all { it.action == null })
+        // Remote start is known on: standby isn't the likely cause.
+        assertEquals(ConnNote.TV_OFF_NETWORK_REMOTE_START_ON, connections(off.copy(remoteStart = true)).first().note)
+        // The remote up, IP control alone out of reach: Turn on moves to its line, still no setup.
+        val ipOnly = room.copy(rest = Link.UNREACHABLE, tvWakeable = true)
+        assertEquals(ConnLine(ConnLink.SONY_IP, ConnWords.UNREACHABLE, ConnAction.WAKE_TV), line(ipOnly, "tv", ConnLink.SONY_IP))
+        assertNull(connections(ipOnly).first().note)
+        // Every state of a set-up IP control: setup only for a refused key.
+        for (rest in Link.entries) {
+            for (shown in Link.entries) {
+                val l = line(room.copy(rest = rest, tvShown = TvShown(shown), tvWakeable = true), "tv", ConnLink.SONY_IP)
+                assertTrue("$rest/$shown", l.action != ConnAction.SET_UP_IP || l.words == ConnWords.KEY_REFUSED)
+            }
+        }
     }
 
     @Test
@@ -80,6 +107,7 @@ class ConnectionsTest {
         val asleep = room.copy(tvAsleep = true, tvShown = TvShown(Link.UNREACHABLE), rest = Link.UNREACHABLE)
         assertEquals(ConnLine(ConnLink.GOOGLE_TV, ConnWords.STANDBY, ConnAction.WAKE_TV), line(asleep, "tv", ConnLink.GOOGLE_TV))
         assertEquals(ConnLine(ConnLink.SONY_IP, ConnWords.STANDBY), line(asleep, "tv", ConnLink.SONY_IP))
+        assertNull(connections(asleep).first().note)
     }
 
     @Test

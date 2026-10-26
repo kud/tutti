@@ -34,6 +34,9 @@
     <string name="conn_gives_bar">volume, son, marche / arrêt</string>
     <string name="conn_gives_bt_computer">touches, trackpad, saisie</string>
     <string name="conn_gives_bt_tv">touches, pavé et clavier quand le réseau tombe</string>
+    <!-- Under a TV that is set up but out of reach: why, and what keeps it reachable. Never a setup prompt. -->
+    <string name="conn_note_tv_off_network">La TV est peut-être en veille, réseau coupé. Pour qu’elle reste joignable, activez Démarrage à distance sur la TV : Paramètres › Réseau et Internet › Démarrage à distance.</string>
+    <string name="conn_note_tv_remote_start_on">Le Démarrage à distance est activé, la TV reste donc joignable en veille : vérifiez qu’elle est branchée et sur le Wi-Fi de ce téléphone.</string>
     <string name="conn_action_pair">Associer</string>
     <string name="conn_action_set_up">Configurer</string>
     <string name="conn_action_add">Ajouter</string>
