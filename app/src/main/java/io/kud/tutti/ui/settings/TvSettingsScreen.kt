@@ -56,6 +56,7 @@ import io.kud.tutti.controller.TuttiUiState
 import io.kud.tutti.protocol.bravia.TvSetting
 import io.kud.tutti.ui.common.BusyBar
 import io.kud.tutti.ui.common.ChoiceRow
+import io.kud.tutti.ui.common.OptionsRow
 import io.kud.tutti.ui.common.ProblemNote
 import io.kud.tutti.ui.common.LocalRowSurface
 import io.kud.tutti.ui.common.SettingsGroup
@@ -214,8 +215,9 @@ fun TvSettingsScreen(state: TuttiUiState, controller: TuttiController, onBack: (
                         "high" to stringResource(R.string.tv_power_saving_high),
                         "pictureOff" to stringResource(R.string.tv_power_saving_picture_off),
                     )
-                    ChoiceRow(
+                    OptionsRow(
                         label = stringResource(R.string.tv_power_saving),
+                        selected = settings.powerSaving,
                         valueLabel = modes.firstOrNull { it.first == settings.powerSaving }?.second ?: settings.powerSaving ?: "—",
                         options = modes,
                         onSelect = controller::setPowerSaving,
@@ -388,8 +390,9 @@ private fun SceneRow(scene: TvSetting, controller: TuttiController) {
         "auto24pSync" to stringResource(R.string.tv_scene_auto_24p),
         "general" to stringResource(R.string.tv_scene_general),
     )
-    ChoiceRow(
+    OptionsRow(
         label = stringResource(R.string.tv_target_scene),
+        selected = scene.currentValue,
         valueLabel = scene.currentValue?.let { names[it] ?: it } ?: "—",
         options = scene.candidates.map { it.value to (names[it.value] ?: it.value) },
         onSelect = controller::setScene,
@@ -406,8 +409,10 @@ private fun TvSettingRow(setting: TvSetting, group: TvSettingGroup, controller: 
         val outputs = if (setting.target == TvSetting.OUTPUT_TERMINAL) outputNames() else emptyMap()
         val words = setting.candidates.associate { it.value to (outputs[it.value] ?: settingValue(setting, it.value)) }
         val current = setting.currentValue
-        ChoiceRow(
+        // Segments when the options are few and short enough to fit, else the menu (OptionsRow).
+        OptionsRow(
             label = label,
+            selected = current,
             valueLabel = current?.let { words[it] ?: outputs[it] ?: settingValue(setting, it) } ?: "—",
             options = setting.candidates.filter { it.isAvailable }.map { it.value to words.getValue(it.value) },
             onSelect = { controller.setTvSetting(group, setting.target, it) },
