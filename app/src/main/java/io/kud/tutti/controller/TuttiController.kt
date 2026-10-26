@@ -30,6 +30,7 @@ import io.kud.tutti.platform.security.SecureStore
 import io.kud.tutti.protocol.apps.AppIcons
 import io.kud.tutti.protocol.apps.AppLauncher
 import io.kud.tutti.protocol.apps.AppLibrary
+import io.kud.tutti.protocol.apps.AppsScreen
 import io.kud.tutti.protocol.apps.AppsScreenOpener
 import io.kud.tutti.protocol.apps.AppsScreenRoute
 import io.kud.tutti.protocol.apps.IconAttempt
@@ -1512,12 +1513,6 @@ class TuttiController @Inject constructor(
     private suspend fun <T> withContextIO(block: () -> T): T = kotlinx.coroutines.withContext(Dispatchers.IO) { block() }
 
     /**
-     * The TV's own apps screen, over the remote link (no IP control needed). KEYCODE_ALL_APPS
-     * alone did nothing on the XR80 (dev.71), so [AppsScreenOpener] tries an intent link first
-     * and watches the foreground app; [TuttiEvent.AppsScreen] says what it saw. With the link
-     * down it waits like a one-shot key ([TvLinkRule]) and says so.
-     */
-    /**
      * Closes every app on the TV through IP control (`appControl.terminateApps`, PSK set): Sony
      * offers no way to close one app by name. The now-showing card's long press asks first.
      */
@@ -1533,6 +1528,13 @@ class TuttiController @Inject constructor(
         }
     }
 
+    /**
+     * The TV's own apps screen, over the remote link. KEYCODE_ALL_APPS alone did nothing on the
+     * XR80 (dev.71), and neither did the intent links after it (2026-10-26), so [AppsScreenOpener]
+     * also tries, last and with IP control on, the TV's own IRCC key for it when its list names
+     * one ([AppsScreen.irccRoute]). It watches the foreground app; [TuttiEvent.AppsScreen] says
+     * what it saw. With the link down it waits like a one-shot key ([TvLinkRule]) and says so.
+     */
     fun openAllApps() {
         scope.launch {
             if (!atv.state.value.ready) {
@@ -1548,17 +1550,27 @@ class TuttiController @Inject constructor(
                     return@launch
                 }
             }
+            val client = bravia
+            val restOnline = client != null && links.value.rest == Link.ONLINE
+            val ircc = if (client != null && restOnline && client.capabilities.supports(BraviaService.SYSTEM, "getRemoteControllerInfo")) {
+                // The TV's own key list, as TV settings read it; asked once here when not loaded yet.
+                val known = tv.value.settings.ircc
+                AppsScreen.irccRoute(known.ifEmpty { client.remoteControllerInfo().getOrNull().orEmpty() })
+            } else {
+                null
+            }
             val opener = AppsScreenOpener(
                 send = { route ->
                     when (route) {
                         is AppsScreenRoute.Link -> atv.launch(route.link)
                         is AppsScreenRoute.Key -> atv.sendKey(route.keyCode)
+                        is AppsScreenRoute.Ircc -> client?.sendIrcc(route.code) is BraviaResult.Ok
                     }
                 },
                 foreground = atv.state.map { it.currentApp },
                 current = { atv.state.value.currentApp },
             )
-            val result = opener.open()
+            val result = opener.open(AppsScreen.routes(ircc))
             lastLaunchTrace = Redact.text(result.trace())
             mutableEvents.tryEmit(TuttiEvent.AppsScreen(result.verdict))
         }

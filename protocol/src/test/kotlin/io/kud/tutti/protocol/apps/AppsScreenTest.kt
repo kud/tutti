@@ -1,6 +1,7 @@
 package io.kud.tutti.protocol.apps
 
 import io.kud.tutti.protocol.atv.V2Key
+import io.kud.tutti.protocol.bravia.IrccCode
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -40,6 +41,20 @@ class AppsScreenTest {
         assertTrue((routes[1] as AppsScreenRoute.Link).link.contains("package=$launcher;"))
         assertEquals(AppsScreenRoute.Key(V2Key.ALL_APPS), routes[2])
         assertEquals(284, V2Key.ALL_APPS)
+    }
+
+    @Test
+    fun `the TV's own IRCC key for apps goes last, matched by name, only when listed`() {
+        val codes = listOf(IrccCode("Home", "AAAAAQAAAAEAAABgAw=="), IrccCode("ApplicationLauncher", "AAAAAgAAAMQAAAAqAw=="))
+        val ircc = AppsScreen.irccRoute(codes)
+        assertEquals(AppsScreenRoute.Ircc("ApplicationLauncher", "AAAAAgAAAMQAAAAqAw=="), ircc)
+        assertEquals<AppsScreenRoute?>(ircc, AppsScreen.routes(ircc).last())
+        assertEquals(4, AppsScreen.routes(ircc).size)
+        assertEquals<AppsScreenRoute.Ircc?>(null, AppsScreen.irccRoute(listOf(IrccCode("Home", "AAAA"), IrccCode("apps", ""))))
+        assertEquals("apps", AppsScreen.irccRoute(listOf(IrccCode("apps", "BBBB")))?.name)
+        val trace = AppsScreenResult(AppsScreenVerdict.FAILED, listOf(AppsScreenAttempt(ircc!!, sent = true, foreground = someApp))).trace()
+        assertTrue(trace.contains("ircc ApplicationLauncher - sent"), trace)
+        assertTrue(!trace.contains(ircc.code), "the trace names the key, not its code")
     }
 
     @Test
