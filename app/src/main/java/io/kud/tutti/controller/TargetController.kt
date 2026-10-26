@@ -157,6 +157,13 @@ class TargetController @Inject constructor(
         scope.launch {
             state.collect { s -> if (s.target?.kind == DeviceKind.COMPUTER) lastComputer.value = s.target.id }
         }
+        // Scenes read and set the target (SceneKey.TARGET) through the controller, which can't see this class.
+        scope.launch {
+            state.map { it.target?.id }.distinctUntilChanged().collect { controller.reportTarget(it) }
+        }
+        scope.launch {
+            controller.sceneTargets.collect { setTarget(it) }
+        }
         // The one HID connection follows Targeting.hidHost, only while the remote is in front.
         scope.launch {
             combine(state, remoteShown, appForeground, lastComputer) { s, shown, fg, last ->

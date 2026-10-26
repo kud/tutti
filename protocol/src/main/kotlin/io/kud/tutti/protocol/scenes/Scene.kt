@@ -25,19 +25,37 @@ enum class SceneKey {
     /** Picture mode value as the TV's own `getPictureQualitySettings` candidates spell it. */
     PICTURE_MODE,
 
+    /** Where the TV sends its sound: the `outputTerminal` value the TV spells (`speaker`, `audioSystem`…). */
+    TV_AUDIO_OUTPUT,
+
     /**
      * Screen off, sound on: the TV's power saving set to `pictureOff` (on) or back to `off`.
      * Applied last, so launching the scene's app can't light the screen again.
      */
     PICTURE_OFF,
+
+    /** The bar's input (`main.input`: tv, hdmi1, spotify, bluetooth, airplay2). */
+    BAR_INPUT,
     SOUND_FIELD,
     VOICE,
     NIGHT,
+
+    /** 360 Spatial Sound Mapping (`audio.360ssm`). */
+    SPATIAL_360,
+
+    /** Voice Zoom 3 (`audio.voicezoom3`), only on a bar that answers it. */
+    VOICE_ZOOM,
     BASS,
     VOLUME,
 
     /** Not a device state: a ceiling. Applying clamps the volume; while active the app enforces it. */
     VOLUME_CAP,
+
+    /**
+     * Not a device state: where the remote's keys go, a device id (the TV or a computer). Applied
+     * last, as a hand-picked target holding until the TV's input changes.
+     */
+    TARGET,
 }
 
 @Serializable

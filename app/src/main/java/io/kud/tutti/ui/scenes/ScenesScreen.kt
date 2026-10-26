@@ -33,6 +33,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -69,6 +70,7 @@ fun ScenesScreen(
     onBack: () -> Unit,
     onEdit: (String?) -> Unit,
 ) {
+    val targets by controller.targetNames.collectAsState()
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
@@ -100,7 +102,7 @@ fun ScenesScreen(
             items(state.scenes, key = { it.scene.id }) { ui ->
                 SceneCard(
                     ui = ui,
-                    summary = sceneSummary(ui.scene, state),
+                    summary = sceneSummary(ui.scene, state, targets),
                     onApply = { controller.applyScene(ui.scene.id) },
                     onEdit = { onEdit(ui.scene.id) },
                 )

@@ -62,4 +62,14 @@
     <string name="scene_colour_orange">Orange</string>
     <string name="scene_colour_grey">Gris</string>
     <string name="scene_colour_red">Rouge</string>
+    <string name="scene_key_tv_output">Sortie son de la TV</string>
+    <string name="scene_key_target">La télécommande pilote</string>
+    <string name="summary_tv_output">Son TV : %1$s</string>
+    <string name="summary_bar_input">Barre sur %1$s</string>
+    <string name="summary_360_on">360 Spatial</string>
+    <string name="summary_360_off">Sans 360 Spatial</string>
+    <string name="summary_voice_zoom_on">Voice Zoom</string>
+    <string name="summary_voice_zoom_off">Sans Voice Zoom</string>
+    <string name="summary_target">Pilote %1$s</string>
+    <string name="summary_target_unknown">un appareil retiré</string>
 </resources>

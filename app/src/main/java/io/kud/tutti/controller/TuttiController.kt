@@ -247,6 +247,25 @@ class TuttiController @Inject constructor(
      */
     val barAddressOffer: StateFlow<BarAddressOffer?> = barOffer
 
+    /** The remote's current target (a device id), as [TargetController] reports it, for scenes' [SceneKey.TARGET]. */
+    private val remoteTarget = MutableStateFlow<String?>(null)
+
+    private val targetAsks = MutableSharedFlow<String>(extraBufferCapacity = 1)
+
+    /** A scene's [SceneStep.Target]: [TargetController] points the remote at this device. */
+    val sceneTargets: SharedFlow<String> = targetAsks.asSharedFlow()
+
+    /** The devices a scene can point the remote at (never the bar), id to name, for the scene editor. */
+    val targetNames: StateFlow<Map<String, String>> = store.deviceList
+        .map { list -> list.devices.filter { it.kind != io.kud.tutti.protocol.devices.DeviceKind.SOUNDBAR }.associate { it.id to it.name } }
+        .distinctUntilChanged()
+        .stateIn(scope, SharingStarted.Eagerly, emptyMap())
+
+    /** Called by [TargetController] whenever the remote's target changes. */
+    fun reportTarget(id: String?) {
+        remoteTarget.value = id
+    }
+
     private val mutableEvents = MutableSharedFlow<TuttiEvent>(extraBufferCapacity = 16)
     val events: SharedFlow<TuttiEvent> = mutableEvents.asSharedFlow()
 
@@ -254,7 +273,7 @@ class TuttiController @Inject constructor(
 
     private data class GuardRuntime(val unlocked: Boolean = false, val ask: VolumeAsk? = null, val notice: Boolean = false)
 
-    private data class VolumeExtra(val guard: GuardRuntime, val undo: SceneUndo?, val capClock: Int)
+    private data class VolumeExtra(val guard: GuardRuntime, val undo: SceneUndo?, val capClock: Int, val target: String?)
 
     private data class Stored(
         val devices: io.kud.tutti.platform.data.Devices,
@@ -291,7 +310,7 @@ class TuttiController @Inject constructor(
 
     private data class Quad(val overrides: Overrides, val waking: Boolean, val linkNotes: LinkNotes, val launches: LaunchBook)
 
-    private val volumeExtra = combine(guard, sceneUndo, capClock) { g, u, c -> VolumeExtra(g, u, c) }
+    private val volumeExtra = combine(guard, sceneUndo, capClock, remoteTarget) { g, u, c, t -> VolumeExtra(g, u, c, t) }
 
     private val credentials = combine(pskSet, ipCode, ::Pair)
 
@@ -1000,7 +1019,7 @@ class TuttiController @Inject constructor(
     // region state
 
     private fun build(s: Stored, l: Live, e: Extra, v: VolumeExtra): TuttiUiState {
-        val snapshot = snapshotOf(l.tv, l.remote, l.bar)
+        val snapshot = snapshotOf(l.tv, l.remote, l.bar, v.target)
         val active = e.activeSceneId
         val scenes = s.scenes.map { scene ->
             val run = e.progress[scene.id]
@@ -1062,7 +1081,7 @@ class TuttiController @Inject constructor(
         )
     }
 
-    private fun snapshotOf(tv: TvState, remote: io.kud.tutti.protocol.atv.RemoteState, bar: TheatreState): DeviceSnapshot {
+    private fun snapshotOf(tv: TvState, remote: io.kud.tutti.protocol.atv.RemoteState, bar: TheatreState, target: String?): DeviceSnapshot {
         val tvPowered = remote.powered ?: when (tv.power) {
             PowerStatus.ACTIVE -> true
             PowerStatus.STANDBY -> false
@@ -1074,10 +1093,13 @@ class TuttiController @Inject constructor(
             currentApp = remote.currentApp,
             pictureMode = tv.pictureMode,
             tvPowered = tvPowered,
+            // Only once the TV reported it (TV settings read it): there is no documented getter.
+            tvAudioOutput = tv.settings.sound.firstOrNull { it.target == io.kud.tutti.protocol.bravia.TvSetting.OUTPUT_TERMINAL }?.currentValue,
+            target = target,
         )
     }
 
-    private fun snapshot(): DeviceSnapshot = snapshotOf(tv.value, atv.state.value, theatre.state.value)
+    private fun snapshot(): DeviceSnapshot = snapshotOf(tv.value, atv.state.value, theatre.state.value, remoteTarget.value)
 
     // endregion
 
@@ -2069,7 +2091,10 @@ class TuttiController @Inject constructor(
                 delay(WAKE_SETTLE_MS)
                 true
             }
-            is SceneStep.TvInput -> bravia?.setPlayContent(step.uri) is BraviaResult.Ok
+            is SceneStep.TvInput -> (bravia?.setPlayContent(step.uri) is BraviaResult.Ok).also { ok ->
+                // Optimistic, as switchInput: a target the scene sets next holds against this input.
+                if (ok) tv.update { it.copy(input = step.uri) }
+            }
             is SceneStep.TvApp -> launchDirect(step.appPackage)
             is SceneStep.PictureMode -> bravia?.setPictureSetting("pictureMode", step.mode) is BraviaResult.Ok
             is SceneStep.Bar -> {
@@ -2085,6 +2110,17 @@ class TuttiController @Inject constructor(
             }
             is SceneStep.LaunchApp -> launchDirect(step.appPackage)
             is SceneStep.PictureOff -> bravia?.setPowerSavingMode(pictureOffMode(step.on)) is BraviaResult.Ok
+            is SceneStep.TvAudioOutput -> {
+                val ok = bravia?.setSoundSetting(io.kud.tutti.protocol.bravia.TvSetting.OUTPUT_TERMINAL, step.terminal) is BraviaResult.Ok
+                if (ok) {
+                    tv.update { state ->
+                        val sound = state.settings.sound.map { if (it.target == io.kud.tutti.protocol.bravia.TvSetting.OUTPUT_TERMINAL) it.copy(currentValue = step.terminal) else it }
+                        state.copy(settings = state.settings.copy(sound = sound))
+                    }
+                }
+                ok
+            }
+            is SceneStep.Target -> store.deviceList.first()[step.deviceId]?.takeIf { it.kind != io.kud.tutti.protocol.devices.DeviceKind.SOUNDBAR } != null && targetAsks.tryEmit(step.deviceId)
         }
     }
 

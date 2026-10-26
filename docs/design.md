@@ -179,7 +179,7 @@ Iris, 2026-10-24, from Erwann's "si les touches ne marchent pas à ce moment-là
 - TalkBack hears the change once, when the shown state moves: "Reconnecting to the TV…", "BRAVIA 8 unreachable", then "Connected to the TV again"; never on a blip, never at the first connect. The card's change is its usual opacity fade-through, which is also the reduced-motion form; the ring stops turning under reduced motion, as before.
 
 ## Scenes (templates)
-- A scene holds any subset of TV settings (input or app, picture mode), bar settings (sound field, voice, night, bass, volume, optional volume cap) and a final action (launch an app).
+- A scene holds any subset of TV settings (input or app, picture mode, sound output), bar settings (input, sound field, voice, night, 360 Spatial, Voice Zoom, bass, volume, optional volume cap), where the remote's keys go (the TV or a computer) and a final action (launch an app). The order: wake, TV input and app, picture, TV sound output, bar input, bar toggles, bass, volume, final app, screen off, then the target, which holds against the input the scene left (`SceneKeysTest`). Voice Zoom is offered only on a bar that answers it, the target only with more than one device to point at; the TV's sound output is captured only once the TV has reported it.
 - Main creation path: "Capturer l'état actuel" — every captured value becomes a removable chip; name, colour and glyph. Blank form is the fallback.
 - Per-app profiles: "Quand Netflix est au premier plan, appliquer Cinéma" (while connected).
 - Strip: pill in its own tonal colour. Gallery: large card with plain-words summary ("Atmos · Voix + · Basses −2"). Active scene filled; manual change → outline marked "modifiée". Applying fills the pill left to right (progress).

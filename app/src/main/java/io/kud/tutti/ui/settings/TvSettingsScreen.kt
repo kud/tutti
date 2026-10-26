@@ -217,8 +217,9 @@ private fun RestExplainer(rest: Link, note: String?, onEnterPsk: () -> Unit, onO
     }
 }
 
+/** The TV's sound outputs in words, by their `outputTerminal` value (scenes say them too). */
 @Composable
-private fun outputNames(): Map<String, String> = mapOf(
+internal fun outputNames(): Map<String, String> = mapOf(
     "speaker" to stringResource(R.string.tv_output_speaker),
     "speaker_hdmi" to stringResource(R.string.tv_output_speaker_hdmi),
     "hdmi" to stringResource(R.string.tv_output_hdmi),

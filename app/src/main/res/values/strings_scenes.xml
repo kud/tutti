@@ -63,4 +63,14 @@
     <string name="scene_colour_orange">Orange</string>
     <string name="scene_colour_grey">Grey</string>
     <string name="scene_colour_red">Red</string>
+    <string name="scene_key_tv_output">TV sound output</string>
+    <string name="scene_key_target">Remote controls</string>
+    <string name="summary_tv_output">TV sound: %1$s</string>
+    <string name="summary_bar_input">Bar on %1$s</string>
+    <string name="summary_360_on">360 Spatial</string>
+    <string name="summary_360_off">360 Spatial off</string>
+    <string name="summary_voice_zoom_on">Voice Zoom</string>
+    <string name="summary_voice_zoom_off">Voice Zoom off</string>
+    <string name="summary_target">Controls %1$s</string>
+    <string name="summary_target_unknown">a removed device</string>
 </resources>

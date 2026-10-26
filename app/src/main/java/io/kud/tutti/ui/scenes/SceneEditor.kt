@@ -42,6 +42,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
@@ -69,6 +70,11 @@ import io.kud.tutti.protocol.atv.AppCatalog
 import io.kud.tutti.protocol.scenes.Scene
 import io.kud.tutti.protocol.scenes.SceneKey
 import io.kud.tutti.protocol.scenes.SceneValue
+import io.kud.tutti.protocol.bravia.TvSetting
+import io.kud.tutti.protocol.theatre.FeatureKind
+import io.kud.tutti.protocol.theatre.TheatreFeature
+import io.kud.tutti.ui.common.barValueLabel
+import io.kud.tutti.ui.settings.outputNames
 import io.kud.tutti.ui.common.ChoiceRow
 import io.kud.tutti.ui.common.LocalMessages
 import io.kud.tutti.ui.common.SceneGlyphs
@@ -106,6 +112,7 @@ fun SceneEditorScreen(
     controller: TuttiController,
     onDone: () -> Unit,
 ) {
+    val targets by controller.targetNames.collectAsState()
     val haptics = rememberHaptics()
     val context = LocalContext.current
     val messages = LocalMessages.current
@@ -269,7 +276,7 @@ fun SceneEditorScreen(
                     InputChip(
                         selected = false,
                         onClick = { editing = key },
-                        label = { Text(settingChip(key, value, state)) },
+                        label = { Text(settingChip(key, value, state, targets)) },
                         trailingIcon = {
                             Icon(
                                 painterResource(R.drawable.ic_close),
@@ -283,7 +290,7 @@ fun SceneEditorScreen(
                     )
                 }
             }
-            val missing = SceneKey.entries.filterNot { settings.containsKey(it) }
+            val missing = SceneKey.entries.filterNot { settings.containsKey(it) }.filter { offered(it, state, targets) }
             if (missing.isNotEmpty()) {
                 Box(Modifier.padding(horizontal = 8.dp)) {
                     TextButton(onClick = { adding = true }) {
@@ -297,7 +304,7 @@ fun SceneEditorScreen(
                                 text = { Text(keyName(key)) },
                                 onClick = {
                                     adding = false
-                                    settings = settings + (key to defaultValue(key, state))
+                                    settings = settings + (key to defaultValue(key, state, targets))
                                     editing = key
                                 },
                             )
@@ -347,6 +354,7 @@ fun SceneEditorScreen(
                 key = key,
                 value = value,
                 state = state,
+                targets = targets,
                 onChange = { settings = settings + (key to it) },
                 onDismiss = { editing = null },
             )
@@ -369,14 +377,26 @@ fun SceneEditorScreen(
     }
 }
 
-private fun defaultValue(key: SceneKey, state: TuttiUiState): SceneValue = when (key) {
+/** Voice Zoom only on a bar that answers it; a target only when there is more than one device to point at. */
+private fun offered(key: SceneKey, state: TuttiUiState, targets: Map<String, String>): Boolean = when (key) {
+    SceneKey.VOICE_ZOOM -> state.voiceZoomAvailable
+    SceneKey.TARGET -> targets.size > 1
+    else -> true
+}
+
+private fun defaultValue(key: SceneKey, state: TuttiUiState, targets: Map<String, String>): SceneValue = when (key) {
     SceneKey.TV_INPUT -> SceneValue.Text(state.tv.input ?: state.tv.inputs.firstOrNull()?.uri ?: "extInput:hdmi?port=1")
     SceneKey.TV_APP -> SceneValue.Text(state.remote.currentApp ?: AppCatalog.apps.first().packageName)
     SceneKey.PICTURE_MODE -> SceneValue.Text(state.tv.pictureMode ?: "standard")
-    SceneKey.SOUND_FIELD, SceneKey.VOICE, SceneKey.NIGHT, SceneKey.PICTURE_OFF -> SceneValue.Flag(true)
+    SceneKey.TV_AUDIO_OUTPUT -> SceneValue.Text(
+        state.tv.settings.sound.firstOrNull { it.target == TvSetting.OUTPUT_TERMINAL }?.currentValue ?: TvSetting.TERMINAL_AUDIO_SYSTEM,
+    )
+    SceneKey.BAR_INPUT -> SceneValue.Text(state.bar.value(TheatreFeature.INPUT) ?: "tv")
+    SceneKey.SOUND_FIELD, SceneKey.VOICE, SceneKey.NIGHT, SceneKey.PICTURE_OFF, SceneKey.SPATIAL_360, SceneKey.VOICE_ZOOM -> SceneValue.Flag(true)
     SceneKey.BASS -> SceneValue.Level(0)
     SceneKey.VOLUME -> SceneValue.Level(state.volume ?: 20)
     SceneKey.VOLUME_CAP -> SceneValue.Level(20)
+    SceneKey.TARGET -> SceneValue.Text(targets.keys.firstOrNull() ?: "")
 }
 
 /** Edits one scene value with the control its type calls for; changes apply live to the draft. */
@@ -385,6 +405,7 @@ private fun SettingDialog(
     key: SceneKey,
     value: SceneValue,
     state: TuttiUiState,
+    targets: Map<String, String>,
     onChange: (SceneValue) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -396,7 +417,7 @@ private fun SettingDialog(
             when (value) {
                 is SceneValue.Flag -> Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        settingChip(key, value, state),
+                        settingChip(key, value, state, targets),
                         modifier = Modifier.weight(1f),
                         style = MaterialTheme.typography.bodyLarge,
                     )
@@ -425,6 +446,9 @@ private fun SettingDialog(
                             .firstOrNull { it.target == "pictureMode" }
                             ?.candidates?.map { it.value to (it.title ?: it.value) }
                             .orEmpty()
+                        SceneKey.TV_AUDIO_OUTPUT -> outputNames().let { names -> TvSetting.OUTPUT_TERMINALS.map { it to (names[it] ?: it) } }
+                        SceneKey.BAR_INPUT -> (TheatreFeature.INPUT.kind as FeatureKind.Choice).options.map { it to barValueLabel(TheatreFeature.INPUT, it) }
+                        SceneKey.TARGET -> targets.toList()
                         else -> emptyList()
                     }
                     if (options.isEmpty()) {
