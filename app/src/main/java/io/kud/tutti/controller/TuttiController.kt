@@ -837,6 +837,8 @@ class TuttiController @Inject constructor(
             linkNotes.update { it.copy(rest = null) }
             return
         }
+        // A new session (a new PSK or code restarts this loop) judges the key afresh.
+        pskRefused = false
         val transport = OkHttpBraviaTransport(device.host, secure.tvRestPin()) { secure.setTvRestPin(it) }
         // The cookie wins when both exist (BraviaClient sends one credential, never both).
         val client = BraviaClient(transport, cookie = { ipCookie?.value }, psk = { psk })
@@ -875,8 +877,7 @@ class TuttiController @Inject constructor(
                     linkTimings.ready(io.kud.tutti.protocol.diagnostic.TimedLink.REST, SystemClock.elapsedRealtime())
                     wait = MIN_BACKOFF_MS
                     unreachable = 0
-                    links.update { it.copy(rest = Link.ONLINE) }
-                    linkNotes.update { it.copy(rest = null) }
+                    publishAnsweringLink()
                     tv.update { it.copy(capabilities = found.value) }
                     // A reconnect may follow installs made meanwhile: ask for the app list again.
                     tvWasActive = false
@@ -884,6 +885,7 @@ class TuttiController @Inject constructor(
                     while (scope.isActive) {
                         val started = SystemClock.elapsedRealtime()
                         if (!refreshTv(client)) break
+                        publishAnsweringLink()
                         if (psk == null && !keepCookieFresh(client)) break
                         awaitNextPoll(started)
                     }
@@ -983,6 +985,33 @@ class TuttiController @Inject constructor(
     @Volatile
     private var appsAskedAt: Long? = null
 
+    /**
+     * The TV refuses the stored PSK on authenticated calls ([PskRules.refused]); reset when the
+     * REST loop restarts. Read and written by the REST session only.
+     */
+    @Volatile
+    private var pskRefused = false
+
+    /** Folds an authenticated call's outcome into [pskRefused]. Never logs the key. */
+    private fun judgePsk(result: BraviaResult<*>?) {
+        val auth = when (result) {
+            null -> PskRules.Auth.NOT_ASKED
+            is BraviaResult.Ok -> PskRules.Auth.ACCEPTED
+            is BraviaResult.Failure -> if (result.error == BraviaError.Unauthorized) PskRules.Auth.REFUSED else PskRules.Auth.OTHER
+        }
+        pskRefused = PskRules.refused(pskRefused, hasPsk = !psk.isNullOrEmpty(), hasCookie = ipCookie != null, auth = auth)
+    }
+
+    /** The REST link for a TV that answers discovery and getPowerStatus: online, unless the key is refused. */
+    private fun publishAnsweringLink() {
+        val link = PskRules.link(pskRefused)
+        if (links.value.rest == link && (link == Link.ONLINE) == (linkNotes.value.rest == null)) return
+        links.update { it.copy(rest = link) }
+        // Built after the link moved, so the note's own "links" line reads the refusal.
+        val note = if (pskRefused) failureDetail("tv ip control: psk", outcome = "the TV refused the PSK on an authenticated call") else null
+        linkNotes.update { it.copy(rest = note) }
+    }
+
     /** False when the TV stopped answering. */
     private suspend fun refreshTv(client: BraviaClient): Boolean {
         val power = when (val result = client.powerStatus()) {
@@ -1003,7 +1032,9 @@ class TuttiController @Inject constructor(
         // not asked. It rides this poll (TvPollRules.EVERY_MS), never a loop of its own. A failed or empty
         // answer (what an app playing is expected to give) clears [TvState.playing], so the chip
         // falls back to the app name rather than keeping a stale channel.
-        val playing = if (active && (!psk.isNullOrEmpty() || ipCookie != null)) client.playingContent().getOrNull() else null
+        val playingResult = if (active && (!psk.isNullOrEmpty() || ipCookie != null)) client.playingContent() else null
+        val playing = playingResult?.getOrNull()
+        judgePsk(playingResult)
         val input = playing?.uri
         val pictureMode = if (active && caps.supports(BraviaService.VIDEO, "getPictureQualitySettings")) {
             client.pictureSettings("pictureMode").getOrNull()?.firstOrNull { it.target == "pictureMode" }?.currentValue
@@ -1024,7 +1055,9 @@ class TuttiController @Inject constructor(
         // reconnect, and every AppListRefresh.EVERY_MS while on, so an app installed later shows up.
         val askApps = AppListRefresh.due(active, tvWasActive, current.apps.isNotEmpty(), appsAskedAt, now)
         tvWasActive = active
-        val fetched = if (askApps) client.applications().getOrNull().also { appsAskedAt = now } else null
+        val appsResult = if (askApps) client.applications().also { appsAskedAt = now } else null
+        judgePsk(appsResult)
+        val fetched = appsResult?.getOrNull()
         // A failed or empty answer keeps the list we had.
         val apps = fetched?.takeIf { it.isNotEmpty() } ?: current.apps
         tv.update { it.copy(power = power, input = input ?: it.input, playing = playing, pictureMode = pictureMode ?: it.pictureMode, inputs = inputs, apps = apps) }

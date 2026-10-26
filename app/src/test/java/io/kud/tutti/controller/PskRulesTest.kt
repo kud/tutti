@@ -22,6 +22,34 @@ class PskRulesTest {
         assertFalse("no accents", PskRules.valid("motdepassé"))
         assertFalse("no control characters", PskRules.valid("12345678\n"))
     }
+
+    private fun refused(was: Boolean, auth: PskRules.Auth, psk: Boolean = true, cookie: Boolean = false) =
+        PskRules.refused(was, hasPsk = psk, hasCookie = cookie, auth = auth)
+
+    @Test
+    fun `a refusal on an authenticated call marks the key refused`() {
+        assertTrue(refused(false, PskRules.Auth.REFUSED))
+    }
+
+    @Test
+    fun `refused stays refused until an authenticated call succeeds`() {
+        assertTrue("TV off, nothing asked", refused(true, PskRules.Auth.NOT_ASKED))
+        assertTrue("a timeout says nothing about the key", refused(true, PskRules.Auth.OTHER))
+        assertFalse(refused(true, PskRules.Auth.ACCEPTED))
+        assertFalse("never refused without a refusal", refused(false, PskRules.Auth.OTHER))
+    }
+
+    @Test
+    fun `only applies with a PSK and no code cookie`() {
+        assertFalse("no PSK", refused(true, PskRules.Auth.REFUSED, psk = false))
+        assertFalse("the cookie is what was sent", refused(true, PskRules.Auth.REFUSED, cookie = true))
+    }
+
+    @Test
+    fun `a refused key shows as unauthorized, not online`() {
+        assertEquals(Link.UNAUTHORIZED, PskRules.link(refused = true))
+        assertEquals(Link.ONLINE, PskRules.link(refused = false))
+    }
 }
 
 class LoggingHandlerTest {
