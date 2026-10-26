@@ -23,6 +23,7 @@ import io.kud.tutti.protocol.net.TlsConnector
 import io.kud.tutti.protocol.theatre.BarHttpCodec
 import io.kud.tutti.protocol.theatre.BarHttpKey
 import io.kud.tutti.protocol.theatre.BarHttpTransport
+import io.kud.tutti.protocol.theatre.BarHttpUnavailable
 import io.kud.tutti.protocol.theatre.BarHttpValue
 import io.kud.tutti.protocol.theatre.JsonStreamSplitter
 import io.kud.tutti.protocol.theatre.TheatreCodec
@@ -360,9 +361,13 @@ class DiagnosticRunner(
         if (targets.barHost == null || transport == null) return skip(DiagnosticSteps.BAR_HTTP, "no bar configured")
         step(DiagnosticSteps.BAR_HTTP) {
             fact("port", BarHttpKey.PORT.toString())
-            val body = transport.post(BarHttpCodec.request())
+            val body = try {
+                transport.post(BarHttpCodec.request())
+            } catch (e: BarHttpUnavailable) {
+                skipStep("unsupported", "HTTP ${e.status}: this optional management plane is not available")
+            }
             val readouts = BarHttpCodec.parse(body)
-                ?: fail("malformed", "not an http_get_result; body ${body.length} chars: ${Redact.text(body, scrub).take(120)}")
+                ?: skipStep("unsupported", "port 54545 answered, but not with http_get_result")
             for (key in BarHttpKey.entries) {
                 val shown = when (val value = readouts[key]) {
                     is BarHttpValue.Answered -> if (key.key in BarHttpKey.BLANKED) {
@@ -497,9 +502,12 @@ class DiagnosticRunner(
         }
 
         fun fail(errorClass: String, message: String): Nothing = throw StepFailure(errorClass, message)
+
+        fun skipStep(errorClass: String, message: String): Nothing = throw StepSkip(errorClass, message)
     }
 
     private class StepFailure(val errorClass: String, override val message: String) : Exception(message)
+    private class StepSkip(val errorClass: String, override val message: String) : Exception(message)
 
     private suspend fun <T> step(id: String, timeoutMillis: Long = timeouts.stepMillis, block: suspend Collector.() -> T): T? {
         update(id) { it.copy(status = StepStatus.RUNNING) }
@@ -518,6 +526,9 @@ class DiagnosticRunner(
             throw e
         } catch (e: StepFailure) {
             finish(StepStatus.FAILED, e.errorClass, e.message)
+            null
+        } catch (e: StepSkip) {
+            finish(StepStatus.SKIPPED, e.errorClass, e.message)
             null
         } catch (e: Exception) {
             finish(StepStatus.FAILED, ErrorClass.of(e), ErrorClass.describe(e))
