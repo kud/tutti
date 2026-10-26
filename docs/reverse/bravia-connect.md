@@ -25,7 +25,7 @@ No code, assets, client ids or keys were copied into tutti. Protocol facts only.
 | # | Plane | Device | Port / path | Auth | Push | tutti today |
 | --- | --- | --- | --- | --- | --- | --- |
 | A | CIS-IP2 JSON | Bar | TCP 33336 | none (needs "External control" on) | notify for most keys; DRC and Auto Volume polled | full client (`theatre/`) |
-| B | HTTP management (FCGI) | Bar | HTTP 54545 `POST /fcgi-bin/request.fcgi`, body `{"type":"http_get","packet":[["<key>",…]]}` → `{"type":"http_get_result",…}` | **none** | no | not used |
+| B | HTTP management (FCGI) | Bar | HTTP 54545 `POST /fcgi-bin/request.fcgi`, body `{"type":"http_get","packet":[["<key>",…]]}` → `{"type":"http_get_result",…}` | **none** | no | optional Technical details / diagnostic readouts; unverified protocol on Bar 9 |
 | C | `ControlDeviceService` gRPC, h2c | Bar | TCP 55051, cleartext HTTP/2 | Seeds session keys + per-request HMAC; `GetCapabilities` needs none | `StartNotifyStates` server stream | interface only (`SonyCloudPlane`), unbound |
 | D | same service, h2c | TV | port from mDNS `_sonysmarthome._tcp` (dynamic, changes on reboot) | same as C | same | interface only |
 | E | REST JSON-RPC | TV | `/sony/{guide,system,audio,avContent,appControl,video,videoScreen,encryption}` on 80/443 | none / PSK (generic, private) | no | used, capability-gated |
@@ -149,6 +149,9 @@ From the Quad integration's `const.py`; none is in tutti's `TheatreFeature`. All
 **Diagnostic read-only `get` candidates (for the coordinator):** `system.temperature`, `system.timezone`, `system.language`, `system.destination`, `system.manufacturer`, `system.devicename`, `tv.avsync`, `network.mode`, `network.dhcp`. All read, none identifying beyond the device name (whose value the report already scrubs). Erwann's next report settles them with no sign-in.
 
 ### Bar, HTTP 54545 (B): no authentication, so treat with care
+
+The request shape comes from the Theatre Quad integration, not Sony documentation, and remains optional on other models. On the HT-A9000, the real device has answered the read-only `http_get` probe with HTTP 500 while TCP 33336 remained fully healthy. tutti therefore treats an HTTP non-2xx or a 2xx body that is not `http_get_result` as **plane unavailable**, not as a soundbar failure. Connection failures still fail the diagnostic because they say something different about reachability.
+
 
 | Key | What | Risk | Proposal |
 | --- | --- | --- | --- |
