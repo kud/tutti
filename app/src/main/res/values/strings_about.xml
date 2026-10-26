@@ -8,8 +8,8 @@
     <string name="about_approach">The approach</string>
     <string name="about_local_title">Local network only</string>
     <string name="about_local">tutti talks to the TV and the bar over your home network. No account needed: without Sony sign-in, which is optional, nothing leaves the living room.</string>
-    <string name="about_pinned_title">Devices pinned on first use</string>
-    <string name="about_pinned">The TV and the bar are trusted the first time tutti meets them. A changed certificate is refused, never quietly accepted.</string>
+    <string name="about_pinned_title">TV identity checked</string>
+    <string name="about_pinned">tutti remembers the TV’s secure identity. A renewed HTTPS certificate with the same key keeps working; a changed key is refused until you pair again.</string>
     <string name="about_secrets_title">Secrets stay on the phone</string>
     <string name="about_secrets">Pairing keys and any Sony tokens are encrypted with an Android Keystore key and left out of backups.</string>
     <string name="about_verified_title">Checked, never guessed</string>

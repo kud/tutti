@@ -7,9 +7,10 @@ import io.kud.tutti.protocol.bravia.BraviaClient
 import io.kud.tutti.protocol.bravia.BraviaTransport
 import io.kud.tutti.protocol.bravia.HttpReply
 import io.kud.tutti.protocol.bravia.IpRegistration
-import io.kud.tutti.protocol.net.CertificatePin
 import io.kud.tutti.protocol.net.CertificatePinMismatch
 import io.kud.tutti.protocol.net.LanAddress
+import io.kud.tutti.protocol.net.PublicKeyPin
+import io.kud.tutti.protocol.net.ServerIdentityPin
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.Call
@@ -38,9 +39,9 @@ import javax.net.ssl.SSLException
  * cookie, or the code from the TV during `actRegister`. All three follow the same rules below,
  * written for the PSK.
  *
- * HTTPS first, pinned trust-on-first-use: the first certificate seen is persisted through
- * [savePin] only after an authenticated request (one carrying the PSK) has had a 2xx answer,
- * and every later request must match it; a mismatch is a [CertificatePinMismatch]. Plain
+ * HTTPS first, pinned trust-on-first-use: the first server public key seen is persisted through
+ * [savePin] only after an authenticated request has had a 2xx answer. Later certificates may be
+ * reissued, but their public key must match; a changed key is a [CertificatePinMismatch]. Plain
  * HTTP is used only when HTTPS is refused outright (port closed), no pin has ever been
  * recorded for this TV, an unauthenticated request (discovery) has answered over HTTP, and
  * only towards a private address. The PSK never goes out on that first HTTP request, and
@@ -52,30 +53,30 @@ import javax.net.ssl.SSLException
  */
 class OkHttpBraviaTransport internal constructor(
     private val host: String,
-    initialPin: CertificatePin?,
-    private val savePin: suspend (CertificatePin) -> Unit,
+    initialPin: ServerIdentityPin?,
+    private val savePin: suspend (PublicKeyPin) -> Unit,
     private val httpsPort: Int,
     private val httpPort: Int,
     private val checkHost: (String) -> Unit,
     private val readTimeoutMs: Long,
 ) : BraviaTransport {
-    constructor(host: String, initialPin: CertificatePin?, savePin: suspend (CertificatePin) -> Unit) :
+    constructor(host: String, initialPin: ServerIdentityPin?, savePin: suspend (PublicKeyPin) -> Unit) :
         this(host, initialPin, savePin, HTTPS_PORT, HTTP_PORT, ::requireLan, READ_TIMEOUT_MS)
 
-    @Volatile private var firstSeen: CertificatePin? = null
+    @Volatile private var observedKeyPin: PublicKeyPin? = null
     @Volatile private var useHttp = false
-    private val trust = PinningTrustManager(initialPin) { firstSeen = it }
+    private val trust = PinningTrustManager(initialPin) { observedKeyPin = PublicKeyPin.of(it) }
 
     private val client: OkHttpClient by lazy {
         val context = SSLContext.getInstance("TLS")
         context.init(null, arrayOf(trust), SecureRandom())
         OkHttpClient.Builder()
             .sslSocketFactory(context.socketFactory, trust)
-            // The TV's self-signed certificate never names its IP; identity is the pin, checked
-            // again here so a session can never outlive a pin change.
+            // The TV's self-signed certificate never names its IP; the pinned identity is checked
+            // again here so a session can never outlive a key change.
             .hostnameVerifier { _, session ->
                 val leaf = session.peerCertificates.firstOrNull() as? X509Certificate
-                val pin = trust.expected ?: firstSeen
+                val pin = trust.expected ?: observedKeyPin
                 leaf != null && pin != null && pin.matches(leaf)
             }
             .connectTimeout(4, TimeUnit.SECONDS)
@@ -92,13 +93,13 @@ class OkHttpBraviaTransport internal constructor(
             .build()
     }
 
-    override val scheme: String? get() = if (useHttp) "http" else if (firstSeen != null || trust.expected != null) "https" else null
+    override val scheme: String? get() = if (useHttp) "http" else if (observedKeyPin != null || trust.expected != null) "https" else null
 
     /**
-     * Certificate seen on an unpinned HTTPS connection in this transport's lifetime.
+     * Public key seen on HTTPS in this transport's lifetime.
      * Read-only: callers may promote it to a stored pin only after their own trust ceremony.
      */
-    internal val observedPin: CertificatePin? get() = firstSeen
+    internal val observedPin: PublicKeyPin? get() = observedKeyPin
 
     override suspend fun post(path: String, body: String, headers: Map<String, String>): HttpReply =
         withContext(Dispatchers.IO) {
@@ -108,7 +109,7 @@ class OkHttpBraviaTransport internal constructor(
             try {
                 execute("https", path, body, headers).also { reply ->
                     useHttp = false
-                    if (authenticated && reply.status in 200..299) persistFirstSeen()
+                    if (authenticated && reply.status in 200..299) persistObservedPin()
                 }
             } catch (e: ConnectException) {
                 // Port 443 closed. HTTP only for a TV never pinned, and only on a request without
@@ -147,7 +148,7 @@ class OkHttpBraviaTransport internal constructor(
             return@withContext failed(IconOutcome.INTERNET, "not the tv")
         }
         runCatching { checkHost(parsed.host) }.onFailure { return@withContext failed(IconOutcome.INTERNET, "not private") }
-        val pinned = trust.expected != null || firstSeen != null
+        val pinned = trust.expected != null || observedKeyPin != null
         if (parsed.scheme == "https" && !pinned) return@withContext failed(IconOutcome.NO_PIN)
         var target = parsed
         var note: String? = null
@@ -198,9 +199,11 @@ class OkHttpBraviaTransport internal constructor(
         if (result is IconFetch.Failed && note != null) failed(result.attempt.outcome, listOfNotNull(note, result.attempt.detail).joinToString(": ")) else result
     }
 
-    private suspend fun persistFirstSeen() {
-        val seen = firstSeen ?: return
-        if (trust.expected == null) {
+    private suspend fun persistObservedPin() {
+        val seen = observedKeyPin ?: return
+        // A matching legacy full-certificate pin is promoted after one authenticated success.
+        // A mismatching legacy pin never reaches here: the TLS handshake has already failed.
+        if (trust.expected != seen) {
             trust.expected = seen
             savePin(seen)
         }

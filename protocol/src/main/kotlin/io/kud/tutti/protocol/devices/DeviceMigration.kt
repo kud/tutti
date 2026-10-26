@@ -62,7 +62,10 @@ object DeviceMigration {
 object SecretKeys {
     fun psk(id: String) = "psk/$id"
     fun remotePin(id: String) = "pin/$id/remote"
+    /** Legacy REST full-certificate pin, kept readable for a safe upgrade/downgrade window. */
     fun restPin(id: String) = "pin/$id/rest"
+    /** REST HTTPS SubjectPublicKeyInfo SHA-256 pin. */
+    fun restPublicKeyPin(id: String) = "pin/$id/rest-spki"
 
     /** The IP-control cookie of Sony's "Normal" authentication (a bearer secret), `AuthCookie.encode()`. */
     fun ipCookie(id: String) = "ipcookie/$id"
@@ -83,5 +86,5 @@ object SecretKeys {
 
     /** Every key that holds [id]'s secrets, including the version-1 ones for the TV. */
     fun all(id: String): List<String> =
-        listOf(psk(id), remotePin(id), restPin(id), ipCookie(id)) + if (id == Device.TV_ID) legacy.keys else emptySet()
+        listOf(psk(id), remotePin(id), restPin(id), restPublicKeyPin(id), ipCookie(id)) + if (id == Device.TV_ID) legacy.keys else emptySet()
 }

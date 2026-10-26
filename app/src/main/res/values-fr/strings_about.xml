@@ -8,8 +8,8 @@
     <string name="about_approach">La démarche</string>
     <string name="about_local_title">Réseau local uniquement</string>
     <string name="about_local">tutti parle à la TV et à la barre par votre réseau domestique. Aucun compte requis : sans connexion Sony, qui reste facultative, rien ne quitte le salon.</string>
-    <string name="about_pinned_title">Appareils épinglés au premier contact</string>
-    <string name="about_pinned">La TV et la barre sont reconnues la première fois que tutti les rencontre. Un certificat qui change est refusé, jamais accepté en silence.</string>
+    <string name="about_pinned_title">Identité de la TV vérifiée</string>
+    <string name="about_pinned">tutti mémorise l’identité sécurisée de la TV. Un certificat HTTPS renouvelé avec la même clé continue de fonctionner ; une nouvelle clé est refusée jusqu’à une nouvelle association.</string>
     <string name="about_secrets_title">Les secrets restent sur le téléphone</string>
     <string name="about_secrets">Les clés d’association et les éventuels jetons Sony sont chiffrés par une clé du Keystore Android et exclus des sauvegardes.</string>
     <string name="about_verified_title">Vérifié, jamais deviné</string>
