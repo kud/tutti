@@ -26,6 +26,4 @@
     <string name="gentle_off_notification_text">The volume lowers over the last 2 minutes</string>
     <string name="gentle_off_channel">Switch-off timer</string>
     <string name="gentle_off_channel_description">The countdown before the TV and the soundbar switch off.</string>
-    <!-- The TV's inputs in the Power sheet: a long press pins one. -->
-    <string name="tv_input_pin">Pin to the dock</string>
 </resources>

@@ -40,4 +40,6 @@
     <string name="more_audio">Audio</string>
     <string name="more_menu">Menu</string>
     <string name="more_quick_settings">Quick settings</string>
+    <!-- The TV's inputs in the Apps sheet: a long press pins one. -->
+    <string name="tv_input_pin">Pin to the dock</string>
 </resources>

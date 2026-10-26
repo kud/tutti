@@ -11,8 +11,14 @@ import java.time.LocalDateTime
  * of that evening.
  */
 object EveningDim {
-    /** The window's brightness while dimmed, on Android's 0–1 window scale: low, still legible. */
-    const val LEVEL = 0.12f
+    /**
+     * The window's brightness while dimmed, on Android's 0–1 window scale: low, still legible
+     * (Iris, 2026-10-26). That scale is linear in light while the system slider is perceptual, so
+     * 0.03 sits about a third of the way up the slider (some 15 nits on a Pixel), where a phone
+     * reads comfortably in a room lit by the TV; the first value, 0.12, sat near the slider's
+     * middle, brighter than most evenings' own setting.
+     */
+    const val LEVEL = 0.03f
 
     /** The evening starts at 20:00 and ends at 05:00, wrapping past midnight. */
     const val FROM_HOUR = 20
@@ -30,7 +36,14 @@ object EveningDim {
 /**
  * The window brightness tutti asks for, or null to leave the phone's own. Dims only when the
  * switch is on, the TV is known on, it is evening ([EveningDim.isEvening]) and he hasn't changed
- * the brightness himself this evening.
+ * the brightness himself this evening. A dim never brightens: with his own level known
+ * ([ownLevel], manual brightness, same 0–1 scale) and already at or under [EveningDim.LEVEL],
+ * the phone is left as he set it. Under adaptive brightness his level can't be read ([ownLevel]
+ * null), and the dim applies as is.
  */
-fun dimTarget(enabled: Boolean, tvOn: Boolean, hour: Int, userChangedBrightness: Boolean): Float? =
-    if (enabled && tvOn && !userChangedBrightness && EveningDim.isEvening(hour)) EveningDim.LEVEL else null
+fun dimTarget(enabled: Boolean, tvOn: Boolean, hour: Int, userChangedBrightness: Boolean, ownLevel: Float? = null): Float? =
+    when {
+        !enabled || !tvOn || userChangedBrightness || !EveningDim.isEvening(hour) -> null
+        ownLevel != null && ownLevel <= EveningDim.LEVEL -> null
+        else -> EveningDim.LEVEL
+    }

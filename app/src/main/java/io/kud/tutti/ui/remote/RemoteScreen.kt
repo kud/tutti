@@ -864,23 +864,6 @@ fun RemoteScreen(
                     Unit
                 }
             },
-            inputs = tvInputsRow(
-                ipControl = state.ipControlSet,
-                inputs = state.tv.inputs,
-                currentUri = state.tv.input,
-                restOnline = state.links.rest == Link.ONLINE,
-                tvPowered = tvPowered(state),
-                downReason = stringResource(R.string.power_sleep_down),
-                standbyReason = stringResource(R.string.power_sleep_standby),
-            ),
-            onInput = { uri ->
-                haptics.select()
-                controller.switchInput(uri)
-            },
-            onPinInput = { uri, name ->
-                haptics.longPress()
-                powerPinner.request(DockAction.Input(uri, name), name)
-            },
         )
     }
 
@@ -1024,6 +1007,25 @@ fun RemoteScreen(
             },
             onDismiss = { sheet2 = null },
             recents = recentApps,
+            inputs = tvInputsRow(
+                ipControl = state.ipControlSet,
+                inputs = state.tv.inputs,
+                currentUri = state.tv.input,
+                restOnline = state.links.rest == Link.ONLINE,
+                tvPowered = tvPowered(state),
+                downReason = stringResource(R.string.power_sleep_down),
+                standbyReason = stringResource(R.string.power_sleep_standby),
+            ),
+            // Picked like an app: it switches and the sheet goes, the card showing the input.
+            onInput = { uri ->
+                haptics.select()
+                controller.switchInput(uri)
+                sheet2 = null
+            },
+            onPinInput = { uri, name ->
+                haptics.longPress()
+                keysPinner.request(DockAction.Input(uri, name), name)
+            },
         )
         RemoteSheet.KEYS -> MoreKeysSheet(
             onKey = { code -> sheetKey(code) { sheet2 = null } },

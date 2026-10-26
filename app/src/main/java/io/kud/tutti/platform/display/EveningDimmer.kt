@@ -55,7 +55,13 @@ class EveningDimmer(private val window: Window, private val resolver: ContentRes
                 minutes(),
                 touched,
             ) { setup, now, touchedOn ->
-                dimTarget(enabled = setup.first, tvOn = setup.second, hour = now.hour, userChangedBrightness = touchedOn == EveningDim.eveningOf(now))
+                dimTarget(
+                    enabled = setup.first,
+                    tvOn = setup.second,
+                    hour = now.hour,
+                    userChangedBrightness = touchedOn == EveningDim.eveningOf(now),
+                    ownLevel = manualLevel(),
+                )
             }
                 .distinctUntilChanged()
                 .collect { fadeTo(it) }
@@ -96,6 +102,12 @@ class EveningDimmer(private val window: Window, private val resolver: ContentRes
             }
             start()
         }
+    }
+
+    /** His own level when brightness is manual, or null under adaptive brightness, where the setting isn't what the screen shows. */
+    private fun manualLevel(): Float? {
+        val mode = Settings.System.getInt(resolver, Settings.System.SCREEN_BRIGHTNESS_MODE, Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL)
+        return if (mode == Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL) systemLevel() else null
     }
 
     /** The phone's own level on the window's 0–1 scale; the setting is 0–255. */

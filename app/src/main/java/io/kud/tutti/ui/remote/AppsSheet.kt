@@ -81,9 +81,12 @@ fun AppsSheet(
     onPin: (KnownApp, slot: Int) -> Unit,
     onDismiss: () -> Unit,
     recents: List<String> = emptyList(),
+    inputs: TvInputsRow? = null,
+    onInput: (uri: String) -> Unit = {},
+    onPinInput: ((uri: String, name: String) -> Unit)? = null,
 ) {
     TuttiSheet(onDismissRequest = onDismiss) {
-        AppsSheetContent(state, onLaunch, onLaunched, onAllApps, onPin, Modifier.fillMaxHeight(), recents)
+        AppsSheetContent(state, onLaunch, onLaunched, onAllApps, onPin, Modifier.fillMaxHeight(), recents, inputs, onInput, onPinInput)
     }
 }
 
@@ -96,6 +99,8 @@ fun AppsSheet(
  * tap reaches the controller, which never launches the same app twice and lets a newer app win.
  * [recents] (packages, newest first, never the app in front) lead the grid under "Recent", the
  * living room's app switcher that Google TV lacks; long-press Home opens this sheet for them.
+ * The TV's [inputs] follow, one row of chips (Iris, 2026-10-25): an input is what's on the TV,
+ * like an app, so it is chosen here rather than behind Power's long press.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -107,6 +112,9 @@ fun AppsSheetContent(
     onPin: (KnownApp, slot: Int) -> Unit,
     modifier: Modifier = Modifier,
     recents: List<String> = emptyList(),
+    inputs: TvInputsRow? = null,
+    onInput: (uri: String) -> Unit = {},
+    onPinInput: ((uri: String, name: String) -> Unit)? = null,
 ) {
     var pinning by remember { mutableStateOf<KnownApp?>(null) }
     // The launch this sheet asked for (its id): the sheet closes once it has gone out.
@@ -221,6 +229,12 @@ fun AppsSheetContent(
             if (recentApps.isNotEmpty()) {
                 item(span = { GridItemSpan(maxLineSpan) }, key = "recent-title") { SectionTitle(stringResource(R.string.apps_recent)) }
                 items(recentApps, key = { "recent:" + it.packageName }) { Tile(it) }
+            }
+            // After Recent (long-press Home's switcher leads), before every app: a handful of chips.
+            if (inputs != null) {
+                item(span = { GridItemSpan(maxLineSpan) }, key = "inputs") { TvInputChips(inputs, onInput, onPinInput) }
+            }
+            if (recentApps.isNotEmpty() || inputs != null) {
                 item(span = { GridItemSpan(maxLineSpan) }, key = "all-title") { SectionTitle(stringResource(R.string.apps_all)) }
             }
             items(state.visibleApps, key = { it.packageName }) { Tile(it) }

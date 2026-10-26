@@ -23,6 +23,15 @@ class EveningDimTest {
     }
 
     @Test
+    fun `never brightens a phone already darker than the dim`() {
+        assertNull(dimTarget(enabled = true, tvOn = true, hour = 22, userChangedBrightness = false, ownLevel = 0.02f))
+        assertNull(dimTarget(enabled = true, tvOn = true, hour = 22, userChangedBrightness = false, ownLevel = EveningDim.LEVEL))
+        assertEquals(EveningDim.LEVEL, dimTarget(enabled = true, tvOn = true, hour = 22, userChangedBrightness = false, ownLevel = 0.4f))
+        // Adaptive brightness: his level can't be read, so the dim applies.
+        assertEquals(EveningDim.LEVEL, dimTarget(enabled = true, tvOn = true, hour = 22, userChangedBrightness = false, ownLevel = null))
+    }
+
+    @Test
     fun `the evening runs from 20 00 to 05 00`() {
         assertEquals(listOf(0, 1, 2, 3, 4, 20, 21, 22, 23), (0..23).filter(EveningDim::isEvening))
     }
