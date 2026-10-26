@@ -4,6 +4,7 @@ import io.kud.tutti.platform.data.BarDevice
 import io.kud.tutti.platform.data.Devices
 import io.kud.tutti.platform.data.TvDevice
 import io.kud.tutti.quick.ControllerQuickControls
+import io.kud.tutti.platform.diagnostic.remotePairingRecorded
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -42,11 +43,12 @@ class SessionLinksTest {
     }
 }
 
-class RestPinRuleTest {
+class RemotePairingRuleTest {
     @Test
-    fun `the REST pin survives only a save at the same address`() {
-        assertTrue(restPinSurvives("192.168.1.20", "192.168.1.20"))
-        assertFalse(restPinSurvives("192.168.1.20", "192.168.1.30"))
-        assertFalse(restPinSurvives(null, "192.168.1.20"))
+    fun `remote pairing needs both the tv pin and the client identity`() {
+        assertTrue(remotePairingRecorded(pinPresent = true, identityPresent = true))
+        assertFalse(remotePairingRecorded(pinPresent = true, identityPresent = false))
+        assertFalse(remotePairingRecorded(pinPresent = false, identityPresent = true))
+        assertFalse(remotePairingRecorded(pinPresent = false, identityPresent = false))
     }
 }

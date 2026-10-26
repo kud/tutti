@@ -58,6 +58,14 @@ class ConnectionsTest {
     }
 
     @Test
+    fun restCertificateMismatchOffersPairAgain() {
+        assertEquals(
+            ConnLine(ConnLink.SONY_IP, ConnWords.NEEDS_PAIRING, ConnAction.PAIR_TV),
+            line(room.copy(rest = Link.NEEDS_PAIRING), "tv", ConnLink.SONY_IP),
+        )
+    }
+
+    @Test
     fun standbyIsNotAFault() {
         val asleep = room.copy(tvAsleep = true, tvShown = TvShown(Link.UNREACHABLE), rest = Link.UNREACHABLE)
         assertEquals(ConnLine(ConnLink.GOOGLE_TV, ConnWords.STANDBY, ConnAction.WAKE_TV), line(asleep, "tv", ConnLink.GOOGLE_TV))

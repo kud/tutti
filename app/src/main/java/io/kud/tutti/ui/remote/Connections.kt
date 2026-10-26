@@ -199,8 +199,11 @@ private fun sonyIp(input: ConnInput): ConnLine = when {
     else -> when (input.rest) {
         Link.ONLINE -> ConnLine(ConnLink.SONY_IP, ConnWords.CONNECTED)
         Link.UNAUTHORIZED -> ConnLine(ConnLink.SONY_IP, ConnWords.KEY_REFUSED, ConnAction.SET_UP_IP)
-        // A TV in standby doesn't answer IP control: expected, and Google TV's line carries the wake.
-        Link.UNREACHABLE, Link.NEEDS_PAIRING ->
+        // A certificate mismatch is not an IP-control setup problem: only an explicit TV pairing
+        // may renew REST trust. Standby still wins because a sleeping TV is expected not to answer.
+        Link.NEEDS_PAIRING ->
+            if (input.tvAsleep) ConnLine(ConnLink.SONY_IP, ConnWords.STANDBY) else ConnLine(ConnLink.SONY_IP, ConnWords.NEEDS_PAIRING, ConnAction.PAIR_TV)
+        Link.UNREACHABLE ->
             if (input.tvAsleep) ConnLine(ConnLink.SONY_IP, ConnWords.STANDBY) else ConnLine(ConnLink.SONY_IP, ConnWords.UNREACHABLE, ConnAction.SET_UP_IP)
         Link.CONNECTING, Link.ABSENT -> ConnLine(ConnLink.SONY_IP, ConnWords.CONNECTING)
     }

@@ -37,6 +37,10 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 
+/** A remote pairing exists only when both halves saved by pairing still exist. */
+internal fun remotePairingRecorded(pinPresent: Boolean, identityPresent: Boolean): Boolean =
+    pinPresent && identityPresent
+
 data class DiagnosticUi(
     val steps: List<StepResult> = DiagnosticSteps.initial(),
     val running: Boolean = false,
@@ -74,6 +78,7 @@ class Diagnostics @Inject constructor(
             val bar = ui.devices.bar
             val psk = secure.tvPsk()
             val restPin = secure.tvRestPin()
+            val remoteIdentity = identities.existing()
             val targets = DiagnosticTargets(
                 tvHost = tv?.host,
                 barHost = bar?.host,
@@ -89,7 +94,7 @@ class Diagnostics @Inject constructor(
                 bravia = transport,
                 tls = tls,
                 tcp = tcp,
-                identity = { identities.existing() },
+                identity = { remoteIdentity },
                 discover = { discover(tv?.host) },
                 cloudNote = cloudNote(ui.cloud),
                 deviceInfo = ClientDeviceInfo(model = "tutti", packageName = context.packageName),
@@ -97,7 +102,7 @@ class Diagnostics @Inject constructor(
                 developer = ui.prefs.developerMode,
                 barHttp = bar?.let { io.kud.tutti.platform.net.OkHttpBarHttpTransport(it.host) },
             )
-            val environment = environment(targets)
+            val environment = environment(targets, remoteIdentity != null)
             val publisher = launch {
                 runner.steps.collect { steps ->
                     mutableState.value = DiagnosticUi(
@@ -136,7 +141,7 @@ class Diagnostics @Inject constructor(
         is CloudPlaneState.Connected -> "connected (not probed)"
     }
 
-    private fun environment(targets: DiagnosticTargets): List<Pair<String, String>> {
+    private fun environment(targets: DiagnosticTargets, remoteIdentityPresent: Boolean): List<Pair<String, String>> {
         val ui = controller.state.value
         val links = ui.links
         fun yes(value: Boolean) = if (value) "yes" else "no"
@@ -146,7 +151,7 @@ class Diagnostics @Inject constructor(
             "phone" to "${Build.MANUFACTURER} ${Build.MODEL}",
             "network" to if (onWifi()) "wifi" else "not wifi",
             "configured" to "tv ${yes(targets.tvHost != null)}, bar ${yes(targets.barHost != null)}, psk ${yes(targets.psk != null)}, " +
-                "remote pairing ${yes(targets.remotePin != null)}, rest pin ${yes(targets.restPinRecorded)}",
+                "remote pairing ${yes(remotePairingRecorded(targets.remotePin != null, remoteIdentityPresent))}, rest pin ${yes(targets.restPinRecorded)}",
             "live session" to "remote ${links.tv}, rest ${links.rest}, bar ${links.bar}, voice zoom shown ${yes(ui.voiceZoomAvailable)}",
             // The int5 probe: what the TV sends beside its field's text. The label goes by length only.
             "tv text field" to (ui.remote.imeProbe?.let { "int5 ${it.int5}, label ${Redact.secret(it.label)}" } ?: "none seen"),
