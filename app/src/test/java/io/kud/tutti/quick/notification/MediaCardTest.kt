@@ -55,6 +55,36 @@ class MediaCardTest {
     // region card
 
     @Test
+    fun `a dropped link keeps the last card, a live link shows the room or nothing once it is off`() {
+        val on = QuickState(
+            connected = true,
+            configured = true,
+            power = true,
+            level = AudioLevel(VolumeTarget.BAR, 12, 100, false),
+            nowShowing = QuickNowShowing("com.example.video", "Video", null),
+            tvName = "BRAVIA 8",
+            barName = "Bar 9",
+        )
+        val first = shownCard(on, enabled = true, locked = false, last = null)!!
+        assertEquals("Video", first.appLabel)
+        // The link drops: what the controller now holds is gone, the card is not.
+        val dropped = QuickState(configured = true, tvName = "BRAVIA 8", barName = "Bar 9")
+        val kept = shownCard(dropped, enabled = true, locked = false, last = first)
+        assertEquals(first, kept)
+        // The lock still governs Turn off on a kept card.
+        assertFalse(shownCard(dropped, enabled = true, locked = true, last = first)!!.turnOff)
+        // Known off on a live link: gone, and a later drop does not bring it back.
+        val off = shownCard(on.copy(power = false), enabled = true, locked = false, last = first)
+        assertNull(off)
+        assertNull(shownCard(dropped, enabled = true, locked = false, last = off))
+        // Never shown this process (a cold start): nothing to keep.
+        assertNull(shownCard(dropped, enabled = true, locked = false, last = null))
+        // The setting off, or nothing configured, always clears it.
+        assertNull(shownCard(dropped, enabled = false, locked = false, last = first))
+        assertNull(shownCard(QuickState(), enabled = true, locked = false, last = first))
+    }
+
+    @Test
     fun `the card carries the app, both devices and the level`() {
         val state = QuickState(
             connected = true,

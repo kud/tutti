@@ -154,6 +154,20 @@ fun cardFor(state: QuickState, locked: Boolean = true): MediaCard = MediaCard(
     playback = state.playback ?: state.cast?.let { castQuickPlayback(it, System.currentTimeMillis()) },
 )
 
+/**
+ * The card the media control shows now, given the one it showed last ([last]). On a live link: the
+ * room while the TV is on, nothing once it is known off. When the link drops (the sessions
+ * stopped behind the app, Wi-Fi went), the last card stays as it last knew the room, only its
+ * lock-dependent Turn off and a passing guard notice brought up to date: its buttons and the volume
+ * keys reconnect through the controls' held path. Nothing with the setting off or nothing set up.
+ * A process start has no last card, so a card left by a dead process is cleared, as before.
+ */
+fun shownCard(state: QuickState, enabled: Boolean, locked: Boolean, last: MediaCard?): MediaCard? = when {
+    !enabled || !state.configured -> null
+    state.connected -> if (state.power) cardFor(state, locked) else null
+    else -> last?.copy(turnOff = turnOffInSession(locked), guardHeld = null)
+}
+
 /** The session's title: what is playing, else the TV's app, else the scene; null for the app's own name. */
 fun MediaCard.titleText(): String? = playback?.title ?: appLabel ?: sceneName
 

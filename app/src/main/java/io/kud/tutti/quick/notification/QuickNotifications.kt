@@ -46,8 +46,9 @@ import kotlinx.coroutines.withContext
  * the TV's media keys, mute, and "Turn off" once the phone is unlocked; volume is the
  * session's remote VolumeProvider. One MediaSession for the whole app, owned here:
  * anything that knows what plays (Cast) feeds [io.kud.tutti.quick.QuickState.playback]
- * rather than opening a session of its own. The notification exists only to carry it. Shown only
- * while the TV is on, the controller is connected and the user has it enabled.
+ * rather than opening a session of its own. The notification exists only to carry it. Shown
+ * while the TV is on and the user has it enabled; once shown, it stays with the last known state
+ * when the link drops, and its buttons reconnect ([shownCard]).
  *
  * Backed by a framework [MediaSession] (no androidx.media dependency: minSdk 29
  * has everything, and [Notification.MediaStyle] is the platform's own):
@@ -92,9 +93,11 @@ object QuickNotifications {
         ensureChannel(context)
         var live: Live? = null
         var lastPost: Long? = null
+        // The last card shown: kept while the link is down (shownCard), so the control stays.
+        var shown: MediaCard? = null
         try {
             combine(controls.state, preferences.notificationEnabled, keyguardLockedFlow(context)) { state, enabled, locked ->
-                state.takeIf { enabled && it.connected && it.power }?.let { cardFor(it, locked) }
+                shownCard(state, enabled, locked, shown).also { shown = it }
             }
                 .distinctUntilChanged()
                 .collectLatest { card ->
