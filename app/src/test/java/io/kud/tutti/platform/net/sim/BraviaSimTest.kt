@@ -125,6 +125,15 @@ class BraviaSimTest {
     }
 
     @Test
+    fun `an unauthenticated probe exposes the HTTPS pin without sending the key`() = runBlocking {
+        val transport = transport()
+        BraviaClient(transport) { null }.discover().ok()
+        assertEquals(CertificatePin.of(SimKeys.tv.certificate), transport.observedPin)
+        assertEquals(0, tv.https.credentialSeen.get())
+        assertTrue(saved.isEmpty())
+    }
+
+    @Test
     fun `the pin is kept only after an authenticated call succeeds`() = runBlocking {
         val transport = transport()
         client(transport, psk = "9999").discover().ok()

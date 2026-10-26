@@ -2041,9 +2041,11 @@ class TuttiController @Inject constructor(
                 is PairingResult.Paired -> {
                     steps += "paired, saving pin"
                     secure.setTvRemotePin(result.serverPin)
+                    // The six-character Remote v2 code is the user's explicit trust ceremony.
+                    // Use that moment to refresh REST trust from an unauthenticated HTTPS probe:
+                    // no PSK/cookie is sent before the new certificate has been stored.
+                    refreshRestTrustAfterPairing(address)
                     steps += "saving device"
-                    // A TV at another address is another certificate: its REST pin starts again.
-                    if (!restPinSurvives(store.devices.first().tv?.host, address)) secure.setTvRestPin(null)
                     store.updateDevices { it.copy(tv = (it.tv ?: TvDevice(address)).copy(host = address)) }
                     restart.update { it + 1 }
                     watchdog?.cancel()
@@ -2056,6 +2058,21 @@ class TuttiController @Inject constructor(
                     else -> PairingUi.Failed(PairingError.REFUSED, detail("refused: ${result.failure}"))
                 }
             }
+        }
+    }
+
+    /**
+     * Refreshes the REST server pin only after Remote v2 pairing proved physical presence at this
+     * TV. The probe itself is unauthenticated: the PSK and cookie stay off the wire until the new
+     * certificate is already stored. A failed probe leaves the old pin in place and therefore fails
+     * closed; an HTTP-only TV clears it only after unauthenticated discovery actually answered there.
+     */
+    private suspend fun refreshRestTrustAfterPairing(address: String) {
+        val probe = OkHttpBraviaTransport(address, initialPin = null) {}
+        val result = runCatching { BraviaClient(probe) { null }.discover() }.getOrNull()
+        when {
+            probe.observedPin != null -> secure.setTvRestPin(probe.observedPin)
+            result is BraviaResult.Ok && probe.scheme == "http" -> secure.setTvRestPin(null)
         }
     }
 

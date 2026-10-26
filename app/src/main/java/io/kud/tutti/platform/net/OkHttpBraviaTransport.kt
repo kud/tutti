@@ -94,6 +94,12 @@ class OkHttpBraviaTransport internal constructor(
 
     override val scheme: String? get() = if (useHttp) "http" else if (firstSeen != null || trust.expected != null) "https" else null
 
+    /**
+     * Certificate seen on an unpinned HTTPS connection in this transport's lifetime.
+     * Read-only: callers may promote it to a stored pin only after their own trust ceremony.
+     */
+    internal val observedPin: CertificatePin? get() = firstSeen
+
     override suspend fun post(path: String, body: String, headers: Map<String, String>): HttpReply =
         withContext(Dispatchers.IO) {
             checkHost(host)
