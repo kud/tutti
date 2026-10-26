@@ -3,6 +3,7 @@ package io.kud.tutti.protocol.diagnostic
 import io.kud.tutti.protocol.atv.AtvRemote
 import io.kud.tutti.protocol.atv.ClientDeviceInfo
 import io.kud.tutti.protocol.atv.FrameDecoder
+import io.kud.tutti.protocol.atv.ImeFieldKind
 import io.kud.tutti.protocol.atv.Framing
 import io.kud.tutti.protocol.atv.RemoteSession
 import io.kud.tutti.protocol.atv.RemoteState
@@ -334,6 +335,8 @@ class DiagnosticRunner(
         state.powered?.let { fact("powered", yesNo(it)) }
         state.volume?.let { fact("volume", "${it.level}/${it.max}, muted ${yesNo(it.muted)}") }
         state.currentApp?.let { fact("foreground app", it) }
+        // A field the TV opened during the run: int5 and its inferred kind, never its text or label.
+        state.imeProbe?.let { fact("tv text field", "int5 ${it.int5}, kind ${ImeFieldKind.of(it.int5)} (inferred)") }
         when {
             remoteError -> fail("remote_error", "the TV sent remote_error")
             !state.ready -> fail("no_configure", "no remote_configure within ${timeouts.sessionMillis} ms")

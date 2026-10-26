@@ -20,6 +20,7 @@ import io.kud.tutti.protocol.diagnostic.DiagnosticTargets
 import io.kud.tutti.protocol.diagnostic.DiscoveryOutcome
 import io.kud.tutti.protocol.diagnostic.StepResult
 import io.kud.tutti.protocol.grpc.CloudPlaneState
+import io.kud.tutti.protocol.atv.ImeFieldKind
 import io.kud.tutti.protocol.net.Redact
 import io.kud.tutti.protocol.net.TcpConnector
 import io.kud.tutti.protocol.net.TlsConnector
@@ -154,7 +155,8 @@ class Diagnostics @Inject constructor(
                 "remote pairing ${yes(remotePairingRecorded(targets.remotePin != null, remoteIdentityPresent))}, rest pin ${yes(targets.restPinRecorded)}",
             "live session" to "remote ${links.tv}, rest ${links.rest}, bar ${links.bar}, voice zoom shown ${yes(ui.voiceZoomAvailable)}",
             // The int5 probe: what the TV sends beside its field's text. The label goes by length only.
-            "tv text field" to (ui.remote.imeProbe?.let { "int5 ${it.int5}, label ${Redact.secret(it.label)}" } ?: "none seen"),
+            // The kind is int5 read as an Android input type: inferred, reported to be proven (ImeFieldKind).
+            "tv text field" to (ui.remote.imeProbe?.let { "int5 ${it.int5}, kind ${ImeFieldKind.of(it.int5)} (inferred), label ${Redact.secret(it.label)}" } ?: "none seen"),
             // Feature names only, never values: the model and firmware stay out of the report.
             // Routes tried, link sent, foreground package seen; already through Redact.
             "last app launch" to (controller.lastLaunchTrace ?: "none this session"),

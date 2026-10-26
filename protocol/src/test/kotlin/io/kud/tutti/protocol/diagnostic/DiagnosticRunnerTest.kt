@@ -5,7 +5,9 @@ import io.kud.tutti.protocol.atv.FrameDecoder
 import io.kud.tutti.protocol.atv.Framing
 import io.kud.tutti.protocol.atv.proto.remote.RemoteConfigure
 import io.kud.tutti.protocol.atv.proto.remote.RemoteDeviceInfo
+import io.kud.tutti.protocol.atv.proto.remote.RemoteImeShowRequest
 import io.kud.tutti.protocol.atv.proto.remote.RemoteMessage
+import io.kud.tutti.protocol.atv.proto.remote.RemoteTextFieldStatus
 import io.kud.tutti.protocol.bravia.BraviaTransport
 import io.kud.tutti.protocol.bravia.HttpReply
 import io.kud.tutti.protocol.net.CertificatePin
@@ -126,7 +128,7 @@ private class FakeBarHttp : io.kud.tutti.protocol.theatre.BarHttpTransport {
 }
 
 /** A TV remote port that opens the v2 handshake and records every message the app sends. */
-private class FakeRemote(private val server: ClientIdentity) : TlsConnector {
+private class FakeRemote(private val server: ClientIdentity, private val then: List<RemoteMessage> = emptyList()) : TlsConnector {
     val sent = mutableListOf<RemoteMessage>()
 
     override suspend fun connect(host: String, port: Int, identity: ClientIdentity, expectedPin: CertificatePin?): TlsConnection {
@@ -136,6 +138,7 @@ private class FakeRemote(private val server: ClientIdentity) : TlsConnector {
             remote_configure = RemoteConfigure(code1 = 622, device_info = RemoteDeviceInfo(model = "BRAVIA 8", vendor = "Sony", app_version = "5.4.1")),
         )
         inbox.send(Framing.frame(configure.encode()))
+        then.forEach { inbox.send(Framing.frame(it.encode())) }
         return object : TlsConnection {
             override val localCertificate: X509Certificate = identity.certificate
             override val peerCertificate: X509Certificate = server.certificate
@@ -265,6 +268,22 @@ class DiagnosticRunnerTest {
         val step = runner.steps.value.of(DiagnosticSteps.BAR_HTTP)
         assertEquals(StepStatus.SKIPPED, step.status)
         assertEquals("unsupported", step.errorClass)
+    }
+
+    @Test
+    fun `a field the tv opens gives int5 and its inferred kind, never its text or label`() = runTest {
+        val show = RemoteMessage(
+            remote_ime_show_request = RemoteImeShowRequest(
+                remote_text_field_status = RemoteTextFieldStatus(counter_field = 1, value_ = "hunter2-typed", int5 = 129, label = "Mot de passe de Camille"),
+            ),
+        )
+        val runner = DiagnosticRunner(targets(bar = null), null, FakeRemote(server, listOf(show)), FakeTcp(null), { client }, null, "unavailable")
+        runner.run()
+        val session = runner.steps.value.of(DiagnosticSteps.REMOTE_SESSION)
+        assertTrue(session.facts.contains("tv text field" to "int5 129, kind text/password (inferred)"), session.facts.toString())
+        val report = DiagnosticReport.render(emptyList(), runner.steps.value, runner.sensitive)
+        assertFalse("hunter2" in report)
+        assertFalse("Camille" in report)
     }
 
     @Test
