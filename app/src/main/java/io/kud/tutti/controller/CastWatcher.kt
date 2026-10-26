@@ -49,6 +49,8 @@ class CastWatcher(
     active: Flow<String?>,
     private val clock: () -> Long,
     private val log: (String) -> Unit = {},
+    /** Time to ready of a session, ms: from the connect to its first status read (device auth passed). */
+    private val onReady: (Long) -> Unit = {},
     private val runSession: suspend (CastConnection, (CastNowPlaying?) -> Unit) -> CastEnd = { connection, emit ->
         CastSession(connection, emit).run()
     },
@@ -77,7 +79,14 @@ class CastWatcher(
             val end = try {
                 val connection = connector.connect(host)
                 try {
-                    runSession(connection) { mutable.value = it }
+                    var reported = false
+                    runSession(connection) {
+                        if (!reported) {
+                            reported = true
+                            onReady(clock() - started)
+                        }
+                        mutable.value = it
+                    }
                 } finally {
                     connection.close()
                 }

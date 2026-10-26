@@ -231,6 +231,9 @@ class TuttiController @Inject constructor(
 
     @Volatile private var tvDownSince: Long? = null
 
+    /** Time to ready per link, for the diagnostic ([LinkTimings]). */
+    val linkTimings = io.kud.tutti.protocol.diagnostic.LinkTimings()
+
     /** When each device was last looked for by mDNS (elapsedRealtime), for [Rediscovery.due]. */
     @Volatile private var tvBrowsedAt: Long? = null
 
@@ -341,6 +344,7 @@ class TuttiController @Inject constructor(
         ),
         clock = System::currentTimeMillis,
         log = { Log.i(TAG, it) },
+        onReady = { linkTimings.record(io.kud.tutti.protocol.diagnostic.TimedLink.CAST, it) },
     )
 
     /**
@@ -549,6 +553,7 @@ class TuttiController @Inject constructor(
         try {
             while (scope.isActive) {
                 links.update { it.copy(bar = Link.CONNECTING) }
+                linkTimings.started(io.kud.tutti.protocol.diagnostic.TimedLink.BAR, SystemClock.elapsedRealtime())
                 val connected = try {
                     theatre.connect(bar.host)
                     true
@@ -559,6 +564,7 @@ class TuttiController @Inject constructor(
                     false
                 }
                 if (connected) {
+                    linkTimings.ready(io.kud.tutti.protocol.diagnostic.TimedLink.BAR, SystemClock.elapsedRealtime())
                     links.update { it.copy(bar = Link.ONLINE) }
                     linkNotes.update { it.copy(bar = null) }
                     barOffer.value = null
@@ -653,6 +659,7 @@ class TuttiController @Inject constructor(
             while (scope.isActive) {
                 // Once the TV has refused our certificate twice, it keeps reading "pair again" between tries.
                 if (!HandshakeRule.needsPairing(handshakeFailures)) links.update { it.copy(tv = Link.CONNECTING) }
+                linkTimings.started(io.kud.tutti.protocol.diagnostic.TimedLink.REMOTE, SystemClock.elapsedRealtime())
                 val outcome = try {
                     atv.connect(device.host, identity, pin)
                     if (withTimeoutOrNull(READY_TIMEOUT_MS) { atv.state.first { it.ready } } != null) {
@@ -684,6 +691,7 @@ class TuttiController @Inject constructor(
                     continue
                 }
                 if (outcome == Link.ONLINE) {
+                    linkTimings.ready(io.kud.tutti.protocol.diagnostic.TimedLink.REMOTE, SystemClock.elapsedRealtime())
                     handshakeFailures = 0
                     unreachable = 0
                     tvLastConnect = null
@@ -849,8 +857,10 @@ class TuttiController @Inject constructor(
                 continue
             }
             links.update { it.copy(rest = Link.CONNECTING) }
+            linkTimings.started(io.kud.tutti.protocol.diagnostic.TimedLink.REST, SystemClock.elapsedRealtime())
             when (val found = client.discover()) {
                 is BraviaResult.Ok -> {
+                    linkTimings.ready(io.kud.tutti.protocol.diagnostic.TimedLink.REST, SystemClock.elapsedRealtime())
                     wait = MIN_BACKOFF_MS
                     links.update { it.copy(rest = Link.ONLINE) }
                     linkNotes.update { it.copy(rest = null) }

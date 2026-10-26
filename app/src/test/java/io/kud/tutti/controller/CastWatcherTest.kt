@@ -80,6 +80,24 @@ class CastWatcherTest {
     }
 
     @Test
+    fun `time to ready is the connect to the first status read, once per session`() = runTest {
+        val connector = FakeConnector()
+        val active = MutableStateFlow<String?>("192.168.0.20")
+        val ready = mutableListOf<Long>()
+        val child = TestScope(testScheduler)
+        CastWatcher(connector, child, active, clock = { testScheduler.currentTime }, onReady = { ready += it }, runSession = { _, emit ->
+            kotlinx.coroutines.delay(700)
+            emit(playing)
+            kotlinx.coroutines.delay(5_000)
+            emit(null)
+            awaitCancellation()
+        })
+        advanceTimeBy(10_000)
+        assertEquals(listOf(700L), ready)
+        child.cancel()
+    }
+
+    @Test
     fun `a new host closes the old session and opens one to the new host`() = runTest {
         val connector = FakeConnector()
         val active = MutableStateFlow<String?>("192.168.0.20")
