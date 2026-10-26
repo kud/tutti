@@ -58,6 +58,43 @@ class CastSessionTest {
         run.cancel()
     }
 
+    @Test fun `the media status is re-read on the refresh tick and every reading reaches the diagnostic`() = runTest {
+        val tv = FakeCast()
+        val seen = mutableListOf<CastNowPlaying?>()
+        val readings = mutableListOf<CastReading>()
+        val session = CastSession(
+            tv, { seen += it }, clock = { NOW + testScheduler.currentTime }, nonce = CastFixtures.nonce(), roots = listOf(CastFixtures.root),
+            onReading = { readings += it },
+        )
+        val run = async { session.run() }
+        runCurrent()
+        tv.deliver(CastFraming.binary(CastSession.RECEIVER, CastSession.SENDER, CastDeviceAuth.NAMESPACE, CastFixtures.reply()))
+        tv.deliver(fromTv(CastSession.RECEIVER, CastNamespaces.RECEIVER,
+            """{"type":"RECEIVER_STATUS","status":{"applications":[{"appId":"APP1","transportId":"t-1","namespaces":[{"name":"${CastNamespaces.MEDIA}"}]}]}}"""))
+        runCurrent()
+        fun mediaGets() = tv.sent.count { it.namespace == CastNamespaces.MEDIA && it.payload_utf8?.contains("GET_STATUS") == true }
+        assertEquals(1, mediaGets())
+        tv.deliver(fromTv("t-1", CastNamespaces.MEDIA,
+            """{"type":"MEDIA_STATUS","requestId":3,"status":[{"mediaSessionId":1,"playerState":"PLAYING","currentTime":100,"media":{"duration":2589,"metadata":{"title":"Sample Title"}}}]}"""))
+        runCurrent()
+
+        testScheduler.advanceTimeBy(CastSession.REFRESH_MS + 1)
+        runCurrent()
+        assertEquals(2, mediaGets(), "the media status was not re-read")
+        tv.deliver(fromTv("t-1", CastNamespaces.MEDIA,
+            """{"type":"MEDIA_STATUS","requestId":5,"status":[{"mediaSessionId":1,"playerState":"PLAYING","currentTime":115}]}"""))
+        runCurrent()
+        assertEquals(listOf(100.0, 115.0), readings.map { it.currentTime })
+        assertEquals(listOf(true, true), readings.map { it.answer })
+        val latest = seen.last()!!
+        assertEquals(2589.0, latest.durationSec)
+        assertEquals(125.0, latest.positionAt(latest.readAtMillis + 10_000))
+
+        tv.close()
+        run.await()
+        run.cancel()
+    }
+
     @Test fun `an unverified device gets nothing but the challenge, and its status is ignored`() = runTest {
         val tv = FakeCast()
         val seen = mutableListOf<CastNowPlaying?>()

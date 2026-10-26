@@ -37,7 +37,73 @@ class CastStatusTest {
         assertEquals(CastPlayerState.PLAYING, now.state)
         assertEquals(70.0, now.positionAt(11_000))
         assertEquals(0.1f, now.progressAt(1_000))
-        assertEquals(600.0, now.positionAt(10_000_000))
+    }
+
+    // The screenshot of 2026-10-26: "43:09 / 43:09" and a full bar while YouTube played. The old
+    // positionAt clamped every overrun to the duration, so a reading run on too long, or a
+    // currentTime at or past the duration, read as a confident end. Each case below did that.
+
+    @Test fun `a playing reading never runs on to the end`() {
+        val now = CastStatusReducer().onMediaStatus(media("PLAYING", 590.0), 0)!!
+        assertEquals(599.0, now.positionAt(9_000))
+        assertNull(now.positionAt(10_000), "claimed the end while playing")
+        assertNull(now.progressAt(10_000))
+    }
+
+    @Test fun `a reading too old to run on shows no time`() {
+        val now = CastStatusReducer().onMediaStatus(media("PLAYING", 60.0), 0)!!
+        assertEquals(100.0, now.positionAt(CastNowPlaying.MAX_RUN_MS))
+        assertNull(now.positionAt(CastNowPlaying.MAX_RUN_MS + 1))
+        // The old maths, left alone 43 minutes, showed the duration.
+        assertNull(now.positionAt(43 * 60_000L))
+    }
+
+    @Test fun `a receiver that reports currentTime at the duration while playing is not believed`() {
+        val now = CastStatusReducer().onMediaStatus(media("PLAYING", 2589.0, duration = "2589.0"), 0)!!
+        assertFalse(now.readingTrusted)
+        assertNull(now.positionAt(0))
+        assertNull(now.progressAt(0))
+    }
+
+    @Test fun `a currentTime in another unit (milliseconds) is not believed, playing or paused`() {
+        assertNull(CastStatusReducer().onMediaStatus(media("PLAYING", 812_400.0, duration = "2589.0"), 0)!!.positionAt(0))
+        assertNull(CastStatusReducer().onMediaStatus(media("PAUSED", 812_400.0, duration = "2589.0"), 0)!!.positionAt(0))
+    }
+
+    @Test fun `paused at the end may say so, and a paused reading never ages out`() {
+        val end = CastStatusReducer().onMediaStatus(media("PAUSED", 600.4), 0)!!
+        assertEquals(600.0, end.positionAt(10_000_000))
+        assertEquals(1f, end.progressAt(0))
+    }
+
+    @Test fun `a new item in the same session takes its own duration`() {
+        val reducer = CastStatusReducer()
+        reducer.onMediaStatus(media("PLAYING", 10.0, duration = "2589.0"), 0)
+        val next = reducer.onMediaStatus(media("PLAYING", 3.0, duration = "300.0"), 1_000)!!
+        assertEquals(300.0, next.durationSec)
+        assertEquals(3.0, next.positionAt(1_000))
+    }
+
+    @Test fun `each status leaves its raw numbers for the diagnostic, never a title`() {
+        val reducer = CastStatusReducer()
+        reducer.onMediaStatus(json("""{"type":"MEDIA_STATUS","requestId":7,"status":[{"mediaSessionId":3,"playbackRate":1,"playerState":"PLAYING",
+          "currentTime":812.4,"media":{"duration":2589.0,"metadata":{"title":"Sample Title"}}}]}"""), 1_000)
+        val first = reducer.lastReading!!
+        assertEquals(CastReading(1_000, "PLAYING", 812.4, 2589.0, mediaIncluded = true, playbackRate = 1.0, answer = true, sameSession = true), first)
+        reducer.onMediaStatus(json("""{"type":"MEDIA_STATUS","requestId":0,"status":[{"mediaSessionId":4,"playerState":"WEIRD","currentTime":5}]}"""), 16_000)
+        val second = reducer.lastReading!!
+        assertEquals(CastReading(16_000, "other", 5.0, null, mediaIncluded = false, playbackRate = null, answer = false, sameSession = false), second)
+
+        val readings = CastReadings(capacity = 2)
+        readings.record(first)
+        readings.record(second)
+        readings.record(second.copy(atMillis = 31_000))
+        val report = readings.report(nowMillis = 41_000)
+        assertEquals(listOf("cast reading 01", "cast reading 02"), report.map { it.first })
+        assertEquals("age 25.0 s, first, other, currentTime 5.0, no media, rate none, unasked, new session", report[0].second)
+        assertEquals("age 10.0 s, gap 15.0 s, other, currentTime 5.0, no media, rate none, unasked, new session", report[1].second)
+        assertFalse(report.any { "Sample" in it.second })
+        assertEquals(listOf("cast readings" to "none this session"), CastReadings().report(0))
     }
 
     @Test fun `a paused position does not run`() {
