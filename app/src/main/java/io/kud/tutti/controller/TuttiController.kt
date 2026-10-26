@@ -2507,9 +2507,6 @@ class TuttiController @Inject constructor(
 internal fun iconFileName(packageName: String): String? =
     packageName.takeIf { Regex("[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z0-9_]+)+").matches(it) }
 
-/** Whether the TV's REST pin still applies once the TV is saved at [next]: only at the same address. */
-internal fun restPinSurvives(previous: String?, next: String): Boolean = previous != null && previous.trim() == next.trim()
-
 /**
  * The controller scope's last resort: a coroutine that throws is logged (scrubbed) instead of
  * killing the process. Each loop still handles its own failures; this is for the ones nobody
