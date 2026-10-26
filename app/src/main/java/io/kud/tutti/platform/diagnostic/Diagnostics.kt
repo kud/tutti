@@ -155,6 +155,13 @@ class Diagnostics @Inject constructor(
             "network" to if (onWifi()) "wifi" else "not wifi",
             "configured" to "tv ${yes(targets.tvHost != null)}, bar ${yes(targets.barHost != null)}, psk ${yes(targets.psk != null)}, " +
                 "remote pairing ${yes(remotePairingRecorded(targets.remotePin != null, remoteIdentityPresent))}, rest pin ${yes(targets.restPinRecorded)}",
+            // The stored address described, never printed: a wrong or moved address against a TV off the network.
+            "tv address" to io.kud.tutti.protocol.diagnostic.TvAddressFacts.of(
+                targets.tvHost,
+                targets.barHost,
+                movedThisSession = controller.tvMovedThisSession,
+                macKnown = ui.devices.tv?.mac != null,
+            ),
             "live session" to "remote ${links.tv}, rest ${links.rest}, bar ${links.bar}, voice zoom shown ${yes(ui.voiceZoomAvailable)}",
             // The int5 probe: what the TV sends beside its field's text. The label goes by length only.
             // The kind is int5 read as an Android input type: inferred, reported to be proven (ImeFieldKind).
