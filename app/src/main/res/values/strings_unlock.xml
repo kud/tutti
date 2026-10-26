@@ -98,6 +98,7 @@
     <string name="technical_refused">refused by the bar</string>
     <string name="technical_needs_bar_link">needs the control link (33336)</string>
     <string name="technical_http_no_answer">no answer on port 54545</string>
+    <string name="technical_http_unavailable">not available on this soundbar</string>
     <string name="technical_needs_psk">needs IP control</string>
     <string name="technical_not_listed">not listed by this TV</string>
     <string name="technical_no_answer">no answer</string>
