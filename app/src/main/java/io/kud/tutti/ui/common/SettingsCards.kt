@@ -164,4 +164,4 @@ private fun Notice(text: String) {
 
 private val GroupShape = RoundedCornerShape(20.dp)
 private val RowGap = 2.dp
-private const val DISABLED_ALPHA = 0.6f
+internal const val DISABLED_ALPHA = 0.6f
