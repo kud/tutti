@@ -71,8 +71,6 @@
     <string name="cast_spoken_paused">%1$s, paused</string>
     <string name="cast_spoken_paused_at">%1$s, %2$d of %3$d minutes, paused</string>
     <!-- A tap on a Cast title cut to one line shows it whole, and a second tap folds it back; TalkBack's action names. -->
-    <string name="cast_title_more">Show the full title</string>
-    <string name="cast_title_less">Show the title on one line</string>
     <string name="card_input">External input</string>
     <string name="card_standby">TV on standby</string>
     <string name="card_bar_stays_on">The bar stays on</string>
