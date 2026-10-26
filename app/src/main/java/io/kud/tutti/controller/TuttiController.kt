@@ -541,14 +541,25 @@ class TuttiController @Inject constructor(
             linkNotes.update { it.copy(tv = failureDetail("tv remote: connect (TLS 6466)", outcome = "no pairing stored on this phone: pair the TV")) }
             return
         }
+        // A normal reconnect must never mint an identity: the TV binds pairing to the client
+        // certificate. If a key migration or damaged storage lost that identity, only the explicit
+        // pairing flow may create its replacement; otherwise we would present an unpaired certificate
+        // while still claiming that pairing is stored.
         val identity = try {
-            identities.getOrCreate()
+            identities.existing()
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             // The Keystore can fail (locked, wiped, a vendor bug): the remote is down, not the app.
             links.update { it.copy(tv = Link.UNREACHABLE) }
-            linkNotes.update { it.copy(tv = failureDetail("tv remote: client identity (Keystore)", outcome = "could not load or create", error = e)) }
+            linkNotes.update { it.copy(tv = failureDetail("tv remote: client identity (Keystore)", outcome = "could not load", error = e)) }
+            return
+        }
+        if (identity == null) {
+            links.update { it.copy(tv = Link.NEEDS_PAIRING) }
+            linkNotes.update {
+                it.copy(tv = failureDetail("tv remote: client identity (Keystore)", outcome = "pairing pin exists but client identity is missing: pair the TV"))
+            }
             return
         }
         var wait = MIN_BACKOFF_MS
