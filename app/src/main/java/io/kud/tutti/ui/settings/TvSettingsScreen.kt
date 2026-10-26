@@ -23,7 +23,15 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import io.kud.tutti.protocol.bravia.TvSettingCatalog
+import io.kud.tutti.protocol.bravia.TvSettingCatalog.PictureSection
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.res.painterResource
@@ -58,6 +66,7 @@ fun TvSettingsScreen(state: TuttiUiState, controller: TuttiController, onBack: (
     val rest = state.links.rest
     LaunchedEffect(rest) { if (rest == Link.ONLINE) controller.loadTvSettings() }
     var pskDialog by remember { mutableStateOf(false) }
+    var showUnavailable by rememberSaveable { mutableStateOf(false) }
     val settings = state.tv.settings
     // Picture modes and sound outputs pin to the dock from their own menu (design.md, gestures).
     // The rows only exist while REST is online, so no long press here can meet a down link.
@@ -84,25 +93,31 @@ fun TvSettingsScreen(state: TuttiUiState, controller: TuttiController, onBack: (
             }
             if (settings.loading) BusyBar(Modifier.fillMaxWidth())
 
-            if (settings.picture.isNotEmpty() || settings.scene != null) SettingsGroup(stringResource(R.string.tv_picture)) {
-                settings.picture.forEach { TvSettingRow(it, TvSettingGroup.PICTURE, controller, pin) }
-                settings.scene?.let { scene ->
-                    val names = mapOf(
-                        "auto" to stringResource(R.string.tv_scene_auto),
-                        "auto24pSync" to stringResource(R.string.tv_scene_auto_24p),
-                        "general" to stringResource(R.string.tv_scene_general),
-                    )
-                    ChoiceRow(
-                        label = stringResource(R.string.tv_target_scene),
-                        valueLabel = scene.currentValue?.let { names[it] ?: it } ?: "—",
-                        options = scene.candidates.map { it.value to (names[it.value] ?: it.value) },
-                        onSelect = controller::setScene,
+            // Sony's menu order in sections, not the TV's alphabetical list; rows the TV can't change
+            // now are hidden until asked for, then shown in place (Iris, 2026-10-26).
+            val unavailable = (settings.picture + settings.sound + settings.speaker).count { !it.isAvailable }
+            val showAll = showUnavailable || unavailable == 0
+            val sections = TvSettingCatalog.arrange(settings.picture, showAll).toMutableList()
+            if (settings.scene != null && sections.none { it.first == PictureSection.PICTURE }) sections.add(0, PictureSection.PICTURE to emptyList())
+            for ((section, rows) in sections) {
+                SettingsGroup(stringResource(TvSettingWords.section(section))) {
+                    rows.forEach { TvSettingRow(it, TvSettingGroup.PICTURE, controller, pin) }
+                    if (section == PictureSection.PICTURE) settings.scene?.let { scene -> SceneRow(scene, controller) }
+                }
+                if (section == PictureSection.OTHER) {
+                    Text(
+                        stringResource(R.string.tv_section_other_note),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = 32.dp, end = 32.dp, top = 8.dp),
                     )
                 }
             }
-            if (settings.sound.isNotEmpty()) SettingsGroup(stringResource(R.string.tv_sound_output)) {
-                settings.sound.forEach { TvSettingRow(it, TvSettingGroup.SOUND, controller, pin) }
-            } else if (settings.outputWriteOnly) SettingsGroup(stringResource(R.string.tv_sound_output)) {
+            val sound = settings.sound.filter { showAll || it.isAvailable }
+            val speaker = settings.speaker.filter { showAll || it.isAvailable }
+            if (sound.isNotEmpty()) SettingsGroup(stringResource(R.string.tv_sound_output)) {
+                sound.forEach { TvSettingRow(it, TvSettingGroup.SOUND, controller, pin) }
+            } else if (settings.sound.isEmpty() && settings.outputWriteOnly) SettingsGroup(stringResource(R.string.tv_sound_output)) {
                 val outputs = outputNames()
                 ChoiceRow(
                     label = stringResource(R.string.tv_target_output_terminal),
@@ -113,8 +128,16 @@ fun TvSettingsScreen(state: TuttiUiState, controller: TuttiController, onBack: (
                     canPin = ::dockKnowsOutput,
                 )
             }
-            if (settings.speaker.isNotEmpty()) SettingsGroup(stringResource(R.string.tv_speaker)) {
-                settings.speaker.forEach { TvSettingRow(it, TvSettingGroup.SPEAKER, controller, pin) }
+            if (speaker.isNotEmpty()) SettingsGroup(stringResource(R.string.tv_speaker)) {
+                speaker.forEach { TvSettingRow(it, TvSettingGroup.SPEAKER, controller, pin) }
+            }
+            if (unavailable > 0) SettingsGroup(null, Modifier.padding(top = 16.dp)) {
+                SwitchRow(
+                    label = stringResource(R.string.tv_show_unavailable),
+                    supporting = pluralStringResource(R.plurals.tv_unavailable_count, unavailable, unavailable),
+                    checked = showUnavailable,
+                    onCheckedChange = { showUnavailable = it },
+                )
             }
             if (state.tv.inputs.isNotEmpty()) SettingsGroup(stringResource(R.string.tv_inputs)) {
                 for (input in state.tv.inputs) {
@@ -227,55 +250,102 @@ internal fun outputNames(): Map<String, String> = mapOf(
 )
 
 @Composable
+private fun SceneRow(scene: TvSetting, controller: TuttiController) {
+    val names = mapOf(
+        "auto" to stringResource(R.string.tv_scene_auto),
+        "auto24pSync" to stringResource(R.string.tv_scene_auto_24p),
+        "general" to stringResource(R.string.tv_scene_general),
+    )
+    ChoiceRow(
+        label = stringResource(R.string.tv_target_scene),
+        valueLabel = scene.currentValue?.let { names[it] ?: it } ?: "—",
+        options = scene.candidates.map { it.value to (names[it.value] ?: it.value) },
+        onSelect = controller::setScene,
+    )
+}
+
+@Composable
 private fun TvSettingRow(setting: TvSetting, group: TvSettingGroup, controller: TuttiController, pin: (DockAction, String) -> Unit) {
     val label = settingTitle(setting)
     val reason = if (!setting.isAvailable) stringResource(R.string.tv_setting_unavailable) else null
     if (setting.isRange) {
-        val candidate = setting.candidates[0]
-        val min = candidate.min ?: 0.0
-        val max = candidate.max ?: 100.0
-        val step = candidate.step?.takeIf { it > 0 } ?: 1.0
-        val current = setting.currentValue?.toDoubleOrNull() ?: min
-        var dragging by remember(setting.target) { mutableStateOf<Float?>(null) }
-        val shown = dragging ?: current.toFloat()
-        val ticks = ((max - min) / step).roundToInt() - 1
-        Column(
-            Modifier
-                .fillMaxWidth()
-                .background(LocalRowSurface.current)
-                .padding(horizontal = 16.dp, vertical = 12.dp)
-                .alpha(if (reason == null) 1f else 0.6f),
-        ) {
-            Row(Modifier.fillMaxWidth()) {
-                Text(label, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-                Text(reason ?: format(shown.toDouble(), step), style = MaterialTheme.typography.bodyMedium)
-            }
-            Slider(
-                value = shown,
-                onValueChange = { dragging = it },
-                onValueChangeFinished = {
-                    dragging?.let { value ->
-                        val snapped = min + ((value - min) / step).roundToInt() * step
-                        controller.setTvSetting(group, setting.target, format(snapped, step))
-                    }
-                    dragging = null
-                },
-                valueRange = min.toFloat()..max.toFloat(),
-                steps = if (ticks in 1..100) ticks else 0,
-                enabled = reason == null,
-            )
-        }
+        RangeRow(setting, label, reason) { controller.setTvSetting(group, setting.target, it) }
     } else {
-        val options = setting.candidates.filter { it.isAvailable }.map { it.value to (it.title ?: it.value) }
+        val outputs = if (setting.target == TvSetting.OUTPUT_TERMINAL) outputNames() else emptyMap()
+        val words = setting.candidates.associate { it.value to (outputs[it.value] ?: settingValue(setting, it.value)) }
+        val current = setting.currentValue
         ChoiceRow(
             label = label,
-            valueLabel = setting.candidates.firstOrNull { it.value == setting.currentValue }?.title ?: setting.currentValue ?: "—",
-            options = options,
+            valueLabel = current?.let { words[it] ?: outputs[it] ?: settingValue(setting, it) } ?: "—",
+            options = setting.candidates.filter { it.isAvailable }.map { it.value to words.getValue(it.value) },
             onSelect = { controller.setTvSetting(group, setting.target, it) },
             reason = reason,
             onPin = tvPin(setting.target, pin),
             canPin = { setting.target != TvSetting.OUTPUT_TERMINAL || dockKnowsOutput(it) },
         )
+    }
+}
+
+/**
+ * A numeric setting. The title has the row to itself: the value sits beside it only while the
+ * setting can change, and the reason it can't goes on its own line, so a long title never meets
+ * it. The range's two ends sit under the slider, so a thumb at an end says where it is in numbers:
+ * Sony's gains top out at 0, which otherwise reads as a value stuck at the wrong end.
+ */
+@Composable
+private fun RangeRow(setting: TvSetting, label: String, reason: String?, onSet: (String) -> Unit) {
+    val candidate = setting.candidates[0]
+    val min = candidate.min ?: 0.0
+    val max = candidate.max ?: 100.0
+    val step = candidate.step?.takeIf { it > 0 } ?: 1.0
+    val current = setting.currentValue?.toDoubleOrNull() ?: min
+    var dragging by remember(setting.target) { mutableStateOf<Float?>(null) }
+    val shown = dragging ?: current.toFloat()
+    val ticks = ((max - min) / step).roundToInt() - 1
+    val signed = min < 0
+    val valueText = format(shown.toDouble(), step, signed)
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .background(LocalRowSurface.current)
+            .padding(horizontal = 16.dp, vertical = 12.dp)
+            .alpha(if (reason == null) 1f else 0.6f),
+    ) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+            Text(label, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+            if (reason == null) Text(valueText, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(start = 16.dp))
+        }
+        if (reason != null) {
+            Text(
+                reason,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 2.dp),
+            )
+        }
+        Slider(
+            value = shown,
+            onValueChange = { dragging = it },
+            onValueChangeFinished = {
+                dragging?.let { value ->
+                    val snapped = min + ((value - min) / step).roundToInt() * step
+                    onSet(format(snapped, step, signed = false))
+                }
+                dragging = null
+            },
+            valueRange = min.toFloat()..max.toFloat(),
+            steps = if (ticks in 1..100) ticks else 0,
+            enabled = reason == null,
+            modifier = Modifier.semantics {
+                contentDescription = label
+                stateDescription = if (reason == null) valueText else "$valueText, $reason"
+            },
+        )
+        Row(Modifier.fillMaxWidth()) {
+            val ends = MaterialTheme.typography.labelSmall
+            Text(format(min, step, signed), style = ends, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
+            Text(format(max, step, signed), style = ends, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
     }
 }
 
@@ -291,32 +361,8 @@ private fun tvPin(target: String, pin: (DockAction, String) -> Unit): ((String, 
 
 private fun dockKnowsOutput(value: String): Boolean = value == TvSetting.TERMINAL_AUDIO_SYSTEM || value == TvSetting.TERMINAL_SPEAKER
 
-private fun format(value: Double, step: Double): String =
-    if (step % 1.0 == 0.0) value.roundToInt().toString() else "%.1f".format(java.util.Locale.ROOT, value)
-
-/** Known Sony targets in plain words; anything else shows the TV's own title or its raw name. */
-@Composable
-private fun settingTitle(setting: TvSetting): String {
-    val known = when (setting.target) {
-        "pictureMode" -> R.string.tv_target_picture_mode
-        "brightness" -> R.string.tv_target_brightness
-        "contrast" -> R.string.tv_target_contrast
-        "color" -> R.string.tv_target_color
-        "sharpness" -> R.string.tv_target_sharpness
-        "colorTemperature" -> R.string.tv_target_color_temperature
-        "lightSensor" -> R.string.tv_target_light_sensor
-        "autoPictureMode" -> R.string.tv_target_auto_picture_mode
-        "hdrMode" -> R.string.tv_target_hdr_mode
-        "outputTerminal" -> R.string.tv_target_output_terminal
-        "tvPosition" -> R.string.tv_target_tv_position
-        "subwooferLevel" -> R.string.tv_target_subwoofer_level
-        "subwooferFreq" -> R.string.tv_target_subwoofer_freq
-        "subwooferPhase" -> R.string.tv_target_subwoofer_phase
-        "subwooferPower" -> R.string.tv_target_subwoofer_power
-        "colorSpace" -> R.string.tv_target_color_space
-        "autoLocalDimming" -> R.string.tv_target_auto_local_dimming
-        "xtendedDynamicRange" -> R.string.tv_target_xdr
-        else -> null
-    }
-    return known?.let { stringResource(it) } ?: setting.title ?: setting.target
+/** The value as the TV takes it; [signed] adds a + to positives, for ranges that run either side of 0. */
+private fun format(value: Double, step: Double, signed: Boolean): String {
+    val text = if (step % 1.0 == 0.0) value.roundToInt().toString() else "%.1f".format(java.util.Locale.ROOT, value)
+    return if (signed && value > 0) "+$text" else text
 }
