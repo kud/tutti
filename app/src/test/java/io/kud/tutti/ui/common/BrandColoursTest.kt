@@ -45,6 +45,19 @@ class BrandColoursTest {
         assertNull(BrandColours.bannerFill(intArrayOf(0xFF000000.toInt(), 0xFF000000.toInt(), 0xFF3060FF.toInt(), 0xFF000000.toInt())))
     }
 
+    @Test fun `a tv banner with flat corners is filled, one with disagreeing corners gets its backdrop`() {
+        val flat = 0xFF101820.toInt()
+        assertEquals(BrandColours.TvLook.Fill(flat), BrandColours.tvLook(320, 180) { IntArray(4) { flat } })
+        val gradient = intArrayOf(0xFFE6007E.toInt(), 0xFF6A1B9A.toInt(), 0xFFE6007E.toInt(), 0xFF6A1B9A.toInt())
+        assertEquals(BrandColours.TvLook.Backdrop, BrandColours.tvLook(320, 180) { gradient })
+        assertEquals(BrandColours.TvLook.Backdrop, BrandColours.tvLook(320, 180) { IntArray(4) { 0 } })
+    }
+
+    @Test fun `a square tv icon is cropped without reading its corners, and only nothing decoded falls through`() {
+        assertEquals(BrandColours.TvLook.Crop, BrandColours.tvLook(256, 256) { error("corners read for a square") })
+        assertNull(BrandColours.tvLook(0, 0) { IntArray(4) })
+    }
+
     @Test fun `a transparent banner corner is not a fill`() {
         assertNull(BrandColours.bannerFill(IntArray(4) { 0x00000000 }))
         assertNull(BrandColours.bannerFill(IntArray(0)))

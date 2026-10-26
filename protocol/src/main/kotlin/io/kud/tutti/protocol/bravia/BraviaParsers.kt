@@ -72,7 +72,8 @@ object BraviaParsers {
 
     fun applications(result: JsonArray): List<TvApp> = result.innerObjects().mapNotNull { obj ->
         val uri = obj.string("uri") ?: return@mapNotNull null
-        TvApp(title = obj.string("title").orEmpty(), uri = uri, icon = obj.string("icon")?.trim()?.ifEmpty { null })
+        // Titles come HTML-escaped on some firmware ("Live TV &amp; Catch Up").
+        TvApp(title = HtmlText.decode(obj.string("title").orEmpty()), uri = uri, icon = obj.string("icon")?.trim()?.ifEmpty { null })
     }
 
     /** `[{bundled, type}, [{name, value}, …]]`. */

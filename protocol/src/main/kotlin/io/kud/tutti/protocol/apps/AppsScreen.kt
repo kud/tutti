@@ -1,6 +1,7 @@
 package io.kud.tutti.protocol.apps
 
 import io.kud.tutti.protocol.atv.V2Key
+import io.kud.tutti.protocol.bravia.IrccCode
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
@@ -12,6 +13,9 @@ sealed interface AppsScreenRoute {
 
     /** A key inject. */
     data class Key(val keyCode: Int) : AppsScreenRoute
+
+    /** One of the TV's own IRCC keys over IP control, as its `getRemoteControllerInfo` names it. */
+    data class Ircc(val name: String, val code: String) : AppsScreenRoute
 }
 
 enum class AppsScreenVerdict {
@@ -39,6 +43,7 @@ data class AppsScreenResult(val verdict: AppsScreenVerdict, val attempts: List<A
             when (val route = attempt.route) {
                 is AppsScreenRoute.Link -> append("remote app link ").append(route.link)
                 is AppsScreenRoute.Key -> append("key ").append(route.keyCode)
+                is AppsScreenRoute.Ircc -> append("ircc ").append(route.name)
             }
             append(if (attempt.sent) " - sent" else " - not sent")
             if (attempt.sent) append(", foreground ").append(attempt.foreground ?: "unknown")
@@ -75,14 +80,30 @@ object AppsScreen {
         "intent:#Intent;action=$action;launchFlags=0x${NEW_TASK.toString(16)};package=$packageName;end"
 
     /**
+     * IRCC names that may mean the apps screen, best first. Sony documents none for it; these are
+     * names from older BRAVIA IRCC lists, matched against what the TV itself lists, never a
+     * hard-coded code. **Unverified on the XR80**: whether it lists one, and what it opens there.
+     */
+    val IRCC_NAMES = listOf("ApplicationLauncher", "Apps", "AppList")
+
+    /** The TV's own IRCC key for its apps screen, if [codes] (its `getRemoteControllerInfo`) lists one. */
+    fun irccRoute(codes: List<IrccCode>): AppsScreenRoute.Ircc? =
+        IRCC_NAMES.firstNotNullOfOrNull { name ->
+            codes.firstOrNull { it.name.equals(name, ignoreCase = true) && it.value.isNotBlank() }
+        }?.let { AppsScreenRoute.Ircc(it.name, it.value) }
+
+    /**
      * Most specific first: the apps activity itself, then the action the keycode would produce
      * (it also covers a remote service that drops keycode 284 before it reaches the policy), then
-     * the keycode as it shipped before.
+     * the keycode as it shipped before, then, with IP control on, the TV's own IRCC key for it
+     * ([irccRoute]): Sony's own path, outside the Remote v2 service that dropped the others on
+     * the XR80 (Erwann, 2026-10-26: "The TV didn't open its apps screen").
      */
-    fun routes(): List<AppsScreenRoute> = listOf(
+    fun routes(ircc: AppsScreenRoute.Ircc? = null): List<AppsScreenRoute> = listOfNotNull(
         AppsScreenRoute.Link(componentLink(APPS_ACTIVITY)),
         AppsScreenRoute.Link(actionLink(ACTION_ALL_APPS, GOOGLE_TV_LAUNCHER)),
         AppsScreenRoute.Key(V2Key.ALL_APPS),
+        ircc,
     )
 }
 

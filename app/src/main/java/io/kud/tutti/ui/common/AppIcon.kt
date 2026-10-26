@@ -19,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
@@ -33,8 +34,11 @@ import io.kud.tutti.platform.data.PhoneIconBitmaps
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-/** A raster face: the picture, how it sits in the tile, and the flat colour behind a banner. */
-private class Raster(val image: ImageBitmap, val crop: Boolean, val fill: Int?)
+/**
+ * A raster face: the picture, how it sits in the tile, and what is behind a banner: its corners'
+ * flat colour, or a blurred copy of itself ([backdrop]).
+ */
+private class Raster(val image: ImageBitmap, val crop: Boolean, val fill: Int?, val backdrop: ImageBitmap? = null)
 
 /**
  * An app's face, in colour and edge to edge on every surface (Erwann, 2026-10-25: "tout en couleur
@@ -42,7 +46,8 @@ private class Raster(val image: ImageBitmap, val crop: Boolean, val fill: Int?)
  * 1. the same app's icon on this phone ([PhoneIconBitmaps], matched by package only), both
  *    adaptive layers full bleed;
  * 2. the TV's own launcher art ([iconPath]): a square icon cropped edge to edge, a banner fitted to
- *    the width on its corners' shared colour, and skipped when its corners disagree (Iris);
+ *    the width on its corners' shared colour or, when they disagree, over a blurred copy of itself
+ *    ([BrandColours.TvLook.Backdrop]; Iris, 2026-10-26), unless the app has a brand face below;
  * 3. the brand's official logo on its brand colour, or the app's own Play Store icon cropped edge to
  *    edge ([brandFace]);
  * 4. the app's first letter.
@@ -68,12 +73,19 @@ fun AppIcon(
             if (phone != null) return@withContext Raster(phone.asImageBitmap(), crop = true, fill = null)
             val tv = iconPath?.let { path -> runCatching { IconBitmaps.load(path, measured) }.getOrNull() }
                 ?: return@withContext null
-            if (BrandColours.isSquareish(tv.width, tv.height)) return@withContext Raster(tv.asImageBitmap(), crop = true, fill = null)
             val w = tv.width - 1
             val h = tv.height - 1
-            val fill = BrandColours.bannerFill(intArrayOf(tv.getPixel(0, 0), tv.getPixel(w, 0), tv.getPixel(0, h), tv.getPixel(w, h)))
-                ?: return@withContext null
-            Raster(tv.asImageBitmap(), crop = false, fill = fill)
+            when (val look = BrandColours.tvLook(tv.width, tv.height) { intArrayOf(tv.getPixel(0, 0), tv.getPixel(w, 0), tv.getPixel(0, h), tv.getPixel(w, h)) }) {
+                null -> null
+                BrandColours.TvLook.Crop -> Raster(tv.asImageBitmap(), crop = true, fill = null)
+                is BrandColours.TvLook.Fill -> Raster(tv.asImageBitmap(), crop = false, fill = look.colour)
+                BrandColours.TvLook.Backdrop -> {
+                    // A full-bleed brand face beats a banner on its own blur; the backdrop replaces the letter only.
+                    if (brandFace(packageName) != null) return@withContext null
+                    val soft = runCatching { IconBitmaps.backdrop(tv) }.getOrNull() ?: return@withContext null
+                    Raster(tv.asImageBitmap(), crop = false, fill = null, backdrop = soft.asImageBitmap())
+                }
+            }
         }
     }
     val face = raster
@@ -91,6 +103,13 @@ fun AppIcon(
             .background(background),
         contentAlignment = Alignment.Center,
     ) {
+        val behind = face?.backdrop
+        if (behind != null) {
+            // Blurred by bilinear stretching of an 8 px copy, then dimmed a little toward the tile's
+            // own colour so the fitted banner reads as the subject; no edge or shadow on it (Iris).
+            Image(behind, contentDescription = null, contentScale = ContentScale.FillBounds, filterQuality = FilterQuality.Low, modifier = Modifier.fillMaxSize())
+            Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = BACKDROP_DIM)))
+        }
         when {
             face != null -> Image(
                 face.image,
@@ -114,3 +133,6 @@ fun AppIcon(
         }
     }
 }
+
+/** How far a banner's blurred backdrop leans toward the tile's colour (Iris, 2026-10-26: 15 to 20%). */
+private const val BACKDROP_DIM = 0.18f
