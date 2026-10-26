@@ -104,6 +104,16 @@ object TvLinkRule {
         else -> TvShown(Link.UNREACHABLE)
     }
 
+    /**
+     * What a TV link reads while an attempt runs, given the attempts that already failed in a row
+     * as out of reach since it was last up (or since the session started). The first attempt
+     * reads CONNECTING; a retry keeps UNREACHABLE, so a TV off the network reads "out of reach"
+     * with its Wake action instead of "connecting…" forever: the retries are woken at once by
+     * the remote coming to the front and by Power's wake kick, so CONNECTING was nearly all one
+     * ever saw (dev.16, 2026-10-26). A link that was up keeps the calm rule ([shown]).
+     */
+    fun whileTrying(failedInARow: Int): Link = if (failedInARow > 0) Link.UNREACHABLE else Link.CONNECTING
+
     /** When [shown] next changes on its own, in ms from now; null once nothing more will. */
     fun nextChangeInMs(downForMs: Long?): Long? = when {
         downForMs == null -> null

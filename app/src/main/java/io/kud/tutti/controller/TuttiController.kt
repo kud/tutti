@@ -243,6 +243,10 @@ class TuttiController @Inject constructor(
 
     @Volatile private var barBrowsedAt: Long? = null
 
+    /** Rediscovery moved the TV to a new address in this process, for the diagnostic ([TvAddressFacts]). */
+    @Volatile var tvMovedThisSession: Boolean = false
+        private set
+
     /** The bar's model as it last named it, so an offer is only ever the same model. */
     @Volatile private var barModel: String? = null
 
@@ -663,7 +667,7 @@ class TuttiController @Inject constructor(
         try {
             while (scope.isActive) {
                 // Once the TV has refused our certificate twice, it keeps reading "pair again" between tries.
-                if (!HandshakeRule.needsPairing(handshakeFailures)) links.update { it.copy(tv = Link.CONNECTING) }
+                if (!HandshakeRule.needsPairing(handshakeFailures)) links.update { it.copy(tv = TvLinkRule.whileTrying(unreachable)) }
                 linkTimings.started(io.kud.tutti.protocol.diagnostic.TimedLink.REMOTE, SystemClock.elapsedRealtime())
                 val outcome = try {
                     atv.connect(device.host, identity, pin)
@@ -742,6 +746,7 @@ class TuttiController @Inject constructor(
             val restSeen = if (remoteSeen == null && restPin is PublicKeyPin) seenRestKey(host, restPin) else null
             if (!Rediscovery.tvConfirmed(remoteSeen, restSeen, pin, restPin)) continue
             Log.i(TAG, "tv found again at a new address by mDNS (${if (remoteSeen != null) "remote pin" else "rest key"})")
+            tvMovedThisSession = true
             store.updateDevices { devices ->
                 val current = devices.tv
                 if (current == null || current.host != device.host) devices else devices.copy(tv = current.copy(host = host))
@@ -853,6 +858,8 @@ class TuttiController @Inject constructor(
 
     private suspend fun restSession(client: BraviaClient, device: TvDevice) {
         var wait = MIN_BACKOFF_MS
+        // Attempts in a row that found the TV out of reach (TvLinkRule.whileTrying).
+        var unreachable = 0
         while (scope.isActive) {
             if (psk == null && !keepCookieFresh(client)) {
                 // The TV refused the cookie, renewal included: only a new code helps, which restarts this loop.
@@ -861,12 +868,13 @@ class TuttiController @Inject constructor(
                 backoff(MAX_BACKOFF_MS)
                 continue
             }
-            links.update { it.copy(rest = Link.CONNECTING) }
+            links.update { it.copy(rest = TvLinkRule.whileTrying(unreachable)) }
             linkTimings.started(io.kud.tutti.protocol.diagnostic.TimedLink.REST, SystemClock.elapsedRealtime())
             when (val found = client.discover()) {
                 is BraviaResult.Ok -> {
                     linkTimings.ready(io.kud.tutti.protocol.diagnostic.TimedLink.REST, SystemClock.elapsedRealtime())
                     wait = MIN_BACKOFF_MS
+                    unreachable = 0
                     links.update { it.copy(rest = Link.ONLINE) }
                     linkNotes.update { it.copy(rest = null) }
                     tv.update { it.copy(capabilities = found.value) }
@@ -889,6 +897,7 @@ class TuttiController @Inject constructor(
                         BraviaError.PinMismatch -> Link.NEEDS_PAIRING
                         else -> Link.UNREACHABLE
                     }
+                    unreachable = if (link == Link.UNREACHABLE) unreachable + 1 else 0
                     links.update { it.copy(rest = link) }
                     linkNotes.update { it.copy(rest = failureDetail("tv ip control: discover (HTTPS/HTTP + PSK)", outcome = "$link: ${found.error}")) }
                     // A wrong PSK will not fix itself: wait for a new one (restart) or a long while.

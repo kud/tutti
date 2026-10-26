@@ -24,6 +24,15 @@ class TvLinkRuleTest {
     }
 
     @Test
+    fun `a retry after an out-of-reach attempt keeps reading out of reach`() {
+        // dev.16, 2026-10-26: a TV off the network read "connecting…" on both lines forever,
+        // because every retry (woken at once by the remote and the power button) flipped back.
+        assertEquals(Link.CONNECTING, TvLinkRule.whileTrying(failedInARow = 0))
+        assertEquals(Link.UNREACHABLE, TvLinkRule.whileTrying(failedInARow = 1))
+        assertEquals(Link.UNREACHABLE, TvLinkRule.whileTrying(failedInARow = 7))
+    }
+
+    @Test
     fun `a link never up this session shows as it is`() {
         assertEquals(TvShown(Link.CONNECTING), TvLinkRule.shown(Link.CONNECTING, null))
         assertEquals(TvShown(Link.UNREACHABLE), TvLinkRule.shown(Link.UNREACHABLE, null))
