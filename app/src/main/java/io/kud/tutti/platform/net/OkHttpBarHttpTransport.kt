@@ -1,6 +1,7 @@
 package io.kud.tutti.platform.net
 
 import io.kud.tutti.protocol.theatre.BarHttpKey
+import io.kud.tutti.protocol.theatre.BarHttpUnavailable
 import io.kud.tutti.protocol.theatre.BarHttpTransport
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -46,7 +47,7 @@ class OkHttpBarHttpTransport internal constructor(
             .post(body.toRequestBody(JSON))
             .build()
         client.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) throw IOException("HTTP ${response.code}")
+            if (!response.isSuccessful) throw BarHttpUnavailable(response.code)
             val declared = response.body.contentLength()
             if (declared > MAX_BYTES) throw IOException("reply too large")
             response.body.string().also { if (it.length > MAX_BYTES) throw IOException("reply too large") }
