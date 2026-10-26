@@ -64,11 +64,13 @@ import io.kud.tutti.ui.settings.BarSettingsScreen
 import io.kud.tutti.ui.settings.DiagnosticScreen
 import io.kud.tutti.ui.settings.SettingsScreen
 import io.kud.tutti.ui.settings.TechnicalScreen
+import io.kud.tutti.ui.settings.TvPage
+import io.kud.tutti.ui.settings.TvSettingsPageScreen
 import io.kud.tutti.ui.settings.TvSettingsScreen
 import io.kud.tutti.ui.settings.UnlockScreen
 import io.kud.tutti.ui.remote.ConnAction
 
-/** Three places, opening on the remote; two levels deep at most. */
+/** Three places, opening on the remote; Settings › TV › Picture › Advanced picture is the deepest. */
 sealed interface Screen {
     data object Remote : Screen
 
@@ -79,7 +81,11 @@ sealed interface Screen {
 
     data object Settings : Screen
 
+    /** The TV hub: Picture, Sound, Inputs, Power, About this TV. */
     data object TvSettings : Screen
+
+    /** One screen under the TV hub. */
+    data class TvSettingsPage(val page: TvPage) : Screen
 
     data object BarSettings : Screen
 
@@ -107,6 +113,7 @@ internal object ScreenKey {
         is Screen.SceneEditor -> "scene:" + screen.sceneId.orEmpty()
         Screen.Settings -> "settings"
         Screen.TvSettings -> "tv-settings"
+        is Screen.TvSettingsPage -> "tv-settings:" + screen.page.name
         Screen.BarSettings -> "bar-settings"
         Screen.Diagnostic -> "diagnostic"
         is Screen.Onboarding -> "onboarding:${screen.barOnly}:${screen.cancellable}"
@@ -122,6 +129,7 @@ internal object ScreenKey {
         key.startsWith("scene:") -> Screen.SceneEditor(key.removePrefix("scene:").ifEmpty { null })
         key == "settings" -> Screen.Settings
         key == "tv-settings" -> Screen.TvSettings
+        key.startsWith("tv-settings:") -> TvPage.entries.firstOrNull { it.name == key.removePrefix("tv-settings:") }?.let { Screen.TvSettingsPage(it) }
         key == "bar-settings" -> Screen.BarSettings
         key == "diagnostic" -> Screen.Diagnostic
         key.startsWith("onboarding:") -> key.split(':').let { Screen.Onboarding(it.getOrNull(1) == "true", it.getOrNull(2) == "true") }
@@ -279,6 +287,12 @@ fun TuttiApp(
     }
     BackHandler(enabled = stack.size > 1) { pop() }
 
+    // The TV's settings load once on the way into the hub, and again when IP control comes back while
+    // any TV screen is open: moving between the hub and its screens asks the TV nothing new.
+    val inTvSettings = stack.any { it == Screen.TvSettings || it is Screen.TvSettingsPage }
+    val rest = state.links.rest
+    LaunchedEffect(inTvSettings, rest) { if (inTvSettings && rest == io.kud.tutti.controller.Link.ONLINE) controller.loadTvSettings() }
+
     // The keyboard comes to him: a field the TV opens while another screen is in front is offered
     // with "Type" (InputRules.offerAway); the Keyboard tile and shortcut ask too. Either way the
     // remote comes forward and opens its keyboard view.
@@ -384,6 +398,15 @@ fun TuttiApp(
                             state = state,
                             controller = controller,
                             onBack = ::pop,
+                            onOpenPage = { push(Screen.TvSettingsPage(it)) },
+                            onOpenUnlock = { push(Screen.Unlock(io.kud.tutti.ui.settings.Unlock.IP_CONTROL)) },
+                        )
+                        is Screen.TvSettingsPage -> TvSettingsPageScreen(
+                            page = screen.page,
+                            state = state,
+                            controller = controller,
+                            onBack = ::pop,
+                            onOpenPage = { push(Screen.TvSettingsPage(it)) },
                             onOpenUnlock = { push(Screen.Unlock(io.kud.tutti.ui.settings.Unlock.IP_CONTROL)) },
                         )
                         is Screen.Unlock -> UnlockScreen(
