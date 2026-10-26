@@ -97,7 +97,22 @@ data class ConnDevice(
     val lines: List<ConnLine>,
     /** The remote's keys go to this device right now. */
     val targeted: Boolean = false,
+    /** A sentence under the device's lines, when its state needs more than a word. */
+    val note: ConnNote? = null,
 )
+
+/**
+ * Why a TV that is set up may be off the network, said under its lines (Iris, 2026-10-26: dev.16
+ * read "connecting…" on both lines while the TV sat in deep standby). Never a setup prompt: the
+ * TV is set up, it simply isn't answering.
+ */
+enum class ConnNote {
+    /** Out of reach, Remote start off or unknown: standby may have dropped its network. */
+    TV_OFF_NETWORK,
+
+    /** Out of reach with Remote start on: standby keeps it reachable, so it's unplugged or on another Wi-Fi. */
+    TV_OFF_NETWORK_REMOTE_START_ON,
+}
 
 /** A computer as the sheet needs it. */
 data class ConnComputer(val id: String, val name: String, val address: String?)
@@ -109,6 +124,10 @@ data class ConnInput(
     val tvShown: TvShown = TvShown(Link.ABSENT),
     /** The TV is known to be in standby (the bar on its own): not a fault. */
     val tvAsleep: Boolean = false,
+    /** The TV's MAC is known, so "Turn on" can send Wake-on-LAN rather than only retry. */
+    val tvWakeable: Boolean = false,
+    /** Remote start (getWolMode), as last read over IP control; null when unknown. */
+    val remoteStart: Boolean? = null,
     /** IP control has a credential that should work: the code's cookie or a PSK. */
     val ipSet: Boolean = false,
     /** The code's cookie was refused and no PSK stands in: a new code is needed. */
@@ -134,6 +153,8 @@ fun connInput(state: TuttiUiState, t: TargetState, barOffer: Boolean = false): C
         tvName = state.devices.tv?.name,
         tvShown = state.links.tvShown,
         tvAsleep = barAlone(state)?.tvAsleep == true,
+        tvWakeable = state.devices.tv?.mac != null,
+        remoteStart = state.tv.settings.wol,
         ipSet = state.ipControlSet,
         ipRenew = !state.pskSet && state.ipCode == IpCodeStatus.RENEW,
         rest = state.links.rest,
@@ -159,17 +180,19 @@ fun connections(input: ConnInput): List<ConnDevice> = buildList {
         add(ConnDevice(TV_SLOT, null, DeviceKind.TV, listOf(ConnLine(ConnLink.GOOGLE_TV, ConnWords.NOT_ADDED, ConnAction.PAIR_TV))))
     } else {
         val id = input.tvId ?: TV_SLOT
+        val google = googleTv(input)
         add(
             ConnDevice(
                 id = id,
                 name = input.tvName,
                 kind = DeviceKind.TV,
                 lines = listOfNotNull(
-                    googleTv(input),
-                    sonyIp(input),
+                    google,
+                    sonyIp(input, wakeShown = google.action == ConnAction.WAKE_TV),
                     input.tvBluetooth?.let { bluetooth(input, id, it, controllable = false) },
                 ),
                 targeted = input.targetId == id,
+                note = tvNote(input, google),
             ),
         )
     }
@@ -200,12 +223,25 @@ private fun googleTv(input: ConnInput): ConnLine = when {
         Link.ONLINE -> ConnLine(ConnLink.GOOGLE_TV, ConnWords.CONNECTED)
         Link.CONNECTING, Link.ABSENT ->
             ConnLine(ConnLink.GOOGLE_TV, if (input.tvShown.reconnecting) ConnWords.RECONNECTING else ConnWords.CONNECTING)
-        Link.UNREACHABLE -> ConnLine(ConnLink.GOOGLE_TV, ConnWords.UNREACHABLE, ConnAction.WAKE_TV)
+        // "Turn on" only when it can: without the MAC it would merely retry, which runs anyway.
+        Link.UNREACHABLE -> ConnLine(ConnLink.GOOGLE_TV, ConnWords.UNREACHABLE, ConnAction.WAKE_TV.takeIf { input.tvWakeable })
         Link.NEEDS_PAIRING, Link.UNAUTHORIZED -> ConnLine(ConnLink.GOOGLE_TV, ConnWords.NEEDS_PAIRING, ConnAction.PAIR_TV)
     }
 }
 
-private fun sonyIp(input: ConnInput): ConnLine = when {
+/** The TV's note: only when it is out of reach and not known to be asleep. */
+private fun tvNote(input: ConnInput, google: ConnLine): ConnNote? = when {
+    google.words != ConnWords.UNREACHABLE -> null
+    input.remoteStart == true -> ConnNote.TV_OFF_NETWORK_REMOTE_START_ON
+    else -> ConnNote.TV_OFF_NETWORK
+}
+
+/**
+ * IP control. Set up and not answering is the TV being out of reach, never a setup problem: it
+ * reads "out of reach", and offers "Turn on" only when the Google TV line doesn't already, so one
+ * TV carries one Turn on button (Iris, 2026-10-26).
+ */
+private fun sonyIp(input: ConnInput, wakeShown: Boolean): ConnLine = when {
     input.ipRenew -> ConnLine(ConnLink.SONY_IP, ConnWords.CODE_TO_RENEW, ConnAction.SET_UP_IP)
     !input.ipSet -> ConnLine(ConnLink.SONY_IP, ConnWords.NOT_SET_UP, ConnAction.SET_UP_IP)
     else -> when (input.rest) {
@@ -216,7 +252,11 @@ private fun sonyIp(input: ConnInput): ConnLine = when {
         Link.NEEDS_PAIRING ->
             if (input.tvAsleep) ConnLine(ConnLink.SONY_IP, ConnWords.STANDBY) else ConnLine(ConnLink.SONY_IP, ConnWords.NEEDS_PAIRING, ConnAction.PAIR_TV)
         Link.UNREACHABLE ->
-            if (input.tvAsleep) ConnLine(ConnLink.SONY_IP, ConnWords.STANDBY) else ConnLine(ConnLink.SONY_IP, ConnWords.UNREACHABLE, ConnAction.SET_UP_IP)
+            if (input.tvAsleep) {
+                ConnLine(ConnLink.SONY_IP, ConnWords.STANDBY)
+            } else {
+                ConnLine(ConnLink.SONY_IP, ConnWords.UNREACHABLE, ConnAction.WAKE_TV.takeIf { input.tvWakeable && !wakeShown })
+            }
         Link.CONNECTING, Link.ABSENT -> ConnLine(ConnLink.SONY_IP, ConnWords.CONNECTING)
     }
 }

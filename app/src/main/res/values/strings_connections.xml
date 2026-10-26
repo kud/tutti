@@ -19,7 +19,7 @@
     <string name="conn_reconnecting">reconnecting…</string>
     <string name="conn_standby">on standby</string>
     <string name="conn_not_set_up">not set up</string>
-    <string name="conn_unreachable">unreachable</string>
+    <string name="conn_unreachable">out of reach</string>
     <string name="conn_key_refused">key refused</string>
     <string name="conn_code_to_renew">code to renew</string>
     <string name="conn_needs_pairing">needs pairing again</string>
@@ -35,6 +35,9 @@
     <string name="conn_gives_bar">volume, sound, power</string>
     <string name="conn_gives_bt_computer">keys, trackpad, typing</string>
     <string name="conn_gives_bt_tv">keys, touchpad and keyboard when the network drops</string>
+    <!-- Under a TV that is set up but out of reach: why, and what keeps it reachable. Never a setup prompt. -->
+    <string name="conn_note_tv_off_network">The TV may be on standby with its network off. To keep it reachable, turn on Remote start on the TV: Settings › Network &amp; Internet › Remote start.</string>
+    <string name="conn_note_tv_remote_start_on">Remote start is on, so the TV stays reachable on standby: check it’s plugged in and on this phone’s Wi-Fi.</string>
     <string name="conn_action_pair">Pair</string>
     <string name="conn_action_set_up">Set up</string>
     <string name="conn_action_add">Add</string>

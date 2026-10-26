@@ -198,6 +198,20 @@ private fun DeviceBlock(device: ConnDevice, focus: ConnFocus?, onAction: (ConnAc
         }
     }
     for (line in device.lines) LinkLine(device.kind, line, focus == ConnFocus(device.id, line.link), onAction)
+    device.note?.let { note ->
+        // Aligned with the lines' words (52 + 12 + 18 + 10 dp), read after them by TalkBack.
+        Text(
+            stringResource(
+                when (note) {
+                    ConnNote.TV_OFF_NETWORK -> R.string.conn_note_tv_off_network
+                    ConnNote.TV_OFF_NETWORK_REMOTE_START_ON -> R.string.conn_note_tv_remote_start_on
+                },
+            ),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(start = 92.dp, end = 24.dp, top = 4.dp, bottom = 8.dp),
+        )
+    }
 }
 
 @OptIn(ExperimentalFoundationApi::class)
