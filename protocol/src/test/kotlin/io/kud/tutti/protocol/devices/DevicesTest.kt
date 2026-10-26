@@ -145,8 +145,11 @@ class DevicesTest {
         assertEquals(emptyMap(), SecretKeys.copies(setOf("tv_psk", "psk/tv")), "a newer PSK is never overwritten by the old one")
         assertEquals(mapOf("tv_rest_pin" to "pin/tv/rest"), SecretKeys.copies(setOf("tv_rest_pin", "psk/tv")))
         assertEquals(emptyMap(), SecretKeys.copies(emptySet()))
-        assertTrue(SecretKeys.all("tv").containsAll(listOf("tv_psk", "psk/tv", "pin/tv/rest", "tv_rest_pin")))
-        assertEquals(listOf("psk/mac-a", "pin/mac-a/remote", "pin/mac-a/rest", "ipcookie/mac-a"), SecretKeys.all("mac-a"))
+        assertTrue(SecretKeys.all("tv").containsAll(listOf("tv_psk", "psk/tv", "pin/tv/rest", "pin/tv/rest-spki", "tv_rest_pin")))
+        assertEquals(
+            listOf("psk/mac-a", "pin/mac-a/remote", "pin/mac-a/rest", "pin/mac-a/rest-spki", "ipcookie/mac-a"),
+            SecretKeys.all("mac-a"),
+        )
     }
 
     @Test
