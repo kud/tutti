@@ -7,6 +7,7 @@ import io.kud.tutti.controller.TuttiUiState
 import io.kud.tutti.controller.TvShown
 import io.kud.tutti.platform.bluetooth.HidPhase
 import io.kud.tutti.protocol.devices.DeviceKind
+import io.kud.tutti.protocol.theatre.TheatreFeature
 
 /**
  * « Connexions » (Erwann, 2026-10-25: « Est-ce qu'on pourrait être clair quelque part sur comment
@@ -71,8 +72,6 @@ enum class ConnAction {
     /** The IP control step of "What tutti can do": the TV's menu path, then the code shown on the TV (or a PSK). */
     SET_UP_IP,
 
-    /** The soundbar step of "What tutti can do": External control in BRAVIA Connect. */
-    SET_UP_BAR,
     ADD_BAR,
 
     /** Move the bar to the address it was found answering at ([TuttiController.useBarAddressOffer]). */
@@ -102,9 +101,9 @@ data class ConnDevice(
 )
 
 /**
- * Why a TV that is set up may be off the network, said under its lines (Iris, 2026-10-26: dev.16
- * read "connecting…" on both lines while the TV sat in deep standby). Never a setup prompt: the
- * TV is set up, it simply isn't answering.
+ * Why a device that is set up may be off the network, said under its lines (Iris, 2026-10-26: dev.16
+ * read "connecting…" on both lines while the TV sat in deep standby; the bar's line still offered
+ * "Set up" the same way). Never a setup prompt: the device is set up, it simply isn't answering.
  */
 enum class ConnNote {
     /** Out of reach, Remote start off or unknown: standby may have dropped its network. */
@@ -112,6 +111,12 @@ enum class ConnNote {
 
     /** Out of reach with Remote start on: standby keeps it reachable, so it's unplugged or on another Wi-Fi. */
     TV_OFF_NETWORK_REMOTE_START_ON,
+
+    /** The bar out of reach, Network / Bluetooth standby off or unknown: standby may have dropped its network. */
+    BAR_OFF_NETWORK,
+
+    /** The bar out of reach with Network / Bluetooth standby on: it's unplugged or on another Wi-Fi. */
+    BAR_OFF_NETWORK_STANDBY_ON,
 }
 
 /** A computer as the sheet needs it. */
@@ -139,6 +144,8 @@ data class ConnInput(
     val bar: Link = Link.ABSENT,
     /** A bar of the same model answers at another address ([TuttiController.barAddressOffer]). */
     val barOffer: Boolean = false,
+    /** The bar's Network / Bluetooth standby (`system.netbtstandby`), as last read; null when unknown. */
+    val barStandby: Boolean? = null,
     val computers: List<ConnComputer> = emptyList(),
     val hidPhase: HidPhase = HidPhase.STOPPED,
     val hidConnectedTo: String? = null,
@@ -163,6 +170,7 @@ fun connInput(state: TuttiUiState, t: TargetState, barOffer: Boolean = false): C
         barName = state.devices.bar?.name,
         bar = state.links.bar,
         barOffer = barOffer,
+        barStandby = state.bar.isOn(TheatreFeature.NET_BT_STANDBY),
         computers = t.list.devices.filter { it.kind == DeviceKind.COMPUTER }.map { ConnComputer(it.id, it.name, it.bluetooth?.address) },
         hidPhase = t.hidPhase,
         hidConnectedTo = t.hidConnectedTo,
@@ -202,7 +210,8 @@ fun connections(input: ConnInput): List<ConnDevice> = buildList {
             add(ConnDevice(BAR_SLOT, null, DeviceKind.SOUNDBAR, listOf(ConnLine(ConnLink.NETWORK, ConnWords.NOT_ADDED, ConnAction.ADD_BAR))))
         }
     } else {
-        add(ConnDevice(input.barId ?: BAR_SLOT, input.barName, DeviceKind.SOUNDBAR, listOf(barNetwork(input.bar, input.barOffer))))
+        val network = barNetwork(input.bar, input.barOffer)
+        add(ConnDevice(input.barId ?: BAR_SLOT, input.barName, DeviceKind.SOUNDBAR, listOf(network), note = barNote(input, network)))
     }
     for (computer in input.computers) {
         add(
@@ -261,16 +270,27 @@ private fun sonyIp(input: ConnInput, wakeShown: Boolean): ConnLine = when {
     }
 }
 
+/**
+ * The bar's network line. A bar found at another address wins: that offer is a real step. Otherwise
+ * a set-up bar not answering is out of reach, never a setup problem, and offers nothing: tutti has
+ * no way to wake a bar that is off the network (no Wake-on-LAN for it), and the connection already
+ * retries on its own (Iris, 2026-10-26).
+ */
 private fun barNetwork(link: Link, offer: Boolean): ConnLine = when {
     link == Link.ONLINE -> ConnLine(ConnLink.NETWORK, ConnWords.CONNECTED)
     offer -> ConnLine(ConnLink.NETWORK, ConnWords.MOVED, ConnAction.USE_NEW_ADDRESS)
-    else -> barNetwork(link)
+    else -> when (link) {
+        Link.ONLINE -> ConnLine(ConnLink.NETWORK, ConnWords.CONNECTED)
+        Link.CONNECTING, Link.ABSENT -> ConnLine(ConnLink.NETWORK, ConnWords.CONNECTING)
+        Link.UNREACHABLE, Link.UNAUTHORIZED, Link.NEEDS_PAIRING -> ConnLine(ConnLink.NETWORK, ConnWords.UNREACHABLE)
+    }
 }
 
-private fun barNetwork(link: Link): ConnLine = when (link) {
-    Link.ONLINE -> ConnLine(ConnLink.NETWORK, ConnWords.CONNECTED)
-    Link.CONNECTING, Link.ABSENT -> ConnLine(ConnLink.NETWORK, ConnWords.CONNECTING)
-    Link.UNREACHABLE, Link.UNAUTHORIZED, Link.NEEDS_PAIRING -> ConnLine(ConnLink.NETWORK, ConnWords.UNREACHABLE, ConnAction.SET_UP_BAR)
+/** The bar's note: only when it is out of reach, so never beside the new-address offer. */
+private fun barNote(input: ConnInput, network: ConnLine): ConnNote? = when {
+    network.words != ConnWords.UNREACHABLE -> null
+    input.barStandby == true -> ConnNote.BAR_OFF_NETWORK_STANDBY_ON
+    else -> ConnNote.BAR_OFF_NETWORK
 }
 
 /**

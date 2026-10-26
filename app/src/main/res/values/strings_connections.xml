@@ -38,6 +38,9 @@
     <!-- Under a TV that is set up but out of reach: why, and what keeps it reachable. Never a setup prompt. -->
     <string name="conn_note_tv_off_network">The TV may be on standby with its network off. To keep it reachable, turn on Remote start on the TV: Settings › Network &amp; Internet › Remote start.</string>
     <string name="conn_note_tv_remote_start_on">Remote start is on, so the TV stays reachable on standby: check it’s plugged in and on this phone’s Wi-Fi.</string>
+    <!-- Under a bar that is set up but out of reach: why, and what keeps it reachable. Never a setup prompt. -->
+    <string name="conn_note_bar_off_network">The bar may be on standby with its network off. To keep it reachable, turn on Network / Bluetooth standby for the bar in BRAVIA Connect, and keep it on this phone’s Wi-Fi.</string>
+    <string name="conn_note_bar_standby_on">Network / Bluetooth standby is on, so the bar stays reachable on standby: check it’s plugged in and on this phone’s Wi-Fi.</string>
     <string name="conn_action_pair">Pair</string>
     <string name="conn_action_set_up">Set up</string>
     <string name="conn_action_add">Add</string>

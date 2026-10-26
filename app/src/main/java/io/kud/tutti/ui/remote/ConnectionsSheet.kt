@@ -104,7 +104,7 @@ private fun actionLabel(action: ConnAction): String = stringResource(
     when (action) {
         ConnAction.WAKE_TV -> R.string.card_wake_tv_short
         ConnAction.PAIR_TV, ConnAction.PAIR_COMPUTER -> R.string.conn_action_pair
-        ConnAction.SET_UP_IP, ConnAction.SET_UP_BAR -> R.string.conn_action_set_up
+        ConnAction.SET_UP_IP -> R.string.conn_action_set_up
         ConnAction.ADD_BAR -> R.string.conn_action_add
         ConnAction.USE_NEW_ADDRESS -> R.string.conn_action_use_address
         ConnAction.CONTROL -> R.string.conn_action_control
@@ -205,6 +205,8 @@ private fun DeviceBlock(device: ConnDevice, focus: ConnFocus?, onAction: (ConnAc
                 when (note) {
                     ConnNote.TV_OFF_NETWORK -> R.string.conn_note_tv_off_network
                     ConnNote.TV_OFF_NETWORK_REMOTE_START_ON -> R.string.conn_note_tv_remote_start_on
+                    ConnNote.BAR_OFF_NETWORK -> R.string.conn_note_bar_off_network
+                    ConnNote.BAR_OFF_NETWORK_STANDBY_ON -> R.string.conn_note_bar_standby_on
                 },
             ),
             style = MaterialTheme.typography.bodyMedium,
