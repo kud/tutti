@@ -2521,14 +2521,27 @@ class TuttiController @Inject constructor(
     fun loadTvSettings() {
         val client = bravia ?: return
         scope.launch {
-            tv.update { it.copy(settings = it.settings.copy(loading = true)) }
+            tv.update { it.copy(settings = it.settings.copy(loading = true, waiting = TvSettingsPart.entries.toSet())) }
             val caps = client.capabilities
+            // Each part lands as soon as the TV answers it, so the screen fills top down instead of
+            // all at once after the slowest call (Iris, 2026-10-26).
             val picture = if (caps.supports(BraviaService.VIDEO, "getPictureQualitySettings")) client.pictureSettings().getOrNull() else null
+            val scene = if (caps.supports(BraviaService.VIDEO_SCREEN, "getSceneSetting")) client.sceneSetting().getOrNull() else null
+            tv.update { it.copy(settings = it.settings.copy(picture = picture.orEmpty(), scene = scene, waiting = it.settings.waiting - TvSettingsPart.PICTURE)) }
             val sound = if (caps.supports(BraviaService.AUDIO, "getSoundSettings")) client.soundSettings().getOrNull() else null
             val speaker = if (caps.supports(BraviaService.AUDIO, "getSpeakerSettings")) client.speakerSettings().getOrNull() else null
+            tv.update {
+                it.copy(
+                    settings = it.settings.copy(
+                        sound = sound.orEmpty(),
+                        speaker = speaker.orEmpty(),
+                        outputWriteOnly = sound == null && caps.supports(BraviaService.AUDIO, "setSoundSettings"),
+                        waiting = it.settings.waiting - TvSettingsPart.SOUND,
+                    ),
+                )
+            }
             val saving = if (caps.supports(BraviaService.SYSTEM, "getPowerSavingMode")) client.powerSavingMode().getOrNull() else null
             val wol = if (caps.supports(BraviaService.SYSTEM, "getWolMode")) client.wolMode().getOrNull() else null
-            val scene = if (caps.supports(BraviaService.VIDEO_SCREEN, "getSceneSetting")) client.sceneSetting().getOrNull() else null
             val ircc = if (caps.supports(BraviaService.SYSTEM, "getRemoteControllerInfo")) {
                 client.remoteControllerInfo().getOrNull().orEmpty()
             } else {

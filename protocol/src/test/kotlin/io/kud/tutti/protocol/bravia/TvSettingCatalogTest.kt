@@ -89,6 +89,36 @@ class TvSettingCatalogTest {
         assertNull(TvSettingCatalog.colourTarget("redGainExtra"))
     }
 
+    /** Erwann's XR80 leftovers (2026-10-26), shown raw under "Other picture settings" on dev.14. */
+    @Test
+    fun theXr80LeftoversHaveTheirPlace() {
+        val leftovers = listOf("blueOffset", "contentType", "greenOffset", "redOffset", "sensorAutoAdjustment", "redBias", "redGain", "lightSensor", "colorSpace")
+            .map { setting(it) }
+        val rows = TvSettingCatalog.arrange(leftovers, showUnavailable = true).toMap().mapValues { (_, list) -> list.map { it.target } }
+        assertNull(rows[PictureSection.OTHER])
+        assertEquals(listOf("redGain", "redBias", "redOffset", "greenOffset", "blueOffset"), rows[PictureSection.WHITE_BALANCE])
+        assertEquals(listOf("lightSensor", "sensorAutoAdjustment"), rows[PictureSection.PICTURE])
+        assertEquals(listOf("colorSpace", "contentType"), rows[PictureSection.VIDEO])
+        assertEquals(TvSettingCatalog.ColourTarget(TvSettingCatalog.Hue.GREEN, TvSettingCatalog.Part.OFFSET), TvSettingCatalog.colourTarget("greenOffset"))
+        assertTrue(listOf("blueOffset", "contentType", "sensorAutoAdjustment").all { TvSettingCatalog.isNamed(it) })
+    }
+
+    /** The phone's order (Erwann, 2026-10-26): the everyday handful first, everything else behind Advanced, nothing twice or lost. */
+    @Test
+    fun everydayLeadsAndTheRestFoldsBehindAdvanced() {
+        val everyday = TvSettingCatalog.everyday(alphabetical, showUnavailable = true).map { it.target }
+        assertEquals(listOf("pictureMode", "brightness", "contrast", "color", "colorTemperature", "motionflowMode"), everyday)
+        val advanced = TvSettingCatalog.advanced(alphabetical, showUnavailable = true)
+        val folded = advanced.flatMap { (_, rows) -> rows.map { it.target } }
+        assertTrue(folded.none { it in everyday })
+        assertEquals(alphabetical.map { it.target }.toSet(), (everyday + folded).toSet())
+        assertEquals(alphabetical.size, everyday.size + folded.size)
+        assertEquals(PictureSection.WHITE_BALANCE, advanced.first { it.second.any { r -> r.target == "redGain" } }.first)
+        // An unavailable everyday row hides like any other.
+        val dim = listOf(setting("pictureMode"), setting("brightness", available = false))
+        assertEquals(listOf("pictureMode"), TvSettingCatalog.everyday(dim, showUnavailable = false).map { it.target })
+    }
+
     @Test
     fun readableValues() {
         assertEquals("Medium", TvSettingCatalog.readable("medium"))

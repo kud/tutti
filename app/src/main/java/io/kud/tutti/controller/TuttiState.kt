@@ -123,7 +123,15 @@ data class TvSettingsState(
     /** True once a load finished: an empty list then means the TV listed nothing, not "not asked yet". */
     val loaded: Boolean = false,
     val system: SystemInfo? = null,
+    /**
+     * The parts of a load still on their way: each lands on screen as soon as the TV answers it,
+     * and the screen holds its place with a waiting row until then (Iris, 2026-10-26).
+     */
+    val waiting: Set<TvSettingsPart> = emptySet(),
 )
+
+/** What [TvSettingsState.waiting] counts, in the order the TV is asked. */
+enum class TvSettingsPart { PICTURE, SOUND, POWER }
 
 data class TvState(
     val power: PowerStatus = PowerStatus.UNKNOWN,
