@@ -3,8 +3,8 @@ package io.kud.tutti.protocol.bravia
 /**
  * Where each picture target the TV reports belongs, in the order Sony's own Picture menu gives it
  * (Iris, 2026-10-26): the screen groups and orders by this instead of the TV's alphabetical list.
- * On a phone the handful people reach for leads ([everyday]) and the rest folds behind Advanced
- * ([advanced]), Sony's order inside (Erwann, 2026-10-26: "Put the expert settings behind Advanced").
+ * On a phone the handful people reach for leads ([everyday]) and the rest has its own screen,
+ * Advanced picture ([advanced]), Sony's order inside (Erwann, 2026-10-26: "Put the expert settings behind Advanced").
  * Only targets the TV actually lists are ever shown; a target here that the XR80 never sends costs
  * nothing. Anything unknown lands in [PictureSection.OTHER], after the rest, under its raw name.
  */
@@ -119,7 +119,7 @@ object TvSettingCatalog {
     fun everyday(settings: List<TvSetting>, showUnavailable: Boolean): List<TvSetting> =
         everydayTargets.mapNotNull { target -> settings.firstOrNull { it.target == target && (showUnavailable || it.isAvailable) } }
 
-    /** Everything else, in sections and Sony's order, for the Advanced fold: [arrange] without the everyday rows. */
+    /** Everything else, in sections and Sony's order, for Advanced picture: [arrange] without the everyday rows. */
     fun advanced(settings: List<TvSetting>, showUnavailable: Boolean): List<Pair<PictureSection, List<TvSetting>>> =
         arrange(settings.filter { it.target !in everydayTargets }, showUnavailable)
 

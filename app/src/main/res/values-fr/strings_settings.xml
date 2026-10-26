@@ -131,7 +131,6 @@
     <string name="tv_target_subwoofer_freq">Fréquence du caisson</string>
     <string name="tv_target_subwoofer_phase">Phase du caisson</string>
     <string name="tv_target_subwoofer_power">Alimentation du caisson</string>
-    <string name="tv_device">TV</string>
     <string name="tv_device_model">Modèle</string>
     <string name="tv_device_generation">Génération de l’API</string>
     <string name="settings_apps_shown">Apps affichées</string>
@@ -219,24 +218,33 @@
     <string name="bar_value_wireless">Wi-Fi</string>
     <string name="bar_value_connected">Connecté</string>
     <string name="bar_value_not_connected">Non connecté</string>
-    <!-- Réglages de la TV, 3e passe (Iris, 2026-10-26) : les restes du XR80, le pli Avancé, le chargement. -->
+    <!-- Réglages de la TV, 3e passe (Iris, 2026-10-26) : les restes du XR80, le chargement. -->
     <string name="tv_target_sensor_auto_adjustment">Réglage auto par le capteur de lumière</string>
     <string name="tv_target_content_type">Type de contenu</string>
     <string name="tv_part_offset">Décalage du %1$s</string>
     <string name="tv_section_automatic">Image automatique</string>
     <string name="tv_value_video">Vidéo</string>
-    <string name="tv_advanced">Avancé</string>
-    <plurals name="tv_advanced_show">
-        <item quantity="one">Afficher %1$d réglage de plus</item>
-        <item quantity="other">Afficher %1$d réglages de plus</item>
-    </plurals>
-    <string name="tv_advanced_hide">Masquer les réglages avancés</string>
-    <string name="tv_advanced_folded">Replié</string>
-    <string name="tv_advanced_unfolded">Déplié</string>
     <string name="tv_loading_first">Demande des réglages à la TV par le contrôle IP…</string>
     <string name="tv_loading_again">Nouvelle lecture des réglages de la TV…</string>
     <string name="tv_loading_known">Ce que la TV a déjà dit à tutti s’affiche tel quel.</string>
     <string name="tv_waiting">En attente de la TV…</string>
     <string name="tv_waiting_picture">Luminosité, couleur et le reste</string>
     <string name="tv_waiting_power">Économie d’énergie et allumage par le réseau</string>
+    <!-- TV settings as a hub (Iris, 2026-10-26): Picture, Sound, Inputs, Power, About this TV, each with a live line. -->
+    <string name="tv_hub_sound">Son</string>
+    <string name="tv_about">À propos de la TV</string>
+    <string name="tv_advanced_picture">Image avancée</string>
+    <string name="tv_hub_brightness">luminosité %1$s</string>
+    <string name="tv_hub_power_saving">Économie d’énergie : %1$s</string>
+    <string name="tv_hub_wol_on">Wake-on-LAN activé</string>
+    <string name="tv_hub_wol_off">Wake-on-LAN désactivé</string>
+    <string name="tv_hub_api">API %1$s</string>
+    <plurals name="tv_hub_inputs">
+        <item quantity="one">%1$d entrée</item>
+        <item quantity="other">%1$d entrées</item>
+    </plurals>
+    <plurals name="tv_hub_settings">
+        <item quantity="one">%1$d réglage</item>
+        <item quantity="other">%1$d réglages</item>
+    </plurals>
 </resources>

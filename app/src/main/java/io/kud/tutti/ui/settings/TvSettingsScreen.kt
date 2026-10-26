@@ -1,7 +1,10 @@
 package io.kud.tutti.ui.settings
 
 import androidx.compose.foundation.background
+import androidx.annotation.DrawableRes
+import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -19,7 +22,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -27,11 +29,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.semantics.LiveRegionMode
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.liveRegion
-import io.kud.tutti.controller.TvSettingsPart
 import io.kud.tutti.ui.common.LocalReducedMotion
 import io.kud.tutti.ui.common.SettingsRow
 import androidx.compose.ui.semantics.contentDescription
@@ -56,6 +55,7 @@ import io.kud.tutti.controller.TuttiUiState
 import io.kud.tutti.protocol.bravia.TvSetting
 import io.kud.tutti.ui.common.BusyBar
 import io.kud.tutti.ui.common.ChoiceRow
+import io.kud.tutti.ui.common.OpensChevron
 import io.kud.tutti.ui.common.OptionsRow
 import io.kud.tutti.ui.common.ProblemNote
 import io.kud.tutti.ui.common.LocalRowSurface
@@ -68,26 +68,81 @@ import kotlin.math.roundToInt
 /**
  * TV settings built only from what the TV lists (getSupportedApiInfo, else getMethodTypes) and
  * returns: nothing here is hard-coded, because the method set is unverified on the XR80. While
- * REST is not ONLINE the screen explains how to turn IP control on instead of showing dead rows.
+ * REST is not ONLINE every TV screen explains how to turn IP control on instead of showing dead rows.
+ *
+ * Settings › TV is a hub (Iris, 2026-10-26, approved by Erwann): Picture, Sound, Inputs, Power and
+ * About this TV, each a row with one live line in words that opens its own screen ([TvSettingsPageScreen]).
+ * The load itself starts in TuttiApp, on the way into the hub.
+ */
+@Composable
+fun TvSettingsScreen(
+    state: TuttiUiState,
+    controller: TuttiController,
+    onBack: () -> Unit,
+    onOpenPage: (TvPage) -> Unit,
+    onOpenUnlock: () -> Unit = {},
+) {
+    TvFrame(stringResource(R.string.settings_tv_settings), state, controller, onBack, onOpenUnlock) {
+        val rows = TvHub.rows(state.tv)
+        if (rows.isNotEmpty()) SettingsGroup(null) {
+            rows.forEach { page ->
+                SettingsRow(
+                    title = stringResource(pageTitle(page)),
+                    icon = pageIcon(page),
+                    detail = if (TvHub.waiting(state.tv, page)) stringResource(R.string.tv_waiting) else hubLine(page, state),
+                    onClick = { onOpenPage(page) },
+                    trailing = { OpensChevron() },
+                )
+            }
+        }
+        val settings = state.tv.settings
+        if (rows.isEmpty() && settings.loaded && !settings.loading) NothingNote()
+    }
+}
+
+/** One screen under the TV hub; Advanced picture opens from Picture's last row. */
+@Composable
+fun TvSettingsPageScreen(
+    page: TvPage,
+    state: TuttiUiState,
+    controller: TuttiController,
+    onBack: () -> Unit,
+    onOpenPage: (TvPage) -> Unit,
+    onOpenUnlock: () -> Unit = {},
+) {
+    TvFrame(stringResource(pageTitle(page)), state, controller, onBack, onOpenUnlock) {
+        when (page) {
+            TvPage.PICTURE -> PicturePage(state, controller, onOpenAdvanced = { onOpenPage(TvPage.ADVANCED_PICTURE) })
+            TvPage.ADVANCED_PICTURE -> AdvancedPicturePage(state, controller)
+            TvPage.SOUND -> SoundPage(state, controller)
+            TvPage.INPUTS -> InputsPage(state, controller)
+            TvPage.POWER -> PowerPage(state, controller)
+            TvPage.ABOUT -> AboutPage(state)
+        }
+    }
+}
+
+/**
+ * What every TV screen shares: the top bar whose arrow goes back one level, the IP control
+ * explainer while REST is not ONLINE, and the load in words above the rows while it runs.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TvSettingsScreen(state: TuttiUiState, controller: TuttiController, onBack: () -> Unit, onOpenUnlock: () -> Unit = {}) {
+private fun TvFrame(
+    title: String,
+    state: TuttiUiState,
+    controller: TuttiController,
+    onBack: () -> Unit,
+    onOpenUnlock: () -> Unit,
+    content: @Composable ColumnScope.() -> Unit,
+) {
     val rest = state.links.rest
-    LaunchedEffect(rest) { if (rest == Link.ONLINE) controller.loadTvSettings() }
     var pskDialog by remember { mutableStateOf(false) }
-    var showUnavailable by rememberSaveable { mutableStateOf(false) }
-    var showAdvanced by rememberSaveable { mutableStateOf(false) }
-    val settings = state.tv.settings
-    // Picture modes and sound outputs pin to the dock from their own menu (design.md, gestures).
-    // The rows only exist while REST is online, so no long press here can meet a down link.
-    val pinner = rememberDockPinner(state, controller)
-    val pin: (DockAction, String) -> Unit = pinner::request
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.settings_tv_settings)) },
+                title = { Text(title) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(painterResource(R.drawable.ic_back), contentDescription = stringResource(R.string.action_back))
@@ -104,164 +159,304 @@ fun TvSettingsScreen(state: TuttiUiState, controller: TuttiController, onBack: (
             }
             // While IP control answers, a line in words says so; each part still on its way holds its
             // place with a waiting row, and what is already known shows as it is (Iris, 2026-10-26).
-            val firstLoad = !settings.loaded
-            val waitingFor = { part: TvSettingsPart -> settings.loading && firstLoad && part in settings.waiting }
-            if (settings.loading) LoadingNote(firstLoad)
-
-            // The everyday handful first, the rest folded behind Advanced in Sony's order (Erwann,
-            // 2026-10-26: "Put the expert settings behind Advanced"). Rows the TV can't change now are
-            // hidden until asked for, then shown in place.
-            val unavailable = (settings.picture + settings.sound + settings.speaker).count { !it.isAvailable }
-            val showAll = showUnavailable || unavailable == 0
-            val everyday = TvSettingCatalog.everyday(settings.picture, showAll)
-            if (waitingFor(TvSettingsPart.PICTURE)) {
-                SettingsGroup(stringResource(R.string.tv_picture)) {
-                    // The picture mode rides the remote's own poll, so it is known before this load.
-                    state.tv.pictureMode?.let { mode ->
-                        SettingsRow(title = stringResource(R.string.tv_target_picture_mode), detail = tvValueName(mode, null))
-                    }
-                    WaitingRow(stringResource(R.string.tv_waiting_picture))
-                }
-            } else if (everyday.isNotEmpty() || settings.scene != null) {
-                SettingsGroup(stringResource(R.string.tv_picture)) {
-                    val scene: @Composable () -> Unit = { settings.scene?.let { SceneRow(it, controller) } }
-                    if (everyday.none { it.target == "pictureMode" }) scene()
-                    everyday.forEach {
-                        TvSettingRow(it, TvSettingGroup.PICTURE, controller, pin)
-                        if (it.target == "pictureMode") scene()
-                    }
-                }
-            }
-            val advanced = TvSettingCatalog.advanced(settings.picture, showAll)
-            if (advanced.isNotEmpty()) {
-                SettingsGroup(stringResource(R.string.tv_advanced)) {
-                    AdvancedToggle(
-                        unfolded = showAdvanced,
-                        count = advanced.sumOf { it.second.size },
-                        sections = advanced.map { stringResource(TvSettingWords.section(it.first)) },
-                        onToggle = { showAdvanced = !showAdvanced },
-                    )
-                }
-                if (showAdvanced) {
-                    for ((section, rows) in advanced) {
-                        SettingsGroup(stringResource(TvSettingWords.section(section))) {
-                            rows.forEach { TvSettingRow(it, TvSettingGroup.PICTURE, controller, pin) }
-                        }
-                        if (section == PictureSection.OTHER) RawNamesNote(rows)
-                    }
-                }
-            }
-            if (waitingFor(TvSettingsPart.SOUND)) {
-                SettingsGroup(stringResource(R.string.tv_sound_output)) { WaitingRow(stringResource(R.string.tv_target_output_terminal)) }
-            }
-            // Sound and speakers get the picture's treatment (Erwann, 2026-10-26: « Mets aussi le son
-            // de la barre en mots clairs »): Sony's order, words, unknown targets last and said so.
-            val sound = TvSettingCatalog.arrangeSound(settings.sound, showAll)
-            val speaker = TvSettingCatalog.arrangeSound(settings.speaker, showAll)
-            if (sound.isNotEmpty()) {
-                // "Sound output" while that is all the TV lists; "TV sound" once it lists more.
-                val title = if (sound.all { it.target == TvSetting.OUTPUT_TERMINAL }) R.string.tv_sound_output else R.string.tv_section_sound
-                SettingsGroup(stringResource(title)) {
-                    sound.forEach { TvSettingRow(it, TvSettingGroup.SOUND, controller, pin) }
-                }
-                RawNamesNote(sound)
-            } else if (settings.sound.isEmpty() && settings.outputWriteOnly) SettingsGroup(stringResource(R.string.tv_sound_output)) {
-                val outputs = outputNames()
-                ChoiceRow(
-                    label = stringResource(R.string.tv_target_output_terminal),
-                    valueLabel = stringResource(R.string.tv_output_write_only),
-                    options = TvSetting.OUTPUT_TERMINALS.map { it to (outputs[it] ?: it) },
-                    onSelect = controller::setOutputTerminal,
-                    onPin = tvPin(TvSetting.OUTPUT_TERMINAL, pin),
-                    canPin = ::dockKnowsOutput,
-                )
-            }
-            if (speaker.isNotEmpty()) SettingsGroup(stringResource(R.string.tv_speaker)) {
-                speaker.forEach { TvSettingRow(it, TvSettingGroup.SPEAKER, controller, pin) }
-            }
-            if (speaker.isNotEmpty()) RawNamesNote(speaker)
-            if (unavailable > 0) SettingsGroup(null, Modifier.padding(top = 16.dp)) {
-                SwitchRow(
-                    label = stringResource(R.string.tv_show_unavailable),
-                    supporting = pluralStringResource(R.plurals.tv_unavailable_count, unavailable, unavailable),
-                    checked = showUnavailable,
-                    onCheckedChange = { showUnavailable = it },
-                )
-            }
-            if (state.tv.inputs.isNotEmpty()) SettingsGroup(stringResource(R.string.tv_inputs)) {
-                for (input in state.tv.inputs) {
-                    val current = input.uri == state.tv.input
-                    LinkRow(
-                        title = inputName(input.uri, state),
-                        detail = stringResource(
-                            when {
-                                current -> R.string.tv_input_current
-                                input.connected -> R.string.tv_input_connected
-                                else -> R.string.tv_input_disconnected
-                            },
-                        ),
-                        enabled = !current,
-                        onClick = { controller.switchInput(input.uri) },
-                    )
-                }
-            }
-            if (waitingFor(TvSettingsPart.POWER)) {
-                SettingsGroup(stringResource(R.string.tv_power)) { WaitingRow(stringResource(R.string.tv_waiting_power)) }
-            } else if (settings.powerSavingSupported || settings.wol != null || settings.sleepCode != null) SettingsGroup(stringResource(R.string.tv_power)) {
-                if (settings.powerSavingSupported) {
-                    val modes = listOf(
-                        "off" to stringResource(R.string.tv_power_saving_off),
-                        "low" to stringResource(R.string.tv_power_saving_low),
-                        "high" to stringResource(R.string.tv_power_saving_high),
-                        "pictureOff" to stringResource(R.string.tv_power_saving_picture_off),
-                    )
-                    OptionsRow(
-                        label = stringResource(R.string.tv_power_saving),
-                        selected = settings.powerSaving,
-                        valueLabel = modes.firstOrNull { it.first == settings.powerSaving }?.second ?: settings.powerSaving ?: "—",
-                        options = modes,
-                        onSelect = controller::setPowerSaving,
-                    )
-                }
-                settings.wol?.let { wol ->
-                    SwitchRow(
-                        label = stringResource(R.string.tv_wol),
-                        supporting = stringResource(R.string.tv_wol_detail),
-                        checked = wol,
-                        onCheckedChange = controller::setWol,
-                    )
-                }
-                if (settings.sleepCode != null) {
-                    LinkRow(
-                        title = stringResource(R.string.tv_sleep_timer),
-                        detail = stringResource(R.string.tv_sleep_timer_detail),
-                        enabled = true,
-                        onClick = controller::pressSleepTimer,
-                    )
-                }
-            }
-            settings.system?.let { system ->
-                val rows = listOfNotNull(
-                    system.model?.let { stringResource(R.string.tv_device_model) to it },
-                    system.generation?.let { stringResource(R.string.tv_device_generation) to it },
-                )
-                if (rows.isNotEmpty()) SettingsGroup(stringResource(R.string.tv_device)) {
-                    rows.forEach { (title, value) -> LinkRow(title = title, detail = value, enabled = false, onClick = {}) }
-                }
-            }
-            val nothing = settings.picture.isEmpty() && settings.scene == null && settings.sound.isEmpty() &&
-                !settings.outputWriteOnly && settings.speaker.isEmpty() && !settings.powerSavingSupported && settings.wol == null
-            if (!settings.loading && nothing) {
-                Text(
-                    stringResource(R.string.tv_nothing_listed),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(16.dp),
-                )
-            }
+            val settings = state.tv.settings
+            if (settings.loading) LoadingNote(firstLoad = !settings.loaded)
+            content()
         }
     }
     if (pskDialog) IpControlDialog(state, controller, onDismiss = { pskDialog = false })
+}
+
+@StringRes
+private fun pageTitle(page: TvPage): Int = when (page) {
+    TvPage.PICTURE -> R.string.tv_picture
+    TvPage.ADVANCED_PICTURE -> R.string.tv_advanced_picture
+    TvPage.SOUND -> R.string.tv_hub_sound
+    TvPage.INPUTS -> R.string.tv_inputs
+    TvPage.POWER -> R.string.tv_power
+    TvPage.ABOUT -> R.string.tv_about
+}
+
+@DrawableRes
+private fun pageIcon(page: TvPage): Int = when (page) {
+    TvPage.PICTURE -> R.drawable.ic_contrast
+    TvPage.ADVANCED_PICTURE -> R.drawable.ic_tune
+    TvPage.SOUND -> R.drawable.ic_volume_up
+    TvPage.INPUTS -> R.drawable.ic_input
+    TvPage.POWER -> R.drawable.ic_power
+    TvPage.ABOUT -> R.drawable.ic_info
+}
+
+/** A hub row's live line: where the part stands, in words, on one line ("Standard · brightness 32"). */
+@Composable
+private fun hubLine(page: TvPage, state: TuttiUiState): String {
+    val settings = state.tv.settings
+    val parts: List<String> = when (page) {
+        TvPage.PICTURE -> TvHub.pictureLine(state.tv).let { line ->
+            val mode = settings.picture.firstOrNull { it.target == "pictureMode" }
+            listOfNotNull(
+                line.mode?.let { tvValueName(it, mode) },
+                line.brightness?.let { stringResource(R.string.tv_hub_brightness, it) },
+            )
+        }
+        TvPage.SOUND -> TvHub.soundLine(settings).let { line ->
+            val outputs = outputNames()
+            listOfNotNull(
+                line.output?.let { output -> output.currentValue?.let { outputs[it] ?: settingValue(output, it) } },
+                line.soundMode?.let { mode -> mode.currentValue?.let { settingValue(mode, it) } },
+            ).ifEmpty { listOfNotNull(stringResource(R.string.tv_output_write_only).takeIf { settings.outputWriteOnly }) }
+        }
+        TvPage.INPUTS -> listOfNotNull(
+            TvHub.currentInput(state.tv)?.let { inputName(it.uri, state) },
+            pluralStringResource(R.plurals.tv_hub_inputs, state.tv.inputs.size, state.tv.inputs.size),
+        )
+        TvPage.POWER -> TvHub.powerLine(settings).let { line ->
+            listOfNotNull(
+                line.saving?.let { stringResource(R.string.tv_hub_power_saving, powerSavingModes().toMap()[it] ?: TvSettingCatalog.readable(it)) },
+                line.wol?.let { stringResource(if (it) R.string.tv_hub_wol_on else R.string.tv_hub_wol_off) },
+            ).ifEmpty { listOfNotNull(stringResource(R.string.tv_sleep_timer).takeIf { settings.sleepCode != null }) }
+        }
+        TvPage.ABOUT -> settings.system?.let { system ->
+            listOfNotNull(system.model, system.generation?.let { stringResource(R.string.tv_hub_api, it) })
+        }.orEmpty()
+        TvPage.ADVANCED_PICTURE -> emptyList()
+    }
+    return parts.joinToString(" · ")
+}
+
+@Composable
+private fun PicturePage(state: TuttiUiState, controller: TuttiController, onOpenAdvanced: () -> Unit) {
+    val settings = state.tv.settings
+    val pin = rememberDockPinner(state, controller)::request
+    var showUnavailable by rememberSaveable { mutableStateOf(false) }
+    val unavailable = TvHub.unavailable(settings, TvPage.PICTURE)
+    val everyday = TvSettingCatalog.everyday(settings.picture, showUnavailable || unavailable == 0)
+    val advanced: @Composable () -> Unit = {
+        if (TvHub.has(state.tv, TvPage.ADVANCED_PICTURE)) {
+            val count = TvHub.advancedCount(settings)
+            val hidden = TvHub.unavailable(settings, TvPage.ADVANCED_PICTURE)
+            SettingsRow(
+                title = stringResource(R.string.tv_advanced_picture),
+                icon = R.drawable.ic_tune,
+                detail = if (count > 0) {
+                    pluralStringResource(R.plurals.tv_hub_settings, count, count)
+                } else {
+                    pluralStringResource(R.plurals.tv_unavailable_count, hidden, hidden)
+                },
+                onClick = onOpenAdvanced,
+                trailing = { OpensChevron() },
+            )
+        }
+    }
+    if (TvHub.waiting(state.tv, TvPage.PICTURE)) {
+        SettingsGroup(null) {
+            // The picture mode rides the remote's own poll, so it is known before this load.
+            state.tv.pictureMode?.let { mode ->
+                SettingsRow(title = stringResource(R.string.tv_target_picture_mode), detail = tvValueName(mode, null))
+            }
+            WaitingRow(stringResource(R.string.tv_waiting_picture))
+        }
+    } else if (everyday.isNotEmpty() || settings.scene != null || TvHub.has(state.tv, TvPage.ADVANCED_PICTURE)) {
+        // What people reach for, in the order they reach for it; Sony's long tail is one row away.
+        SettingsGroup(null) {
+            val scene: @Composable () -> Unit = { settings.scene?.let { SceneRow(it, controller) } }
+            if (everyday.none { it.target == "pictureMode" }) scene()
+            everyday.forEach {
+                TvSettingRow(it, TvSettingGroup.PICTURE, controller, pin)
+                if (it.target == "pictureMode") scene()
+            }
+            advanced()
+        }
+    } else if (settings.loaded && !settings.loading) {
+        NothingNote()
+    }
+    UnavailableSwitch(unavailable, showUnavailable) { showUnavailable = it }
+}
+
+/** Everything past Picture's handful, on one screen: Sony's sections as headings, in its order. */
+@Composable
+private fun AdvancedPicturePage(state: TuttiUiState, controller: TuttiController) {
+    val settings = state.tv.settings
+    val pin = rememberDockPinner(state, controller)::request
+    var showUnavailable by rememberSaveable { mutableStateOf(false) }
+    val unavailable = TvHub.unavailable(settings, TvPage.ADVANCED_PICTURE)
+    val sections = TvSettingCatalog.advanced(settings.picture, showUnavailable || unavailable == 0)
+    if (TvHub.waiting(state.tv, TvPage.ADVANCED_PICTURE)) {
+        SettingsGroup(null) { WaitingRow(stringResource(R.string.tv_waiting_picture)) }
+    }
+    for ((section, rows) in sections) {
+        SettingsGroup(stringResource(TvSettingWords.section(section))) {
+            rows.forEach { TvSettingRow(it, TvSettingGroup.PICTURE, controller, pin) }
+        }
+        if (section == PictureSection.OTHER) RawNamesNote(rows)
+    }
+    if (sections.isEmpty() && unavailable == 0 && settings.loaded && !settings.loading) NothingNote()
+    UnavailableSwitch(unavailable, showUnavailable) { showUnavailable = it }
+}
+
+@Composable
+private fun SoundPage(state: TuttiUiState, controller: TuttiController) {
+    val settings = state.tv.settings
+    val pin = rememberDockPinner(state, controller)::request
+    var showUnavailable by rememberSaveable { mutableStateOf(false) }
+    val unavailable = TvHub.unavailable(settings, TvPage.SOUND)
+    val showAll = showUnavailable || unavailable == 0
+    if (TvHub.waiting(state.tv, TvPage.SOUND)) {
+        SettingsGroup(stringResource(R.string.tv_sound_output)) { WaitingRow(stringResource(R.string.tv_target_output_terminal)) }
+    }
+    // Sound and speakers get the picture's treatment (Erwann, 2026-10-26: « Mets aussi le son
+    // de la barre en mots clairs »): Sony's order, words, unknown targets last and said so.
+    val sound = TvSettingCatalog.arrangeSound(settings.sound, showAll)
+    val speaker = TvSettingCatalog.arrangeSound(settings.speaker, showAll)
+    if (sound.isNotEmpty()) {
+        // "Sound output" while that is all the TV lists; "TV sound" once it lists more.
+        val title = if (sound.all { it.target == TvSetting.OUTPUT_TERMINAL }) R.string.tv_sound_output else R.string.tv_section_sound
+        SettingsGroup(stringResource(title)) {
+            sound.forEach { TvSettingRow(it, TvSettingGroup.SOUND, controller, pin) }
+        }
+        RawNamesNote(sound)
+    } else if (settings.sound.isEmpty() && settings.outputWriteOnly) SettingsGroup(stringResource(R.string.tv_sound_output)) {
+        val outputs = outputNames()
+        ChoiceRow(
+            label = stringResource(R.string.tv_target_output_terminal),
+            valueLabel = stringResource(R.string.tv_output_write_only),
+            options = TvSetting.OUTPUT_TERMINALS.map { it to (outputs[it] ?: it) },
+            onSelect = controller::setOutputTerminal,
+            onPin = tvPin(TvSetting.OUTPUT_TERMINAL, pin),
+            canPin = ::dockKnowsOutput,
+        )
+    }
+    if (speaker.isNotEmpty()) {
+        SettingsGroup(stringResource(R.string.tv_speaker)) {
+            speaker.forEach { TvSettingRow(it, TvSettingGroup.SPEAKER, controller, pin) }
+        }
+        RawNamesNote(speaker)
+    }
+    if (!TvHub.has(state.tv, TvPage.SOUND) && settings.loaded && !settings.loading) NothingNote()
+    UnavailableSwitch(unavailable, showUnavailable) { showUnavailable = it }
+}
+
+@Composable
+private fun InputsPage(state: TuttiUiState, controller: TuttiController) {
+    val settings = state.tv.settings
+    if (TvHub.waiting(state.tv, TvPage.INPUTS)) {
+        SettingsGroup(null) { WaitingRow(stringResource(R.string.tv_inputs)) }
+    } else if (state.tv.inputs.isNotEmpty()) {
+        SettingsGroup(null) {
+            for (input in state.tv.inputs) {
+                val current = input.uri == state.tv.input
+                LinkRow(
+                    title = inputName(input.uri, state),
+                    detail = stringResource(
+                        when {
+                            current -> R.string.tv_input_current
+                            input.connected -> R.string.tv_input_connected
+                            else -> R.string.tv_input_disconnected
+                        },
+                    ),
+                    enabled = !current,
+                    onClick = { controller.switchInput(input.uri) },
+                )
+            }
+        }
+    } else if (settings.loaded && !settings.loading) {
+        NothingNote()
+    }
+}
+
+@Composable
+private fun PowerPage(state: TuttiUiState, controller: TuttiController) {
+    val settings = state.tv.settings
+    if (TvHub.waiting(state.tv, TvPage.POWER)) {
+        SettingsGroup(null) { WaitingRow(stringResource(R.string.tv_waiting_power)) }
+    } else if (TvHub.has(state.tv, TvPage.POWER)) {
+        SettingsGroup(null) {
+            if (settings.powerSavingSupported) {
+                val modes = powerSavingModes()
+                OptionsRow(
+                    label = stringResource(R.string.tv_power_saving),
+                    selected = settings.powerSaving,
+                    valueLabel = modes.firstOrNull { it.first == settings.powerSaving }?.second ?: settings.powerSaving ?: "—",
+                    options = modes,
+                    onSelect = controller::setPowerSaving,
+                )
+            }
+            settings.wol?.let { wol ->
+                SwitchRow(
+                    label = stringResource(R.string.tv_wol),
+                    supporting = stringResource(R.string.tv_wol_detail),
+                    checked = wol,
+                    onCheckedChange = controller::setWol,
+                )
+            }
+            if (settings.sleepCode != null) {
+                LinkRow(
+                    title = stringResource(R.string.tv_sleep_timer),
+                    detail = stringResource(R.string.tv_sleep_timer_detail),
+                    enabled = true,
+                    onClick = controller::pressSleepTimer,
+                )
+            }
+        }
+    } else if (settings.loaded && !settings.loading) {
+        NothingNote()
+    }
+}
+
+@Composable
+private fun AboutPage(state: TuttiUiState) {
+    val settings = state.tv.settings
+    val rows = settings.system?.let { system ->
+        listOfNotNull(
+            system.model?.let { stringResource(R.string.tv_device_model) to it },
+            system.generation?.let { stringResource(R.string.tv_device_generation) to it },
+        )
+    }.orEmpty()
+    if (TvHub.waiting(state.tv, TvPage.ABOUT)) {
+        SettingsGroup(null) { WaitingRow(stringResource(R.string.tv_device_model)) }
+    } else if (rows.isNotEmpty()) {
+        SettingsGroup(null) {
+            rows.forEach { (title, value) -> LinkRow(title = title, detail = value, enabled = false, onClick = {}) }
+        }
+    } else if (settings.loaded && !settings.loading) {
+        NothingNote()
+    }
+}
+
+/** Power saving's four modes in words, by the value the TV takes. */
+@Composable
+private fun powerSavingModes(): List<Pair<String, String>> = listOf(
+    "off" to stringResource(R.string.tv_power_saving_off),
+    "low" to stringResource(R.string.tv_power_saving_low),
+    "high" to stringResource(R.string.tv_power_saving_high),
+    "pictureOff" to stringResource(R.string.tv_power_saving_picture_off),
+)
+
+/**
+ * The foot of a screen whose rows the TV can make unavailable (Picture, Advanced picture, Sound):
+ * hidden by default, shown in place on request, the count in words. Absent when none is.
+ */
+@Composable
+private fun UnavailableSwitch(count: Int, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    if (count == 0) return
+    SettingsGroup(null, Modifier.padding(top = 16.dp)) {
+        SwitchRow(
+            label = stringResource(R.string.tv_show_unavailable),
+            supporting = pluralStringResource(R.plurals.tv_unavailable_count, count, count),
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+        )
+    }
+}
+
+@Composable
+private fun NothingNote() {
+    Text(
+        stringResource(R.string.tv_nothing_listed),
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(16.dp),
+    )
 }
 
 @Composable
@@ -333,31 +528,6 @@ private fun WaitingRow(title: String) {
             } else {
                 CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-        },
-    )
-}
-
-/**
- * The Advanced fold's one row. Its title says what a tap does ("Show 48 more settings", "Hide
- * advanced settings"), its line names the sections inside, and the chevron turns down when open:
- * the state is in words first, and TalkBack hears "Folded" or "Unfolded".
- */
-@Composable
-private fun AdvancedToggle(unfolded: Boolean, count: Int, sections: List<String>, onToggle: () -> Unit) {
-    val state = stringResource(if (unfolded) R.string.tv_advanced_unfolded else R.string.tv_advanced_folded)
-    SettingsRow(
-        title = if (unfolded) stringResource(R.string.tv_advanced_hide) else pluralStringResource(R.plurals.tv_advanced_show, count, count),
-        detail = sections.joinToString(", "),
-        onClick = onToggle,
-        role = Role.Button,
-        modifier = Modifier.semantics { stateDescription = state },
-        trailing = {
-            Icon(
-                painterResource(R.drawable.ic_chevron_right),
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.rotate(if (unfolded) 90f else 0f),
-            )
         },
     )
 }

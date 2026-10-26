@@ -131,7 +131,6 @@
     <string name="tv_target_subwoofer_freq">Subwoofer frequency</string>
     <string name="tv_target_subwoofer_phase">Subwoofer phase</string>
     <string name="tv_target_subwoofer_power">Subwoofer power</string>
-    <string name="tv_device">TV</string>
     <string name="tv_device_model">Model</string>
     <string name="tv_device_generation">API generation</string>
     <string name="settings_apps_shown">Apps shown</string>
@@ -219,24 +218,33 @@
     <string name="bar_value_wireless">Wi-Fi</string>
     <string name="bar_value_connected">Connected</string>
     <string name="bar_value_not_connected">Not connected</string>
-    <!-- TV settings, round 3 (Iris, 2026-10-26): the XR80's leftovers, the Advanced fold, the loading state. -->
+    <!-- TV settings, round 3 (Iris, 2026-10-26): the XR80's leftovers, the loading state. -->
     <string name="tv_target_sensor_auto_adjustment">Light sensor auto adjustment</string>
     <string name="tv_target_content_type">Content type</string>
     <string name="tv_part_offset">%1$s offset</string>
     <string name="tv_section_automatic">Automatic picture</string>
     <string name="tv_value_video">Video</string>
-    <string name="tv_advanced">Advanced</string>
-    <plurals name="tv_advanced_show">
-        <item quantity="one">Show %1$d more setting</item>
-        <item quantity="other">Show %1$d more settings</item>
-    </plurals>
-    <string name="tv_advanced_hide">Hide advanced settings</string>
-    <string name="tv_advanced_folded">Folded</string>
-    <string name="tv_advanced_unfolded">Unfolded</string>
     <string name="tv_loading_first">Asking the TV for its settings over IP control…</string>
     <string name="tv_loading_again">Checking the TV’s settings again…</string>
     <string name="tv_loading_known">What the TV already told tutti is shown as it is.</string>
     <string name="tv_waiting">Waiting for the TV…</string>
     <string name="tv_waiting_picture">Brightness, colour and the rest</string>
     <string name="tv_waiting_power">Power saving and wake from the network</string>
+    <!-- TV settings as a hub (Iris, 2026-10-26): Picture, Sound, Inputs, Power, About this TV, each with a live line. -->
+    <string name="tv_hub_sound">Sound</string>
+    <string name="tv_about">About this TV</string>
+    <string name="tv_advanced_picture">Advanced picture</string>
+    <string name="tv_hub_brightness">brightness %1$s</string>
+    <string name="tv_hub_power_saving">Power saving: %1$s</string>
+    <string name="tv_hub_wol_on">Wake-on-LAN on</string>
+    <string name="tv_hub_wol_off">Wake-on-LAN off</string>
+    <string name="tv_hub_api">API %1$s</string>
+    <plurals name="tv_hub_inputs">
+        <item quantity="one">%1$d input</item>
+        <item quantity="other">%1$d inputs</item>
+    </plurals>
+    <plurals name="tv_hub_settings">
+        <item quantity="one">%1$d setting</item>
+        <item quantity="other">%1$d settings</item>
+    </plurals>
 </resources>
