@@ -124,8 +124,8 @@ enum class Hand { LEFT, RIGHT }
  * The parts of the remote screen he may arrange. Power, the volume rail and the Son sheet are
  * anchors and have no field here, so no stored layout can move or hide them; [hand] only picks
  * which side the pad and the rail stand on, never a dragged place. Every field has a default, so
- * prefs stored before a field existed still read: the row, scenes and pad size as they always
- * were, the hand as [Hand.RIGHT].
+ * prefs stored before a field existed still read: the scenes and pad size as they always were,
+ * the hand as [Hand.RIGHT], and the row as today's default unless he arranged it ([rowChosen]).
  */
 @Serializable
 data class RemoteLayout(
@@ -133,20 +133,34 @@ data class RemoteLayout(
     val scenes: Boolean = true,
     val padSize: PadSize = PadSize.NORMAL,
     val hand: Hand = Hand.RIGHT,
+    /**
+     * True once he has added, removed or moved a row button. Until then the row follows
+     * [DEFAULT_ROW] as it stands in this version, so a new default reaches a row he never touched
+     * (Input joined it on 2026-10-26). Prefs are stored with every default written out, and
+     * layouts stored before this field have none, so for them an untouched row is one that still
+     * equals a default that shipped ([SHIPPED_ROWS]); any other row is his and is kept as it is.
+     */
+    val rowChosen: Boolean = false,
 ) {
+    /** The row he arranged, or today's default while he hasn't ([rowChosen]). */
+    private val effectiveRow: List<RowButton> get() = if (rowChosen || row !in SHIPPED_ROWS) row else DEFAULT_ROW
+
     /** The row as drawn: no button twice, never mute (the rail's foot has it), never more than [MAX_ROW]. */
-    val shownRow: List<RowButton> get() = row.distinct().filter { it != RowButton.MUTE }.take(MAX_ROW)
+    val shownRow: List<RowButton> get() = effectiveRow.distinct().filter { it != RowButton.MUTE }.take(MAX_ROW)
 
     /** What could still go in the row, in the enum's order. */
     val addable: List<RowButton> get() = RowButton.entries.filter { it !in shownRow && it != RowButton.MUTE }
 
     fun withAdded(button: RowButton): RemoteLayout =
-        if (button in shownRow || shownRow.size >= MAX_ROW) this else copy(row = shownRow + button)
+        if (button in shownRow || shownRow.size >= MAX_ROW) this else copy(row = shownRow + button, rowChosen = true)
 
-    fun withRemoved(button: RowButton): RemoteLayout = copy(row = shownRow - button)
+    fun withRemoved(button: RowButton): RemoteLayout = copy(row = shownRow - button, rowChosen = true)
 
     /** The button at [from] moved to [to], both clamped to the row. */
-    fun withMoved(from: Int, to: Int): RemoteLayout = copy(row = shownRow.moved(from, to))
+    fun withMoved(from: Int, to: Int): RemoteLayout {
+        val moved = shownRow.moved(from, to)
+        return if (moved == shownRow) this else copy(row = moved, rowChosen = true)
+    }
 
     /**
      * The row left to right on screen. [row] is kept from the most used outward (Back first), and
@@ -163,7 +177,21 @@ data class RemoteLayout(
 
     companion object {
         const val MAX_ROW = 6
-        val DEFAULT_ROW = listOf(RowButton.BACK, RowButton.HOME, RowButton.PLAY, RowButton.VOICE, RowButton.KEYBOARD)
+
+        /** Input joined on 2026-10-26 (Erwann): a tap opens tutti's input chooser, a long press the TV's own menu. */
+        val DEFAULT_ROW = listOf(RowButton.BACK, RowButton.HOME, RowButton.PLAY, RowButton.VOICE, RowButton.KEYBOARD, RowButton.INPUT)
+
+        /**
+         * Every default row that shipped, oldest first: with mute (2026-10-23), without it
+         * (2026-10-24), with Input (2026-10-26). A stored row equal to one of them, with no
+         * [rowChosen] mark, was never arranged and follows today's [DEFAULT_ROW]. Append here
+         * whenever [DEFAULT_ROW] changes; never remove an entry.
+         */
+        internal val SHIPPED_ROWS = listOf(
+            listOf(RowButton.BACK, RowButton.HOME, RowButton.PLAY, RowButton.VOICE, RowButton.KEYBOARD, RowButton.MUTE),
+            listOf(RowButton.BACK, RowButton.HOME, RowButton.PLAY, RowButton.VOICE, RowButton.KEYBOARD),
+            DEFAULT_ROW,
+        )
     }
 }
 
@@ -285,9 +313,9 @@ data class DockSlot(
     val letters: String? = null,
 )
 
-/** Secondary buttons that accept a long-press action. */
+/** Secondary buttons that accept a long-press action. [INPUT] joined on 2026-10-26; stored maps without it read unchanged. */
 @Serializable
-enum class SecondaryButton { HOME, BACK, PLAY }
+enum class SecondaryButton { HOME, BACK, PLAY, INPUT }
 
 /**
  * The pins live in one flat [slots] list, [PAGE_SIZE] to a page: page n is slots 4n..4n+3. A dock
