@@ -68,6 +68,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.kud.tutti.R
+import io.kud.tutti.ui.common.StateMark
 import io.kud.tutti.controller.Link
 import io.kud.tutti.controller.PairingError
 import io.kud.tutti.controller.PairingUi
@@ -764,10 +765,9 @@ private fun DeviceRow(icon: Int, name: String, status: String, ok: Boolean) {
         Icon(painterResource(icon), contentDescription = null, tint = colors.onSurface)
         Spacer(Modifier.width(12.dp))
         Text(name, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
-        if (ok) {
-            Icon(painterResource(R.drawable.ic_check), contentDescription = null, tint = colors.onSurface, modifier = Modifier.size(16.dp))
-            Spacer(Modifier.width(4.dp))
-        }
+        // The shared state marks (Iris, 2026-10-27): a filled check when ready, an empty ring when not.
+        StateMark(ok)
+        Spacer(Modifier.width(4.dp))
         Text(status, style = MaterialTheme.typography.bodySmall, color = if (ok) colors.onSurface else colors.onSurfaceVariant)
     }
 }
