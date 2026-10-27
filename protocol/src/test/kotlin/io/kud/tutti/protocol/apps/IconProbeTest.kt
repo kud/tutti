@@ -22,7 +22,7 @@ class IconProbeTest {
 
     @Test
     fun `an unanswered request names its exception and phase`() {
-        assertEquals("https SocketTimeoutException at read headers", IconProbe.failure("https", "SocketTimeoutException", "read headers"))
+        assertEquals("https SocketTimeoutException at read", IconProbe.failure("https", "SocketTimeoutException", "read"))
         assertEquals("http ConnectException at -", IconProbe.failure("http", "ConnectException", null))
     }
 

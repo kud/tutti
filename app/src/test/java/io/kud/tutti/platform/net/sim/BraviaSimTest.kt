@@ -396,7 +396,7 @@ class BraviaSimTest {
         assertEquals("http 403, https with key: SocketTimeoutException", failure.detail)
         val probe = failure.probe ?: throw AssertionError("no probe")
         assertTrue(probe, probe.startsWith("http 403 server="))
-        assertTrue(probe, probe.endsWith("; https SocketTimeoutException at read headers"))
+        assertTrue(probe, probe.endsWith("; https SocketTimeoutException at read"))
         assertFalse("never the key", probe.contains("1234"))
         assertFalse("never the host", probe.contains(HOST))
         assertTrue(transport.fetchIcon("https://$HOST:${tv.https.port}/DIAL/icon/a.png", psk = "1234") is OkHttpBraviaTransport.IconFetch.Image)
