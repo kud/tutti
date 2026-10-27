@@ -211,6 +211,8 @@ fun AppsSheetContent(
                     ProblemNote(stringResource(R.string.apps_launch_failed_note, failedApp.name), failure?.detail)
                 }
             }
+            // Names the visible list carries more than once, compared as the eye reads them.
+            val shared = state.visibleApps.groupBy { it.name.trim().lowercase() }.filterValues { it.size > 1 }.keys
             @Composable
             fun Tile(app: KnownApp) = AppTile(
                 app = app,
@@ -219,6 +221,7 @@ fun AppsSheetContent(
                 held = inFlight?.packageName == app.packageName && inFlight.phase == LaunchPhase.QUEUED,
                 failed = failure?.packageName == app.packageName,
                 pinLabel = pinLabel,
+                variant = app.packageName.takeIf { app.name.trim().lowercase() in shared },
                 onLongClick = { pinning = app },
                 onClick = {
                     // Refused (the TV down): the message says why and the sheet stays.
@@ -277,6 +280,7 @@ private fun AppTile(
     held: Boolean,
     failed: Boolean,
     pinLabel: String,
+    variant: String?,
     onLongClick: () -> Unit,
     onClick: () -> Unit,
 ) {
@@ -345,6 +349,18 @@ private fun AppTile(
             overflow = TextOverflow.Ellipsis,
             textAlign = TextAlign.Center,
         )
+        if (variant != null) {
+            // Two apps the TV names alike (two "Plex"): the package tells them apart, in words, never
+            // by the icon or its colour alone (Iris, 2026-10-27). Full readability: it is information.
+            Text(
+                variant,
+                style = MaterialTheme.typography.labelSmall,
+                color = scheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center,
+            )
+        }
         if (failed && !waiting.held) {
             Text(
                 failedLabel,

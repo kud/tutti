@@ -46,6 +46,10 @@ private val faces: Map<String, BrandFace?> = mapOf(
     "plex" to mark(R.drawable.brand_plex, 0xFFEBAF00),
     "kodi" to mark(R.drawable.brand_kodi, 0xFF17B2E7),
     "vlc" to mark(R.drawable.brand_vlcmediaplayer, 0xFFFF8800),
+    // Simple Icons 16.36.0 (2026-10-27): apps Erwann's TV lists that aren't in the catalog.
+    "channel4" to mark(R.drawable.brand_channel4, 0xFFAAFF89),
+    "itvx" to mark(R.drawable.brand_itvx, 0xFFDEEB52),
+    "localsend" to mark(R.drawable.brand_localsend, 0xFF008080),
     // Full-colour logos drawn for a light ground keep it; Put.io's own square is its ground.
     "primevideo" to BrandFace(R.drawable.logo_primevideo, BrandColours.WHITE, null, 0.8f),
     "disney" to BrandFace(R.drawable.logo_disneyplus, BrandColours.WHITE, null, 0.8f),
@@ -62,8 +66,45 @@ private val faces: Map<String, BrandFace?> = mapOf(
     "arte" to playIcon(R.drawable.play_arte, 0xFFFC4700),
 )
 
-fun brandFace(packageName: String?): BrandFace? =
-    packageName?.let { AppCatalog.byPackage(it) }?.let { faces[it.id] }
+/**
+ * TV packages outside [AppCatalog] that carry a brand above, as the TV's diagnostic reported them
+ * (2026-10-27). The BRAVIA's UK broadcaster tiles are Sony's own launcher wrappers, not the
+ * broadcasters' packages, so they are keyed here rather than in the catalog.
+ */
+private val tvOnly: Map<String, String> = mapOf(
+    "com.sony.dtv.all4launcher" to "channel4",
+    "com.sony.dtv.itvlauncher" to "itvx",
+    "org.localsend.localsend_app" to "localsend",
+)
+
+/**
+ * The brand face for an app: by catalog package, by a TV-only package, then by the exact catalog
+ * name the TV gives it ([name], case-insensitive). The name is a last resort for a package the
+ * catalog doesn't know but whose title is a catalog app's own (a second "Plex"): the mark names
+ * the app the TV says it is, and the Apps grid shows the package under any name that appears twice.
+ */
+fun brandFace(packageName: String?, name: String? = null): BrandFace? {
+    val id = packageName?.let { AppCatalog.byPackage(it)?.id ?: tvOnly[it] }
+        ?: name?.let { AppCatalog.find(it)?.id }
+    return id?.let { faces[it] }
+}
+
+/**
+ * A system app with no free mark wears a monochrome Material symbol for what it is, on the letter
+ * tile's own ground, instead of a letter (Iris, 2026-10-27). Keyed by package only: a title is too
+ * loose to say what an app does. Never a brand; the tile's label still names it.
+ */
+@DrawableRes
+fun systemSymbol(packageName: String?): Int? = when (packageName) {
+    "com.sony.dtv.notificationcenter" -> R.drawable.ic_notifications
+    "com.sony.dtv.calibrationmonitor" -> R.drawable.ic_tune
+    "com.sony.dtv.smarthelp" -> R.drawable.ic_help
+    "com.sony.dtv.ecodashboard" -> R.drawable.ic_bolt
+    "com.vewd.core.browser" -> R.drawable.ic_language
+    "com.cxinventor.file.explorer" -> R.drawable.ic_folder
+    "com.google.android.play.games" -> R.drawable.ic_game
+    else -> null
+}
 
 /** A brand logo's own colour where it stands alone as a glyph (the bar's Spotify source), else null. */
 fun brandColour(@DrawableRes drawable: Int): Int? = when (drawable) {

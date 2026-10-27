@@ -42,6 +42,38 @@ Release **16.35.0** (`https://raw.githubusercontent.com/simple-icons/simple-icon
 | Kodi | `kodi` | `brand_kodi` | `#17B2E7` | https://kodi.tv | none listed |
 | VLC | `vlcmediaplayer` | `brand_vlcmediaplayer` | `#FF8800` | https://code.videolan.org/videolan/vlc/-/blob/1ce7f686ee17a028d2d79627ae69f22d905f2e23/extras/package/macosx/asset_sources/vlc_app_icon.svg | none listed |
 
+### Added from 16.36.0 (2026-10-27)
+
+Fetched with `npm pack simple-icons@16.36.0` from registry.npmjs.org. These apps are outside `AppCatalog`; `BrandMarks.kt` keys them by the TV package the diagnostic reported (`tvOnly`). On the BRAVIA the UK broadcasters are Sony's launcher wrappers (`com.sony.dtv.<name>launcher`), not the broadcasters' own packages.
+
+| App | Slug | Drawable | Brand hex | TV package | Source (per Simple Icons) | Guidelines |
+| --- | --- | --- | --- | --- | --- | --- |
+| Channel 4 (was All 4) | `channel4` | `brand_channel4` | `#AAFF89` | `com.sony.dtv.all4launcher` | https://mediaassets.channel4.com/guidelines/guide/34286b7b-ea25-404d-a43b-e912fc85b0e0/page/8a2dd59a-51df-4f47-aa37-c235a761455e | https://mediaassets.channel4.com/guidelines/guide/34286b7b-ea25-404d-a43b-e912fc85b0e0 |
+| ITVX | `itvx` | `brand_itvx` | `#DEEB52` | `com.sony.dtv.itvlauncher` | https://www.itvmedia.co.uk | none listed |
+| LocalSend | `localsend` | `brand_localsend` | `#008080` | `org.localsend.localsend_app` | https://github.com/localsend/localsend/blob/f57cae55616e6d2f0ab20cad41e0697cba7885e5/app/assets/img/logo-512.png | none listed |
+
+Not in Simple Icons 16.36.0, so still a letter until another recorded source has them: BBC iPlayer, BBC Sounds (no `bbc*` slug), Channel 5 / My5, YouView, Nuvio, My BRAVIA (Sony's wordmark is Sony's, not the app's). Play Games has no Simple Icons slug either and wears a symbol (below).
+
+## Name fallback
+
+A TV app whose package is unknown but whose title is exactly a catalog app's name (case-insensitive) wears that app's mark (`brandFace(packageName, name)`). Erwann's grid listed two "Plex": the catalog entry (`com.plexapp.android`, which the TV never listed, so `AppLibrary.all` adds it from the catalog with the phone's Plex icon) and the TV's own "Plex" under a package the catalog doesn't know. Both now wear Plex, and the Apps grid writes the package under any name that appears twice, so they read apart in words.
+
+## System symbols
+
+Sony's and Google's system apps have no free mark. Rather than a letter that says nothing, a few wear a filled Material symbol for what they are, on the letter tile's own ground and in its colour (`systemSymbol`, by package only; Iris, 2026-10-27). New symbols come from `@material-design-icons/svg` 0.14.13 (`filled/<name>.svg`, Apache 2.0).
+
+| App | Package | Symbol |
+| --- | --- | --- |
+| BRAVIA notifications | `com.sony.dtv.notificationcenter` | `ic_notifications` (new) |
+| Calman for BRAVIA | `com.sony.dtv.calibrationmonitor` | `ic_tune` |
+| Help | `com.sony.dtv.smarthelp` | `ic_help` |
+| Eco dashboard | `com.sony.dtv.ecodashboard` | `ic_bolt` |
+| Browser (Vewd) | `com.vewd.core.browser` | `ic_language` (new) |
+| File explorer | `com.cxinventor.file.explorer` | `ic_folder` (new) |
+| Play Games | `com.google.android.play.games` | `ic_game` |
+
+Left as a letter, deliberately: apps whose package no diagnostic has named yet (My BRAVIA, Music, Media Player), and Sony packages whose purpose is a guess (`livingfit`, `promos`, `smartmediaapp`, `osat.music.toast`). A symbol that names the wrong kind is worse than a letter.
+
 ## Not in Simple Icons
 
 Prime Video, Disney+, Canal+, france.tv, TF1+, M6+, Arte, Molotov, Put.io. Simple Icons 16.35.0 carries none of them, and neither did its `develop` branch on 2026-10-23 (no `primevideo`, `amazonprime`, `disneyplus`, `canalplus`, `francetv`, `tf1`, `m6`, `arte`, `molotov` or `putio` icon, and no matching title in `data/simple-icons.json`). Once fetched over IP control, the TV's own icon covers them; until then the phone's icon does when the same app is installed on it, and otherwise the full-colour logo or Play Store icon below. Check again when picking a new release.
