@@ -338,3 +338,9 @@ Each thing has one name in each language, everywhere: screens, TalkBack, the not
 - Every choice in a picker is a 48 dp target with a name TalkBack reads; a chosen colour also wears a tick.
 - Landscape is supported, not locked: the app pads the display cutout's sides, so no control sits under a camera hole. Indeterminate bars (`BusyBar`) stand still at a third under reduced motion, like the spinners' still arc.
 - The Forget dialog names the device it forgets.
+
+## Updates (Maya, 2026-10-27)
+
+- About › Version is one row: the installed version, and under it where the updater stands, in a sentence ("Check for updates", "Version 0.2.0-dev.26 is available.", "Couldn't reach GitHub…"). Tapping it checks and opens one sheet: the state as a sentence (a polite live region), one button for the next step (Download and install, Open the setting, Try again, Check for updates), a progress bar while it works, and the rule in small print: GitHub when asked, at most once a day on opening, nothing installs without confirmation.
+- The daily check, when it finds something, is one message ("Version x is available.") with "See", which opens About. Nothing else nags.
+- Failures say what failed and what to do; no state rests on colour.

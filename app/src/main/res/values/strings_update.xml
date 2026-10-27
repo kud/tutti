@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The in-app updater: About › Version, its sheet, and the daily message (docs/design.md, "Updates"). -->
+<resources>
+    <string name="update_title">Updates</string>
+    <string name="update_installed">Installed: version %1$s</string>
+    <string name="update_check">Check for updates</string>
+    <string name="update_checking">Checking GitHub…</string>
+    <string name="update_up_to_date">Up to date: GitHub has nothing newer.</string>
+    <string name="update_available">Version %1$s is available.</string>
+    <string name="update_download_install">Download and install</string>
+    <string name="update_downloading">Downloading…</string>
+    <string name="update_downloading_percent">Downloading: %1$d%%</string>
+    <string name="update_installing">Android will ask you to confirm. The app then closes to update.</string>
+    <string name="update_permission_title">Android needs your permission to install updates from this app.</string>
+    <string name="update_permission_detail">Open the setting, turn on “Allow from this source”, then come back here. Android asks only once.</string>
+    <string name="update_permission_open">Open the setting</string>
+    <string name="update_try_again">Try again</string>
+    <string name="update_failed_network">Couldn’t reach GitHub. Check the connection, then try again.</string>
+    <string name="update_failed_feed">GitHub’s answer couldn’t be read. Try again later.</string>
+    <string name="update_failed_download">The download stopped before the end. Try again.</string>
+    <string name="update_failed_digest">The file didn’t match what GitHub announced, so it was deleted.</string>
+    <string name="update_failed_package">The file isn’t a newer build of this app, so it was deleted.</string>
+    <string name="update_failed_install">Android didn’t install the update.</string>
+    <string name="update_failed_install_detail">Android didn’t install the update: %1$s</string>
+    <string name="update_note">Checks GitHub when you ask, and at most once a day when the app opens. Nothing installs without your confirmation.</string>
+    <string name="update_message_see">See</string>
+</resources>

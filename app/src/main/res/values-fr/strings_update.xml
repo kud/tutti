@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="update_title">Mises à jour</string>
+    <string name="update_installed">Installée : version %1$s</string>
+    <string name="update_check">Rechercher une mise à jour</string>
+    <string name="update_checking">Recherche sur GitHub…</string>
+    <string name="update_up_to_date">À jour : rien de plus récent sur GitHub.</string>
+    <string name="update_available">La version %1$s est disponible.</string>
+    <string name="update_download_install">Télécharger et installer</string>
+    <string name="update_downloading">Téléchargement…</string>
+    <string name="update_downloading_percent">Téléchargement : %1$d %%</string>
+    <string name="update_installing">Android va vous demander de confirmer. L’app se fermera ensuite pour se mettre à jour.</string>
+    <string name="update_permission_title">Android a besoin de votre accord pour installer des mises à jour depuis cette app.</string>
+    <string name="update_permission_detail">Ouvrez le réglage, activez « Autoriser cette source », puis revenez ici. Android ne le demande qu’une fois.</string>
+    <string name="update_permission_open">Ouvrir le réglage</string>
+    <string name="update_try_again">Réessayer</string>
+    <string name="update_failed_network">GitHub ne répond pas. Vérifiez la connexion, puis réessayez.</string>
+    <string name="update_failed_feed">La réponse de GitHub est illisible. Réessayez plus tard.</string>
+    <string name="update_failed_download">Le téléchargement s’est interrompu avant la fin. Réessayez.</string>
+    <string name="update_failed_digest">Le fichier ne correspond pas à celui annoncé par GitHub : il a été supprimé.</string>
+    <string name="update_failed_package">Ce fichier n’est pas une version plus récente de cette app : il a été supprimé.</string>
+    <string name="update_failed_install">Android n’a pas installé la mise à jour.</string>
+    <string name="update_failed_install_detail">Android n’a pas installé la mise à jour : %1$s</string>
+    <string name="update_note">Cherche sur GitHub quand vous le demandez, et au plus une fois par jour à l’ouverture. Rien ne s’installe sans votre accord.</string>
+    <string name="update_message_see">Voir</string>
+</resources>
