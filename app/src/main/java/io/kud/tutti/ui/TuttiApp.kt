@@ -309,6 +309,18 @@ fun TuttiApp(
         seenShows = shows
     }
 
+    // The updater's automatic check: at most once a day, only when the app opens, never an install.
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(3_000)
+        val update = io.kud.tutti.platform.update.Updater.from(context).checkIfDue() ?: return@LaunchedEffect
+        messages.show(
+            context.getString(R.string.update_available, update.version.toString()),
+            actionLabel = context.getString(R.string.update_message_see),
+            onAction = { push(Screen.About) },
+            long = true,
+        )
+    }
+
     LaunchedEffect(state.loaded) {
         if (state.loaded && state.devices.isEmpty && !state.prefs.onboarded && stack.none { it is Screen.Onboarding }) push(Screen.Onboarding())
     }
