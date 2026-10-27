@@ -224,6 +224,17 @@ Keep rules (`app/proguard-rules.pro`) cover what is reached by name:
 
 The Compose group-mapping file is off (`includeComposeMappingFile`): it only decodes obfuscated Compose traces. Not provable offline, so to check on a phone with each first R8 release: first launch over an existing install (stored devices, prefs, dock and scenes intact), pairing a TV (certificate generation), the widget's buttons, the tile and the notification actions.
 
+## In-app updates (Maya, 2026-10-27)
+
+Erwann installs a `-dev` pre-release about every hour, so About › Version checks GitHub itself (`platform/update/Updater.kt`; the rules, with tests, in `:protocol` `update/`).
+
+- **Will it install?** Yes: every CI debug build is signed with the committed `app/debug.keystore` (since 2026-10-22), so each `-dev` APK installs over the last; a release build updates only from the release key. A debug build looks only for `*-debug.apk` assets, a release build only for the other `.apk`, so the updater never offers an APK Android would refuse for its signature.
+- **When:** on a tap in About, and at most once a day when the app opens (a message with "See"). Never in the background otherwise, never an install without Android's own confirmation (`USER_ACTION_REQUIRED`).
+- **Where:** `GET https://api.github.com/repos/kud/tutti/releases` (pre-releases included, no token: 60 unauthenticated requests an hour is far more than once a day plus taps). The asset's `browser_download_url` must sit under `github.com/kud/tutti/releases/download/`; redirects are followed by hand, each hop HTTPS on port 443 to `github.com`, `objects.githubusercontent.com` or `release-assets.githubusercontent.com` (GitHub's current asset host), at most five. Normal system trust, no pin, no cleartext: these are public hosts with public certificates, not LAN devices.
+- **What is checked before installing:** the SHA-256 of the bytes against the `digest` GitHub reports for the asset (no digest, no offer), then that the APK's package name is this app's and its versionCode is higher. The file lives in `cache/updates/` and is deleted on any mismatch; PackageInstaller then checks the signature.
+- **Versions:** `MAJOR.MINOR.PATCH[-dev.N]`, a dev build below its final release (0.2.0-dev.25 < 0.2.0-dev.26 < 0.2.0), the same order as android.yml's versionCode. A local build (`0.0.0-dev`) counts as dev 0.
+- Permission: `REQUEST_INSTALL_PACKAGES`. Without the "install unknown apps" grant the sheet says so in words and opens Android's page for it, then carries on when the person comes back.
+
 ## Threat model
 
 Assets: the TV PSK, the IP-control cookie, the Bluetooth HID role (keyboard and mouse input to the TV), the TV pairing (client private key + TV pin), Sony OAuth tokens and session keys (opt-in), and control of the living-room devices.
@@ -240,6 +251,7 @@ Assets: the TV PSK, the IP-control cookie, the Bluetooth HID role (keyboard and 
 | Sony account compromise via the app | Sign-in is opt-in, OAuth PKCE in a Custom Tab (the app never sees the password, no WebView), tokens scoped to device control and wiped by "Se déconnecter de Sony". |
 | Malicious or malformed device traffic | Every decoder is total: bad lines and frames become `Malformed` or close the connection; frame size is bounded (1 MiB), line length bounded (64 KiB). |
 | A tampered APK update | Releases are signed with one long-lived key held only in GitHub secrets; Android refuses updates signed otherwise. A final release fails without that key: it never publishes an unsigned APK, nor one signed with `app/debug.keystore`. Until the key exists, a `-dev` tag still ships the debug build as a pre-release (Erwann, 2026-10-25). That debug key is public (committed, password `android`), so anyone can sign an "update" over such a build: install those on test phones only. |
+| A tampered update through the in-app updater | It adds no new trust: it only fetches `kud/tutti`'s own releases, over verified HTTPS to GitHub's hosts, checks the reported SHA-256 and the package, and Android checks the signature and asks to confirm. The digest proves the file is the one GitHub published, not who published it: whoever can publish a release on `kud/tutti` can ship an update, exactly as before the updater. While dev builds carry the public debug key, that includes anyone who can get Erwann to sideload an APK by hand; the updater never does. |
 | A HID keyboard can do anything a person at the TV can | The role is held only while the Bluetooth screen is in front, and only the TV that paired through Android's own dialog (code shown on both) can connect. Every report comes from a touch, a key or the gyroscope on that screen, never from the network. No secret is stored: the remembered TV is a Bluetooth address in plain prefs. The 120 s of discoverability is asked through Android's dialog, never silently. |
 
 Out of scope: a compromised phone OS, a compromised router, physical access to the TV.

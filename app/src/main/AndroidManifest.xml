@@ -3,6 +3,8 @@
 
     <!-- LAN only: TCP to the bar, TLS to the TV, HTTP(S) REST, mDNS discovery. -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- The in-app updater hands a verified APK to PackageInstaller; Android still asks to confirm. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
@@ -150,6 +152,11 @@
 
         <receiver
             android:name=".sleep.SleepTimerAlarmReceiver"
+            android:exported="false" />
+
+        <!-- The in-app updater's install session reports here (platform/update). -->
+        <receiver
+            android:name=".platform.update.UpdateInstallReceiver"
             android:exported="false" />
     </application>
 </manifest>

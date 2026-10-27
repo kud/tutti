@@ -40,7 +40,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
-import io.kud.tutti.BuildConfig
 import io.kud.tutti.R
 import io.kud.tutti.ui.common.SectionTitle
 
@@ -100,11 +99,7 @@ fun AboutScreen(onBack: () -> Unit) {
             )
 
             Heading(stringResource(R.string.about_version))
-            Text(
-                stringResource(R.string.about_version_detail, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE),
-                style = MaterialTheme.typography.bodyLarge,
-                modifier = Modifier.padding(horizontal = 16.dp),
-            )
+            UpdateRow()
         }
     }
 }
