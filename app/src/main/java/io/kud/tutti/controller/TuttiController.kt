@@ -1510,6 +1510,19 @@ class TuttiController @Inject constructor(
         return result
     }
 
+    /**
+     * Developer probe (Technical details): one app link through the remote link, then what the TV
+     * reported in front ([io.kud.tutti.protocol.apps.LinkProbe]). The link is never logged and
+     * never joins [lastLaunchTrace]; the caller holds the result for the screen only.
+     */
+    suspend fun probeLink(link: String): io.kud.tutti.protocol.apps.LinkProbeResult =
+        io.kud.tutti.protocol.apps.LinkProbe.probe(
+            link = link.trim(),
+            send = { atv.launch(it) },
+            foreground = atv.state.map { it.currentApp },
+            canObserve = { atv.state.value.ready },
+        )
+
     /** Keeps what the TV listed, then fetches the icons not cached yet. */
     private suspend fun rememberApps(fresh: List<TvApp>) {
         store.updateApps { AppLibrary.remember(it, fresh) }
