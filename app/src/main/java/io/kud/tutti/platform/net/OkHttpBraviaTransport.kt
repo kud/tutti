@@ -3,6 +3,7 @@ package io.kud.tutti.platform.net
 import io.kud.tutti.protocol.apps.AppIcons
 import io.kud.tutti.protocol.apps.IconAttempt
 import io.kud.tutti.protocol.apps.IconOutcome
+import io.kud.tutti.protocol.apps.IconProbe
 import io.kud.tutti.protocol.bravia.BraviaClient
 import io.kud.tutti.protocol.bravia.BraviaTransport
 import io.kud.tutti.protocol.bravia.HttpReply
@@ -89,7 +90,7 @@ class OkHttpBraviaTransport internal constructor(
             // reach a host that is not the TV. A 3xx is an answer, reported as such.
             .followRedirects(false)
             .followSslRedirects(false)
-            .eventListener(FreshConnectionListener)
+            .eventListener(AttemptListener)
             .build()
     }
 
@@ -134,7 +135,9 @@ class OkHttpBraviaTransport internal constructor(
      * HTTP icon on a pinned TV that refuses port 80, or answers there with a redirect, is asked
      * again over HTTPS at the same path. No PSK (or [cookie], which wins when both are given) goes with the first request; a
      * 401 or 403 is asked once more with it, since it is this TV's own key going to this TV. A stale pooled connection is retried once, as
-     * for [post]. Anything that is not an image, or over [maxBytes], is refused.
+     * for [post]. Anything that is not an image, or over [maxBytes], is refused. A failure carries
+     * an [IconProbe] of each request it made (status and a few header tokens, or the phase a
+     * request with no answer stopped in), for the diagnostic report only.
      */
     suspend fun fetchIcon(url: String, psk: String? = null, maxBytes: Int = MAX_ICON_BYTES, cookie: String? = null): IconFetch = withContext(Dispatchers.IO) {
         val credential: Pair<String, String>? = when {
@@ -152,11 +155,21 @@ class OkHttpBraviaTransport internal constructor(
         if (parsed.scheme == "https" && !pinned) return@withContext failed(IconOutcome.NO_PIN)
         var target = parsed
         var note: String? = null
+        val probe = mutableListOf<String>()
+        var current: Attempt? = null
+        fun seen(response: Response) {
+            probe += IconProbe.response(
+                target.scheme, response.code, response.header("Server"), response.header("Content-Type"),
+                response.header("Content-Length"), response.header("WWW-Authenticate"),
+            )
+        }
         // The key only ever rides HTTPS to the pinned TV (the hostname verifier checks the pin).
         fun get(withPsk: Boolean): IconFetch = execute(
             Request.Builder().url(target).get()
                 .apply { if (withPsk && credential != null && target.scheme == "https") header(credential.first, credential.second) },
+            onAttempt = { current = it },
         ) { response ->
+            if (!response.isSuccessful) seen(response)
             when {
                 !response.isSuccessful -> failed(IconOutcome.HTTP_STATUS, "${response.code}")
                 response.body.contentLength() > maxBytes -> failed(IconOutcome.TOO_BIG)
@@ -164,7 +177,10 @@ class OkHttpBraviaTransport internal constructor(
                     val bytes = response.body.bytes()
                     when {
                         bytes.size > maxBytes -> failed(IconOutcome.TOO_BIG)
-                        !AppIcons.looksLikeImage(bytes) -> failed(IconOutcome.NOT_IMAGE, response.body.contentType()?.let { "${it.type}/${it.subtype}" })
+                        !AppIcons.looksLikeImage(bytes) -> {
+                            seen(response)
+                            failed(IconOutcome.NOT_IMAGE, response.body.contentType()?.let { "${it.type}/${it.subtype}" })
+                        }
                         else -> IconFetch.Image(bytes)
                     }
                 }
@@ -186,8 +202,10 @@ class OkHttpBraviaTransport internal constructor(
                 }
             }
         } catch (e: ConnectException) {
+            probe += IconProbe.failure(target.scheme, e.javaClass.simpleName, current?.phase)
             failed(IconOutcome.REFUSED)
         } catch (e: IOException) {
+            probe += IconProbe.failure(target.scheme, e.javaClass.simpleName, current?.phase)
             failed(IconOutcome.NETWORK, e.javaClass.simpleName)
         }
         var result = attempt()
@@ -205,7 +223,9 @@ class OkHttpBraviaTransport internal constructor(
             note = upgrade
             result = attempt()
         }
-        if (result is IconFetch.Failed && note != null) failed(result.attempt.outcome, listOfNotNull(note, result.attempt.detail).joinToString(": ")) else result
+        if (result !is IconFetch.Failed) return@withContext result
+        val detail = if (note != null) listOfNotNull(note, result.attempt.detail).joinToString(": ") else result.attempt.detail
+        IconFetch.Failed(result.attempt.copy(detail = detail, probe = probe.takeIf { it.isNotEmpty() }?.joinToString("; ")))
     }
 
     private suspend fun persistObservedPin() {
@@ -234,28 +254,50 @@ class OkHttpBraviaTransport internal constructor(
         return execute(request) { response -> HttpReply(response.code, response.body.string(), response.headers("Set-Cookie")) }
     }
 
-    private fun <T> execute(request: Request.Builder, read: (Response) -> T): T {
-        val attempt = Attempt()
+    private fun <T> execute(request: Request.Builder, onAttempt: (Attempt) -> Unit = {}, read: (Response) -> T): T {
+        val attempt = Attempt().also(onAttempt)
         return try {
             executeOnce(request, attempt, read)
         } catch (e: IOException) {
             if (attempt.freshConnection || e is InterruptedIOException || e is SSLException) throw e
             client.connectionPool.evictAll()
-            executeOnce(request, Attempt(), read)
+            executeOnce(request, Attempt().also(onAttempt), read)
         }
     }
 
     private fun <T> executeOnce(request: Request.Builder, attempt: Attempt, read: (Response) -> T): T =
         client.newCall(request.tag(Attempt::class.java, attempt).build()).execute().use(read)
 
-    /** Whether a call opened its own connection rather than reusing a pooled one. */
+    /**
+     * Whether a call opened its own connection rather than reusing a pooled one, and the last phase
+     * it reached ([IconProbe.failure] names where a timeout came: connect, tls, write or read).
+     */
     private class Attempt {
         @Volatile var freshConnection = false
+        @Volatile var phase = "start"
     }
 
-    private object FreshConnectionListener : EventListener() {
+    private object AttemptListener : EventListener() {
+        private fun Call.attempt() = request().tag(Attempt::class.java)
+
         override fun connectStart(call: Call, inetSocketAddress: InetSocketAddress, proxy: Proxy) {
-            call.request().tag(Attempt::class.java)?.freshConnection = true
+            call.attempt()?.apply { freshConnection = true; phase = "connect" }
+        }
+
+        override fun secureConnectStart(call: Call) {
+            call.attempt()?.phase = "tls"
+        }
+
+        override fun requestHeadersStart(call: Call) {
+            call.attempt()?.phase = "write"
+        }
+
+        override fun responseHeadersStart(call: Call) {
+            call.attempt()?.phase = "read headers"
+        }
+
+        override fun responseBodyStart(call: Call) {
+            call.attempt()?.phase = "read body"
         }
     }
 

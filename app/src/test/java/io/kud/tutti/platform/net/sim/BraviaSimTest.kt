@@ -19,6 +19,7 @@ import io.kud.tutti.protocol.sim.SimKeys
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -318,7 +319,7 @@ class BraviaSimTest {
         val transport = pinnedTransport()
         val got = transport.fetchIcon("https://$HOST:${tv.https.port}/DIAL/icon/a.png")
         assertTrue(got is OkHttpBraviaTransport.IconFetch.Image && got.bytes.contentEquals(png))
-        assertEquals(IconAttempt(IconOutcome.HTTP_STATUS, "404"), transport.fetchIcon("https://$HOST:${tv.https.port}/DIAL/icon/b.png").failure())
+        assertEquals(IconAttempt(IconOutcome.HTTP_STATUS, "404"), transport.fetchIcon("https://$HOST:${tv.https.port}/DIAL/icon/b.png").failure().copy(probe = null))
         tv.files["/DIAL/icon/c.png"] = "<html>oops</html>".encodeToByteArray()
         assertEquals(IconOutcome.NOT_IMAGE, transport.fetchIcon("https://$HOST:${tv.https.port}/DIAL/icon/c.png").failure().outcome)
         assertEquals(IconOutcome.TOO_BIG, transport.fetchIcon("https://$HOST:${tv.https.port}/DIAL/icon/a.png", maxBytes = 4).failure().outcome)
@@ -339,7 +340,7 @@ class BraviaSimTest {
         tv.files["/DIAL/icon/a.png"] = png
         tv.httpGetsRedirect = true
         val unpinned = transport()
-        assertEquals(IconAttempt(IconOutcome.HTTP_STATUS, "301"), unpinned.fetchIcon("http://$HOST:${tv.http.port}/DIAL/icon/a.png").failure())
+        assertEquals(IconAttempt(IconOutcome.HTTP_STATUS, "301"), unpinned.fetchIcon("http://$HOST:${tv.http.port}/DIAL/icon/a.png").failure().copy(probe = null))
         val transport = pinnedTransport()
         val got = transport.fetchIcon("http://$HOST:${tv.http.port}/DIAL/icon/a.png")
         assertTrue("$got", got is OkHttpBraviaTransport.IconFetch.Image)
@@ -359,7 +360,7 @@ class BraviaSimTest {
         tv.files["/DIAL/icon/a.png"] = png
         tv.filesNeedPsk = true
         val transport = pinnedTransport()
-        assertEquals(IconAttempt(IconOutcome.HTTP_STATUS, "403"), transport.fetchIcon("https://$HOST:${tv.https.port}/DIAL/icon/a.png").failure())
+        assertEquals(IconAttempt(IconOutcome.HTTP_STATUS, "403"), transport.fetchIcon("https://$HOST:${tv.https.port}/DIAL/icon/a.png").failure().copy(probe = null))
         assertTrue(transport.fetchIcon("https://$HOST:${tv.https.port}/DIAL/icon/a.png", psk = "1234") is OkHttpBraviaTransport.IconFetch.Image)
         assertEquals(3, tv.gets.size)
     }
@@ -381,5 +382,23 @@ class BraviaSimTest {
         val transport = pinnedTransport()
         assertTrue(transport.fetchIcon("http://$HOST:${tv.http.port}/DIAL/icon/a.png", psk = "1234") is OkHttpBraviaTransport.IconFetch.Image)
         assertEquals("the key never goes over HTTP", 0, tv.http.pskSeen.get())
+    }
+
+    @Test
+    fun `a failing icon says what each request saw, and where an unanswered one stopped`() = runBlocking {
+        tv.files["/DIAL/icon/a.png"] = png
+        tv.filesNeedPsk = true
+        val transport = transport(readTimeoutMs = 400)
+        client(transport).powerStatus().ok()
+        tv.https.faults.replyDelayMillis = 900
+        val failure = transport.fetchIcon("http://$HOST:${tv.http.port}/DIAL/icon/a.png", psk = "1234").failure()
+        tv.https.faults.reset()
+        assertEquals("http 403, https with key: SocketTimeoutException", failure.detail)
+        val probe = failure.probe ?: throw AssertionError("no probe")
+        assertTrue(probe, probe.startsWith("http 403 server="))
+        assertTrue(probe, probe.endsWith("; https SocketTimeoutException at read headers"))
+        assertFalse("never the key", probe.contains("1234"))
+        assertFalse("never the host", probe.contains(HOST))
+        assertTrue(transport.fetchIcon("https://$HOST:${tv.https.port}/DIAL/icon/a.png", psk = "1234") is OkHttpBraviaTransport.IconFetch.Image)
     }
 }
