@@ -275,13 +275,22 @@ internal fun PowerRow(
                     Modifier.background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(16.dp))
                 },
             )
-            .combinedClickable(
-                enabled = enabled,
-                role = Role.Button,
-                onClickLabel = action,
-                onLongClickLabel = onLongClickLabel,
-                onLongClick = onLongClick,
-                onClick = onClick,
+            .then(
+                // A row that only heads what follows (Gentle off's title over its durations) is
+                // information, not a disabled button: no click semantics (Iris, 2026-10-27). A down
+                // row keeps its disabled button, since it is a control that is unavailable.
+                if (enabled || down) {
+                    Modifier.combinedClickable(
+                        enabled = enabled,
+                        role = Role.Button,
+                        onClickLabel = action,
+                        onLongClickLabel = onLongClickLabel,
+                        onLongClick = onLongClick,
+                        onClick = onClick,
+                    )
+                } else {
+                    Modifier.semantics(mergeDescendants = true) {}
+                },
             )
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,

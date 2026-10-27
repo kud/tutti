@@ -37,6 +37,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.kud.tutti.R
+import io.kud.tutti.ui.common.StateMark
 import io.kud.tutti.controller.TargetController
 import io.kud.tutti.platform.bluetooth.HidLink
 import io.kud.tutti.platform.bluetooth.HidPhase
@@ -96,6 +97,17 @@ fun TvBluetoothDialog(targets: TargetController, hid: HidLink, onDismiss: () -> 
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(stringResource(R.string.bt_backup_explain), style = MaterialTheme.typography.bodyMedium)
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }) {
+                    // Paired or connected wears the filled check, not paired yet the empty ring (Iris, 2026-10-27).
+                    val mark = when {
+                        connected || linked != null -> true
+                        action == null || hidState.support == HidSupport.UNSUPPORTED -> null
+                        hidState.phase == HidPhase.NEEDS_PERMISSION || hidState.phase == HidPhase.BLUETOOTH_OFF || hidState.phase == HidPhase.BUSY -> null
+                        else -> false
+                    }
+                    if (mark != null) {
+                        StateMark(mark)
+                        Spacer(Modifier.width(6.dp))
+                    }
                     Text(status, style = MaterialTheme.typography.titleSmall)
                 }
                 if (action != null) {

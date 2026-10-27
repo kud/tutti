@@ -35,6 +35,7 @@ import io.kud.tutti.ui.common.LocalReducedMotion
 import io.kud.tutti.ui.common.SettingsRow
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.stateDescription
 import io.kud.tutti.protocol.bravia.TvSettingCatalog
 import io.kud.tutti.protocol.bravia.TvSettingCatalog.PictureSection
@@ -355,7 +356,10 @@ private fun InputsPage(state: TuttiUiState, controller: TuttiController) {
         SettingsGroup(null) {
             for (input in state.tv.inputs) {
                 val current = input.uri == state.tv.input
-                LinkRow(
+                // State by shape and words (Iris, 2026-10-27): a filled check for connected or
+                // current, an empty ring for an empty port. The current input is information, not
+                // a disabled control: full contrast, nothing to tap.
+                SettingsRow(
                     title = inputName(input.uri, state),
                     detail = stringResource(
                         when {
@@ -364,8 +368,9 @@ private fun InputsPage(state: TuttiUiState, controller: TuttiController) {
                             else -> R.string.tv_input_disconnected
                         },
                     ),
-                    enabled = !current,
-                    onClick = { controller.switchInput(input.uri) },
+                    mark = current || input.connected,
+                    onClick = if (current) null else ({ controller.switchInput(input.uri) }),
+                    modifier = if (current) Modifier.semantics { selected = true } else Modifier,
                 )
             }
         }
@@ -426,7 +431,8 @@ private fun AboutPage(state: TuttiUiState) {
         SettingsGroup(null) { WaitingRow(stringResource(R.string.tv_device_model)) }
     } else if (rows.isNotEmpty()) {
         SettingsGroup(null) {
-            rows.forEach { (title, value) -> LinkRow(title = title, detail = value, enabled = false, onClick = {}) }
+            // Read-only information (Iris, 2026-10-27): full contrast, no ripple, nothing to tap.
+            rows.forEach { (title, value) -> SettingsRow(title = title, detail = value) }
         }
     } else if (settings.loaded && !settings.loading) {
         NothingNote()
