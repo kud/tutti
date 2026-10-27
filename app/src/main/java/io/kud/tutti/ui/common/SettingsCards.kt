@@ -75,8 +75,10 @@ val LocalRowSurface = staticCompositionLocalOf { Color.Transparent }
 /**
  * One settings row. [notice] replaces [detail] when the setting is inactive for a reason outside
  * tutti: it leads with a warning glyph so the state reads in shape and words, never colour alone.
- * A disabled row fades but always keeps a detail that says why. [detailMaxLines] holds a live
- * line to its lines, ending in an ellipsis.
+ * A disabled row fades but always keeps a detail that says why; read-only information is not
+ * disabled: pass no [onClick] and it keeps full contrast, with no ripple or click semantics.
+ * [mark] leads the detail with a [StateMark] (true connected / on / paired, false nothing / off).
+ * [detailMaxLines] holds a live line to its lines, ending in an ellipsis.
  */
 @Composable
 fun SettingsRow(
@@ -86,6 +88,7 @@ fun SettingsRow(
     detailMaxLines: Int = Int.MAX_VALUE,
     @DrawableRes icon: Int? = null,
     notice: String? = null,
+    mark: Boolean? = null,
     enabled: Boolean = true,
     onClick: (() -> Unit)? = null,
     role: Role? = null,
@@ -110,6 +113,17 @@ fun SettingsRow(
             Text(title, style = MaterialTheme.typography.bodyLarge)
             when {
                 notice != null -> Notice(notice)
+                detail != null && mark != null -> Row(verticalAlignment = Alignment.Top) {
+                    StateMark(mark, Modifier.padding(top = 2.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        detail,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = detailMaxLines,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
                 detail != null -> Text(
                     detail,
                     style = MaterialTheme.typography.bodyMedium,
@@ -125,6 +139,22 @@ fun SettingsRow(
             Box(fade) { trailing() }
         }
     }
+}
+
+/**
+ * A binary or link state told by shape (Iris, 2026-10-27; design.md, Visual › State): a filled
+ * check circle for connected / on / paired, an empty ring for nothing connected / off. The same two
+ * glyphs as [io.kud.tutti.ui.remote.ConnMark]'s OK and TODO, so a state reads alike everywhere. The
+ * words always sit beside it; it is decorative to TalkBack, which reads them.
+ */
+@Composable
+fun StateMark(on: Boolean, modifier: Modifier = Modifier) {
+    Icon(
+        painterResource(if (on) R.drawable.ic_check_circle else R.drawable.ic_circle_outline),
+        contentDescription = null,
+        tint = if (on) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = modifier.size(16.dp),
+    )
 }
 
 /** A trailing chevron for a row that opens another screen. */
