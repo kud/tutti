@@ -2603,53 +2603,37 @@ class TuttiController @Inject constructor(
     fun loadTvSettings() {
         val client = bravia ?: return
         scope.launch {
+            // A re-check keeps any part whose call fails instead of wiping it (TvSettingsSweep).
+            val recheck = tv.value.settings.loaded
             tv.update { it.copy(settings = it.settings.copy(loading = true, waiting = TvSettingsPart.entries.toSet())) }
             val caps = client.capabilities
+            val outputSettable = caps.supports(BraviaService.AUDIO, "setSoundSettings")
+            val savingSettable = caps.supports(BraviaService.SYSTEM, "setPowerSavingMode")
+            fun land(answers: TvSettingsAnswers, settings: TvSettingsState) =
+                TvSettingsSweep.merge(settings, answers, recheck, outputSettable, savingSettable)
             // Each part lands as soon as the TV answers it, so the screen fills top down instead of
             // all at once after the slowest call (Iris, 2026-10-26).
-            val picture = if (caps.supports(BraviaService.VIDEO, "getPictureQualitySettings")) client.pictureSettings().getOrNull() else null
-            val scene = if (caps.supports(BraviaService.VIDEO_SCREEN, "getSceneSetting")) client.sceneSetting().getOrNull() else null
-            tv.update { it.copy(settings = it.settings.copy(picture = picture.orEmpty(), scene = scene, waiting = it.settings.waiting - TvSettingsPart.PICTURE)) }
-            val sound = if (caps.supports(BraviaService.AUDIO, "getSoundSettings")) client.soundSettings().getOrNull() else null
-            val speaker = if (caps.supports(BraviaService.AUDIO, "getSpeakerSettings")) client.speakerSettings().getOrNull() else null
-            tv.update {
-                it.copy(
-                    settings = it.settings.copy(
-                        sound = sound.orEmpty(),
-                        speaker = speaker.orEmpty(),
-                        outputWriteOnly = sound == null && caps.supports(BraviaService.AUDIO, "setSoundSettings"),
-                        waiting = it.settings.waiting - TvSettingsPart.SOUND,
-                    ),
-                )
-            }
-            val saving = if (caps.supports(BraviaService.SYSTEM, "getPowerSavingMode")) client.powerSavingMode().getOrNull() else null
-            val wol = if (caps.supports(BraviaService.SYSTEM, "getWolMode")) client.wolMode().getOrNull() else null
-            val ircc = if (caps.supports(BraviaService.SYSTEM, "getRemoteControllerInfo")) {
-                client.remoteControllerInfo().getOrNull().orEmpty()
-            } else {
-                emptyList()
-            }
-            val sleep = io.kud.tutti.protocol.bravia.Ircc.sleepTimerCode(ircc)
-            val system = if (caps.supports(BraviaService.SYSTEM, "getSystemInformation")) client.systemInformation().getOrNull() else null
+            var answers = TvSettingsAnswers(
+                picture = TvAnswer.ask(caps.supports(BraviaService.VIDEO, "getPictureQualitySettings")) { client.pictureSettings() },
+                scene = TvAnswer.ask(caps.supports(BraviaService.VIDEO_SCREEN, "getSceneSetting")) { client.sceneSetting() },
+            )
+            tv.update { it.copy(settings = land(answers, it.settings).let { s -> s.copy(waiting = s.waiting - TvSettingsPart.PICTURE) }) }
+            answers = answers.copy(
+                sound = TvAnswer.ask(caps.supports(BraviaService.AUDIO, "getSoundSettings")) { client.soundSettings() },
+                speaker = TvAnswer.ask(caps.supports(BraviaService.AUDIO, "getSpeakerSettings")) { client.speakerSettings() },
+            )
+            tv.update { it.copy(settings = land(answers, it.settings).let { s -> s.copy(waiting = s.waiting - TvSettingsPart.SOUND) }) }
+            answers = answers.copy(
+                powerSaving = TvAnswer.ask(caps.supports(BraviaService.SYSTEM, "getPowerSavingMode")) { client.powerSavingMode() },
+                wol = TvAnswer.ask(caps.supports(BraviaService.SYSTEM, "getWolMode")) { client.wolMode() },
+                ircc = TvAnswer.ask(caps.supports(BraviaService.SYSTEM, "getRemoteControllerInfo")) { client.remoteControllerInfo() },
+                system = TvAnswer.ask(caps.supports(BraviaService.SYSTEM, "getSystemInformation")) { client.systemInformation() },
+            )
             val inputs = client.externalInputs().getOrNull()
             tv.update {
                 it.copy(
                     inputs = inputs ?: it.inputs,
-                    settings = TvSettingsState(
-                        loading = false,
-                        picture = picture.orEmpty(),
-                        sound = sound.orEmpty(),
-                        speaker = speaker.orEmpty(),
-                        powerSaving = saving,
-                        powerSavingSupported = saving != null || caps.supports(BraviaService.SYSTEM, "setPowerSavingMode"),
-                        wol = wol,
-                        scene = scene,
-                        outputWriteOnly = sound == null && caps.supports(BraviaService.AUDIO, "setSoundSettings"),
-                        sleepCode = sleep,
-                        ircc = io.kud.tutti.protocol.bravia.Ircc.shortcuts(ircc),
-                        loaded = true,
-                        system = system,
-                    ),
+                    settings = land(answers, it.settings).copy(loading = false, loaded = true, waiting = emptySet()),
                 )
             }
         }
