@@ -17,14 +17,49 @@ enum class IconOutcome(val label: String, val retry: Boolean) {
     NOT_IMAGE("not an image", retry = true),
 }
 
-/** One attempt's result: [detail] is a status code or an exception class, never a host or a header. */
-data class IconAttempt(val outcome: IconOutcome, val detail: String? = null)
+/**
+ * One attempt's result: [detail] is a status code or an exception class, never a host or a header.
+ * [probe] is the failing fetch seen from the wire ([IconProbe]), when a request went out.
+ */
+data class IconAttempt(val outcome: IconOutcome, val detail: String? = null, val probe: String? = null)
+
+/**
+ * What a failing icon fetch looked like on the wire, for the diagnostic report only. Every icon
+ * on the XR80 fails "http 403, https with key: SocketTimeoutException", and these lines are what
+ * tell a TV that wants its key over plain HTTP from one whose port 443 just doesn't serve DIAL.
+ * Never a host, a URL, a cookie or a header value beyond the few below, each cut to a token:
+ * `Server`, the `Content-Type` without parameters, the `Content-Length` digits, and only the
+ * scheme name of `WWW-Authenticate` (its parameters can carry a realm or nonce).
+ */
+object IconProbe {
+    /** One answered request: `http 403 server=… type=text/html length=0 auth=Basic`. */
+    fun response(scheme: String, status: Int, server: String?, contentType: String?, contentLength: String?, wwwAuthenticate: String?): String =
+        "$scheme $status server=${token(server, 40)} type=${token(contentType?.substringBefore(';'), 40)} " +
+            "length=${contentLength?.trim()?.takeIf { it.isNotEmpty() && it.length <= 12 && it.all(Char::isDigit) } ?: "-"} " +
+            "auth=${token(wwwAuthenticate?.trim()?.split(' ', ',')?.firstOrNull(), 20)}"
+
+    /** One request that got no answer: the exception class and the phase it stopped in (connect, tls, write, read). */
+    fun failure(scheme: String, exception: String, phase: String?): String = "$scheme ${token(exception, 60)} at ${token(phase, 20)}"
+
+    private fun token(value: String?, max: Int): String {
+        val kept = value.orEmpty().trim().filter { it.isLetterOrDigit() && it.code < 128 || it in " ._/()+-" }.take(max).trim()
+        return kept.ifEmpty { "-" }
+    }
+}
 
 /**
  * Where an app icon can come from, and how often to ask again. Only ever from the TV itself:
  * an icon URL naming another address of the TV (loopback, a second interface, a LAN name) is
  * aimed back at the configured TV host, so the pin and the private-address rule still hold;
  * an internet host is never fetched.
+ *
+ * Diagnostics: each plan carries the URL's shape (scheme, port, first path segments, how the host
+ * relates to the TV, never the host itself), which is also the shape of the URL fetched, since
+ * only the host is swapped. [IconBook] keeps the first failing fetch of the session as an
+ * [IconProbe]: status and a few headers per answer, and for a request with no answer, whether it
+ * stopped at connect, TLS or read. The HTTPS retry with the key ([IconAttempt.detail] "http 403,
+ * https with key") goes to the TV's own port 443 at the same path, which the shape lets the
+ * report compare with the TV's URL. The PSK still never rides plain HTTP for an icon.
  */
 object AppIcons {
     /** How a TV's icon URL relates to the TV, for the report: never the address itself. */
@@ -106,7 +141,11 @@ object AppIcons {
  * when to try again. Keyed by package. A URL the TV changes starts over; an outcome that cannot
  * change by waiting (blank, internet host, too big) is not retried until the URL does.
  */
-data class IconBook(val entries: Map<String, Entry> = emptyMap()) {
+data class IconBook(
+    val entries: Map<String, Entry> = emptyMap(),
+    /** The first failing fetch's [IconProbe] this session; kept, never replaced, so the report stays one line. */
+    val probe: String? = null,
+) {
     data class Entry(val url: String?, val shape: String, val last: IconAttempt, val failures: Int, val nextAtMs: Long)
 
     fun due(packageName: String, url: String?, nowMs: Long): Boolean {
@@ -121,7 +160,8 @@ data class IconBook(val entries: Map<String, Entry> = emptyMap()) {
         val previous = entries[packageName]?.takeIf { it.url == key }
         val failures = if (attempt.outcome == IconOutcome.CACHED) 0 else (previous?.failures ?: 0) + 1
         val next = if (attempt.outcome.retry) nowMs + AppIcons.retryDelayMs(failures) else Long.MAX_VALUE
-        return copy(entries = entries + (packageName to Entry(key, shape, attempt, failures, next)))
+        val probe = probe ?: attempt.probe?.let { "$packageName: $it" }
+        return copy(entries = entries + (packageName to Entry(key, shape, attempt, failures, next)), probe = probe)
     }
 
     /**
@@ -137,6 +177,6 @@ data class IconBook(val entries: Map<String, Entry> = emptyMap()) {
             val instead = shown(pkg)?.let { "; shown: $it" }.orEmpty()
             "$pkg: ${e.last.outcome.label}$detail, ${e.shape}, tries ${e.failures}$instead"
         }
-        return listOf(summary) + missing
+        return listOf(summary) + missing + listOfNotNull(probe?.let { "first failing fetch: $it" })
     }
 }
