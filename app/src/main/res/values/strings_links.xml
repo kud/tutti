@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Open a link on the TV: developer probe for app deep links (Maya, 2026-10-27). -->
+    <string name="link_probe_title">Open a link on the TV</string>
+    <string name="link_probe_intro">Sends a link to the TV as an app link, the way the remote opens apps, then says what the TV showed afterwards. Use it to see which links an app follows.</string>
+    <string name="link_probe_field">Link</string>
+    <string name="link_probe_send">Send to the TV</string>
+    <string name="link_probe_result">Result</string>
+    <string name="link_probe_nothing_yet">Nothing sent yet</string>
+    <string name="link_probe_watching">Sent. Watching the TV for %1$d seconds…</string>
+    <string name="link_probe_preset_detail">Try this YouTube link</string>
+    <string name="link_probe_no_app">no app reported</string>
+    <string name="link_probe_invalid">Not sent: a link needs a scheme such as https:// and no spaces.</string>
+    <string name="link_probe_not_sent">Not sent: the remote link to the TV isn\'t ready.</string>
+    <string name="link_probe_unobserved">Sent. The TV doesn\'t report what it shows right now, so check the screen.</string>
+    <string name="link_probe_opened">Sent. The TV now shows %1$s (before: %2$s).</string>
+    <string name="link_probe_same">Sent. %1$s stayed in front. tutti can\'t see inside the app, so check the screen to see whether it moved.</string>
+    <string name="link_probe_gone">Sent. The TV now reports no app in front (before: %1$s).</string>
+</resources>
