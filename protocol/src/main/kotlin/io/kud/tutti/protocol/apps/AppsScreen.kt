@@ -93,17 +93,20 @@ object AppsScreen {
         }?.let { AppsScreenRoute.Ircc(it.name, it.value) }
 
     /**
-     * Most specific first: the apps activity itself, then the action the keycode would produce
-     * (it also covers a remote service that drops keycode 284 before it reaches the policy), then
-     * the keycode as it shipped before, then, with IP control on, the TV's own IRCC key for it
-     * ([irccRoute]): Sony's own path, outside the Remote v2 service that dropped the others on
-     * the XR80 (Erwann, 2026-10-26: "The TV didn't open its apps screen").
+     * The TV's own IRCC key first when IP control is on and its list names one ([irccRoute]):
+     * Sony's own path, outside the Remote v2 service that dropped the others on the XR80 (Erwann,
+     * 2026-10-26: "The TV didn't open its apps screen"). Asked last, it waited behind three
+     * Remote v2 routes of [AppsScreenOpener.CONFIRM_MS] each: the screen took about 5 s on dev.28
+     * (Erwann, 2026-10-27), which only this key fits. Then, for a TV with no such key or IP control off, the
+     * Remote v2 routes, most specific first: the apps activity itself, the action the keycode
+     * would produce (it also covers a remote service that drops keycode 284 before it reaches the
+     * policy), and the keycode as it shipped before.
      */
     fun routes(ircc: AppsScreenRoute.Ircc? = null): List<AppsScreenRoute> = listOfNotNull(
+        ircc,
         AppsScreenRoute.Link(componentLink(APPS_ACTIVITY)),
         AppsScreenRoute.Link(actionLink(ACTION_ALL_APPS, GOOGLE_TV_LAUNCHER)),
         AppsScreenRoute.Key(V2Key.ALL_APPS),
-        ircc,
     )
 }
 

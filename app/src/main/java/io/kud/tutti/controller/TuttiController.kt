@@ -1587,10 +1587,13 @@ class TuttiController @Inject constructor(
     /**
      * The TV's own apps screen, over the remote link. KEYCODE_ALL_APPS alone did nothing on the
      * XR80 (dev.71), and neither did the intent links after it (2026-10-26), so [AppsScreenOpener]
-     * also tries, last and with IP control on, the TV's own IRCC key for it when its list names
-     * one ([AppsScreen.irccRoute]). It watches the foreground app; [TuttiEvent.AppsScreen] says
+     * tries first, with IP control on, the TV's own IRCC key for it when its list names one
+     * ([AppsScreen.irccRoute]), then the Remote v2 routes. It watches the foreground app; [TuttiEvent.AppsScreen] says
      * what it saw. With the link down it waits like a one-shot key ([TvLinkRule]) and says so.
      */
+    /** The apps-screen IRCC key a REST client's list gave, when TV settings had not loaded it ([openAllApps]). */
+    @Volatile private var appsScreenIrcc: Pair<BraviaClient, AppsScreenRoute.Ircc?>? = null
+
     fun openAllApps() {
         scope.launch {
             if (!atv.state.value.ready) {
@@ -1609,9 +1612,17 @@ class TuttiController @Inject constructor(
             val client = bravia
             val restOnline = client != null && links.value.rest == Link.ONLINE
             val ircc = if (client != null && restOnline && client.capabilities.supports(BraviaService.SYSTEM, "getRemoteControllerInfo")) {
-                // The TV's own key list, as TV settings read it; asked once here when not loaded yet.
+                // The TV's own key list, as TV settings read it; when not loaded yet, asked once per
+                // REST client and remembered, so a second press doesn't pay the round trip again.
                 val known = tv.value.settings.ircc
-                AppsScreen.irccRoute(known.ifEmpty { client.remoteControllerInfo().getOrNull().orEmpty() })
+                if (known.isNotEmpty()) {
+                    AppsScreen.irccRoute(known)
+                } else {
+                    appsScreenIrcc?.takeIf { it.first === client }?.second
+                        ?: client.remoteControllerInfo().getOrNull()?.let { codes ->
+                            AppsScreen.irccRoute(codes).also { appsScreenIrcc = client to it }
+                        }
+                }
             } else {
                 null
             }
