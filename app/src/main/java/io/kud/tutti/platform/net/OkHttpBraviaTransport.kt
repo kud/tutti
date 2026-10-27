@@ -292,8 +292,14 @@ class OkHttpBraviaTransport internal constructor(
             call.attempt()?.phase = "write"
         }
 
-        override fun responseHeadersStart(call: Call) {
-            call.attempt()?.phase = "read headers"
+        // The request is out: from here on the call waits on the TV. OkHttp reports
+        // responseHeadersStart only once header bytes arrive, so it can't mark the wait.
+        override fun requestHeadersEnd(call: Call, request: Request) {
+            call.attempt()?.phase = "read"
+        }
+
+        override fun requestBodyEnd(call: Call, byteCount: Long) {
+            call.attempt()?.phase = "read"
         }
 
         override fun responseBodyStart(call: Call) {
