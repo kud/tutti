@@ -84,7 +84,7 @@
     <string name="bar_input_rename">Renommer</string>
     <string name="bar_input_rename_detail">Dans tutti seulement ; la barre garde son nom</string>
     <string name="bar_input_hide">Masquer</string>
-    <string name="bar_input_hide_detail">Sort de la rangée ; à réafficher dans Réglages › Barre</string>
+    <string name="bar_input_hide_detail">Sort de la rangée ; à réafficher dans Réglages › Barre de son</string>
     <string name="bar_input_pin_detail">À un tap de la télécommande</string>
     <string name="bar_input_rename_title">Renommer %1$s</string>
     <string name="bar_input_rename_reset">Nom d’origine</string>

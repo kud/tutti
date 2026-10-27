@@ -18,6 +18,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -33,11 +34,15 @@ import io.kud.tutti.ui.common.LocalRowSurface
 import io.kud.tutti.ui.common.SettingsGroup
 import io.kud.tutti.ui.common.SwitchRow
 import io.kud.tutti.ui.common.featureLabel
+import io.kud.tutti.ui.common.openBraviaConnect
 import io.kud.tutti.ui.remote.LevelSlider
 import io.kud.tutti.ui.remote.barReason
 import io.kud.tutti.ui.remote.choiceLabel
 
-/** Soundbar system settings over TCP 33336: HDMI, standby, Bluetooth, updates, device info. Never the serial. */
+/**
+ * Settings › Soundbar: the bar's system settings over TCP 33336 (HDMI, standby, Bluetooth, updates,
+ * device info, never the serial), its hidden inputs, and what stays in BRAVIA Connect.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BarSettingsScreen(state: TuttiUiState, controller: TuttiController, onBack: () -> Unit) {
@@ -45,7 +50,7 @@ fun BarSettingsScreen(state: TuttiUiState, controller: TuttiController, onBack: 
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.settings_bar_settings)) },
+                title = { Text(stringResource(R.string.settings_bar)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(painterResource(R.drawable.ic_back), contentDescription = stringResource(R.string.action_back))
@@ -107,6 +112,17 @@ fun BarSettingsScreen(state: TuttiUiState, controller: TuttiController, onBack: 
                         }
                     }
                 }
+            }
+            // Calibration lives in Sony's app; reachable with or without the bar in reach.
+            val context = LocalContext.current
+            SettingsGroup(stringResource(R.string.settings_bravia_connect)) {
+                LinkRow(
+                    title = stringResource(R.string.sound_recalibrate),
+                    detail = stringResource(R.string.settings_recalibrate_detail),
+                    enabled = true,
+                    onClick = { openBraviaConnect(context) },
+                    icon = R.drawable.ic_open,
+                )
             }
         }
     }

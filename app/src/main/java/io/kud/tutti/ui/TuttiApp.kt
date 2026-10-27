@@ -62,6 +62,9 @@ import io.kud.tutti.ui.scenes.SceneEditorScreen
 import io.kud.tutti.ui.scenes.ScenesScreen
 import io.kud.tutti.ui.settings.BarSettingsScreen
 import io.kud.tutti.ui.settings.DiagnosticScreen
+import io.kud.tutti.ui.settings.SettingsCategory
+import io.kud.tutti.ui.settings.SettingsMenu
+import io.kud.tutti.ui.settings.SettingsPageScreen
 import io.kud.tutti.ui.settings.SettingsScreen
 import io.kud.tutti.ui.settings.TechnicalScreen
 import io.kud.tutti.ui.settings.TvPage
@@ -79,7 +82,11 @@ sealed interface Screen {
     /** Null id: a new scene. */
     data class SceneEditor(val sceneId: String?) : Screen
 
+    /** Settings' top level: one row per category. */
     data object Settings : Screen
+
+    /** A category with its own screen under Settings ([SettingsMenu.pages]): Devices, Remote & dock, Display & feedback, Advanced. */
+    data class SettingsPage(val category: SettingsCategory) : Screen
 
     /** The TV hub: Picture, Sound, Inputs, Power, About this TV. */
     data object TvSettings : Screen
@@ -112,6 +119,7 @@ internal object ScreenKey {
         Screen.Scenes -> "scenes"
         is Screen.SceneEditor -> "scene:" + screen.sceneId.orEmpty()
         Screen.Settings -> "settings"
+        is Screen.SettingsPage -> "settings:" + screen.category.name
         Screen.TvSettings -> "tv-settings"
         is Screen.TvSettingsPage -> "tv-settings:" + screen.page.name
         Screen.BarSettings -> "bar-settings"
@@ -128,6 +136,7 @@ internal object ScreenKey {
         key == "scenes" -> Screen.Scenes
         key.startsWith("scene:") -> Screen.SceneEditor(key.removePrefix("scene:").ifEmpty { null })
         key == "settings" -> Screen.Settings
+        key.startsWith("settings:") -> SettingsMenu.pages.firstOrNull { it.name == key.removePrefix("settings:") }?.let { Screen.SettingsPage(it) }
         key == "tv-settings" -> Screen.TvSettings
         key.startsWith("tv-settings:") -> TvPage.entries.firstOrNull { it.name == key.removePrefix("tv-settings:") }?.let { Screen.TvSettingsPage(it) }
         key == "bar-settings" -> Screen.BarSettings
@@ -178,6 +187,11 @@ fun TuttiApp(
     fun home() {
         forward = false
         while (stack.size > 1) stack.removeAt(stack.lastIndex)
+    }
+
+    fun pushAll(screens: List<Screen>) {
+        forward = true
+        stack.addAll(screens)
     }
 
     fun pop() {
@@ -346,17 +360,10 @@ fun TuttiApp(
                             onEditScene = { push(Screen.SceneEditor(it)) },
                             onAddBar = { push(Screen.Onboarding(barOnly = true, cancellable = true)) },
                             onConnectionStep = { step ->
-                                when (step) {
-                                    ConnAction.PAIR_TV -> {
-                                        controller.resetPairing()
-                                        push(Screen.Onboarding(cancellable = true))
-                                    }
-                                    // IP control's home is its checklist step: the TV's menu path and
-                                    // tutti's own field for the key (the PIN, once it lands there).
-                                    ConnAction.SET_UP_IP -> push(Screen.Unlock(io.kud.tutti.ui.settings.Unlock.IP_CONTROL))
-                                    ConnAction.ADD_BAR -> push(Screen.Onboarding(barOnly = true, cancellable = true))
-                                    else -> push(Screen.Settings)
-                                }
+                                // IP control's home is its checklist step: the TV's menu path and tutti's
+                                // own field for the key; a computer's pairing is its row in Settings › Devices.
+                                if (step == ConnAction.PAIR_TV) controller.resetPairing()
+                                pushAll(SettingsRoutes.connectionStep(step))
                             },
                             editing = editingLayout,
                             onEditingChange = { editingLayout = it },
@@ -375,23 +382,25 @@ fun TuttiApp(
                         )
                         Screen.Settings -> SettingsScreen(
                             state = state,
+                            onBack = ::pop,
+                            onOpen = { push(SettingsRoutes.category(it)) },
+                        )
+                        is Screen.SettingsPage -> SettingsPageScreen(
+                            category = screen.category,
+                            state = state,
                             controller = controller,
                             onBack = ::pop,
-                            onOpenTv = { push(Screen.TvSettings) },
-                            onOpenBar = { push(Screen.BarSettings) },
                             onOpenDiagnostic = { push(Screen.Diagnostic) },
                             hid = hid,
-                            onOpenAbout = { push(Screen.About) },
                             onEditLayout = {
                                 editingLayout = true
-                                pop()
+                                home()
                             },
                             onPair = {
                                 controller.resetPairing()
                                 push(Screen.Onboarding(cancellable = true))
                             },
                             onAddBar = { push(Screen.Onboarding(barOnly = true, cancellable = true)) },
-                            onOpenUnlock = { push(Screen.Unlock()) },
                             onOpenTechnical = { push(Screen.Technical) },
                         )
                         Screen.TvSettings -> TvSettingsScreen(

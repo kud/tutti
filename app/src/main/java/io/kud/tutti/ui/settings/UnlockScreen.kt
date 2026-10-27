@@ -50,7 +50,6 @@ import io.kud.tutti.controller.Link
 import io.kud.tutti.controller.TuttiController
 import io.kud.tutti.controller.TuttiUiState
 import io.kud.tutti.ui.common.SettingsGroup
-import io.kud.tutti.ui.common.SettingsRow
 import io.kud.tutti.ui.onboarding.IpControlDialog
 
 /** The glyph and word for each status: the state reads in shape and words, never colour alone. */
@@ -313,17 +312,11 @@ private fun Quiet(@StringRes label: Int, onClick: () -> Unit) {
     TextButton(onClick = onClick) { Text(stringResource(label)) }
 }
 
-/** The Settings entry: progress in words ("3 of 4 set up · next: Remote start"), opening the checklist. */
+/** The Settings row's live line: progress in words ("3 of 4 set up · next: Remote start"). */
 @Composable
-fun UnlockEntryRow(state: TuttiUiState, onOpen: () -> Unit) {
+fun unlockLine(state: TuttiUiState): String {
     val summary = unlockSummary(unlocks(state))
-    SettingsRow(
-        title = stringResource(R.string.unlock_entry),
-        icon = R.drawable.ic_unlock,
-        detail = summary.next?.let {
-            stringResource(R.string.unlock_entry_progress, summary.done, summary.total, stringResource(unlockTitle(it)))
-        } ?: stringResource(R.string.unlock_entry_all),
-        onClick = onOpen,
-        trailing = { io.kud.tutti.ui.common.OpensChevron() },
-    )
+    return summary.next?.let {
+        stringResource(R.string.unlock_entry_progress, summary.done, summary.total, stringResource(unlockTitle(it)))
+    } ?: stringResource(R.string.unlock_entry_all)
 }

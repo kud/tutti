@@ -82,7 +82,7 @@ fun TvSettingsScreen(
     onOpenPage: (TvPage) -> Unit,
     onOpenUnlock: () -> Unit = {},
 ) {
-    TvFrame(stringResource(R.string.settings_tv_settings), state, controller, onBack, onOpenUnlock) {
+    TvFrame(stringResource(R.string.settings_tv), state, controller, onBack, onOpenUnlock) {
         val rows = TvHub.rows(state.tv)
         if (rows.isNotEmpty()) SettingsGroup(null) {
             rows.forEach { page ->
@@ -425,7 +425,7 @@ private fun AboutPage(state: TuttiUiState) {
 
 /** Power saving's four modes in words, by the value the TV takes. */
 @Composable
-private fun powerSavingModes(): List<Pair<String, String>> = listOf(
+internal fun powerSavingModes(): List<Pair<String, String>> = listOf(
     "off" to stringResource(R.string.tv_power_saving_off),
     "low" to stringResource(R.string.tv_power_saving_low),
     "high" to stringResource(R.string.tv_power_saving_high),
