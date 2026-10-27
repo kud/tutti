@@ -64,6 +64,8 @@ class MessageCopyTest {
 
         /** Every string shown as a message. A new message string joins this list. */
         val MESSAGES = listOf(
+            // The updater's daily check (TuttiApp).
+            "update_available",
             // Problems.report and the problem reporter (TuttiApp, VoiceButton).
             "scene_failed_steps",
             "error_action_failed",
