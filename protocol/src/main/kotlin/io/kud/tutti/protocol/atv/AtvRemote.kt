@@ -55,6 +55,15 @@ class AtvRemote(
     @Volatile private var connection: TlsConnection? = null
     private var readJob: Job? = null
 
+    /**
+     * Why the current session's read ended, when it ended in an error; null while it is open,
+     * after a clean EOF, and from the next [connect] or [disconnect]. TLS 1.3 sends a refused
+     * client certificate after the handshake, so it surfaces here, on the first read, and never
+     * from [connect]: the caller reads it to tell a forgotten pairing from a quiet TV.
+     */
+    @Volatile var failure: Throwable? = null
+        private set
+
     suspend fun connect(host: String, identity: ClientIdentity, serverPin: CertificatePin) {
         disconnect()
         val conn = connector.connect(host, PORT, identity, serverPin)
@@ -84,6 +93,7 @@ class AtvRemote(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
+                if (connection === conn) failure = e
                 mutableState.update { it.copy(error = e.message ?: "connection lost") }
             } finally {
                 // EOF or a read timeout leaves our end open: close it, or the TV keeps a dead session.
@@ -100,6 +110,7 @@ class AtvRemote(
     fun disconnect() {
         val conn = connection
         connection = null
+        failure = null
         readJob?.cancel()
         conn?.close()
         mutableState.update { it.disconnected() }
