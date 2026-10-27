@@ -3,11 +3,15 @@ title: 🔒 Privacy and security
 description: What tutti keeps on the phone, how it trusts the devices, and what it never does.
 ---
 
-tutti only talks to devices on the local network, and keeps everything it needs on the phone.
+tutti talks to the devices on the local network, and keeps everything it needs on the phone. The only exceptions are an optional Sony sign-in and the check for updates on GitHub.
 
-## Local network only
+## Local network first
 
-Every connection goes to a private LAN address. Plain HTTP is refused for anything else.
+The TV, the bar and the computer are reached on private LAN addresses. Plain HTTP is refused for anything else.
+
+## Updates
+
+About › Version, and at most once a day when the app opens, asks GitHub for tutti's newer releases (`api.github.com`, then the release download). Only HTTPS, no account, nothing about you or your devices is sent. A download is checked against the digest GitHub publishes and against tutti's own package before Android asks you to confirm the install. Nothing installs without that confirmation.
 
 ## Trust on first use
 
