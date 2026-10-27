@@ -48,8 +48,7 @@ class AppsScreenTest {
         val codes = listOf(IrccCode("Home", "AAAAAQAAAAEAAABgAw=="), IrccCode("ApplicationLauncher", "AAAAAgAAAMQAAAAqAw=="))
         val ircc = AppsScreen.irccRoute(codes)
         assertEquals(AppsScreenRoute.Ircc("ApplicationLauncher", "AAAAAgAAAMQAAAAqAw=="), ircc)
-        assertEquals<AppsScreenRoute?>(ircc, AppsScreen.routes(ircc).last())
-        assertEquals(4, AppsScreen.routes(ircc).size)
+        assertEquals(listOf(ircc!!) + AppsScreen.routes(), AppsScreen.routes(ircc))
         assertEquals<AppsScreenRoute.Ircc?>(null, AppsScreen.irccRoute(listOf(IrccCode("Home", "AAAA"), IrccCode("apps", ""))))
         assertEquals("apps", AppsScreen.irccRoute(listOf(IrccCode("apps", "BBBB")))?.name)
         val trace = AppsScreenResult(AppsScreenVerdict.FAILED, listOf(AppsScreenAttempt(ircc!!, sent = true, foreground = someApp))).trace()
@@ -90,6 +89,42 @@ class AppsScreenTest {
         assertEquals(routes, result.attempts.map { it.route })
         assertEquals(2 * AppsScreenOpener.CONFIRM_MS + 300, currentTime)
         assertEquals(someApp, result.attempts.first().foreground)
+    }
+
+    @Test
+    fun `the TV's own key goes first and opens the screen without waiting on Remote v2`() = runTest {
+        val foreground = MutableStateFlow<String?>(someApp)
+        val ircc = AppsScreenRoute.Ircc("ApplicationLauncher", "AAAAAgAAAMQAAAAqAw==")
+        val sent = mutableListOf<AppsScreenRoute>()
+        val result = AppsScreenOpener(
+            send = { route ->
+                sent += route
+                if (route is AppsScreenRoute.Ircc) launch { delay(250); foreground.value = launcher }
+                true
+            },
+            foreground = foreground,
+            current = { foreground.value },
+        ).open(AppsScreen.routes(ircc))
+        assertEquals(AppsScreenVerdict.OPENED, result.verdict)
+        assertEquals(listOf<AppsScreenRoute>(ircc), sent)
+        assertEquals(250, currentTime)
+    }
+
+    @Test
+    fun `with IP control down the key is skipped at once and Remote v2 carries on`() = runTest {
+        val foreground = MutableStateFlow<String?>(someApp)
+        val ircc = AppsScreenRoute.Ircc("ApplicationLauncher", "AAAAAgAAAMQAAAAqAw==")
+        val result = AppsScreenOpener(
+            send = { route ->
+                if (route is AppsScreenRoute.Link) launch { delay(200); foreground.value = launcher }
+                route !is AppsScreenRoute.Ircc
+            },
+            foreground = foreground,
+            current = { foreground.value },
+        ).open(AppsScreen.routes(ircc))
+        assertEquals(AppsScreenVerdict.OPENED, result.verdict)
+        assertEquals(listOf(false, true), result.attempts.map { it.sent })
+        assertEquals(200, currentTime)
     }
 
     @Test
