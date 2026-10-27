@@ -104,6 +104,8 @@ Keep it (and its passwords) somewhere safe outside the repo. If a secret is miss
 
 The Android TV Remote v2 protos and pairing hash come from [kud/androidtv-remote](https://github.com/kud/androidtv-remote) (MIT, © 2021 louis49, © 2026 Erwann Mest). Soundbar protocol knowledge from [bravia-quad-homeassistant](https://github.com/steamEngineer/bravia-quad-homeassistant) (MIT), reimplemented.
 
+App logos and icons under `app/src/main/res/` belong to their owners, are used only to identify the app a button opens, and are not covered by the MIT licence. Their sources are listed in [`docs/brand-icons.md`](docs/brand-icons.md).
+
 ---
 
 MIT © [kud](https://github.com/kud) — Made with ❤️
