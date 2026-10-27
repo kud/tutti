@@ -44,4 +44,15 @@ class PowerPlanTest {
         assertFalse(p.wakeBar)
         assertTrue(plan(PowerTarget.BAR, true, tvReach = false, barReach = false, bar = false).nothing)
     }
+
+    @Test
+    fun theShortPressSwitchesTheTvAlone() {
+        // The bar's own power never decides it: on, off or unknown, the press follows the TV.
+        assertEquals(PowerTarget.TV to false, shortPress(hasTv = true, tvPowered = true, barPowered = false))
+        assertEquals(PowerTarget.TV to true, shortPress(hasTv = true, tvPowered = false, barPowered = true))
+        assertEquals(PowerTarget.TV to true, shortPress(hasTv = true, tvPowered = null, barPowered = true))
+        // With no TV set up it switches the bar.
+        assertEquals(PowerTarget.BAR to false, shortPress(hasTv = false, tvPowered = null, barPowered = true))
+        assertEquals(PowerTarget.BAR to true, shortPress(hasTv = false, tvPowered = null, barPowered = null))
+    }
 }

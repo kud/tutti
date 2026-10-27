@@ -195,6 +195,28 @@ class DiagnosticRunnerTest {
     }
 
     @Test
+    fun `a service discovery never listed is skipped while others answered`() = runTest {
+        val asked = mutableListOf<String>()
+        val rest = object : BraviaTransport {
+            override suspend fun post(path: String, body: String, headers: Map<String, String>): HttpReply {
+                val method = Json.parseToJsonElement(body).jsonObject["method"]!!.jsonPrimitive.content
+                asked += "$path $method"
+                // The XR80 has no videoScreen endpoint (2026-10-26).
+                if (path == "/sony/videoScreen") return HttpReply(404, "")
+                return livingRoomTv(method)
+            }
+
+            override val scheme: String get() = "https"
+        }
+        val runner = DiagnosticRunner(targets(bar = null), rest, RefusingTls, FakeTcp(null), { client }, null, "unavailable")
+        runner.run()
+        val scene = runner.steps.value.of("rest.scene")
+        assertEquals(StepStatus.SKIPPED, scene.status)
+        assertEquals("not_listed", scene.errorClass)
+        assertFalse(asked.any { it.endsWith("getSceneSetting") }, asked.toString())
+    }
+
+    @Test
     fun `nothing configured skips every step without touching the network`() = runTest {
         val tcp = FakeTcp(null)
         val runner = DiagnosticRunner(targets(tv = null, bar = null, psk = null, pin = null), null, RefusingTls, tcp, { null }, null, "unavailable")
@@ -387,5 +409,18 @@ class DiagnosticRunnerTest {
         val shape = JsonShape.of(json, sensitive)
         assertEquals("""[{"model":"K-65XR80","serial":<redacted>,"macAddr":<redacted>,"inputs":[2x {"uri":str(20)}]}]""", shape)
         assertEquals(setOf(SERIAL, MAC), sensitive)
+    }
+
+    @Test
+    fun `button names are not identifying, so they never reach the scrub list`() {
+        val sensitive = mutableSetOf<String>()
+        val json = Json.parseToJsonElement("""[{"bundled":true,"type":"IR_REMOTE_BUNDLE_TYPE_AEP_N"},[{"name":"Red","value":"AAAAAgAAAJcAAAAlAw=="},{"name":"Play","value":"x"}]]""")
+        JsonShape.of(json, sensitive, public = setOf("name"))
+        assertTrue(sensitive.isEmpty(), sensitive.toString())
+        val ircc = DiagnosticSteps.REST_READS.first { it.method == "getRemoteControllerInfo" }
+        assertEquals(setOf("name"), ircc.public)
+        // Elsewhere a name is still someone's: the bar's, an input's.
+        JsonShape.of(Json.parseToJsonElement("""{"name":"Invented Lounge"}"""), sensitive)
+        assertEquals(setOf("Invented Lounge"), sensitive)
     }
 }

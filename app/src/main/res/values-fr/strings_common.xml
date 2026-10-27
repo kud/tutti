@@ -2,6 +2,7 @@
 <resources>
     <string name="cancel">Annuler</string>
     <string name="error_action_failed">L’appareil n’a pas répondu</string>
+    <string name="error_key_refused">La TV a refusé la clé</string>
     <string name="scene_missing">Scène supprimée</string>
     <string name="bar_power">Marche / arrêt</string>
     <string name="bar_volume">Volume</string>

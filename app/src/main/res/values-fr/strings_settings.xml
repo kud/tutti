@@ -108,7 +108,7 @@
     <string name="tv_rest_offline_title">Le contrôle IP de la TV ne répond pas</string>
     <string name="tv_rest_offline_body">Ces réglages passent par le contrôle IP de la TV. Pour l’activer, sur la TV :\n\n1. Paramètres › Réseau et Internet › Réseau domestique › Contrôle IP (le chemin du guide Sony).\n2. Authentification : « Normale » ou « Normale et clé pré-partagée ».\n3. De retour dans tutti, « Contrôle IP » affiche un code sur la TV à saisir ici (ou prend une clé PSK).\n4. Activez aussi « Démarrage à distance », pour que la TV réponde en veille.\n\nLa TV et le téléphone doivent être sur le même réseau.</string>
     <string name="tv_rest_unauthorized_title">La TV refuse l’accès de tutti</string>
-    <string name="tv_rest_unauthorized_body">La TV répond, mais n’accepte plus le code de tutti, ou la clé PSK ne correspond pas. Affichez un nouveau code sur la TV avec « Contrôle IP », ou saisissez la clé PSK exactement comme sur la TV.</string>
+    <string name="tv_rest_unauthorized_body">La TV répond, mais refuse le code ou la clé PSK de tutti. Vérifiez la clé sur la TV (Paramètres › Réseau et Internet › Réseau domestique › Contrôle IP › Clé pré-partagée), puis saisissez de nouveau cette même clé avec « Contrôle IP », exactement comme elle s’affiche. Ou utilisez plutôt un code : « Contrôle IP » en affiche un sur la TV.</string>
     <string name="tv_rest_connecting">Connexion au contrôle IP de la TV…</string>
     <string name="tv_rest_enter_psk">Contrôle IP…</string>
     <string name="tv_power">Marche / arrêt</string>

@@ -837,6 +837,9 @@ class TuttiController @Inject constructor(
             linkNotes.update { it.copy(rest = null) }
             return
         }
+        // A new session (a new PSK or code restarts this loop) judges the key afresh.
+        pskRefused = false
+        tv.update { it.copy(pskRefused = false) }
         val transport = OkHttpBraviaTransport(device.host, secure.tvRestPin()) { secure.setTvRestPin(it) }
         // The cookie wins when both exist (BraviaClient sends one credential, never both).
         val client = BraviaClient(transport, cookie = { ipCookie?.value }, psk = { psk })
@@ -983,6 +986,28 @@ class TuttiController @Inject constructor(
     @Volatile
     private var appsAskedAt: Long? = null
 
+    /**
+     * The TV refuses the stored PSK on authenticated calls ([PskRules.refused]); reset when the
+     * REST loop restarts. Read and written by the REST session only.
+     */
+    @Volatile
+    private var pskRefused = false
+
+    /** Folds an authenticated call's outcome into [pskRefused]. Never logs the key. */
+    private fun judgePsk(result: BraviaResult<*>?) {
+        val auth = when (result) {
+            null -> PskRules.Auth.NOT_ASKED
+            is BraviaResult.Ok -> PskRules.Auth.ACCEPTED
+            is BraviaResult.Failure -> if (result.error == BraviaError.Unauthorized) PskRules.Auth.REFUSED else PskRules.Auth.OTHER
+        }
+        val refused = PskRules.refused(pskRefused, hasPsk = !psk.isNullOrEmpty(), hasCookie = ipCookie != null, auth = auth)
+        if (refused == pskRefused) return
+        pskRefused = refused
+        // Beside the link, never instead of it: reads that need no key (picture, sound, inputs,
+        // power) keep working, so the link stays online and only the key's own features step back.
+        tv.update { it.copy(pskRefused = refused) }
+    }
+
     /** False when the TV stopped answering. */
     private suspend fun refreshTv(client: BraviaClient): Boolean {
         val power = when (val result = client.powerStatus()) {
@@ -1003,7 +1028,9 @@ class TuttiController @Inject constructor(
         // not asked. It rides this poll (TvPollRules.EVERY_MS), never a loop of its own. A failed or empty
         // answer (what an app playing is expected to give) clears [TvState.playing], so the chip
         // falls back to the app name rather than keeping a stale channel.
-        val playing = if (active && (!psk.isNullOrEmpty() || ipCookie != null)) client.playingContent().getOrNull() else null
+        val playingResult = if (active && (!psk.isNullOrEmpty() || ipCookie != null)) client.playingContent() else null
+        val playing = playingResult?.getOrNull()
+        judgePsk(playingResult)
         val input = playing?.uri
         val pictureMode = if (active && caps.supports(BraviaService.VIDEO, "getPictureQualitySettings")) {
             client.pictureSettings("pictureMode").getOrNull()?.firstOrNull { it.target == "pictureMode" }?.currentValue
@@ -1024,7 +1051,9 @@ class TuttiController @Inject constructor(
         // reconnect, and every AppListRefresh.EVERY_MS while on, so an app installed later shows up.
         val askApps = AppListRefresh.due(active, tvWasActive, current.apps.isNotEmpty(), appsAskedAt, now)
         tvWasActive = active
-        val fetched = if (askApps) client.applications().getOrNull().also { appsAskedAt = now } else null
+        val appsResult = if (askApps) client.applications().also { appsAskedAt = now } else null
+        judgePsk(appsResult)
+        val fetched = appsResult?.getOrNull()
         // A failed or empty answer keeps the list we had.
         val apps = fetched?.takeIf { it.isNotEmpty() } ?: current.apps
         tv.update { it.copy(power = power, input = input ?: it.input, playing = playing, pictureMode = pictureMode ?: it.pictureMode, inputs = inputs, apps = apps) }
@@ -1421,7 +1450,8 @@ class TuttiController @Inject constructor(
         // IP control can launch without the remote link, with a uri the TV listed (now or before).
         val listed = tv.value.apps.any { AppLibrary.packageOf(it.uri) == packageName } ||
             state.value.apps.any { it.packageName == packageName && it.tvUri != null }
-        if (bravia != null && links.value.rest == Link.ONLINE && listed) return LaunchLink.READY
+        // setActiveApp needs the key: a refused one leaves launches to the remote link.
+        if (bravia != null && links.value.rest == Link.ONLINE && !pskRefused && listed) return LaunchLink.READY
         val current = links.value
         return if (TvLinkRule.launchWhileDown(current.tv, current.tvShown) == KeyOutcome.HELD) LaunchLink.ON_ITS_WAY else LaunchLink.DOWN
     }
@@ -1449,7 +1479,7 @@ class TuttiController @Inject constructor(
      */
     private suspend fun launchWithResult(packageName: String): LaunchResult {
         val client = bravia
-        val restOnline = client != null && links.value.rest == Link.ONLINE
+        val restOnline = client != null && links.value.rest == Link.ONLINE && !pskRefused
         val restUri = if (!restOnline) null else restUriFor(packageName)
         val launcher = AppLauncher(
             send = { route ->
@@ -1614,13 +1644,24 @@ class TuttiController @Inject constructor(
     }
 
     /**
-     * One Power for both. A device in reach gets the command at once, optimistic for a few
-     * seconds, then its own reports win. Turning on with one out of reach (the TV in standby)
-     * wakes it instead: the sessions retry now rather than at the end of their backoff, the
-     * TV gets a Wake-on-LAN packet when its MAC is known, [TuttiUiState.waking] shows, and the
-     * command follows once it answers, or [TuttiEvent.WakeFailed] if it never does.
+     * The short press on Power: the TV alone, or the bar when there is no TV ([shortPress]). In
+     * reach, the command goes at once, optimistic for a few seconds, then the TV's own reports
+     * win. Turning on a TV out of reach (in standby) wakes it instead: the sessions retry now
+     * rather than at the end of their backoff, the TV gets a Wake-on-LAN packet when its MAC is
+     * known, [TuttiUiState.waking] shows, and the command follows once it answers, or
+     * [TuttiEvent.WakeFailed] if it never does.
      */
-    fun power() = power(PowerTarget.BOTH, state.value.powered != true)
+    fun power() {
+        val s = state.value
+        val tvPowered = s.remote.powered ?: when (s.tv.power) {
+            PowerStatus.ACTIVE -> true
+            PowerStatus.STANDBY -> false
+            PowerStatus.UNKNOWN -> null
+        }
+        val barPowered = s.bar.isOn(TheatreFeature.POWER).takeIf { s.links.bar == Link.ONLINE }
+        val (target, on) = shortPress(s.devices.tv != null, tvPowered, barPowered)
+        power(target, on)
+    }
 
     /**
      * Power for one device or both (the long press on Power, and the card's "Turn on the TV"),
@@ -2378,9 +2419,12 @@ class TuttiController @Inject constructor(
         )
     }
 
-    private fun actionFailed(what: String, outcome: String) {
-        mutableEvents.tryEmit(TuttiEvent.ActionFailed(failureDetail(what, outcome)))
+    private fun actionFailed(what: String, outcome: String, keyRefused: Boolean = false) {
+        mutableEvents.tryEmit(TuttiEvent.ActionFailed(failureDetail(what, outcome), keyRefused))
     }
+
+    /** The TV answered 401/403: the write needs the key and refused it, which is not "no answer". */
+    private fun BraviaResult<*>.refusedKey(): Boolean = (this as? BraviaResult.Failure)?.error == BraviaError.Unauthorized
 
     private fun outcomeOf(result: BraviaResult<*>?): String = when (result) {
         null -> "no IP control session (rest ${links.value.rest})"
@@ -2621,7 +2665,7 @@ class TuttiController @Inject constructor(
                 TvSettingGroup.SPEAKER -> client.setSpeakerSetting(target, value)
             }
             if (result !is BraviaResult.Ok) {
-                actionFailed("tv setting: $group $target = $value", outcomeOf(result))
+                actionFailed("tv setting: $group $target = $value", outcomeOf(result), keyRefused = result.refusedKey())
                 loadTvSettings()
             }
         }
@@ -2633,7 +2677,7 @@ class TuttiController @Inject constructor(
         scope.launch {
             val result = client.setWolMode(enabled)
             if (result !is BraviaResult.Ok) {
-                actionFailed("tv setting: wake-on-lan = $enabled", outcomeOf(result))
+                actionFailed("tv setting: wake-on-lan = $enabled", outcomeOf(result), keyRefused = result.refusedKey())
                 loadTvSettings()
             }
         }
@@ -2645,7 +2689,7 @@ class TuttiController @Inject constructor(
         scope.launch {
             val result = client.setSceneSetting(value)
             if (result !is BraviaResult.Ok) {
-                actionFailed("tv setting: scene = $value", outcomeOf(result))
+                actionFailed("tv setting: scene = $value", outcomeOf(result), keyRefused = result.refusedKey())
                 loadTvSettings()
             }
         }
@@ -2657,7 +2701,7 @@ class TuttiController @Inject constructor(
         scope.launch {
             val result = client.setSoundSetting(io.kud.tutti.protocol.bravia.TvSetting.OUTPUT_TERMINAL, value)
             if (result !is BraviaResult.Ok) {
-                actionFailed("tv setting: sound output = $value", outcomeOf(result))
+                actionFailed("tv setting: sound output = $value", outcomeOf(result), keyRefused = result.refusedKey())
             }
         }
     }
