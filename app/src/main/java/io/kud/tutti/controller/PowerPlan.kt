@@ -1,6 +1,6 @@
 package io.kud.tutti.controller
 
-/** Which device a Power command is for: the short press is [BOTH]; the long press offers all three. */
+/** Which device a Power command is for: the short press is [shortPress]; the long press offers all three. */
 enum class PowerTarget { TV, BAR, BOTH }
 
 /**
@@ -49,3 +49,11 @@ fun powerPlan(
         },
     )
 }
+
+/**
+ * The short press on Power (Erwann, 2026-10-27: the TV only; the bar is switched from the long
+ * press). With a TV set up it switches the TV from its own power, and the bar follows it or not by
+ * its own HDMI link; with the bar alone it switches the bar. An unknown power is treated as off.
+ */
+fun shortPress(hasTv: Boolean, tvPowered: Boolean?, barPowered: Boolean?): Pair<PowerTarget, Boolean> =
+    if (hasTv) PowerTarget.TV to (tvPowered != true) else PowerTarget.BAR to (barPowered != true)
