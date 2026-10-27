@@ -34,6 +34,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.kud.tutti.R
 import io.kud.tutti.ui.motion.Motion
@@ -74,13 +75,15 @@ val LocalRowSurface = staticCompositionLocalOf { Color.Transparent }
 /**
  * One settings row. [notice] replaces [detail] when the setting is inactive for a reason outside
  * tutti: it leads with a warning glyph so the state reads in shape and words, never colour alone.
- * A disabled row fades but always keeps a detail that says why.
+ * A disabled row fades but always keeps a detail that says why. [detailMaxLines] holds a live
+ * line to its lines, ending in an ellipsis.
  */
 @Composable
 fun SettingsRow(
     title: String,
     modifier: Modifier = Modifier,
     detail: String? = null,
+    detailMaxLines: Int = Int.MAX_VALUE,
     @DrawableRes icon: Int? = null,
     notice: String? = null,
     enabled: Boolean = true,
@@ -107,7 +110,13 @@ fun SettingsRow(
             Text(title, style = MaterialTheme.typography.bodyLarge)
             when {
                 notice != null -> Notice(notice)
-                detail != null -> Text(detail, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                detail != null -> Text(
+                    detail,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = detailMaxLines,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
             footer?.invoke()
         }

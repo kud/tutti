@@ -26,7 +26,7 @@ import io.kud.tutti.ui.common.rememberHaptics
 import io.kud.tutti.ui.common.tabular
 
 /**
- * Settings › Volume: the high-volume guard (Erwann, 2026-10-25), on by default at 30 on the bar's
+ * Settings › Remote & dock › Volume: the high-volume guard (Erwann, 2026-10-25), on by default at 30 on the bar's
  * 0–100 scale; a switch to turn it off and the threshold in steps of one, never a slider a stray
  * drag could move.
  */

@@ -16,15 +16,10 @@
     <string name="settings_setup_again">Run setup again</string>
     <string name="settings_setup_again_detail">Pair the TV, then add the soundbar</string>
     <string name="settings_tv">TV</string>
-    <string name="settings_tv_settings">TV settings</string>
-    <string name="settings_tv_settings_detail">Picture, sound output, speakers, inputs, power saving</string>
     <string name="settings_tv_settings_needs">IP control: %1$s</string>
     <string name="settings_bar">Soundbar</string>
-    <string name="settings_bar_settings">Soundbar system settings</string>
-    <string name="settings_bar_settings_detail">HDMI, standby, Bluetooth, updates, information</string>
     <string name="settings_shortcuts">Shortcuts</string>
     <string name="settings_long_press">Long press on %1$s</string>
-    <string name="settings_app">App</string>
     <string name="settings_feedback">Feedback</string>
     <string name="settings_vibration">Vibration</string>
     <string name="settings_vibration_detail">Every key, step and volume limit</string>
@@ -247,4 +242,39 @@
         <item quantity="one">%1$d setting</item>
         <item quantity="other">%1$d settings</item>
     </plurals>
+    <!-- Settings as categories (Iris, 2026-10-26, step 2): the top level's names and live lines. -->
+    <string name="settings_remote_dock">Remote &amp; dock</string>
+    <string name="settings_display_feedback">Display &amp; feedback</string>
+    <string name="settings_display">Display</string>
+    <string name="settings_quick_access">Quick access</string>
+    <string name="settings_line_no_devices">No device yet</string>
+    <string name="settings_line_trouble">%1$s %2$s</string>
+    <string name="settings_line_no_tv">No TV set up yet</string>
+    <string name="settings_line_tv_parts">Picture, sound, inputs, power</string>
+    <string name="settings_line_no_bar">No soundbar set up yet</string>
+    <plurals name="settings_line_hidden_inputs">
+        <item quantity="one">%1$d hidden input</item>
+        <item quantity="other">%1$d hidden inputs</item>
+    </plurals>
+    <string name="settings_line_no_pins">No pins</string>
+    <plurals name="settings_line_pins">
+        <item quantity="one">%1$d pin</item>
+        <item quantity="other">%1$d pins</item>
+    </plurals>
+    <string name="settings_line_no_long_press">no long press set</string>
+    <plurals name="settings_line_long_presses">
+        <item quantity="one">%1$d long press set</item>
+        <item quantity="other">%1$d long presses set</item>
+    </plurals>
+    <string name="settings_line_theme_system">System theme</string>
+    <string name="settings_line_theme_light">Light theme</string>
+    <string name="settings_line_theme_dark">Dark theme</string>
+    <string name="settings_line_true_black">true black</string>
+    <string name="settings_line_dark_room">dark room on</string>
+    <string name="settings_line_vibration_on">vibration on</string>
+    <string name="settings_line_vibration_essentials">vibration for essentials</string>
+    <string name="settings_line_vibration_off">vibration off</string>
+    <string name="settings_line_key_sounds">key sounds on</string>
+    <string name="settings_line_developer_off">Developer mode off</string>
+    <string name="settings_line_developer_on">Developer mode on · diagnostic, technical details</string>
 </resources>

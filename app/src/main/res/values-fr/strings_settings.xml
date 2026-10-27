@@ -16,15 +16,10 @@
     <string name="settings_setup_again">Refaire la configuration</string>
     <string name="settings_setup_again_detail">Associer la TV, puis ajouter la barre de son</string>
     <string name="settings_tv">TV</string>
-    <string name="settings_tv_settings">Réglages de la TV</string>
-    <string name="settings_tv_settings_detail">Image, sortie son, haut-parleurs, entrées, économie d’énergie</string>
     <string name="settings_tv_settings_needs">Contrôle IP : %1$s</string>
     <string name="settings_bar">Barre de son</string>
-    <string name="settings_bar_settings">Réglages système de la barre</string>
-    <string name="settings_bar_settings_detail">HDMI, veille, Bluetooth, mises à jour, informations</string>
     <string name="settings_shortcuts">Raccourcis</string>
     <string name="settings_long_press">Appui long sur %1$s</string>
-    <string name="settings_app">Application</string>
     <string name="settings_feedback">Retours</string>
     <string name="settings_vibration">Vibrations</string>
     <string name="settings_vibration_detail">À chaque touche, pas et limite de volume</string>
@@ -247,4 +242,39 @@
         <item quantity="one">%1$d réglage</item>
         <item quantity="other">%1$d réglages</item>
     </plurals>
+    <!-- Réglages par catégories (Iris, 2026-10-26, étape 2) : les noms et lignes d’état du premier niveau. -->
+    <string name="settings_remote_dock">Télécommande et dock</string>
+    <string name="settings_display_feedback">Affichage et retours</string>
+    <string name="settings_display">Affichage</string>
+    <string name="settings_quick_access">Accès rapide</string>
+    <string name="settings_line_no_devices">Aucun appareil pour l’instant</string>
+    <string name="settings_line_trouble">%1$s %2$s</string>
+    <string name="settings_line_no_tv">Aucune TV configurée pour l’instant</string>
+    <string name="settings_line_tv_parts">Image, son, entrées, alimentation</string>
+    <string name="settings_line_no_bar">Aucune barre de son configurée pour l’instant</string>
+    <plurals name="settings_line_hidden_inputs">
+        <item quantity="one">%1$d entrée masquée</item>
+        <item quantity="other">%1$d entrées masquées</item>
+    </plurals>
+    <string name="settings_line_no_pins">Aucune épingle</string>
+    <plurals name="settings_line_pins">
+        <item quantity="one">%1$d épingle</item>
+        <item quantity="other">%1$d épingles</item>
+    </plurals>
+    <string name="settings_line_no_long_press">aucun appui long défini</string>
+    <plurals name="settings_line_long_presses">
+        <item quantity="one">%1$d appui long défini</item>
+        <item quantity="other">%1$d appuis longs définis</item>
+    </plurals>
+    <string name="settings_line_theme_system">Thème du système</string>
+    <string name="settings_line_theme_light">Thème clair</string>
+    <string name="settings_line_theme_dark">Thème sombre</string>
+    <string name="settings_line_true_black">noir pur</string>
+    <string name="settings_line_dark_room">salle obscure activée</string>
+    <string name="settings_line_vibration_on">vibrations activées</string>
+    <string name="settings_line_vibration_essentials">vibrations pour l’essentiel</string>
+    <string name="settings_line_vibration_off">vibrations désactivées</string>
+    <string name="settings_line_key_sounds">sons des touches activés</string>
+    <string name="settings_line_developer_off">Mode développeur désactivé</string>
+    <string name="settings_line_developer_on">Mode développeur activé · diagnostic, détails techniques</string>
 </resources>

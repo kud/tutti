@@ -1901,7 +1901,7 @@ class TuttiController @Inject constructor(
         setVolume(current + delta, source)
     }
 
-    /** The high-volume guard's settings (Settings › Volume). */
+    /** The high-volume guard's settings (Settings › Remote & dock). */
     fun setVolumeGuard(enabled: Boolean, level: Int) {
         scope.launch { store.updatePrefs { it.copy(volumeGuard = enabled, volumeGuardLevel = VolumeRules.threshold(level)) } }
     }
