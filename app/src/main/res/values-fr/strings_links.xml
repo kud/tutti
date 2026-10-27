@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="link_probe_title">Ouvrir un lien sur la TV</string>
+    <string name="link_probe_intro">Envoie un lien à la TV comme lien d\'app, comme la télécommande ouvre les apps, puis indique ce que la TV affichait ensuite. Pratique pour voir quels liens une app suit.</string>
+    <string name="link_probe_field">Lien</string>
+    <string name="link_probe_send">Envoyer à la TV</string>
+    <string name="link_probe_result">Résultat</string>
+    <string name="link_probe_nothing_yet">Rien d\'envoyé pour l\'instant</string>
+    <string name="link_probe_watching">Envoyé. Observation de la TV pendant %1$d secondes…</string>
+    <string name="link_probe_preset_detail">Essayer ce lien YouTube</string>
+    <string name="link_probe_no_app">aucune app signalée</string>
+    <string name="link_probe_invalid">Non envoyé : un lien doit commencer par un schéma comme https:// et ne pas contenir d\'espace.</string>
+    <string name="link_probe_not_sent">Non envoyé : la liaison télécommande avec la TV n\'est pas prête.</string>
+    <string name="link_probe_unobserved">Envoyé. La TV n\'indique pas ce qu\'elle affiche pour l\'instant : vérifiez l\'écran.</string>
+    <string name="link_probe_opened">Envoyé. La TV affiche maintenant %1$s (avant : %2$s).</string>
+    <string name="link_probe_same">Envoyé. %1$s est resté au premier plan. tutti ne voit pas l\'intérieur de l\'app : vérifiez à l\'écran si elle a changé de page.</string>
+    <string name="link_probe_gone">Envoyé. La TV n\'indique plus aucune app au premier plan (avant : %1$s).</string>
+</resources>

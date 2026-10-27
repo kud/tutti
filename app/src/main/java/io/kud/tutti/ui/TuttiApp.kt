@@ -438,7 +438,7 @@ fun TuttiApp(
                             onPair = { push(Screen.Onboarding(cancellable = true)) },
                             onAddBar = { push(Screen.Onboarding(barOnly = true, cancellable = true)) },
                         )
-                        Screen.Technical -> TechnicalScreen(state = state, onOpen = controller::loadTechnical, onBack = ::pop)
+                        Screen.Technical -> TechnicalScreen(state = state, onOpen = controller::loadTechnical, onProbeLink = controller::probeLink, onBack = ::pop)
                         Screen.BarSettings -> BarSettingsScreen(state = state, controller = controller, onBack = ::pop)
                         Screen.Diagnostic -> DiagnosticScreen(diagnostics = diagnostics, onBack = ::pop)
                         is Screen.Onboarding -> OnboardingScreen(
