@@ -29,6 +29,13 @@ class ConnectionsTest {
         connections(input).first { it.id == device }.lines.first { it.link == link }
 
     @Test
+    fun aRefusedKeyIsAWarningOnIpControlWhileTheTvStaysConnected() {
+        val refused = room.copy(pskRefused = true)
+        assertEquals(ConnLine(ConnLink.SONY_IP, ConnWords.KEY_REFUSED, ConnAction.SET_UP_IP), line(refused, "tv", ConnLink.SONY_IP))
+        assertEquals(ConnLine(ConnLink.SONY_IP, ConnWords.CONNECTED), line(room, "tv", ConnLink.SONY_IP))
+    }
+
+    @Test
     fun aBarFoundElsewhereIsAnOfferWithItsOneStepNeverAMove() {
         val moved = room.copy(bar = Link.UNREACHABLE, barOffer = true)
         assertEquals(ConnLine(ConnLink.NETWORK, ConnWords.MOVED, ConnAction.USE_NEW_ADDRESS), line(moved, "bar", ConnLink.NETWORK))

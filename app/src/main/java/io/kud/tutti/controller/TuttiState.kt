@@ -139,6 +139,8 @@ data class TvState(
     val input: String? = null,
     /** The last getPlayingContentInfo answer; null when the TV gave none (an app, standby, no PSK). */
     val playing: io.kud.tutti.protocol.bravia.PlayingContent? = null,
+    /** The TV refuses the stored PSK on calls that need it ([PskRules.refused]), while IP control answers. */
+    val pskRefused: Boolean = false,
     val inputs: List<ExternalInput> = emptyList(),
     val apps: List<TvApp> = emptyList(),
     val capabilities: Capabilities = Capabilities.EMPTY,
@@ -194,7 +196,8 @@ sealed interface TuttiEvent {
     data object VolumeLimit : TuttiEvent
 
     /** [detail] is the redacted technical detail, for "Copy details". */
-    data class ActionFailed(val detail: String) : TuttiEvent
+    /** [keyRefused]: the TV refused IP control's key (401/403), so the words say so. */
+    data class ActionFailed(val detail: String, val keyRefused: Boolean = false) : TuttiEvent
 
     /** The phone's mic would not open for TV voice. */
     data class MicUnavailable(val detail: String) : TuttiEvent

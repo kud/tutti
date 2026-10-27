@@ -839,6 +839,7 @@ class TuttiController @Inject constructor(
         }
         // A new session (a new PSK or code restarts this loop) judges the key afresh.
         pskRefused = false
+        tv.update { it.copy(pskRefused = false) }
         val transport = OkHttpBraviaTransport(device.host, secure.tvRestPin()) { secure.setTvRestPin(it) }
         // The cookie wins when both exist (BraviaClient sends one credential, never both).
         val client = BraviaClient(transport, cookie = { ipCookie?.value }, psk = { psk })
@@ -877,7 +878,8 @@ class TuttiController @Inject constructor(
                     linkTimings.ready(io.kud.tutti.protocol.diagnostic.TimedLink.REST, SystemClock.elapsedRealtime())
                     wait = MIN_BACKOFF_MS
                     unreachable = 0
-                    publishAnsweringLink()
+                    links.update { it.copy(rest = Link.ONLINE) }
+                    linkNotes.update { it.copy(rest = null) }
                     tv.update { it.copy(capabilities = found.value) }
                     // A reconnect may follow installs made meanwhile: ask for the app list again.
                     tvWasActive = false
@@ -885,7 +887,6 @@ class TuttiController @Inject constructor(
                     while (scope.isActive) {
                         val started = SystemClock.elapsedRealtime()
                         if (!refreshTv(client)) break
-                        publishAnsweringLink()
                         if (psk == null && !keepCookieFresh(client)) break
                         awaitNextPoll(started)
                     }
@@ -999,17 +1000,12 @@ class TuttiController @Inject constructor(
             is BraviaResult.Ok -> PskRules.Auth.ACCEPTED
             is BraviaResult.Failure -> if (result.error == BraviaError.Unauthorized) PskRules.Auth.REFUSED else PskRules.Auth.OTHER
         }
-        pskRefused = PskRules.refused(pskRefused, hasPsk = !psk.isNullOrEmpty(), hasCookie = ipCookie != null, auth = auth)
-    }
-
-    /** The REST link for a TV that answers discovery and getPowerStatus: online, unless the key is refused. */
-    private fun publishAnsweringLink() {
-        val link = PskRules.link(pskRefused)
-        if (links.value.rest == link && (link == Link.ONLINE) == (linkNotes.value.rest == null)) return
-        links.update { it.copy(rest = link) }
-        // Built after the link moved, so the note's own "links" line reads the refusal.
-        val note = if (pskRefused) failureDetail("tv ip control: psk", outcome = "the TV refused the PSK on an authenticated call") else null
-        linkNotes.update { it.copy(rest = note) }
+        val refused = PskRules.refused(pskRefused, hasPsk = !psk.isNullOrEmpty(), hasCookie = ipCookie != null, auth = auth)
+        if (refused == pskRefused) return
+        pskRefused = refused
+        // Beside the link, never instead of it: reads that need no key (picture, sound, inputs,
+        // power) keep working, so the link stays online and only the key's own features step back.
+        tv.update { it.copy(pskRefused = refused) }
     }
 
     /** False when the TV stopped answering. */
@@ -1454,7 +1450,8 @@ class TuttiController @Inject constructor(
         // IP control can launch without the remote link, with a uri the TV listed (now or before).
         val listed = tv.value.apps.any { AppLibrary.packageOf(it.uri) == packageName } ||
             state.value.apps.any { it.packageName == packageName && it.tvUri != null }
-        if (bravia != null && links.value.rest == Link.ONLINE && listed) return LaunchLink.READY
+        // setActiveApp needs the key: a refused one leaves launches to the remote link.
+        if (bravia != null && links.value.rest == Link.ONLINE && !pskRefused && listed) return LaunchLink.READY
         val current = links.value
         return if (TvLinkRule.launchWhileDown(current.tv, current.tvShown) == KeyOutcome.HELD) LaunchLink.ON_ITS_WAY else LaunchLink.DOWN
     }
@@ -1482,7 +1479,7 @@ class TuttiController @Inject constructor(
      */
     private suspend fun launchWithResult(packageName: String): LaunchResult {
         val client = bravia
-        val restOnline = client != null && links.value.rest == Link.ONLINE
+        val restOnline = client != null && links.value.rest == Link.ONLINE && !pskRefused
         val restUri = if (!restOnline) null else restUriFor(packageName)
         val launcher = AppLauncher(
             send = { route ->
@@ -2411,9 +2408,12 @@ class TuttiController @Inject constructor(
         )
     }
 
-    private fun actionFailed(what: String, outcome: String) {
-        mutableEvents.tryEmit(TuttiEvent.ActionFailed(failureDetail(what, outcome)))
+    private fun actionFailed(what: String, outcome: String, keyRefused: Boolean = false) {
+        mutableEvents.tryEmit(TuttiEvent.ActionFailed(failureDetail(what, outcome), keyRefused))
     }
+
+    /** The TV answered 401/403: the write needs the key and refused it, which is not "no answer". */
+    private fun BraviaResult<*>.refusedKey(): Boolean = (this as? BraviaResult.Failure)?.error == BraviaError.Unauthorized
 
     private fun outcomeOf(result: BraviaResult<*>?): String = when (result) {
         null -> "no IP control session (rest ${links.value.rest})"
@@ -2654,7 +2654,7 @@ class TuttiController @Inject constructor(
                 TvSettingGroup.SPEAKER -> client.setSpeakerSetting(target, value)
             }
             if (result !is BraviaResult.Ok) {
-                actionFailed("tv setting: $group $target = $value", outcomeOf(result))
+                actionFailed("tv setting: $group $target = $value", outcomeOf(result), keyRefused = result.refusedKey())
                 loadTvSettings()
             }
         }
@@ -2666,7 +2666,7 @@ class TuttiController @Inject constructor(
         scope.launch {
             val result = client.setWolMode(enabled)
             if (result !is BraviaResult.Ok) {
-                actionFailed("tv setting: wake-on-lan = $enabled", outcomeOf(result))
+                actionFailed("tv setting: wake-on-lan = $enabled", outcomeOf(result), keyRefused = result.refusedKey())
                 loadTvSettings()
             }
         }
@@ -2678,7 +2678,7 @@ class TuttiController @Inject constructor(
         scope.launch {
             val result = client.setSceneSetting(value)
             if (result !is BraviaResult.Ok) {
-                actionFailed("tv setting: scene = $value", outcomeOf(result))
+                actionFailed("tv setting: scene = $value", outcomeOf(result), keyRefused = result.refusedKey())
                 loadTvSettings()
             }
         }
@@ -2690,7 +2690,7 @@ class TuttiController @Inject constructor(
         scope.launch {
             val result = client.setSoundSetting(io.kud.tutti.protocol.bravia.TvSetting.OUTPUT_TERMINAL, value)
             if (result !is BraviaResult.Ok) {
-                actionFailed("tv setting: sound output = $value", outcomeOf(result))
+                actionFailed("tv setting: sound output = $value", outcomeOf(result), keyRefused = result.refusedKey())
             }
         }
     }

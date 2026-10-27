@@ -212,7 +212,7 @@ fun TuttiApp(
                     }
                 }
                 TuttiEvent.VolumeLimit -> haptics.bump()
-                is TuttiEvent.ActionFailed -> problems.report(context.getString(R.string.error_action_failed), event.detail)
+                is TuttiEvent.ActionFailed -> problems.report(context.getString(if (event.keyRefused) R.string.error_key_refused else R.string.error_action_failed), event.detail)
                 is TuttiEvent.KeyNotSent -> {
                     // The press's own click already played: a held key gets a soft bump, a dropped
                     // one the reject. The words repeat only once the last ones have gone.
