@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -50,7 +51,8 @@ private class Raster(val image: ImageBitmap, val crop: Boolean, val fill: Int?, 
  *    ([BrandColours.TvLook.Backdrop]; Iris, 2026-10-26), unless the app has a brand face below;
  * 3. the brand's official logo on its brand colour, or the app's own Play Store icon cropped edge to
  *    edge ([brandFace]);
- * 4. the app's first letter.
+ * 4. a system app's kind as a Material symbol ([systemSymbol]);
+ * 5. the app's first letter.
  * The picture fills whatever the tile measures, never a fixed size inside it: a caller stretching
  * the tile (the Apps grid's aspectRatio) once left an inset square with the tile showing round it.
  * One shape, clip and corner for every source. Decorative: the button around it says the name.
@@ -67,7 +69,7 @@ fun AppIcon(
     val density = LocalDensity.current
     var measured by remember { mutableIntStateOf(with(density) { size.roundToPx() }) }
     val context = LocalContext.current.applicationContext
-    val raster by produceState<Raster?>(null, iconPath, packageName, measured) {
+    val raster by produceState<Raster?>(null, iconPath, packageName, name, measured) {
         value = withContext(Dispatchers.IO) {
             val phone = packageName?.let { pkg -> runCatching { PhoneIconBitmaps.load(context, pkg, measured) }.getOrNull() }
             if (phone != null) return@withContext Raster(phone.asImageBitmap(), crop = true, fill = null)
@@ -81,7 +83,7 @@ fun AppIcon(
                 is BrandColours.TvLook.Fill -> Raster(tv.asImageBitmap(), crop = false, fill = look.colour)
                 BrandColours.TvLook.Backdrop -> {
                     // A full-bleed brand face beats a banner on its own blur; the backdrop replaces the letter only.
-                    if (brandFace(packageName) != null) return@withContext null
+                    if (brandFace(packageName, name) != null) return@withContext null
                     val soft = runCatching { IconBitmaps.backdrop(tv) }.getOrNull() ?: return@withContext null
                     Raster(tv.asImageBitmap(), crop = false, fill = null, backdrop = soft.asImageBitmap())
                 }
@@ -89,7 +91,8 @@ fun AppIcon(
         }
     }
     val face = raster
-    val brand = if (face == null) brandFace(packageName) else null
+    val brand = if (face == null) brandFace(packageName, name) else null
+    val symbol = if (face == null && brand == null) systemSymbol(packageName) else null
     val background = when {
         face?.fill != null -> Color(face.fill)
         brand != null -> Color(brand.fill)
@@ -124,6 +127,13 @@ fun AppIcon(
                 colorFilter = brand.glyph?.let { ColorFilter.tint(Color(it)) },
                 modifier = Modifier.fillMaxSize(if (brand.crop) 1f else minOf(brand.scale, 1f)),
             )
+            // A system app's kind, in the letter's own colour on the letter's ground (Iris, 2026-10-27).
+            symbol != null -> Icon(
+                painterResource(symbol),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.fillMaxSize(SYMBOL_SCALE),
+            )
             else -> Text(
                 text = name.trim().take(1).uppercase().ifEmpty { "·" },
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -136,3 +146,6 @@ fun AppIcon(
 
 /** How far a banner's blurred backdrop leans toward the tile's colour (Iris, 2026-10-26: 15 to 20%). */
 private const val BACKDROP_DIM = 0.18f
+
+/** A system symbol's share of the tile: a touch under the letter's visual weight (45% type). */
+private const val SYMBOL_SCALE = 0.5f
