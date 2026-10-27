@@ -2,6 +2,7 @@ package io.kud.tutti.ui.settings
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -46,7 +47,12 @@ import io.kud.tutti.ui.common.featureLabel
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TechnicalScreen(state: TuttiUiState, onOpen: () -> Unit, onBack: () -> Unit) {
+fun TechnicalScreen(
+    state: TuttiUiState,
+    onOpen: () -> Unit,
+    onProbeLink: suspend (String) -> io.kud.tutti.protocol.apps.LinkProbeResult,
+    onBack: () -> Unit,
+) {
     val context = LocalContext.current
     LaunchedEffect(Unit) { onOpen() }
     Scaffold(
@@ -63,7 +69,7 @@ fun TechnicalScreen(state: TuttiUiState, onOpen: () -> Unit, onBack: () -> Unit)
             )
         },
     ) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(bottom = 32.dp)) {
+        Column(Modifier.fillMaxSize().padding(padding).imePadding().verticalScroll(rememberScrollState()).padding(bottom = 32.dp)) {
             val tv = state.devices.tv
             SettingsGroup(stringResource(R.string.technical_tv)) {
                 if (tv == null) {
@@ -117,6 +123,7 @@ fun TechnicalScreen(state: TuttiUiState, onOpen: () -> Unit, onBack: () -> Unit)
                     }
                 }
             }
+            if (tv != null) LinkProbeGroup(onProbe = onProbeLink)
             SettingsGroup(stringResource(R.string.technical_app)) {
                 Fact(R.string.technical_version, AppVersion.of(context))
             }
