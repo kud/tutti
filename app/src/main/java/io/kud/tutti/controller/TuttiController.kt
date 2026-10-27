@@ -674,8 +674,21 @@ class TuttiController @Inject constructor(
                     if (withTimeoutOrNull(READY_TIMEOUT_MS) { atv.state.first { it.ready } } != null) {
                         Link.ONLINE
                     } else {
-                        linkNotes.update { it.copy(tv = failureDetail("tv remote: connect (TLS 6466)", outcome = "connected, not ready after $READY_TIMEOUT_MS ms")) }
-                        Link.UNREACHABLE
+                        // TLS 1.3: a refused client certificate arrives as an alert on the first read,
+                        // after connect() returned. It counts towards "pair again" like a handshake one.
+                        val readError = atv.failure
+                        handshakeFailures = HandshakeRule.afterNotReady(handshakeFailures, readError)
+                        readError?.let { tvLastConnect = ErrorClass.of(it) }
+                        linkNotes.update {
+                            it.copy(
+                                tv = failureDetail(
+                                    "tv remote: connect (TLS 6466)",
+                                    outcome = "connected, not ready after $READY_TIMEOUT_MS ms; handshake failures in a row: $handshakeFailures",
+                                    error = readError,
+                                ),
+                            )
+                        }
+                        if (HandshakeRule.needsPairing(handshakeFailures)) Link.NEEDS_PAIRING else Link.UNREACHABLE
                     }
                 } catch (e: CancellationException) {
                     throw e
