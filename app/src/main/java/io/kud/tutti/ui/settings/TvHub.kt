@@ -10,6 +10,9 @@ import io.kud.tutti.protocol.bravia.TvSettingCatalog
 /** The screens under Settings › TV: the hub's five parts, and Advanced picture under Picture. */
 enum class TvPage { PICTURE, ADVANCED_PICTURE, SOUND, INPUTS, POWER, ABOUT }
 
+/** What a load shows: nothing, the first load in words, or a quiet re-check ([TvHub.loadCue]). */
+enum class LoadCue { NONE, FIRST, RECHECK }
+
 /**
  * What the TV hub and its screens show, kept apart from Compose so it can be tested (Iris,
  * 2026-10-26, docs/proposals/settings-structure.md): which parts have a row, which are still on
@@ -19,6 +22,21 @@ internal object TvHub {
 
     /** The hub's parts, in Sony's order: Picture, Sound, Inputs, Power, About this TV. */
     val parts: List<TvPage> = listOf(TvPage.PICTURE, TvPage.SOUND, TvPage.INPUTS, TvPage.POWER, TvPage.ABOUT)
+
+    /**
+     * How a load shows on the TV screens (Iris, 2026-10-27, after Erwann's « pas très fan du loading »
+     * on a re-check): a first load says in words what it waits for ([LoadCue.FIRST]); a re-check over
+     * settings already shown is quiet ([LoadCue.RECHECK]): no bar, no sentence, nothing that moves the
+     * rows, only a small mark in the top bar once it has run [RECHECK_QUIET_MS].
+     */
+    fun loadCue(settings: TvSettingsState): LoadCue = when {
+        !settings.loading -> LoadCue.NONE
+        settings.loaded -> LoadCue.RECHECK
+        else -> LoadCue.FIRST
+    }
+
+    /** A re-check quicker than this shows nothing at all, so a fast one never flickers. */
+    const val RECHECK_QUIET_MS = 1_000L
 
     /**
      * Whether [page] is still on its way on a first load, so its row says "Waiting for the TV…".

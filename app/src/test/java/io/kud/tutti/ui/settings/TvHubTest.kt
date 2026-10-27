@@ -114,4 +114,14 @@ class TvHubTest {
         assertEquals("HDMI 2", TvHub.currentInput(TvState(inputs = inputs, input = "extInput:hdmi?port=2"))?.title)
         assertNull(TvHub.currentInput(TvState(inputs = inputs, input = "app:netflix")))
     }
+
+    @Test
+    fun `a first load speaks, a re-check over shown settings stays quiet`() {
+        assertEquals(LoadCue.NONE, TvHub.loadCue(TvSettingsState()))
+        assertEquals(LoadCue.NONE, TvHub.loadCue(loaded))
+        assertEquals(LoadCue.FIRST, TvHub.loadCue(TvSettingsState(loading = true, waiting = TvSettingsPart.entries.toSet())))
+        assertEquals(LoadCue.RECHECK, TvHub.loadCue(loaded.copy(loading = true, waiting = TvSettingsPart.entries.toSet())))
+        // A re-check never brings back waiting rows over what is shown.
+        assertFalse(TvHub.waiting(TvState(settings = loaded.copy(loading = true, waiting = TvSettingsPart.entries.toSet())), TvPage.PICTURE))
+    }
 }

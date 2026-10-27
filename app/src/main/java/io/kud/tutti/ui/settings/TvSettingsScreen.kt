@@ -54,6 +54,13 @@ import io.kud.tutti.controller.TuttiController.TvSettingGroup
 import io.kud.tutti.controller.TuttiUiState
 import io.kud.tutti.protocol.bravia.TvSetting
 import io.kud.tutti.ui.common.BusyBar
+import io.kud.tutti.ui.motion.Motion
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.layout.Box
+import androidx.compose.runtime.LaunchedEffect
+import kotlinx.coroutines.delay
 import io.kud.tutti.ui.common.ChoiceRow
 import io.kud.tutti.ui.common.OpensChevron
 import io.kud.tutti.ui.common.OptionsRow
@@ -137,6 +144,7 @@ private fun TvFrame(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val rest = state.links.rest
+    val cue = if (rest == Link.ONLINE) TvHub.loadCue(state.tv.settings) else LoadCue.NONE
     var pskDialog by remember { mutableStateOf(false) }
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -148,6 +156,7 @@ private fun TvFrame(
                         Icon(painterResource(R.drawable.ic_back), contentDescription = stringResource(R.string.action_back))
                     }
                 },
+                actions = { RecheckMark(active = cue == LoadCue.RECHECK) },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
             )
         },
@@ -157,10 +166,11 @@ private fun TvFrame(
                 RestExplainer(rest, note = state.linkNotes.rest, onEnterPsk = { pskDialog = true }, onOpenUnlock = onOpenUnlock)
                 return@Column
             }
-            // While IP control answers, a line in words says so; each part still on its way holds its
-            // place with a waiting row, and what is already known shows as it is (Iris, 2026-10-26).
-            val settings = state.tv.settings
-            if (settings.loading) LoadingNote(firstLoad = !settings.loaded)
+            // A first load says in words what it waits for; each part still on its way holds its place
+            // with a waiting row, and what is already known shows as it is (Iris, 2026-10-26). A
+            // re-check over settings already shown adds nothing here, so the rows never move: its only
+            // mark is in the top bar ([RecheckMark]; Iris, 2026-10-27).
+            if (cue == LoadCue.FIRST) LoadingNote()
             content()
         }
     }
@@ -488,12 +498,12 @@ private fun RestExplainer(rest: Link, note: String?, onEnterPsk: () -> Unit, onO
 }
 
 /**
- * The load in words, under a progress bar: what is being asked and that what is shown is already
- * the TV's. The bar alone was a thin line Erwann read past (2026-10-26); the words carry the state,
- * so it never rests on motion or colour.
+ * A first load in words, under a progress bar: what is being asked and that what is shown is
+ * already the TV's. The bar alone was a thin line Erwann read past (2026-10-26); the words carry the
+ * state, so it never rests on motion or colour.
  */
 @Composable
-private fun LoadingNote(firstLoad: Boolean) {
+private fun LoadingNote() {
     BusyBar(Modifier.fillMaxWidth())
     Column(
         Modifier
@@ -501,14 +511,45 @@ private fun LoadingNote(firstLoad: Boolean) {
             .semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite }
             .padding(start = 32.dp, end = 32.dp, top = 12.dp),
     ) {
-        Text(stringResource(if (firstLoad) R.string.tv_loading_first else R.string.tv_loading_again), style = MaterialTheme.typography.bodyMedium)
-        if (firstLoad) {
-            Text(
-                stringResource(R.string.tv_loading_known),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 2.dp),
-            )
+        Text(stringResource(R.string.tv_loading_first), style = MaterialTheme.typography.bodyMedium)
+        Text(
+            stringResource(R.string.tv_loading_known),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 2.dp),
+        )
+    }
+}
+
+/**
+ * A re-check over settings already on screen (Iris, 2026-10-27, after Erwann's « pas très fan du
+ * loading » on dev.27): what is shown is valid, so nothing covers, dims or pushes it. Under
+ * [TvHub.RECHECK_QUIET_MS] nothing shows at all; past it, a small spinner where the top bar's
+ * actions sit (the refresh glyph, still, under reduced motion), faded in and out by opacity alone,
+ * named to TalkBack. Values that change simply update in their rows.
+ */
+@Composable
+private fun RecheckMark(active: Boolean) {
+    var shown by remember { mutableStateOf(false) }
+    LaunchedEffect(active) {
+        if (active) {
+            delay(TvHub.RECHECK_QUIET_MS)
+            shown = true
+        } else {
+            shown = false
+        }
+    }
+    val label = stringResource(R.string.tv_loading_again)
+    AnimatedVisibility(visible = shown, enter = fadeIn(Motion.fade()), exit = fadeOut(Motion.fade())) {
+        Box(
+            Modifier.size(48.dp).semantics { contentDescription = label },
+            contentAlignment = Alignment.Center,
+        ) {
+            if (LocalReducedMotion.current) {
+                Icon(painterResource(R.drawable.ic_refresh), contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
+            } else {
+                CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
         }
     }
 }
