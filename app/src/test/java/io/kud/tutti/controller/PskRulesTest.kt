@@ -44,12 +44,6 @@ class PskRulesTest {
         assertFalse("no PSK", refused(true, PskRules.Auth.REFUSED, psk = false))
         assertFalse("the cookie is what was sent", refused(true, PskRules.Auth.REFUSED, cookie = true))
     }
-
-    @Test
-    fun `a refused key shows as unauthorized, not online`() {
-        assertEquals(Link.UNAUTHORIZED, PskRules.link(refused = true))
-        assertEquals(Link.ONLINE, PskRules.link(refused = false))
-    }
 }
 
 class LoggingHandlerTest {

@@ -138,6 +138,8 @@ data class ConnInput(
     /** The code's cookie was refused and no PSK stands in: a new code is needed. */
     val ipRenew: Boolean = false,
     val rest: Link = Link.ABSENT,
+    /** IP control answers but refuses the stored PSK on calls that need it. */
+    val pskRefused: Boolean = false,
     val tvBluetooth: String? = null,
     val barId: String? = null,
     val barName: String? = null,
@@ -165,6 +167,7 @@ fun connInput(state: TuttiUiState, t: TargetState, barOffer: Boolean = false): C
         ipSet = state.ipControlSet,
         ipRenew = !state.pskSet && state.ipCode == IpCodeStatus.RENEW,
         rest = state.links.rest,
+        pskRefused = state.tv.pskRefused,
         tvBluetooth = tv?.bluetooth?.address,
         barId = t.list.bar?.id,
         barName = state.devices.bar?.name,
@@ -254,7 +257,9 @@ private fun sonyIp(input: ConnInput, wakeShown: Boolean): ConnLine = when {
     input.ipRenew -> ConnLine(ConnLink.SONY_IP, ConnWords.CODE_TO_RENEW, ConnAction.SET_UP_IP)
     !input.ipSet -> ConnLine(ConnLink.SONY_IP, ConnWords.NOT_SET_UP, ConnAction.SET_UP_IP)
     else -> when (input.rest) {
-        Link.ONLINE -> ConnLine(ConnLink.SONY_IP, ConnWords.CONNECTED)
+        // Reads that need no key still work, so the TV is connected; the key is the warning.
+        Link.ONLINE ->
+            if (input.pskRefused) ConnLine(ConnLink.SONY_IP, ConnWords.KEY_REFUSED, ConnAction.SET_UP_IP) else ConnLine(ConnLink.SONY_IP, ConnWords.CONNECTED)
         Link.UNAUTHORIZED -> ConnLine(ConnLink.SONY_IP, ConnWords.KEY_REFUSED, ConnAction.SET_UP_IP)
         // A certificate mismatch is not an IP-control setup problem: only an explicit TV pairing
         // may renew REST trust. Standby still wins because a sleeping TV is expected not to answer.

@@ -36,7 +36,4 @@ object PskRules {
             Auth.NOT_ASKED, Auth.OTHER -> wasRefused
         }
     }
-
-    /** The REST link to show for a TV that answers: a refused key wins over online. */
-    fun link(refused: Boolean): Link = if (refused) Link.UNAUTHORIZED else Link.ONLINE
 }
