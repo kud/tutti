@@ -328,7 +328,7 @@ Each thing has one name in each language, everywhere: screens, TalkBack, the not
 | The row's microphone key | Mic ("Voice" is the bar's voice enhancement) | Micro (« Voix » is the bar's) |
 | The bar's Night mode | Night | Nuit (the starter scene is Bedtime / Coucher) |
 | The TV's picture-scene setting | TV scene select (Sony's name, qualified: tutti's own are scenes) | Sélection de scène de la TV |
-| The Quick Settings tile | Living room (never "Remote": Google's own TV remote tile has that name) | Salon (never « Télécommande ») |
+| The Quick Settings tile | TV + bar (what it drives; never "Remote", Google's own TV remote tile has that name; Erwann, 2026-10-27, from "Living room") | TV + barre (jamais « Télécommande ») |
 
 - IP control has one menu path, written the same in every string, as Sony's guide and the IP control dialog give it: Settings › Network & Internet › Home network › IP control (FR: Paramètres › Réseau et Internet › Réseau domestique › Contrôle IP). Menu paths use ›.
 - `WordTableTest` fails on a banned word in either locale (téléviseur, télé, applis, Alimentation for the control, Slot, Put in the dock, another IP control path), naming the house word; its probe proves every pattern still catches its example.

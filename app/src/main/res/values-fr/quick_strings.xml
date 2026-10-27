@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Quick access surfaces: tile, overlay, widget, notification. French; English is the default (values/). -->
 <resources>
-    <string name="quick_tile_label">Salon</string>
+    <string name="quick_tile_label">TV + barre</string>
     <string name="quick_widget_label">Télécommande rapide</string>
     <string name="quick_widget_description">Ce qui passe, lecture/pause, scènes et volume</string>
 
