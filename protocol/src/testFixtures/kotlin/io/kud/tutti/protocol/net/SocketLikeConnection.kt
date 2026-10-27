@@ -63,6 +63,11 @@ open class SocketLikeConnection(var readTimeoutMillis: Long = 20_000) : Connecti
         wire.trySend(eof)
     }
 
+    /** The next read throws [error], as a TLS alert or a reset does on a real socket. */
+    fun peerFails(error: Throwable) {
+        wire.close(error)
+    }
+
     override fun close() {
         closed = true
         wire.close()
