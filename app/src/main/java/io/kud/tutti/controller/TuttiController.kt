@@ -1644,13 +1644,24 @@ class TuttiController @Inject constructor(
     }
 
     /**
-     * One Power for both. A device in reach gets the command at once, optimistic for a few
-     * seconds, then its own reports win. Turning on with one out of reach (the TV in standby)
-     * wakes it instead: the sessions retry now rather than at the end of their backoff, the
-     * TV gets a Wake-on-LAN packet when its MAC is known, [TuttiUiState.waking] shows, and the
-     * command follows once it answers, or [TuttiEvent.WakeFailed] if it never does.
+     * The short press on Power: the TV alone, or the bar when there is no TV ([shortPress]). In
+     * reach, the command goes at once, optimistic for a few seconds, then the TV's own reports
+     * win. Turning on a TV out of reach (in standby) wakes it instead: the sessions retry now
+     * rather than at the end of their backoff, the TV gets a Wake-on-LAN packet when its MAC is
+     * known, [TuttiUiState.waking] shows, and the command follows once it answers, or
+     * [TuttiEvent.WakeFailed] if it never does.
      */
-    fun power() = power(PowerTarget.BOTH, state.value.powered != true)
+    fun power() {
+        val s = state.value
+        val tvPowered = s.remote.powered ?: when (s.tv.power) {
+            PowerStatus.ACTIVE -> true
+            PowerStatus.STANDBY -> false
+            PowerStatus.UNKNOWN -> null
+        }
+        val barPowered = s.bar.isOn(TheatreFeature.POWER).takeIf { s.links.bar == Link.ONLINE }
+        val (target, on) = shortPress(s.devices.tv != null, tvPowered, barPowered)
+        power(target, on)
+    }
 
     /**
      * Power for one device or both (the long press on Power, and the card's "Turn on the TV"),
