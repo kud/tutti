@@ -95,6 +95,7 @@ object QuickNotifications {
         var lastPost: Long? = null
         // The last card shown: kept while the link is down (shownCard), so the control stays.
         var shown: MediaCard? = null
+        val artwork = MediaArtwork(context)
         try {
             combine(controls.state, preferences.notificationEnabled, keyguardLockedFlow(context)) { state, enabled, locked ->
                 shownCard(state, enabled, locked, shown).also { shown = it }
@@ -108,9 +109,9 @@ object QuickNotifications {
                         return@collectLatest
                     }
                     val current = live ?: Live(newSession(context)).also { live = it }
-                    val icon = withContext(Dispatchers.IO) { largeIcon(context, card) }
+                    val (icon, art) = withContext(Dispatchers.IO) { largeIcon(context, card) to artwork.artFor(card) }
                     // The session moves at once (the volume keys read it); the post waits its turn.
-                    updateSession(context, current, card, icon)
+                    updateSession(context, current, card, icon, art)
                     delay(postDelay(SystemClock.elapsedRealtime(), lastPost, POST_INTERVAL_MS))
                     post(context, build(context, card, icon, current.session.sessionToken))
                     lastPost = SystemClock.elapsedRealtime()
@@ -162,7 +163,7 @@ object QuickNotifications {
             })
         }
 
-    private fun updateSession(context: Context, live: Live, card: MediaCard, icon: Bitmap) {
+    private fun updateSession(context: Context, live: Live, card: MediaCard, icon: Bitmap, art: Bitmap) {
         val session = live.session
         // What Cast reports playing (only while the remote is in front, architecture § 7) arrives
         // as card.playback, so it takes the title, the artist or channel and the position.
@@ -171,8 +172,9 @@ object QuickNotifications {
                 .putString(MediaMetadata.METADATA_KEY_TITLE, title(context, card))
                 .putString(MediaMetadata.METADATA_KEY_ARTIST, subtitle(context, card))
                 .putBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON, icon)
-                // The media player draws the artwork large; the app's icon, else tutti's mark.
-                .putBitmap(MediaMetadata.METADATA_KEY_ART, icon)
+                // The media player (and some lock screens, full screen) draws the artwork large: its own
+                // picture, drawn at the size the system keeps, never the small icon stretched (MediaArt).
+                .putBitmap(MediaMetadata.METADATA_KEY_ART, art)
                 .apply { card.playback?.durationMs?.let { putLong(MediaMetadata.METADATA_KEY_DURATION, it) } }
                 .build(),
         )

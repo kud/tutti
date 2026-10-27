@@ -24,6 +24,51 @@ class CastStatusTest {
           ${if (withMedia) ""","media":{"duration":$duration,"metadata":{"metadataType":0,"title":"Sample Title","artist":"Sample Channel"}}""" else ""}}]}""",
     )
 
+    // A receiver that, playing, reports currentTime == duration frozen (YouTube on a BRAVIA, 2026-10-26).
+    @Test fun `a frozen end while playing runs on from the last paused reading and the resume`() {
+        val reducer = CastStatusReducer()
+        assertEquals(341.0, reducer.onMediaStatus(media("PAUSED", 341.0, duration = "1500.0"), 0)!!.positionAt(0))
+        val resumed = reducer.onMediaStatus(media("PLAYING", 1500.0, duration = "1500.0"), 10_000)!!
+        assertTrue(resumed.inferred)
+        assertEquals(341.0, resumed.positionAt(10_000))
+        // Later statuses keep the frozen number; the time keeps counting from the resume.
+        val later = reducer.onMediaStatus(media("PLAYING", 1500.0, withMedia = false), 25_000)!!
+        assertEquals(356.0, later.positionSec)
+        assertEquals(361.0, later.positionAt(30_000))
+    }
+
+    @Test fun `the inference never runs past the end and is dropped there`() {
+        val reducer = CastStatusReducer()
+        reducer.onMediaStatus(media("PAUSED", 590.0), 0)
+        assertEquals(590.0, reducer.onMediaStatus(media("PLAYING", 600.0), 1_000)!!.positionSec)
+        assertNull(reducer.onMediaStatus(media("PLAYING", 600.0, withMedia = false), 12_000)!!.positionAt(12_000))
+        // Gone for good: even back short of the end, nothing to run on until a trusted reading.
+        assertNull(reducer.onMediaStatus(media("PLAYING", 600.0, withMedia = false), 13_000)!!.positionAt(13_000))
+    }
+
+    @Test fun `buffering, a new item or no anchor means no inferred time`() {
+        val reducer = CastStatusReducer()
+        assertNull(reducer.onMediaStatus(media("PLAYING", 600.0), 0)!!.positionAt(0))
+        reducer.onMediaStatus(media("PAUSED", 100.0), 0)
+        reducer.onMediaStatus(media("BUFFERING", 600.0), 1_000)
+        assertNull(reducer.onMediaStatus(media("PLAYING", 600.0), 2_000)!!.positionAt(2_000))
+        reducer.onMediaStatus(media("PAUSED", 100.0), 3_000)
+        assertNull(reducer.onMediaStatus(media("PLAYING", 900.0, duration = "900.0"), 4_000)!!.positionAt(4_000))
+        reducer.onMediaStatus(media("PAUSED", 100.0), 5_000)
+        reducer.reset()
+        assertNull(reducer.onMediaStatus(media("PLAYING", 600.0), 6_000)!!.positionAt(6_000))
+    }
+
+    @Test fun `a trusted playing reading is shown as read, not inferred`() {
+        val reducer = CastStatusReducer()
+        reducer.onMediaStatus(media("PAUSED", 100.0), 0)
+        val playing = reducer.onMediaStatus(media("PLAYING", 120.0), 5_000)!!
+        assertFalse(playing.inferred)
+        assertEquals(120.0, playing.positionSec)
+        // Then frozen at the end: runs on from that trusted playing reading.
+        assertEquals(130.0, reducer.onMediaStatus(media("PLAYING", 600.0, withMedia = false), 15_000)!!.positionSec)
+    }
+
     @Test fun `the app in front is the first one speaking the media namespace`() {
         assertEquals(CastApp("APP1", "t-1", "s-1"), CastStatusParser.mediaApp(receiver))
         assertNull(CastStatusParser.mediaApp(json("""{"type":"RECEIVER_STATUS","status":{"applications":[]}}""")))

@@ -48,8 +48,8 @@ data class PowerChoice(val target: PowerTarget, val on: Boolean)
 /**
  * The long press on Power (Erwann, 2026-10-24): TV only, soundbar only, both, each stating what a
  * tap does from that device's own power. A device whose power is unknown (asleep and silent) is
- * offered "on", as the short press treats it. Both does exactly what the short press does, from
- * the combined [powered]. Only devices that are set up are offered; Both only with the two.
+ * offered "on", as the short press treats it. Both switches the TV and the bar together, from
+ * the combined [powered]; the short press switches the TV alone ([shortPress]). Only devices that are set up are offered; Both only with the two.
  */
 fun powerChoices(hasTv: Boolean, tvPowered: Boolean?, hasBar: Boolean, barPowered: Boolean?, powered: Boolean?): List<PowerChoice> = buildList {
     if (hasTv) add(PowerChoice(PowerTarget.TV, on = tvPowered != true))

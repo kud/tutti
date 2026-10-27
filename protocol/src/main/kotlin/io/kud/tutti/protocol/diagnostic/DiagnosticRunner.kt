@@ -208,12 +208,18 @@ class DiagnosticRunner(
                 skip(read.id, "${read.method} not listed by getMethodTypes", "not_listed")
                 continue
             }
+            // A service discovery never listed while others answered has no endpoint on this TV
+            // (videoScreen answered 404 on the XR80, 2026-10-26). With nothing known, still ask.
+            if (!caps.isKnown(service) && caps.methods.isNotEmpty()) {
+                skip(read.id, "${service.id} not listed by discovery", "not_listed")
+                continue
+            }
             step(read.id) {
                 val version = caps.version(service, read.method) ?: BraviaClient.DEFAULT_VERSIONS[read.method] ?: "1.0"
                 fact("call", "${service.id}.${read.method}@$version")
                 val params = if (read.target) listOf(buildJsonObject { put("target", "") }) else emptyList()
                 val result = expect(client.call(service, read.method, params))
-                fact("shape", JsonShape.of(result, scrub))
+                fact("shape", JsonShape.of(result, scrub, public = read.public))
                 if (developer && read.raw) fact("raw", Redact.text(result.toString(), scrub).take(RAW_MAX))
             }
         }

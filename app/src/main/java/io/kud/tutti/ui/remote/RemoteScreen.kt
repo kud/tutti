@@ -484,6 +484,8 @@ fun RemoteScreen(
                     // Waking a sleeping TV takes seconds: a turning ring says so (not a colour), and the label follows.
                     // The ring keeps the loading rules: not before 150 ms, then at least 400 ms; held still when motion is reduced.
                     val wakingRing = rememberWaiting(state.waking)
+                    // The short press switches the TV only (the bar alone without a TV), so the button shows that device's power.
+                    val shortPowered = if (state.devices.tv != null) tvPowered(state) else barPowered(state)
                     Box(contentAlignment = Alignment.Center) {
                         TonalRoundButton(
                             icon = R.drawable.ic_power,
@@ -494,10 +496,10 @@ fun RemoteScreen(
                             onLongClick = { powerSheet = true }.takeIf { state.devices.tv != null },
                             onLongClickLabel = stringResource(if (state.devices.bar != null) R.string.power_long_label else R.string.power_long_label_tv),
                             feedback = FeedbackEvent.SELECT,
-                            active = state.powered == true,
+                            active = shortPowered == true,
                             size = 52.dp,
                             // Unknown power says nothing rather than "Off".
-                            stateDescription = state.powered?.let { stringResource(if (it) R.string.toggle_state_on else R.string.toggle_state_off) },
+                            stateDescription = shortPowered?.let { stringResource(if (it) R.string.toggle_state_on else R.string.toggle_state_off) },
                         )
                         // Box scope inside a Row: the plain overload, named, so the Row's one isn't picked.
                         androidx.compose.animation.AnimatedVisibility(
