@@ -116,8 +116,10 @@ internal fun PlaybackSheet(
     onKey: (Int) -> Unit,
     onDismiss: () -> Unit,
     barToggles: (@Composable () -> Unit)? = null,
+    barDownReason: String? = null,
     cast: io.kud.tutti.protocol.cast.CastNowPlaying? = null,
     onScrub: ((Int) -> Unit)? = null,
+    appShortcuts: (@Composable () -> Unit)? = null,
 ) {
     TuttiSheet(onDismissRequest = onDismiss) {
         val scroll = rememberScrollState()
@@ -126,19 +128,15 @@ internal fun PlaybackSheet(
             modifier = Modifier.fillMaxWidth(),
             header = { NowShowingSheetHeader(stringResource(R.string.playback_label), showing, tvName, appIcons, cast?.takeIf { castFits(showing) }) },
         ) {
-            val down = downReason != null
             Column(
-                Modifier.fillMaxWidth().verticalScroll(scroll).padding(start = 16.dp, end = 16.dp, bottom = 24.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
+                Modifier.fillMaxWidth().verticalScroll(scroll).padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                if (downReason != null) {
-                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                        Icon(painterResource(R.drawable.ic_refresh), contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text(downReason, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                }
+                downReason?.let { ReasonLine(it) }
+                // How far rewind and fast forward go is the app's choice: TalkBack hears it on
+                // those two keys, where the quiet footnote used to say it (Iris, 2026-10-27).
+                val appDecides = stringResource(R.string.playback_note)
                 Row(
                     Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly,
@@ -146,41 +144,55 @@ internal fun PlaybackSheet(
                 ) {
                     for (code in PLAYBACK_TRANSPORT) {
                         val main = code == V2Key.MEDIA_PLAY_PAUSE
-                        PlaybackKey(code, size = if (main) 72.dp else 56.dp, shape = CircleShape, main = main, downReason = downReason, onKey = onKey)
+                        val skip = code == V2Key.MEDIA_REWIND || code == V2Key.MEDIA_FAST_FORWARD
+                        PlaybackKey(
+                            code,
+                            size = if (main) 72.dp else 56.dp,
+                            shape = CircleShape,
+                            main = main,
+                            downReason = downReason,
+                            onKey = onKey,
+                            hint = appDecides.takeIf { skip },
+                        )
                     }
                 }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    for (code in PLAYBACK_TRACKS) {
-                        PlaybackKey(code, size = 56.dp, shape = RoundedCornerShape(16.dp), main = false, downReason = downReason, onKey = onKey, wide = true, modifier = Modifier.weight(1f))
-                    }
+                // The room kept for the per-app row (Erwann, 2026-10-27: commands for the app on
+                // the TV, such as YouTube's), under the transport keys and above the chips. None yet.
+                appShortcuts?.invoke()
+                // Captions and Audio track open a picker on the TV; the bar's Voice and Night switch.
+                // One row of compact chips, two when it doesn't fit (PlaybackChips.kt).
+                PlaybackChipRow(Modifier.fillMaxWidth()) {
+                    for (code in PLAYBACK_TRACKS) KeyChip(code, downReason, onKey)
+                    barToggles?.invoke()
                 }
-                // The bar's Voice and Night, where the film is (benchmark item 5, from Sonos): the
-                // Son sheet's own tiles, so state is said in words and a mark, and pinnable alike.
-                barToggles?.invoke()
-                onScrub?.let { ScrubStrip(downReason, it) }
-                if (!down) {
-                    Text(
-                        stringResource(R.string.playback_note),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
+                if (barToggles != null && barDownReason != null) ReasonLine(barDownReason)
+                onScrub?.let { ScrubStrip(downReason, appDecides, it) }
             }
         }
     }
 }
 
+/** Why the controls under it can't be pressed, in words beside a quiet glyph. */
+@Composable
+private fun ReasonLine(reason: String) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+        Icon(painterResource(R.drawable.ic_refresh), contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(8.dp))
+        Text(reason, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
 /**
- * The scrub strip under the Voice and Night tiles (benchmark idea 2): a sideways drag moves back
+ * The scrub strip under the chips (benchmark idea 2): a sideways drag moves back
  * or forward, one key per [SCRUB_STEP_DP] of travel ([ScrubTrack], [scrubKey]) and one select
  * haptic per key, so the thumb counts the steps. It names no duration and shows no target
  * position: the app decides how far a key goes and no source tells tutti where playback is.
  * Ticks along the bottom edge follow the finger and settle back on the lift. TalkBack hears it as
- * one control with "Rewind" and "Fast forward" actions. Down: the dashed ring, no drag.
+ * one control with "Rewind" and "Fast forward" actions, and [appDecides] as its state. Down: the
+ * dashed ring, no drag, the reason as its state.
  */
 @Composable
-private fun ScrubStrip(downReason: String?, onKey: (Int) -> Unit) {
+private fun ScrubStrip(downReason: String?, appDecides: String, onKey: (Int) -> Unit) {
     val haptics = rememberHaptics()
     val send by rememberUpdatedState(onKey)
     val stepPx = with(LocalDensity.current) { SCRUB_STEP_DP.dp.toPx() }
@@ -202,7 +214,7 @@ private fun ScrubStrip(downReason: String?, onKey: (Int) -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()
-            .heightIn(min = 56.dp)
+            .heightIn(min = 48.dp)
             .clip(shape)
             .then(
                 if (down) {
@@ -241,7 +253,7 @@ private fun ScrubStrip(downReason: String?, onKey: (Int) -> Unit) {
             )
             .semantics(mergeDescendants = true) {
                 contentDescription = label
-                downReason?.let { stateDescription = it }
+                stateDescription = downReason ?: appDecides
                 if (!down) {
                     customActions = listOf(
                         CustomAccessibilityAction(back) { step(-1); true },
@@ -284,6 +296,7 @@ private fun PlaybackKey(
     onKey: (Int) -> Unit,
     modifier: Modifier = Modifier,
     wide: Boolean = false,
+    hint: String? = null,
 ) {
     val label = keyLabel(code)
     val down = downReason != null
@@ -305,7 +318,7 @@ private fun PlaybackKey(
         )
         .clickable(enabled = !down, role = Role.Button, onClickLabel = label) { onKey(code) }
         .semantics(mergeDescendants = true) {
-            contentDescription = label
+            contentDescription = if (hint == null) label else "$label. $hint"
             downReason?.let { stateDescription = it }
         }
     Row(base.padding(horizontal = if (wide) 16.dp else 0.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
