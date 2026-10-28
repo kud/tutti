@@ -127,7 +127,8 @@ fun OnboardingScreen(
     onCancel: (() -> Unit)? = null,
 ) {
     val reduced = LocalReducedMotion.current
-    val discovered by remember(discovery) { discovery.discover() }.collectAsStateWithLifecycle(initialValue = emptyList())
+    // Keyed on the LAN permission: a grant swaps the empty flow the gate returned for a live browse.
+    val discovered by remember(discovery, state.lanPermissionMissing) { discovery.discover() }.collectAsStateWithLifecycle(initialValue = emptyList())
     val first = when {
         barOnly -> IntroStep.BAR
         state.prefs.onboarded || !state.devices.isEmpty -> IntroStep.TV
@@ -348,30 +349,7 @@ private fun SearchStep(
     var typed by rememberSaveable { mutableStateOf(initialHost) }
     var waited by remember { mutableStateOf(false) }
 
-    // The same ask as the remote's banner: launch the system dialog; a refusal with no rationale
-    // afterwards sends the user to tutti's system page, where the switch stands.
-    var lanCantAsk by rememberSaveable { mutableStateOf(false) }
-    val context = LocalContext.current
-    val lanLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) {
-            onGranted()
-        } else {
-            val activity = context as? Activity
-            val rationale = activity != null &&
-                ActivityCompat.shouldShowRequestPermissionRationale(activity, Manifest.permission.ACCESS_LOCAL_NETWORK)
-            lanCantAsk = LocalNetworkRules.outlook(denied = true, shouldShowRationale = rationale) ==
-                LocalNetworkRules.Outlook.CANNOT_ASK
-        }
-    }
-    fun askLanAccess() {
-        if (lanCantAsk) {
-            context.startActivity(
-                Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null)),
-            )
-        } else {
-            lanLauncher.launch(Manifest.permission.ACCESS_LOCAL_NETWORK)
-        }
-    }
+    val lan = rememberLanAsk(onGranted)
 
     LaunchedEffect(Unit) {
         delay(SEARCH_NUDGE_MS)
@@ -382,7 +360,7 @@ private fun SearchStep(
         Text(stringResource(R.string.intro_search_title), style = MaterialTheme.typography.headlineSmall)
         Text(stringResource(R.string.intro_search_body), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         if (lanMissing) {
-            LanCard(asks = !lanCantAsk, onAllow = { askLanAccess() })
+            LanCard(asks = !lan.cantAsk, onAllow = lan::ask)
         } else if (!reduced) {
             Radar(found.map { it.host }, Modifier.fillMaxWidth(0.8f).aspectRatio(1f).align(Alignment.CenterHorizontally))
         }
@@ -443,9 +421,44 @@ private fun SearchStep(
     }
 }
 
+/** The LAN ask as the onboarding steps share it: [ask] opens the system dialog or, once [cantAsk], tutti's system page. */
+private class LanAsk(val cantAsk: Boolean, private val launch: () -> Unit) {
+    fun ask() = launch()
+}
+
 /**
- * The search step's local-network card (Android 17): what the permission is there for, and the
- * Allow step, where the radar would otherwise show a search that cannot find anything.
+ * The same ask as the remote's banner: launch the system dialog; a refusal with no rationale
+ * afterwards sends the user to tutti's system page, where the switch stands.
+ */
+@Composable
+private fun rememberLanAsk(onGranted: () -> Unit): LanAsk {
+    var cantAsk by rememberSaveable { mutableStateOf(false) }
+    val context = LocalContext.current
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) {
+            onGranted()
+        } else {
+            val activity = context as? Activity
+            val rationale = activity != null &&
+                ActivityCompat.shouldShowRequestPermissionRationale(activity, Manifest.permission.ACCESS_LOCAL_NETWORK)
+            cantAsk = LocalNetworkRules.outlook(denied = true, shouldShowRationale = rationale) ==
+                LocalNetworkRules.Outlook.CANNOT_ASK
+        }
+    }
+    return LanAsk(cantAsk) {
+        if (cantAsk) {
+            context.startActivity(
+                Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null)),
+            )
+        } else {
+            launcher.launch(Manifest.permission.ACCESS_LOCAL_NETWORK)
+        }
+    }
+}
+
+/**
+ * The onboarding's local-network card (Android 17): what the permission is there for, and the
+ * Allow step, where the search or the soundbar's link would otherwise wait on nothing.
  */
 @Composable
 private fun LanCard(asks: Boolean, onAllow: () -> Unit) {
@@ -620,6 +633,7 @@ private fun CodeStep(pairing: PairingUi, codeSent: Boolean, onSubmit: (String) -
  */
 @Composable
 private fun BarStep(state: TuttiUiState, controller: TuttiController, onNext: () -> Unit) {
+    val lan = rememberLanAsk(controller::onLanPermissionGranted)
     val feedback = rememberFeedback()
     var barHost by rememberSaveable { mutableStateOf(state.devices.bar?.host.orEmpty()) }
     var barError by remember { mutableStateOf(false) }
@@ -674,6 +688,11 @@ private fun BarStep(state: TuttiUiState, controller: TuttiController, onNext: ()
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text(stringResource(R.string.intro_bar_title), style = MaterialTheme.typography.headlineSmall)
         Text(stringResource(R.string.onboarding_bar_body), style = MaterialTheme.typography.bodyMedium, color = colors.onSurfaceVariant)
+        // Settings' "Add the soundbar" opens here directly, past the search step's ask: the bar's TCP link
+        // is gated the same way, so the ask has to be offered here too.
+        if (state.lanPermissionMissing) {
+            LanCard(asks = !lan.cantAsk, onAllow = lan::ask)
+        }
         OutlinedTextField(
             value = barHost,
             onValueChange = {
