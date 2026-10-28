@@ -1,123 +1,96 @@
 package io.kud.tutti.platform.security
 
 import android.content.Context
+import android.os.Build
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import dagger.hilt.android.qualifiers.ApplicationContext
 import io.kud.tutti.protocol.atv.ClientCertificates
+import io.kud.tutti.protocol.atv.ClientNames
 import io.kud.tutti.protocol.net.ClientIdentity
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.File
-import java.security.KeyFactory
+import java.security.KeyPair
 import java.security.KeyPairGenerator
 import java.security.KeyStore
 import java.security.PrivateKey
-import java.security.cert.CertificateFactory
-import java.security.cert.X509Certificate
-import java.security.spec.PKCS8EncodedKeySpec
+import java.security.SecureRandom
+import java.util.Collections
 import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * The TLS client identity the TV binds the pairing to. Generated once, reused forever
- * (until "Oublier l'appareil").
+ * The TLS client identity the TV binds the pairing to. Made at pairing, reused on every
+ * connection after, replaced only by pairing again or "Oublier l'appareil".
  *
  * Preferred: an RSA 2048 key generated inside AndroidKeyStore (non-exportable), with a
  * self-signed certificate built by BouncyCastle using that key. If the keystore refuses
  * (some devices), fallback: a software key encrypted at rest with [SecretCipher] in
- * files/secure/, which is excluded from backup.
+ * files/secure/, which is excluded from backup. Layout and staging: [ClientIdentityFiles].
+ *
+ * The certificate's CN is the name the phone pairs under ([ClientNames]): "tutti (<model> <hex>)"
+ * for identities made from now on, "tutti" for older ones, which keep working as they are.
  */
 @Singleton
 class ClientIdentityStore @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val cipher: SecretCipher,
+    cipher: SecretCipher,
 ) {
     private val mutex = Mutex()
     @Volatile private var cached: ClientIdentity? = null
 
-    private val dir: File get() = File(context.filesDir, "secure").apply { mkdirs() }
-    private val certFile: File get() = File(dir, "atv_client.der")
-    private val softKeyFile: File get() = File(dir, "atv_client.key.enc")
+    private val files by lazy { ClientIdentityFiles(File(context.filesDir, "secure"), AndroidIdentityKeys(cipher)) }
 
-    suspend fun getOrCreate(): ClientIdentity {
-        mutex.withLock {
-            val existing = cached
-            if (existing != null) return existing
-            val identity = withContext(Dispatchers.IO) { load() ?: create() }
-            cached = identity
-            return identity
-        }
-    }
-
-    /** The identity if one exists; never creates one (the diagnostic must not change pairing state). */
+    /** The identity if one exists; never creates one (a reconnect or the diagnostic must not change pairing state). */
     suspend fun existing(): ClientIdentity? {
         mutex.withLock {
             cached?.let { return it }
-            return withContext(Dispatchers.IO) { load() }?.also { cached = it }
+            return withContext(Dispatchers.IO) { files.load() }?.also { cached = it }
         }
     }
 
     /**
-     * When the TLS stack can't sign with the keystore key (some keystores refuse the raw RSA operation
-     * TLS 1.3 needs), replace the identity with the encrypted software key, the documented fallback.
+     * A fresh identity for a pairing attempt; the stored one stays in use until [commit].
+     * [software] skips the keystore, for when its key could not sign in the TLS handshake
+     * (some keystores refuse the raw RSA operation TLS 1.3 needs).
      */
-    suspend fun replaceWithSoftware(): ClientIdentity {
+    suspend fun stage(software: Boolean = false): StagedIdentity = mutex.withLock {
+        withContext(Dispatchers.IO) { files.stage(software) { ClientNames.forInstall(Build.MODEL) } }
+    }
+
+    /** The TV accepted the code: [staged] becomes the stored identity. */
+    suspend fun commit(staged: StagedIdentity) {
         mutex.withLock {
-            return withContext(Dispatchers.IO) {
-                runCatching { keyStore().deleteEntry(ALIAS) }
-                certFile.delete()
-                softKeyFile.delete()
-                createSoftware().also {
-                    certFile.writeBytes(it.certificate.encoded)
-                    cached = it
-                }
+            withContext(Dispatchers.IO + NonCancellable) {
+                files.commit(staged)
+                cached = staged.identity
             }
         }
+    }
+
+    /** The pairing did not finish: drop [staged], keep the stored identity. */
+    suspend fun discard(staged: StagedIdentity) {
+        mutex.withLock { withContext(Dispatchers.IO + NonCancellable) { files.discard(staged) } }
     }
 
     suspend fun forget() {
         mutex.withLock {
             withContext(Dispatchers.IO) {
                 cached = null
-                runCatching { keyStore().deleteEntry(ALIAS) }
-                runCatching { keyStore().deleteEntry(OLD_ALIAS) }
-                certFile.delete()
-                softKeyFile.delete()
+                files.forget()
             }
         }
     }
+}
 
-    private fun load(): ClientIdentity? {
-        if (!certFile.exists()) return null
-        val certificate = runCatching {
-            CertificateFactory.getInstance("X.509").generateCertificate(certFile.inputStream().buffered()) as X509Certificate
-        }.getOrNull() ?: return null
-        val key: PrivateKey? = if (softKeyFile.exists()) {
-            cipher.decrypt(softKeyFile.readBytes())?.let { pkcs8 ->
-                runCatching { KeyFactory.getInstance("RSA").generatePrivate(PKCS8EncodedKeySpec(pkcs8)) }.getOrNull()
-            }
-        } else {
-            runCatching { keyStore().getKey(ALIAS, null) as? PrivateKey }.getOrNull()
-        }
-        return key?.let { ClientIdentity(certificate, it) }
-    }
+private class AndroidIdentityKeys(private val cipher: SecretCipher) : IdentityKeys {
+    override fun keystoreKey(alias: String): PrivateKey? = keyStore().getKey(alias, null) as? PrivateKey
 
-    private fun create(): ClientIdentity {
-        runCatching { keyStore().deleteEntry(OLD_ALIAS) }
-        certFile.delete()
-        softKeyFile.delete()
-        val identity = runCatching { createInKeystore() }.getOrElse {
-            runCatching { keyStore().deleteEntry(ALIAS) }
-            createSoftware()
-        }
-        certFile.writeBytes(identity.certificate.encoded)
-        return identity
-    }
-
-    private fun createInKeystore(): ClientIdentity {
+    override fun generateInKeystore(alias: String): KeyPair {
         val generator = KeyPairGenerator.getInstance(KeyProperties.KEY_ALGORITHM_RSA, SecretCipher.KEYSTORE)
         generator.initialize(
             // TLS 1.3 signs with RSA-PSS, which Conscrypt does by padding the digest itself and asking
@@ -125,7 +98,7 @@ class ClientIdentityStore @Inject constructor(
             // PURPOSE_DECRYPT and ENCRYPTION_PADDING_NONE that fails as "RSA routines: internal error"
             // in the handshake, which is how pairing with the TV first failed.
             KeyGenParameterSpec.Builder(
-                ALIAS,
+                alias,
                 KeyProperties.PURPOSE_SIGN or KeyProperties.PURPOSE_VERIFY or KeyProperties.PURPOSE_DECRYPT,
             )
                 .setKeySize(ClientCertificates.KEY_SIZE)
@@ -141,24 +114,19 @@ class ClientIdentityStore @Inject constructor(
                 .setRandomizedEncryptionRequired(false)
                 .build(),
         )
-        val pair = generator.generateKeyPair()
-        val certificate = ClientCertificates.selfSign(pair.public, pair.private, COMMON_NAME)
-        return ClientIdentity(certificate, pair.private)
+        return generator.generateKeyPair()
     }
 
-    private fun createSoftware(): ClientIdentity {
-        val identity = ClientCertificates.generate(COMMON_NAME)
-        softKeyFile.writeBytes(cipher.encrypt(identity.privateKey.encoded))
-        return identity
-    }
+    override fun deleteKeystore(alias: String) = keyStore().deleteEntry(alias)
+
+    override fun keystoreAliases(): List<String> = Collections.list(keyStore().aliases())
+
+    override fun softwareKeyPair(): KeyPair =
+        KeyPairGenerator.getInstance("RSA").apply { initialize(ClientCertificates.KEY_SIZE, SecureRandom()) }.generateKeyPair()
+
+    override fun seal(plain: ByteArray): ByteArray = cipher.encrypt(plain)
+
+    override fun open(blob: ByteArray): ByteArray? = cipher.decrypt(blob)
 
     private fun keyStore(): KeyStore = KeyStore.getInstance(SecretCipher.KEYSTORE).apply { load(null) }
-
-    private companion object {
-        // v2: keys made before PURPOSE_DECRYPT can't do TLS 1.3; a new alias makes the next pairing
-        // generate a fresh identity, and the old entry is deleted with it.
-        const val ALIAS = "tutti.atv.client.v2"
-        const val OLD_ALIAS = "tutti.atv.client"
-        const val COMMON_NAME = "tutti"
-    }
 }

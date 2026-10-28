@@ -26,10 +26,8 @@ sealed interface PairingResult {
  */
 class AtvPairing(
     private val connector: TlsConnector,
-    serviceName: String = "tutti",
-    clientName: String = "tutti",
+    private val serviceName: String = "tutti",
 ) {
-    private val machine = PairingMachine(serviceName, clientName)
 
     /** What went over the wire, in order (message kinds and statuses only, never the secret), for a failure report. */
     val trace: List<String> get() = synchronized(events) { events.toList() }
@@ -47,6 +45,9 @@ class AtvPairing(
         maxAttempts: Int = 3,
         askCode: suspend (attempt: Int) -> String?,
     ): PairingResult {
+        // The client name is the certificate's CN, never a separate value: the TV keys its pairings
+        // on that name, so the two must not drift apart (see [ClientNames]).
+        val machine = PairingMachine(serviceName, ClientNames.of(identity.certificate))
         val connection = connector.connect(host, PORT, identity, expectedPin = null)
         // The reader runs ahead of us and keeps reading while the person types the code, which
         // the TV waits for in silence: the remote's 20 s read timeout failed a slow typist. The
