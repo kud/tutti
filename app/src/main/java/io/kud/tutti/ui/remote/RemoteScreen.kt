@@ -89,7 +89,6 @@ import androidx.compose.runtime.mutableStateMapOf
 import io.kud.tutti.ui.common.LocalMessages
 import io.kud.tutti.controller.TuttiUiState
 import io.kud.tutti.platform.data.DockAction
-import io.kud.tutti.protocol.theatre.TheatreFeature
 import io.kud.tutti.platform.data.DockSlot
 import io.kud.tutti.protocol.apps.KnownApp
 import io.kud.tutti.platform.data.PadSize
@@ -988,25 +987,6 @@ fun RemoteScreen(
                 sheetKey(code) { playbackFor = null }
             },
             onDismiss = { playbackFor = null },
-            barToggles = if (state.links.bar == Link.ABSENT) null else {
-                {
-                    for (feature in PLAYBACK_BAR_TOGGLES) {
-                        BarToggleChip(
-                            state = state,
-                            feature = feature,
-                            onTap = {
-                                haptics.select()
-                                controller.toggleBar(feature)
-                            },
-                            onPin = { name ->
-                                haptics.longPress()
-                                keysPinner.request(DockAction.ToggleBar(feature.key), name)
-                            },
-                        )
-                    }
-                }
-            },
-            barDownReason = if (state.links.bar == Link.ABSENT) null else barReason(state, TheatreFeature.VOICE),
             cast = castNowPlaying,
             onScrub = { code -> sendKey(code) },
         )
@@ -1232,4 +1212,3 @@ private const val INPUT_BACK_MS = 200
 private val SHEET_PEEK = 72.dp
 
 /** The bar's two film-night switches, repeated in the playback sheet (benchmark item 5). */
-private val PLAYBACK_BAR_TOGGLES = listOf(TheatreFeature.VOICE, TheatreFeature.NIGHT)
