@@ -1,6 +1,7 @@
 package io.kud.tutti.ui.settings
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
@@ -69,7 +70,7 @@ fun TechnicalScreen(
             )
         },
     ) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding).imePadding().verticalScroll(rememberScrollState()).padding(bottom = 32.dp)) {
+        Column(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding).imePadding().verticalScroll(rememberScrollState()).padding(bottom = 32.dp)) {
             val tv = state.devices.tv
             SettingsGroup(stringResource(R.string.technical_tv)) {
                 if (tv == null) {

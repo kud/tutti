@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
@@ -94,15 +95,20 @@ fun TuttiSheet(onDismissRequest: () -> Unit, content: @Composable ColumnScope.()
         dragHandle = { SheetHandle(sheetState, grip) },
         contentWindowInsets = { WindowInsets(0, 0, 0, 0) },
     ) {
+        // The keyboard is read here, inside the sheet's own window, the one it answers: with the sheet's
+        // insets off it would cover a field and the end of a list (the pin editor's name, the picker's
+        // search results). Its inset already holds the navigation bar, so the larger of the two pads.
+        val ime = with(density) { WindowInsets.ime.getBottom(density).toDp() }
+        val bottom = maxOf(navigationBottom, ime)
         Box(Modifier.belowStatusBar(statusTop).grip(grip, sheetState)) {
             Column(
                 Modifier
-                    .padding(bottom = navigationBottom)
-                    .consumeWindowInsets(PaddingValues(bottom = navigationBottom)),
+                    .padding(bottom = bottom)
+                    .consumeWindowInsets(PaddingValues(bottom = bottom)),
                 content = content,
             )
             // The sheet is a window above the app root's host: its messages show here, over it.
-            MessageHost(Modifier.matchParentSize().padding(bottom = navigationBottom), insetNavigationBar = false)
+            MessageHost(Modifier.matchParentSize().padding(bottom = bottom), insetNavigationBar = false)
         }
     }
 }
