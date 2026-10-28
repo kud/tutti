@@ -115,8 +115,6 @@ internal fun PlaybackSheet(
     downReason: String?,
     onKey: (Int) -> Unit,
     onDismiss: () -> Unit,
-    barToggles: (@Composable () -> Unit)? = null,
-    barDownReason: String? = null,
     cast: io.kud.tutti.protocol.cast.CastNowPlaying? = null,
     onScrub: ((Int) -> Unit)? = null,
     appShortcuts: (@Composable () -> Unit)? = null,
@@ -129,8 +127,9 @@ internal fun PlaybackSheet(
             header = { NowShowingSheetHeader(stringResource(R.string.playback_label), showing, tvName, appIcons, cast?.takeIf { castFits(showing) }) },
         ) {
             Column(
-                Modifier.fillMaxWidth().verticalScroll(scroll).padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                Modifier.fillMaxWidth().verticalScroll(scroll).padding(start = 16.dp, end = 16.dp, bottom = 24.dp),
+                // Three groups now (keys, chips, the strip), so they breathe at 16 dp, not 12.
+                verticalArrangement = Arrangement.spacedBy(16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 downReason?.let { ReasonLine(it) }
@@ -159,13 +158,12 @@ internal fun PlaybackSheet(
                 // The room kept for the per-app row (Erwann, 2026-10-27: commands for the app on
                 // the TV, such as YouTube's), under the transport keys and above the chips. None yet.
                 appShortcuts?.invoke()
-                // Captions and Audio track open a picker on the TV; the bar's Voice and Night switch.
-                // One row of compact chips, two when it doesn't fit (PlaybackChips.kt).
+                // Captions and Audio track open a picker on the TV: one row of two compact chips.
+                // No sound settings here (Erwann, 2026-10-28: « Pourquoi on a encore des settings
+                // de son ici ? »): Voice and Night live in the Sound sheet.
                 PlaybackChipRow(Modifier.fillMaxWidth()) {
                     for (code in PLAYBACK_TRACKS) KeyChip(code, downReason, onKey)
-                    barToggles?.invoke()
                 }
-                if (barToggles != null && barDownReason != null) ReasonLine(barDownReason)
                 onScrub?.let { ScrubStrip(downReason, appDecides, it) }
             }
         }
