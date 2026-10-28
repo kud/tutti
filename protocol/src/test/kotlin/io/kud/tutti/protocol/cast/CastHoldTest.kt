@@ -127,6 +127,6 @@ class CastHoldTest {
         val fresh = CastStatusReducer()
         feed(CastReport.Unknown, 11_000) // the new session's receiver status
         feed(fresh.report(media("PLAYING"), 11_500), 11_500)
-        assertEquals(List(5) { "Sample Title" }, seen)
+        assertEquals<List<String?>>(List(5) { "Sample Title" }, seen)
     }
 }
