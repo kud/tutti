@@ -68,6 +68,8 @@ On the TV, either way: IP control on, Authentication "Normal" (code) or "Normal 
 
 Bar on h2c port 55051, TV on a port advertised by mDNS `_sonysmarthome._tcp`; Sony Seeds OAuth (PKCE, Custom Tab), ~24 h session keys, HMAC-signed handshake, `GetStatesWithAuth`, `ExecCommandWithAuth`, `StartNotifyStates` over dotted field paths. The request envelope (`serialized_request + hmac`), the HMAC input and the Seeds OAuth endpoints are not documented precisely enough to implement without guessing, so `:protocol` stops at `SonyCloudPlane` and `:app` binds `UnavailableSonyCloudPlane` ("non disponible"). Failures there never touch TCP/REST.
 
+**Not pursued (Erwann, 2026-10-28).** What it would add (the bar's Bluetooth device and codec, a few bar settings missing from TCP) does not justify guessing Sony's signing scheme and handling a Sony sign-in. The interface stays as it is; nothing more gets built on this plane unless a specific feature calls for it.
+
 ### 5. Out of reach
 
 Acoustic Center Sync, sound calibration, speaker placement and first setup: a shortcut opens the TV's sound settings (v2/IRCC keys), and "Recalibrer dans BRAVIA Connect" deep-links to Sony's app.
