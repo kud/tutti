@@ -85,7 +85,7 @@ private fun NowShowingSheetHeader(
             .semantics(mergeDescendants = true) { heading() },
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        CardIcon(showing, 48.dp, appIcons)
+        CastLead(showing, 48.dp, appIcons, cast)
         Spacer(Modifier.width(16.dp))
         Column(Modifier.weight(1f)) {
             Text(label.uppercase(), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)

@@ -32,6 +32,11 @@ data class CastNowPlaying(
      * trusted reading (see [CastStatusReducer]): the receiver's own number was at the end.
      */
     val inferred: Boolean = false,
+    /**
+     * Artwork for what is playing, already checked by [CastArtwork.isAllowed]; null when the
+     * status names none on an allowed host. Viewing data like the title: never logged.
+     */
+    val imageUrl: String? = null,
 ) {
     /**
      * Whether the reading itself holds together: a position, inside the duration when there is
@@ -71,7 +76,7 @@ data class CastNowPlaying(
 
     override fun toString(): String =
         "CastNowPlaying(title=<redacted>, secondary=${if (secondary == null) "none" else "<redacted>"}, state=$state, " +
-            "position=$positionSec, duration=$durationSec)"
+            "position=$positionSec, duration=$durationSec, image=${if (imageUrl == null) "none" else "<redacted>"})"
 
     companion object {
         /** How long a playing position may run on from one reading: two refreshes and some. */
@@ -152,6 +157,7 @@ internal data class MediaSnapshot(
     val title: String?,
     val secondary: String?,
     val duration: Double?,
+    val imageUrl: String? = null,
 )
 
 object CastNamespaces {
@@ -234,6 +240,7 @@ class CastStatusReducer {
                 listOf("artist", "subtitle", "seriesTitle", "albumName").firstNotNullOfOrNull { k -> m.string(k)?.trim()?.takeIf { it.isNotEmpty() } }
             } ?: previous?.secondary,
             duration = mediaObj?.number("duration")?.takeIf { it > 0 } ?: previous?.duration.takeIf { mediaObj == null },
+            imageUrl = CastArtwork.pick(metadata) ?: previous?.imageUrl,
         )
         media = snapshot
         val state = when (rawState) {
@@ -256,6 +263,7 @@ class CastStatusReducer {
                 durationSec = snapshot.duration,
                 playbackRate = entry.number("playbackRate")?.takeIf { it > 0 } ?: 1.0,
                 readAtMillis = nowMillis,
+                imageUrl = snapshot.imageUrl,
             ),
             sessionId,
         )

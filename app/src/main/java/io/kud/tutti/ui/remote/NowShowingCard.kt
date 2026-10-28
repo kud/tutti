@@ -222,7 +222,7 @@ private fun Full(
         Modifier.fillMaxSize().padding(horizontal = 20.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        CardIcon(showing, icon, appIcons)
+        CastLead(showing, icon, appIcons, cast)
         Spacer(Modifier.width(16.dp))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
             Text(
