@@ -29,7 +29,7 @@ class CastSessionTest {
     @Test fun `verifies, then follows the app in front, and reports its media`() = runTest {
         val tv = FakeCast()
         val seen = mutableListOf<CastNowPlaying?>()
-        val session = CastSession(tv, { seen += it }, clock = { NOW }, nonce = CastFixtures.nonce(), roots = listOf(CastFixtures.root))
+        val session = CastSession(tv, { seen += it.nowPlaying }, clock = { NOW }, nonce = CastFixtures.nonce(), roots = listOf(CastFixtures.root))
         val run = async { session.run() }
         runCurrent()
         assertEquals(listOf(CastDeviceAuth.NAMESPACE), tv.sent.map { it.namespace })
@@ -63,7 +63,7 @@ class CastSessionTest {
         val seen = mutableListOf<CastNowPlaying?>()
         val readings = mutableListOf<CastReading>()
         val session = CastSession(
-            tv, { seen += it }, clock = { NOW + testScheduler.currentTime }, nonce = CastFixtures.nonce(), roots = listOf(CastFixtures.root),
+            tv, { seen += it.nowPlaying }, clock = { NOW + testScheduler.currentTime }, nonce = CastFixtures.nonce(), roots = listOf(CastFixtures.root),
             onReading = { readings += it },
         )
         val run = async { session.run() }
@@ -98,7 +98,7 @@ class CastSessionTest {
     @Test fun `an unverified device gets nothing but the challenge, and its status is ignored`() = runTest {
         val tv = FakeCast()
         val seen = mutableListOf<CastNowPlaying?>()
-        val session = CastSession(tv, { seen += it }, clock = { NOW }, nonce = CastFixtures.nonce())
+        val session = CastSession(tv, { seen += it.nowPlaying }, clock = { NOW }, nonce = CastFixtures.nonce())
         val run = async { session.run() }
         runCurrent()
         tv.deliver(fromTv("t-1", CastNamespaces.MEDIA,
@@ -108,5 +108,42 @@ class CastSessionTest {
         assertEquals(CastEnd.Untrusted(CastAuthFailure.UNTRUSTED_CHAIN), run.await())
         assertEquals(1, tv.sent.size)
         assertEquals(listOf<CastNowPlaying?>(null), seen)
+    }
+
+    @Test fun `silence is unknown, another app is a stop, and an empty status is asked again on the next heartbeat`() = runTest {
+        val tv = FakeCast()
+        val reports = mutableListOf<CastReport>()
+        val session = CastSession(tv, { reports += it }, clock = { NOW + testScheduler.currentTime }, nonce = CastFixtures.nonce(), roots = listOf(CastFixtures.root))
+        val run = async { session.run() }
+        runCurrent()
+        tv.deliver(CastFraming.binary(CastSession.RECEIVER, CastSession.SENDER, CastDeviceAuth.NAMESPACE, CastFixtures.reply()))
+        fun app(id: String, transport: String) =
+            """{"type":"RECEIVER_STATUS","status":{"applications":[{"appId":"$id","transportId":"$transport","namespaces":[{"name":"${CastNamespaces.MEDIA}"}]}]}}"""
+        tv.deliver(fromTv(CastSession.RECEIVER, CastNamespaces.RECEIVER, app("APP1", "t-1")))
+        runCurrent()
+        assertEquals(listOf<CastReport>(CastReport.Unknown), reports)
+        fun mediaGets() = tv.sent.count { it.namespace == CastNamespaces.MEDIA && it.payload_utf8?.contains("GET_STATUS") == true }
+        tv.deliver(fromTv("t-1", CastNamespaces.MEDIA,
+            """{"type":"MEDIA_STATUS","status":[{"mediaSessionId":1,"playerState":"PLAYING","currentTime":3,"media":{"duration":90,"metadata":{"title":"Sample Title"}}}]}"""))
+        tv.deliver(fromTv("t-1", CastNamespaces.MEDIA, """{"type":"MEDIA_STATUS","status":[]}"""))
+        runCurrent()
+        assertEquals(CastReport.Unknown, reports.last())
+        val before = mediaGets()
+        testScheduler.advanceTimeBy(CastSession.HEARTBEAT_MS + 1)
+        runCurrent()
+        assertEquals(before + 1, mediaGets(), "an empty status waits for the refresh instead of the next heartbeat")
+
+        // The same app on a new transport says nothing; another app is a confirmed end.
+        tv.deliver(fromTv(CastSession.RECEIVER, CastNamespaces.RECEIVER, app("APP1", "t-2")))
+        runCurrent()
+        assertEquals(CastReport.Unknown, reports.last())
+        tv.deliver(fromTv(CastSession.RECEIVER, CastNamespaces.RECEIVER, app("APP2", "t-3")))
+        runCurrent()
+        assertEquals(CastReport.Stopped, reports.last())
+
+        tv.close()
+        run.await()
+        assertEquals(CastReport.Unknown, reports.last(), "the end of a session is silence, not a stop")
+        run.cancel()
     }
 }

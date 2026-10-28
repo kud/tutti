@@ -2,12 +2,16 @@ package io.kud.tutti.controller
 
 import io.kud.tutti.protocol.cast.CastConnection
 import io.kud.tutti.protocol.cast.CastConnector
+import io.kud.tutti.protocol.cast.CastContext
 import io.kud.tutti.protocol.cast.CastEnd
+import io.kud.tutti.protocol.cast.CastHold
 import io.kud.tutti.protocol.cast.CastNowPlaying
 import io.kud.tutti.protocol.cast.CastReading
+import io.kud.tutti.protocol.cast.CastReport
 import io.kud.tutti.protocol.cast.CastSession
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -16,6 +20,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.launch
 
 /**
@@ -41,12 +46,15 @@ object CastBackoff {
  * Runs one read-only [CastSession] to the TV while [active] holds a host (the remote in front,
  * the TV's host configured and on), and only then. A new host or leaving closes the session at
  * once. After an end it waits per [CastBackoff], and that wait outlives leaving the screen, so
- * flicking between screens never turns into a retry loop. [nowPlaying] is null whenever no
- * session reports anything. [log] gets end classes only, never a title.
+ * flicking between screens never turns into a retry loop. [nowPlaying] goes through [CastHold]:
+ * a session's silence (its end, a reconnect, leaving for a moment, an empty status) keeps the last
+ * confirmed item for [CastHold.GRACE_MS]; a confirmed end, a new host, or a change [context]
+ * proves (standby, another app in front, a tuner or input) clears it at once. [log] gets end
+ * classes only, never a title.
  */
 class CastWatcher(
     private val connector: CastConnector,
-    scope: CoroutineScope,
+    private val scope: CoroutineScope,
     active: Flow<String?>,
     private val clock: () -> Long,
     private val log: (String) -> Unit = {},
@@ -54,22 +62,57 @@ class CastWatcher(
     private val onReady: (Long) -> Unit = {},
     /** The raw numbers of each media status, for the diagnostic; never a title. */
     onReading: (CastReading) -> Unit = {},
-    private val runSession: suspend (CastConnection, (CastNowPlaying?) -> Unit) -> CastEnd = { connection, emit ->
+    /** What the other planes say about the TV ([CastHold.onContext]). */
+    context: Flow<CastContext> = emptyFlow(),
+    private val runSession: suspend (CastConnection, (CastReport) -> Unit) -> CastEnd = { connection, emit ->
         CastSession(connection, emit, onReading = onReading).run()
     },
 ) {
     private val mutable = MutableStateFlow<CastNowPlaying?>(null)
     val nowPlaying: StateFlow<CastNowPlaying?> = mutable.asStateFlow()
 
+    private val lock = Any()
+    private val hold = CastHold()
+    private var expiry: Job? = null
+
+    private fun fold(change: CastHold.() -> Unit) {
+        val shown: CastNowPlaying?
+        val expires: Long?
+        synchronized(lock) {
+            hold.change()
+            shown = hold.at(clock())
+            expires = hold.expiresAtMillis
+            expiry?.cancel()
+            expiry = expires?.let { at ->
+                scope.launch {
+                    delay((at - clock()).coerceAtLeast(0))
+                    fold { }
+                }
+            }
+        }
+        mutable.value = shown
+    }
+
     /** Per host: no attempt before this time, and the ends in a row so far. */
     private val holds = mutableMapOf<String, Pair<Long, Int>>()
 
     init {
         scope.launch {
+            var lastHost: String? = null
             active.distinctUntilChanged().collectLatest { host ->
-                mutable.value = null
-                if (host != null) watch(host)
+                // Inactive for a moment (the TV's power reading blinking, the screen left) proves
+                // nothing; another TV does.
+                if (host == null) {
+                    fold { onReport(CastReport.Unknown, clock()) }
+                } else {
+                    if (lastHost != null && host != lastHost) fold { clear() }
+                    lastHost = host
+                    watch(host)
+                }
             }
+        }
+        scope.launch {
+            context.distinctUntilChanged().collect { fold { onContext(it) } }
         }
     }
 
@@ -88,7 +131,7 @@ class CastWatcher(
                             reported = true
                             onReady(clock() - started)
                         }
-                        mutable.value = it
+                        fold { onReport(it, clock()) }
                     }
                 } finally {
                     connection.close()
@@ -98,7 +141,7 @@ class CastWatcher(
             } catch (e: Exception) {
                 CastEnd.Closed(e.javaClass.simpleName)
             } finally {
-                mutable.value = null
+                fold { onReport(CastReport.Unknown, clock()) }
             }
             val healthy = end !is CastEnd.Untrusted && clock() - started >= CastBackoff.HEALTHY_MS
             val count = if (healthy) 1 else failures + 1
