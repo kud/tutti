@@ -1,6 +1,7 @@
 package io.kud.tutti.ui.settings
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -26,6 +27,7 @@ import io.kud.tutti.protocol.apps.LinkProbe
 import io.kud.tutti.protocol.apps.LinkProbeResult
 import io.kud.tutti.ui.common.SettingsGroup
 import io.kud.tutti.ui.common.SettingsRow
+import io.kud.tutti.ui.common.keepAboveIme
 import kotlinx.coroutines.launch
 
 /**
@@ -55,18 +57,21 @@ fun LinkProbeGroup(onProbe: suspend (String) -> LinkProbeResult) {
     }
     SettingsGroup(stringResource(R.string.link_probe_title)) {
         SettingsRow(title = stringResource(R.string.link_probe_intro))
-        OutlinedTextField(
-            value = link,
-            onValueChange = { link = it },
-            label = { Text(stringResource(R.string.link_probe_field)) },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Send),
-            keyboardActions = KeyboardActions(onSend = { send(link.trim()) }),
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-        )
-        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.End) {
-            Button(onClick = { send(link.trim()) }, enabled = !busy && link.isNotBlank()) {
-                Text(stringResource(R.string.link_probe_send))
+        // The field and Send are one group above the keyboard.
+        Column(Modifier.keepAboveIme()) {
+            OutlinedTextField(
+                value = link,
+                onValueChange = { link = it },
+                label = { Text(stringResource(R.string.link_probe_field)) },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Send),
+                keyboardActions = KeyboardActions(onSend = { send(link.trim()) }),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+            )
+            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.End) {
+                Button(onClick = { send(link.trim()) }, enabled = !busy && link.isNotBlank()) {
+                    Text(stringResource(R.string.link_probe_send))
+                }
             }
         }
         SettingsRow(

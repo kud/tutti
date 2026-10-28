@@ -9,9 +9,11 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -61,6 +63,7 @@ import io.kud.tutti.protocol.devices.Targeting
 import io.kud.tutti.ui.common.OpensChevron
 import io.kud.tutti.ui.common.SettingsGroup
 import io.kud.tutti.ui.common.SettingsRow
+import io.kud.tutti.ui.common.keepAboveIme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -140,7 +143,7 @@ internal fun AddDeviceFlow(
             },
         ) { padding ->
             Column(
-                Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(bottom = 32.dp),
+                Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding).imePadding().verticalScroll(rememberScrollState()).padding(bottom = 32.dp),
             ) {
                 when (step) {
                     AddStep.WHAT -> WhatStep(
@@ -370,7 +373,8 @@ private fun InputStep(inputs: List<ExternalInput>, newly: String?, selected: Str
 @Composable
 private fun NameStep(name: String, failed: Boolean, onName: (String) -> Unit, onAdd: () -> Unit) {
     StepHeader(3, stringResource(R.string.devices_name_title), stringResource(R.string.devices_name_hint))
-    Column(Modifier.padding(horizontal = 32.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    // The name, its failure line and Add are one group above the keyboard.
+    Column(Modifier.padding(horizontal = 32.dp).keepAboveIme(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         OutlinedTextField(
             value = name,
             onValueChange = onName,

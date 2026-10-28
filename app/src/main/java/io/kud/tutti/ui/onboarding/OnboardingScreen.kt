@@ -607,9 +607,9 @@ private fun CodeStep(pairing: PairingUi, codeSent: Boolean, onSubmit: (String) -
     BoxWithConstraints(Modifier.fillMaxSize()) {
         // Keyboard up and short of room, the TV drawing yields: the body already says where the code is,
         // and the cells, their count and the action stay in view (Ime.kt, rule 2). Drawing: cells 56,
-        // the TV's frame and stand 93, gaps 64, the action 68 when shown; type: title, two body lines,
-        // the count and the TV's two lines.
-        val roomy = roomWhileTyping(fixed = (213 + if (action) 68 else 0).dp, text = 152.sp)
+        // the TV's frame padding, stand and margins 77, gaps 64, the action 68 when shown; type: title,
+        // two body lines, the count and the TV's two lines.
+        val roomy = roomWhileTyping(fixed = (197 + if (action) 68 else 0).dp, text = 132.sp)
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Text(stringResource(R.string.intro_code_title), style = MaterialTheme.typography.headlineSmall)
             Text(stringResource(R.string.intro_code_body), style = MaterialTheme.typography.bodyMedium, color = colors.onSurfaceVariant)
