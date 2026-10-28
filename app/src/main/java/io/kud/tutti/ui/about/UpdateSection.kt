@@ -25,6 +25,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
@@ -112,6 +113,7 @@ fun rememberUpdateCue(): UpdateCueState {
 @Composable
 fun UpdateCheckEffect(onInstall: () -> Unit) {
     val context = LocalContext.current
+    val resources = LocalResources.current
     val updater = remember(context) { Updater.from(context) }
     val messages = LocalMessages.current
     val scope = rememberCoroutineScope()
@@ -120,8 +122,8 @@ fun UpdateCheckEffect(onInstall: () -> Unit) {
             kotlinx.coroutines.delay(3_000)
             val update = updater.checkIfDue() ?: return@launch
             messages?.show(
-                context.getString(R.string.update_available, update.version.toString()),
-                actionLabel = context.getString(R.string.update_message_install),
+                resources.getString(R.string.update_available, update.version.toString()),
+                actionLabel = resources.getString(R.string.update_message_install),
                 onAction = onInstall,
                 long = true,
             )
