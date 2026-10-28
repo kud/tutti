@@ -318,6 +318,15 @@ Erwann, on the screen fed by IP control: « We need to improve that it's from IP
 - **A slider row** gives the title its own line: the value sits beside it only while it can change, and the reason goes under it. The two ends of the range sit under the slider, and ranges either side of 0 sign their positives, so a thumb at an end reads in numbers: Sony's gains top out at 0, which looked like a bug.
 - **Short choices are segments, not a menu (Iris, 2026-10-26, after Erwann's « Pour des options comme ça on peut mettre un segment nan ? » about Power saving).** A choice with two to four options shows them all as one outlined row of segments under its name (`OptionsRow`), the chosen one filled with a tick above its name, so it never rests on colour; every name may take two lines but no word may break, measured in the language, width and font size on screen (`SegmentFit`, tested). Anything that doesn't fit (five options, « Image désactivée » on a narrow phone, a large font) keeps the menu rather than ellipsising. Unavailable, the segments are disabled with the reason under the name; a tap is optimistic and a failure moves the tick back with the reload; TalkBack hears the setting, then each option as a radio button. The TV's write-only sound output keeps its menu: with no current value there is nothing to tick.
 
+### The phone keyboard covers nothing that matters (Iris, 2026-10-28)
+
+After Erwann's « Certains screens sont coupés car on doit scroller alors qu'on a la place » (the pairing code's count hidden under Gboard with room to spare). The rule, in `ui/common/Ime.kt`, for every screen and sheet with a field:
+
+- One owner per inset: a Scaffold's padding is consumed before `imePadding()`, since the keyboard's inset already holds the navigation bar; sheets pad by the larger of the two (`TuttiSheet`). Counting the bar twice cost 24 to 48 dp.
+- While the keyboard is up, decoration shows only if everything still fits (`roomWhileTyping`, its sum in sp so it follows the font scale): the code step's TV drawing and the search step's radar yield, the words around them already say the same. Without the keyboard nothing changes. The size change is an expand or shrink with a fade; reduced motion fades only.
+- The focused field's whole group, the field with its counter or helper and its action, is brought into view as the keyboard settles (`keepAboveIme`), not the field alone. Scrolling stays, as the fallback.
+- The onboarding's back arrow shares the "Step 2 of 4" line instead of a row of its own. TalkBack still reaches it alone, then the bar as one description.
+
 ## Words: one name per thing (Iris, 2026-10-25)
 
 Each thing has one name in each language, everywhere: screens, TalkBack, the notification and the widget.
