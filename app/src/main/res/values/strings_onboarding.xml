@@ -42,6 +42,9 @@
         <item quantity="other">Searching… %d found</item>
     </plurals>
     <string name="intro_enter_ip">Enter IP address</string>
+    <!-- Android 17\'s local-network permission: the search step\'s card, in the radar\'s place. -->
+    <string name="intro_lan_title">Allow the home network</string>
+    <string name="intro_lan_body">Android 17 keeps apps off the local network until allowed. Without it, tutti cannot find or reach the TV.</string>
     <string name="intro_code_title">Look at the TV</string>
     <string name="intro_code_body">It shows a 6-character code. Type it here.</string>
     <string name="intro_code_on_tv">Pairing code</string>

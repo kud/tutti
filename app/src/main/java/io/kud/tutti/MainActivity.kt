@@ -168,6 +168,9 @@ class MainActivity : ComponentActivity() {
     override fun onStart() {
         super.onStart()
         controller.retain()
+        // A grant made outside the app's own dialog (the system Settings page, or Bluetooth's
+        // NEARBY_DEVICES group carrying it) arrives while there is no launcher callback to see it.
+        controller.onLanPermissionGranted()
         target.appForeground(true)
     }
 

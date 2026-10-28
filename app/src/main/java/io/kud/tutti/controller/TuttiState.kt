@@ -277,6 +277,12 @@ data class TuttiUiState(
     val technical: TechnicalReadouts = TechnicalReadouts(),
     /** App launches in flight and the app shown optimistically meanwhile ([io.kud.tutti.protocol.apps.LaunchQueue]). */
     val launches: io.kud.tutti.protocol.apps.LaunchBook = io.kud.tutti.protocol.apps.LaunchBook(),
+    /**
+     * Android 17 keeps the local network shut behind a runtime permission and nothing is granted
+     * (or it was asked and refused): every LAN link is down for that reason alone, said in the
+     * Connexions sheet and the banner, until the permission is granted.
+     */
+    val lanPermissionMissing: Boolean = false,
 ) {
     /** [apps] minus the ones hidden in Settings: what the Apps sheet and pickers offer. */
     val visibleApps: List<io.kud.tutti.protocol.apps.KnownApp>

@@ -415,6 +415,12 @@ class TargetController @Inject constructor(
     fun settingsShown() = hid.acquire(SETTINGS)
 
     /**
+     * After a Bluetooth permission dialog answers: the grant can bring the local-network permission
+     * with it (same NEARBY_DEVICES group), and only [TuttiController] can wake its loops for that.
+     */
+    fun onBluetoothPermissionResult() = controller.onLanPermissionGranted()
+
+    /**
      * The TV row's Bluetooth pairing step opened: hold the role with no host asked for, so the TV
      * can connect from its side (Remotes & accessories) and nothing else is dialled meanwhile.
      */

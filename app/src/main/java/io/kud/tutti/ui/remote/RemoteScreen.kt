@@ -3,9 +3,18 @@ package io.kud.tutti.ui.remote
 import io.kud.tutti.sleep.SleepTimers
 import io.kud.tutti.sleep.gentleOffRow
 import io.kud.tutti.protocol.sleep.SleepFade
+import io.kud.tutti.platform.net.LocalNetworkRules
 import io.kud.tutti.ui.common.FeedbackEvent
+import android.Manifest
+import android.app.Activity
+import android.content.Intent
+import android.net.Uri
 import android.os.SystemClock
+import android.provider.Settings
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.app.ActivityCompat
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -29,12 +38,18 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.BottomSheetScaffold
 import androidx.compose.material3.SheetValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.rememberBottomSheetScaffoldState
-import androidx.compose.foundation.layout.width
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -207,6 +222,31 @@ fun RemoteScreen(
     var targetSheet by remember { mutableStateOf(false) }
     // The device pill opens « Connexions » (Erwann, 2026-10-25), no longer Settings directly.
     var connectionsSheet by remember { mutableStateOf(false) }
+
+    // Android 17's local-network gate: asked when the banner, the sheet's step or onboarding hits
+    // it. A refusal with no rationale afterwards means the system will not show another dialog —
+    // only its app page grants it (LocalNetworkRules, Connections's lanCantAsk).
+    var lanCantAsk by rememberSaveable { mutableStateOf(false) }
+    val lanLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) {
+            controller.onLanPermissionGranted()
+        } else {
+            val activity = context as? Activity
+            val rationale = activity != null &&
+                ActivityCompat.shouldShowRequestPermissionRationale(activity, Manifest.permission.ACCESS_LOCAL_NETWORK)
+            lanCantAsk = LocalNetworkRules.outlook(denied = true, shouldShowRationale = rationale) ==
+                LocalNetworkRules.Outlook.CANNOT_ASK
+        }
+    }
+    // The system's page for tutti, where the local-network switch stands when no dialog answers.
+    fun openLanSettings() {
+        context.startActivity(
+            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null)),
+        )
+    }
+    fun askLanAccess() {
+        if (lanCantAsk) openLanSettings() else lanLauncher.launch(Manifest.permission.ACCESS_LOCAL_NETWORK)
+    }
     // The remote is on screen: with the app in front, the HID connection may be held.
     DisposableEffect(target) {
         target.remoteShown(true)
@@ -524,6 +564,16 @@ fun RemoteScreen(
                     }
                 }
 
+                // Android 17 shut the LAN behind its runtime permission (LocalNetworkRules): said
+                // once here, its step next, so the remote never reads as alive while links die.
+                if (state.lanPermissionMissing && (state.devices.tv != null || state.devices.bar != null)) {
+                    LanBanner(
+                        asks = !lanCantAsk,
+                        onAllow = { askLanAccess() },
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                    )
+                }
+
                 if (layout.scenes) {
                     SceneStrip(
                         scenes = state.scenes,
@@ -771,7 +821,7 @@ fun RemoteScreen(
     if (connectionsSheet) {
         // A pill that says something is wrong lands on that device's line (problemLine).
         val barOffer by controller.barAddressOffer.collectAsState()
-        val connDevices = connections(connInput(state, targets, barOffer = barOffer != null))
+        val connDevices = connections(connInput(state, targets, barOffer = barOffer != null, lanCantAsk = lanCantAsk))
         ConnectionsSheet(
             devices = connDevices,
             focus = problemLine(connDevices),
@@ -781,6 +831,9 @@ fun RemoteScreen(
                     ConnAction.WAKE_TV -> controller.power(PowerTarget.TV, on = true)
                     ConnAction.CONTROL -> target.setTarget(device.id)
                     ConnAction.USE_NEW_ADDRESS -> controller.useBarAddressOffer()
+                    // Local: the grant closes the loop here, no route through Settings.
+                    ConnAction.LAN_REQUEST -> askLanAccess()
+                    ConnAction.LAN_OPEN_SETTINGS -> openLanSettings()
                     else -> onConnectionStep(action)
                 }
             },
@@ -1119,6 +1172,42 @@ fun RemoteScreen(
             },
         )
         null -> Unit
+    }
+}
+
+/**
+ * The local-network permission's banner (Android 17): one line under the top bar, on the same
+ * words as the sheet's step ([ConnAction.LAN_REQUEST]). While a dialog may still come the ask
+ * launches one; after a refusal the system never shows again, the button opens tutti's page.
+ */
+@Composable
+private fun LanBanner(asks: Boolean, onAllow: () -> Unit, modifier: Modifier = Modifier) {
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHighest,
+        contentColor = MaterialTheme.colorScheme.onSurface,
+        modifier = modifier.fillMaxWidth(),
+    ) {
+        Row(
+            Modifier.padding(start = 16.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Icon(
+                painterResource(R.drawable.ic_warning),
+                contentDescription = stringResource(R.string.conn_needs_permission),
+                tint = MaterialTheme.colorScheme.error,
+                modifier = Modifier.size(20.dp),
+            )
+            Text(
+                stringResource(R.string.conn_banner_lan),
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.weight(1f).padding(vertical = 10.dp),
+            )
+            TextButton(onClick = onAllow, modifier = Modifier.heightIn(min = 48.dp)) {
+                Text(stringResource(if (asks) R.string.conn_action_lan_allow else R.string.conn_action_lan_open_settings))
+            }
+        }
     }
 }
 

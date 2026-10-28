@@ -47,4 +47,8 @@
     <string name="conn_action_use_address">Use it</string>
     <string name="conn_action_control">Control</string>
     <string name="conn_action_devices">Open Devices</string>
+    <!-- Android 17\'s local-network permission, the banner\'s line and the sheet\'s one step. -->
+    <string name="conn_banner_lan">Android keeps tutti off the home network until you allow it. The TV and soundbar answer nothing meanwhile.</string>
+    <string name="conn_action_lan_allow">Allow</string>
+    <string name="conn_action_lan_open_settings">Open Settings</string>
 </resources>

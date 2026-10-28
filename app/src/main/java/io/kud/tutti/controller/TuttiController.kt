@@ -21,6 +21,8 @@ import io.kud.tutti.platform.data.SecondaryButton
 import io.kud.tutti.platform.data.TvDevice
 import io.kud.tutti.platform.diagnostic.AppVersion
 import io.kud.tutti.platform.data.BarDevice
+import io.kud.tutti.platform.net.LocalNetworkPermission
+import io.kud.tutti.platform.net.LocalNetworkPermissionMissing
 import io.kud.tutti.platform.net.OkHttpBarHttpTransport
 import io.kud.tutti.platform.net.OkHttpBraviaTransport
 import io.kud.tutti.platform.net.PinMismatchException
@@ -170,6 +172,7 @@ class TuttiController @Inject constructor(
     val cloud: SonyCloudPlane,
     cast: io.kud.tutti.protocol.cast.CastConnector,
     private val discovery: io.kud.tutti.platform.discovery.TvDiscovery,
+    private val lan: io.kud.tutti.platform.net.LocalNetworkPermission,
 ) {
     /** Application-lifetime scope; widgets may launch into it. */
     val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default + loggingHandler { Log.e(TAG, it) })
@@ -224,7 +227,7 @@ class TuttiController @Inject constructor(
     /** Latest level to send; a Channel, not a StateFlow, so setting the level it already holds still sends it. */
     private val volumeTarget = Channel<Int>(Channel.CONFLATED)
     private val waking = MutableStateFlow(false)
-    private val wakeOnLan = WakeOnLanSender(context)
+    private val wakeOnLan = WakeOnLanSender(context, lan::require)
 
     /** How the remote's last connect failed (`ErrorClass`), so a failed wake can tell "nothing there" from "refused". */
     @Volatile
@@ -283,6 +286,13 @@ class TuttiController @Inject constructor(
     private val mutableEvents = MutableSharedFlow<TuttiEvent>(extraBufferCapacity = 16)
     val events: SharedFlow<TuttiEvent> = mutableEvents.asSharedFlow()
 
+    /**
+     * [LocalNetworkPermission] says no (asked and refused, or simply never granted): every LAN
+     * link is down for that reason alone. Cleared by [onLanPermissionGranted], re-raised by the
+     * gates in the loops while it stays missing.
+     */
+    private val lanMissing = MutableStateFlow(false)
+
     private data class Overrides(val volume: Int? = null, val powered: Boolean? = null)
 
     private data class GuardRuntime(val unlocked: Boolean = false, val ask: VolumeAsk? = null, val notice: Boolean = false)
@@ -314,15 +324,18 @@ class TuttiController @Inject constructor(
         val waking: Boolean,
         val linkNotes: LinkNotes,
         val launches: LaunchBook,
+        val lanMissing: Boolean,
     )
 
     private val stored = combine(store.devices, store.prefs, store.dock, store.scenes, store.profiles) { d, p, k, s, f -> Stored(d, p, k, s, f) }
     private val live = combine(tv, atv.state, theatre.state, links, voiceZoom) { t, r, b, l, v -> Live(t, r, b, l, v) }
-    private val extra = combine(progress, activeSceneId, pairing, cloud.state, combine(overrides, waking, linkNotes, launches) { o, w, n, l -> Quad(o, w, n, l) }) { p, a, q, c, o ->
-        Extra(p, a, q, c, o.overrides, o.waking, o.linkNotes, o.launches)
+    private val extra = combine(progress, activeSceneId, pairing, cloud.state, combine(combine(overrides, waking, linkNotes, launches) { o, w, n, l -> Quad(o, w, n, l) }, lanMissing) { q, m -> Extras(q, m) }) { p, a, q, c, o ->
+        Extra(p, a, q, c, o.quad.overrides, o.quad.waking, o.quad.linkNotes, o.quad.launches, o.lanMissing)
     }
 
     private data class Quad(val overrides: Overrides, val waking: Boolean, val linkNotes: LinkNotes, val launches: LaunchBook)
+
+    private data class Extras(val quad: Quad, val lanMissing: Boolean)
 
     private val volumeExtra = combine(guard, sceneUndo, capClock, remoteTarget) { g, u, c, t -> VolumeExtra(g, u, c, t) }
 
@@ -536,6 +549,10 @@ class TuttiController @Inject constructor(
         links.update { it.restarted(epoch) }
         // Coming back to the app is a fresh blip, not the minutes spent away.
         if (tvWasUp) tvDownSince = SystemClock.elapsedRealtime()
+        if (lan.missing()) {
+            // No LAN permission, no sockets: the loops only confirm it at their own gates.
+            lanMissing.value = true
+        }
         psk = secure.tvPsk()
         pskSet.value = psk != null
         ipCookie = secure.tvIpCookie()
@@ -555,6 +572,19 @@ class TuttiController @Inject constructor(
         withTimeoutOrNull(millis) { wake.first() }
     }
 
+    /**
+     * The local-network permission was granted (the request dialog was answered, or the quick
+     * surfaces hand the app the grant): forget the missing state and rerun the sessions at once,
+     * so the links come back without waiting out a backoff.
+     */
+    fun onLanPermissionGranted() {
+        if (lan.missing()) return
+        if (lanMissing.value) {
+            lanMissing.value = false
+            restart.update { it + 1 }
+        }
+    }
+
     private suspend fun barLoop(bar: BarDevice?) {
         if (bar == null) {
             links.update { it.copy(bar = Link.ABSENT) }
@@ -564,6 +594,9 @@ class TuttiController @Inject constructor(
         var failures = 0
         try {
             while (scope.isActive) {
+                // No local-network permission, no socket: say it and keep ticking slowly, so a
+                // grant comes back into the loop at once (onLanPermissionGranted wakes it).
+                if (lan.missing()) lanMissing.value = true
                 links.update { it.copy(bar = Link.CONNECTING) }
                 linkTimings.started(io.kud.tutti.protocol.diagnostic.TimedLink.BAR, SystemClock.elapsedRealtime())
                 val connected = try {
@@ -571,6 +604,10 @@ class TuttiController @Inject constructor(
                     true
                 } catch (e: CancellationException) {
                     throw e
+                } catch (e: LocalNetworkPermissionMissing) {
+                    lanMissing.value = true
+                    linkNotes.update { it.copy(bar = failureDetail("soundbar: connect (TCP 33336)", outcome = "the local network permission is missing", error = e)) }
+                    false
                 } catch (e: Exception) {
                     linkNotes.update { it.copy(bar = failureDetail("soundbar: connect (TCP 33336)", outcome = "unreachable", error = e)) }
                     false
@@ -582,6 +619,7 @@ class TuttiController @Inject constructor(
                     barOffer.value = null
                     failures = 0
                     wait = MIN_BACKOFF_MS
+                    lanMissing.value = false
                     coroutineScope {
                         val probe = launch { voiceZoom.value = theatre.probe(TheatreFeature.VOICE_ZOOM) }
                         val model = launch {
@@ -664,6 +702,14 @@ class TuttiController @Inject constructor(
             }
             return
         }
+        // No local-network permission, no TLS to the TV: say it and wait for the grant
+        // ([onLanPermissionGranted] reruns the sessions), as the pairing checks above do.
+        if (lan.missing()) {
+            lanMissing.value = true
+            links.update { it.copy(tv = Link.UNREACHABLE) }
+            linkNotes.update { it.copy(tv = failureDetail("tv remote: connect (TLS 6466)", outcome = "the local network permission is missing")) }
+            return
+        }
         var wait = MIN_BACKOFF_MS
         var handshakeFailures = 0
         var unreachable = 0
@@ -695,6 +741,10 @@ class TuttiController @Inject constructor(
                     }
                 } catch (e: CancellationException) {
                     throw e
+                } catch (e: LocalNetworkPermissionMissing) {
+                    lanMissing.value = true
+                    linkNotes.update { it.copy(tv = failureDetail("tv remote: connect (TLS 6466)", outcome = "the local network permission is missing", error = e)) }
+                    Link.UNREACHABLE
                 } catch (e: Exception) {
                     tvLastConnect = ErrorClass.of(e)
                     linkNotes.update { it.copy(tv = failureDetail("tv remote: connect (TLS 6466)", outcome = "handshake failures in a row: $handshakeFailures", error = e)) }
@@ -721,6 +771,7 @@ class TuttiController @Inject constructor(
                     unreachable = 0
                     tvLastConnect = null
                     wait = MIN_BACKOFF_MS
+                    lanMissing.value = false
                     links.update { it.copy(tv = Link.ONLINE) }
                     linkNotes.update { it.copy(tv = null) }
                     atv.state.first { !it.ready }
@@ -789,7 +840,7 @@ class TuttiController @Inject constructor(
 
     /** The REST public key [host] presents over HTTPS when it is [pin]: one unauthenticated getInterfaceInformation. */
     private suspend fun seenRestKey(host: String, pin: PublicKeyPin): PublicKeyPin? {
-        val transport = OkHttpBraviaTransport(host, pin) { }
+        val transport = OkHttpBraviaTransport(host, pin, { }, lan::require)
         return try {
             withTimeoutOrNull(PROBE_TIMEOUT_MS) {
                 transport.post(
@@ -856,7 +907,18 @@ class TuttiController @Inject constructor(
         // A new session (a new PSK or code restarts this loop) judges the key afresh.
         pskRefused = false
         tv.update { it.copy(pskRefused = false) }
-        val transport = OkHttpBraviaTransport(device.host, secure.tvRestPin()) { secure.setTvRestPin(it) }
+        // No local-network permission, no REST: report that reason, not a generic transport error.
+        // [onLanPermissionGranted] reruns the sessions once the permission is granted.
+        if (lan.missing()) {
+            lanMissing.value = true
+            bravia = null
+            braviaTransport = null
+            links.update { it.copy(rest = Link.UNREACHABLE) }
+            linkNotes.update { it.copy(rest = failureDetail("tv ip control", outcome = "the local network permission is missing")) }
+            tv.update { it.copy(power = PowerStatus.UNKNOWN) }
+            return
+        }
+        val transport = OkHttpBraviaTransport(device.host, secure.tvRestPin(), { secure.setTvRestPin(it) }, lan::require)
         // The cookie wins when both exist (BraviaClient sends one credential, never both).
         val client = BraviaClient(transport, cookie = { ipCookie?.value }, psk = { psk })
         braviaTransport = transport
@@ -894,6 +956,7 @@ class TuttiController @Inject constructor(
                     linkTimings.ready(io.kud.tutti.protocol.diagnostic.TimedLink.REST, SystemClock.elapsedRealtime())
                     wait = MIN_BACKOFF_MS
                     unreachable = 0
+                    lanMissing.value = false
                     links.update { it.copy(rest = Link.ONLINE) }
                     linkNotes.update { it.copy(rest = null) }
                     tv.update { it.copy(capabilities = found.value) }
@@ -917,6 +980,8 @@ class TuttiController @Inject constructor(
                         else -> Link.UNREACHABLE
                     }
                     unreachable = if (link == Link.UNREACHABLE) unreachable + 1 else 0
+                    // A permission revoked mid-session surfaces here as a transport error: own it.
+                    if (link == Link.UNREACHABLE && lan.missing()) lanMissing.value = true
                     links.update { it.copy(rest = link) }
                     linkNotes.update { it.copy(rest = failureDetail("tv ip control: discover (HTTPS/HTTP + PSK)", outcome = "$link: ${found.error}")) }
                     // A wrong PSK will not fix itself: wait for a new one (restart) or a long while.
@@ -1147,6 +1212,7 @@ class TuttiController @Inject constructor(
             pairing = e.pairing,
             cloud = e.cloud,
             launches = e.launches,
+            lanPermissionMissing = e.lanMissing,
         )
     }
 
@@ -2055,7 +2121,7 @@ class TuttiController @Inject constructor(
                 technical.update { it.copy(barHttpFetch = Fetch.LOADING) }
                 var fetch = Fetch.DONE
                 val readouts = try {
-                    BarHttpClient(OkHttpBarHttpTransport(bar.host)).readouts().also {
+                    BarHttpClient(OkHttpBarHttpTransport(bar.host, lan::require)).readouts().also {
                         if (it == null) fetch = Fetch.UNSUPPORTED
                     }
                 } catch (e: CancellationException) {
@@ -2341,6 +2407,11 @@ class TuttiController @Inject constructor(
             pairing.value = PairingUi.Failed(PairingError.UNREACHABLE, failureDetail("pair tv", outcome = "not a private LAN address", sensitive = listOf(address)))
             return
         }
+        // No local-network permission, no TLS to the TV: refuse like a wrong address, with the reason.
+        if (lan.missing()) {
+            pairing.value = PairingUi.Failed(PairingError.UNREACHABLE, failureDetail("pair tv (TLS 6467)", outcome = "the local network permission is missing"))
+            return
+        }
         pairingJob?.cancel()
         pairingJob = scope.launch {
             pairing.value = PairingUi.Connecting
@@ -2436,7 +2507,7 @@ class TuttiController @Inject constructor(
      * closed; an HTTP-only TV clears it only after unauthenticated discovery actually answered there.
      */
     private suspend fun refreshRestTrustAfterPairing(address: String) {
-        val probe = OkHttpBraviaTransport(address, initialPin = null) {}
+        val probe = OkHttpBraviaTransport(address, initialPin = null, {}, lan::require)
         val result = runCatching { BraviaClient(probe) { null }.discover() }.getOrNull()
         when {
             probe.observedPin != null -> secure.setTvRestPin(probe.observedPin)
@@ -2533,7 +2604,8 @@ class TuttiController @Inject constructor(
      */
     suspend fun requestTvCode(): TvCodeStep {
         val host = store.devices.first().tv?.host ?: return TvCodeStep.Failed(TvCodeFailure.NO_TV)
-        val transport = OkHttpBraviaTransport(host, secure.tvRestPin()) { secure.setTvRestPin(it) }
+        if (lan.missing()) return TvCodeStep.Failed(TvCodeFailure.UNREACHABLE)
+        val transport = OkHttpBraviaTransport(host, secure.tvRestPin(), { secure.setTvRestPin(it) }, lan::require)
         // Same entry in the TV's list of remote devices as last time, when there was one.
         val clientId = (ipCookie ?: secure.tvIpCookie())?.clientId ?: IpRegistration.clientId(UUID.randomUUID().toString())
         codeSession = transport to clientId
