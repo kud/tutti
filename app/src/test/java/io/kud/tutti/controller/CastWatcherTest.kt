@@ -3,9 +3,12 @@ package io.kud.tutti.controller
 import io.kud.tutti.protocol.cast.CastAuthFailure
 import io.kud.tutti.protocol.cast.CastConnection
 import io.kud.tutti.protocol.cast.CastConnector
+import io.kud.tutti.protocol.cast.CastContext
 import io.kud.tutti.protocol.cast.CastEnd
+import io.kud.tutti.protocol.cast.CastHold
 import io.kud.tutti.protocol.cast.CastNowPlaying
 import io.kud.tutti.protocol.cast.CastPlayerState
+import io.kud.tutti.protocol.cast.CastReport
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.awaitCancellation
@@ -53,17 +56,18 @@ class CastWatcherTest {
     private fun TestScope.watcher(
         connector: FakeConnector,
         active: MutableStateFlow<String?>,
-        session: suspend (CastConnection, (CastNowPlaying?) -> Unit) -> CastEnd,
+        context: Flow<CastContext> = emptyFlow(),
+        session: suspend (CastConnection, (CastReport) -> Unit) -> CastEnd,
     ): Pair<CastWatcher, TestScope> {
         val child = TestScope(testScheduler)
-        return CastWatcher(connector, child, active, clock = { testScheduler.currentTime }, runSession = session) to child
+        return CastWatcher(connector, child, active, clock = { testScheduler.currentTime }, context = context, runSession = session) to child
     }
 
     @Test
     fun `runs only while a host is active and closes on leave`() = runTest {
         val connector = FakeConnector()
         val active = MutableStateFlow<String?>(null)
-        val (w, child) = watcher(connector, active) { _, emit -> emit(playing); awaitCancellation() }
+        val (w, child) = watcher(connector, active) { _, emit -> emit(CastReport.Playing(playing)); awaitCancellation() }
         runCurrent()
         assertTrue(connector.hosts.isEmpty())
 
@@ -74,8 +78,11 @@ class CastWatcherTest {
 
         active.value = null
         runCurrent()
-        assertNull(w.nowPlaying.value)
         assertTrue(connector.opened.single().closed)
+        // Leaving proves nothing about the TV: the item stands for the grace window, then goes.
+        assertEquals(playing, w.nowPlaying.value)
+        advanceTimeBy(CastHold.GRACE_MS + 1)
+        assertNull(w.nowPlaying.value)
         child.cancel()
     }
 
@@ -87,9 +94,9 @@ class CastWatcherTest {
         val child = TestScope(testScheduler)
         CastWatcher(connector, child, active, clock = { testScheduler.currentTime }, onReady = { ready += it }, runSession = { _, emit ->
             kotlinx.coroutines.delay(700)
-            emit(playing)
+            emit(CastReport.Playing(playing))
             kotlinx.coroutines.delay(5_000)
-            emit(null)
+            emit(CastReport.Unknown)
             awaitCancellation()
         })
         advanceTimeBy(10_000)
@@ -152,7 +159,7 @@ class CastWatcherTest {
         val active = MutableStateFlow<String?>("192.168.0.20")
         val ends = CompletableDeferred<Unit>()
         val (w, child) = watcher(connector, active) { _, emit ->
-            emit(playing)
+            emit(CastReport.Playing(playing))
             kotlinx.coroutines.delay(CastBackoff.HEALTHY_MS)
             if (!ends.isCompleted) ends.complete(Unit)
             CastEnd.Closed("eof")
@@ -160,9 +167,70 @@ class CastWatcherTest {
         runCurrent()
         assertEquals(playing, w.nowPlaying.value)
         advanceTimeBy(CastBackoff.HEALTHY_MS + 1)
-        assertNull(w.nowPlaying.value)
+        // The session dropped: the item rides the reconnect, and the new session confirms it.
+        assertEquals(playing, w.nowPlaying.value)
         advanceTimeBy(CastBackoff.FIRST_MS)
         assertEquals(2, connector.hosts.size)
+        assertEquals(playing, w.nowPlaying.value)
+        child.cancel()
+    }
+
+    @Test
+    fun `a session that drops and never comes back clears after the grace window`() = runTest {
+        val connector = FakeConnector()
+        val active = MutableStateFlow<String?>("192.168.0.20")
+        var first = true
+        val (w, child) = watcher(connector, active) { _, emit ->
+            if (first) {
+                first = false
+                emit(CastReport.Playing(playing))
+                CastEnd.Closed("eof")
+            } else {
+                emit(CastReport.Unknown)
+                awaitCancellation()
+            }
+        }
+        runCurrent()
+        assertEquals(playing, w.nowPlaying.value)
+        advanceTimeBy(CastHold.GRACE_MS - 1)
+        assertEquals(playing, w.nowPlaying.value)
+        advanceTimeBy(2)
+        assertNull(w.nowPlaying.value)
+        child.cancel()
+    }
+
+    @Test
+    fun `standby, another app or a new host clears the item at once`() = runTest {
+        val connector = FakeConnector()
+        val active = MutableStateFlow<String?>("192.168.0.20")
+        val context = MutableStateFlow(CastContext(foreground = "com.example.player"))
+        val (w, child) = watcher(connector, active, context) { _, emit ->
+            emit(if (connector.hosts.last() == "192.168.0.20") CastReport.Playing(playing) else CastReport.Unknown)
+            awaitCancellation()
+        }
+        runCurrent()
+        assertEquals(playing, w.nowPlaying.value)
+        context.value = CastContext(foreground = "com.example.launcher")
+        runCurrent()
+        assertNull(w.nowPlaying.value)
+
+        active.value = null
+        runCurrent()
+        active.value = "192.168.0.20"
+        runCurrent()
+        context.value = CastContext(standby = true)
+        runCurrent()
+        assertNull(w.nowPlaying.value)
+
+        context.value = CastContext()
+        active.value = null
+        runCurrent()
+        active.value = "192.168.0.20"
+        runCurrent()
+        assertEquals(playing, w.nowPlaying.value)
+        active.value = "192.168.0.21"
+        runCurrent()
+        assertNull(w.nowPlaying.value)
         child.cancel()
     }
 

@@ -41,11 +41,13 @@ sealed interface CastEnd {
 /**
  * One read-only Cast session: device auth, then receiver status, then the media status of
  * the app in front, through its transportId. It never sends a media command. Updates go to
- * [onNowPlaying]: null whenever nothing worth showing is reported, so the UI shows nothing.
+ * [onReport]: [CastReport.Playing] with an item, [CastReport.Stopped] when the receiver confirms
+ * it is over, and [CastReport.Unknown] for silence (connecting, a closed transport, an empty
+ * status, the session's end), which [CastHold] rides out rather than showing nothing at once.
  */
 class CastSession(
     private val connection: CastConnection,
-    private val onNowPlaying: (CastNowPlaying?) -> Unit,
+    private val onReport: (CastReport) -> Unit,
     private val clock: () -> Long = System::currentTimeMillis,
     private val nonce: ByteArray = ByteArray(CastDeviceAuth.NONCE_BYTES).also { SecureRandom().nextBytes(it) },
     private val roots: List<X509Certificate> = CastRoots.all,
@@ -61,6 +63,10 @@ class CastSession(
     private var verified = false
     @Volatile private var app: CastApp? = null
 
+    /** Set by a media status that said nothing either way: ask again on the next heartbeat, not the next refresh. */
+    @Volatile private var askSoon = false
+    private var lastReport: CastReport? = null
+
     /** Runs until the connection ends; the caller closes it on cancellation. */
     suspend fun run(): CastEnd = coroutineScope {
         send(CastFraming.binary(SENDER, RECEIVER, CastDeviceAuth.NAMESPACE, CastDeviceAuth.challenge(nonce)))
@@ -72,8 +78,9 @@ class CastSession(
                 try {
                     send(text(RECEIVER, CastNamespaces.HEARTBEAT, """{"type":"PING"}"""))
                     sinceRefresh += heartbeatMillis
-                    if (sinceRefresh >= refreshMillis) {
+                    if (sinceRefresh >= refreshMillis || askSoon) {
                         sinceRefresh = 0
+                        askSoon = false
                         app?.let { mediaStatus(it) }
                     }
                 } catch (e: CancellationException) {
@@ -102,7 +109,7 @@ class CastSession(
             result ?: CastEnd.Closed(e.javaClass.simpleName)
         } finally {
             ticker.cancel()
-            onNowPlaying(null)
+            onReport(CastReport.Unknown)
         }
         end
     }
@@ -128,14 +135,18 @@ class CastSession(
             }
             CastNamespaces.RECEIVER -> if (CastStatusParser.type(payload) == "RECEIVER_STATUS") onReceiverStatus(payload)
             CastNamespaces.MEDIA -> if (CastStatusParser.type(payload) == "MEDIA_STATUS" && m.source_id == app?.transportId) {
-                val now = reducer.onMediaStatus(payload, clock())
+                val report = reducer.report(payload, clock())
                 reducer.lastReading?.let(onReading)
-                onNowPlaying(now)
+                // One quick re-ask per gap: a status that keeps saying nothing waits for the refresh.
+                if (report == CastReport.Unknown && lastReport != CastReport.Unknown) askSoon = true
+                lastReport = report
+                onReport(report)
             }
             CastNamespaces.CONNECTION -> if (CastStatusParser.type(payload) == "CLOSE" && m.source_id == app?.transportId) {
                 app = null
                 reducer.reset()
-                onNowPlaying(null)
+                lastReport = CastReport.Unknown
+                onReport(CastReport.Unknown)
             }
         }
         return null
@@ -147,7 +158,13 @@ class CastSession(
         if (next?.transportId == current?.transportId) return
         app = next
         reducer.reset()
-        onNowPlaying(null)
+        // Another media app in front ends the item. The same app on a new transport says nothing yet,
+        // and so does no media app at all: receivers drop and relist apps around a reload, and a real
+        // switch to a non-Cast app shows on the Remote v2's package ([CastHold.onContext]).
+        val otherApp = next != null && current != null && current.appId != next.appId
+        val report = if (otherApp) CastReport.Stopped else CastReport.Unknown
+        lastReport = report
+        onReport(report)
         if (next != null) {
             send(text(next.transportId, CastNamespaces.CONNECTION, """{"type":"CONNECT","origin":{}}"""))
             mediaStatus(next)

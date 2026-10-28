@@ -93,7 +93,7 @@ class CastSimTest {
         seen: MutableList<CastNowPlaying?>,
         roots: List<X509Certificate> = listOf(CastFixtures.root),
         nonce: ByteArray = ByteArray(CastDeviceAuth.NONCE_BYTES).also { SecureRandom().nextBytes(it) },
-    ) = CastSession(connection, { seen += it }, clock = { CastFixtures.NOW }, nonce = nonce, roots = roots, heartbeatMillis = 200, refreshMillis = 400)
+    ) = CastSession(connection, { seen += it.nowPlaying }, clock = { CastFixtures.NOW }, nonce = nonce, roots = roots, heartbeatMillis = 200, refreshMillis = 400)
 
     @Test
     fun `verifies the receiver, follows the app in front and reports its media over a live socket`() = runBlocking {

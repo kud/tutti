@@ -208,15 +208,27 @@ class CastStatusReducer {
     var lastReading: CastReading? = null
         private set
 
+    /** The media session of the last item reported playing; an IDLE from another one is a confirmed end. */
+    private var shownSessionId: Long? = null
+
     fun reset() {
         media = null
         lastSessionId = null
         anchor = null
+        shownSessionId = null
     }
 
     /** The new view, or null when nothing worth showing is reported (no title, idle, no session). */
-    fun onMediaStatus(payload: JsonObject, nowMillis: Long): CastNowPlaying? = with(CastStatusParser) {
-        val entry = mediaEntries(payload).firstOrNull() ?: run { media = null; lastReading = null; anchor = null; return null }
+    fun onMediaStatus(payload: JsonObject, nowMillis: Long): CastNowPlaying? = report(payload, nowMillis).nowPlaying
+
+    /**
+     * The same status, classified for [CastHold]: [CastReport.Playing] with a title;
+     * [CastReport.Stopped] for an IDLE that ends the item shown (CANCELLED or ERROR, or another
+     * media session); [CastReport.Unknown] for everything that says nothing either way (an empty
+     * status list, IDLE between two items of the same session, a new item without its title yet).
+     */
+    fun report(payload: JsonObject, nowMillis: Long): CastReport = with(CastStatusParser) {
+        val entry = mediaEntries(payload).firstOrNull() ?: run { media = null; lastReading = null; anchor = null; return CastReport.Unknown }
         val sessionId = entry.long("mediaSessionId")
         val rawState = entry.string("playerState")
         lastReading = CastReading(
@@ -250,11 +262,18 @@ class CastStatusReducer {
             else -> CastPlayerState.IDLE
         }
         val title = snapshot.title
-        if (state == CastPlayerState.IDLE || title == null) {
+        if (state == CastPlayerState.IDLE) {
             anchor = null
-            return null
+            val shown = shownSessionId
+            val ended = entry.string("idleReason") in ENDING_IDLE || (shown != null && sessionId != null && sessionId != shown)
+            return if (ended) CastReport.Stopped else CastReport.Unknown
         }
-        settle(
+        if (title == null) {
+            anchor = null
+            return CastReport.Unknown
+        }
+        shownSessionId = sessionId
+        val view = settle(
             CastNowPlaying(
                 title = title,
                 secondary = snapshot.secondary,
@@ -267,6 +286,7 @@ class CastStatusReducer {
             ),
             sessionId,
         )
+        CastReport.Playing(view)
     }
 
     /**
@@ -322,5 +342,8 @@ class CastStatusReducer {
 
     private companion object {
         val RAW_STATES = setOf("PLAYING", "PAUSED", "BUFFERING", "LOADING", "IDLE")
+
+        /** Idle reasons that end the item for good; FINISHED and INTERRUPTED usually lead to the next one. */
+        val ENDING_IDLE = setOf("CANCELLED", "ERROR")
     }
 }
