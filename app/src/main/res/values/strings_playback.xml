@@ -18,6 +18,10 @@
     <string name="app_actions_close_confirm_title">Close every app on the TV?</string>
     <string name="app_actions_close_confirm_text">The TV can only close all its apps at once, %1$s included.</string>
     <string name="app_actions_close_confirm">Close apps</string>
-    <!-- The scrub strip: no duration, the app on the TV decides how far a key goes. -->
-    <string name="scrub_label">Drag to move back or forward</string>
+    <!-- Under the chips: a read-only timeline when Cast gives a trusted time, else the jog wheel.
+         Neither names how far a key goes: the app on the TV decides. -->
+    <string name="timeline_label">Playback position</string>
+    <string name="timeline_spoken">%1$d of %2$d minutes</string>
+    <string name="jog_name">Jog wheel</string>
+    <string name="jog_label">Spin to skip</string>
 </resources>
