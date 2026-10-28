@@ -35,6 +35,7 @@ import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.kud.tutti.R
@@ -174,6 +175,7 @@ fun TuttiApp(
     var editingLayout by remember { mutableStateOf(false) }
     val haptics = rememberHaptics()
     val context = LocalContext.current
+    val resources = LocalResources.current
 
     // Which way the screens slide: deeper comes in from the end, back from the start.
     var forward by remember { mutableStateOf(true) }
@@ -211,15 +213,15 @@ fun TuttiApp(
                 is TuttiEvent.SceneFinished -> {
                     if (event.failedSteps == 0) haptics.doublePulse() else haptics.reject()
                     if (event.detail != null) {
-                        problems.report(context.getString(R.string.scene_failed_steps), event.detail)
+                        problems.report(resources.getString(R.string.scene_failed_steps), event.detail)
                     } else if (event.undoable) {
                         // One step back in one gesture (Iris's gesture audit): the message carries Undo,
                         // and the pill's menu keeps it until the undo goes stale.
                         val name = controller.state.value.scenes.firstOrNull { it.scene.id == event.sceneId }?.scene?.name
                         if (name != null) {
                             messages.show(
-                                context.getString(R.string.scene_applied, name),
-                                actionLabel = context.getString(R.string.scene_undo),
+                                resources.getString(R.string.scene_applied, name),
+                                actionLabel = resources.getString(R.string.scene_undo),
                                 onAction = { controller.undoLastScene() },
                             )
                         }
@@ -228,18 +230,18 @@ fun TuttiApp(
                 is TuttiEvent.SceneUndone -> {
                     if (event.failedSteps == 0) haptics.confirm() else haptics.reject()
                     if (event.detail != null) {
-                        problems.report(context.getString(R.string.scene_undo_failed), event.detail)
+                        problems.report(resources.getString(R.string.scene_undo_failed), event.detail)
                     } else {
-                        messages.show(event.sceneName?.let { context.getString(R.string.scene_undone, it) } ?: context.getString(R.string.scene_undone_generic))
+                        messages.show(event.sceneName?.let { resources.getString(R.string.scene_undone, it) } ?: resources.getString(R.string.scene_undone_generic))
                     }
                 }
                 TuttiEvent.VolumeLimit -> haptics.bump()
-                is TuttiEvent.ActionFailed -> problems.report(context.getString(if (event.keyRefused) R.string.error_key_refused else R.string.error_action_failed), event.detail)
+                is TuttiEvent.ActionFailed -> problems.report(resources.getString(if (event.keyRefused) R.string.error_key_refused else R.string.error_action_failed), event.detail)
                 is TuttiEvent.KeyNotSent -> {
                     // The press's own click already played: a held key gets a soft bump, a dropped
                     // one the reject. The words repeat only once the last ones have gone.
                     if (event.outcome == KeyOutcome.HELD) haptics.bump() else haptics.reject()
-                    val text = context.getString(
+                    val text = resources.getString(
                         when (event.outcome) {
                             KeyOutcome.HELD -> R.string.key_held
                             KeyOutcome.DROPPED_WAITING -> R.string.key_dropped_waiting
@@ -258,24 +260,24 @@ fun TuttiApp(
                         AppsScreenVerdict.SENT -> R.string.apps_screen_unconfirmed
                         AppsScreenVerdict.FAILED -> R.string.apps_screen_failed
                         AppsScreenVerdict.NOT_SENT -> R.string.key_dropped_waiting
-                    }?.let(context::getString)
+                    }?.let(resources::getString)
                     if (event.verdict == AppsScreenVerdict.FAILED || event.verdict == AppsScreenVerdict.NOT_SENT) haptics.reject()
                     if (text != null && messages.current?.text != text) messages.show(text)
                 }
                 is TuttiEvent.AppLaunchHeld -> {
                     // The tap's own click already played: a soft bump, as for a held key.
                     haptics.bump()
-                    messages.show(context.getString(R.string.apps_launch_held, event.appName))
+                    messages.show(resources.getString(R.string.apps_launch_held, event.appName))
                 }
                 is TuttiEvent.AppNotOpened -> {
                     // The optimistic app has already rolled back on the card; say so quietly.
                     haptics.reject()
-                    val text = context.getString(if (event.expired) R.string.apps_launch_expired else R.string.apps_launch_not_opened, event.appName)
+                    val text = resources.getString(if (event.expired) R.string.apps_launch_expired else R.string.apps_launch_not_opened, event.appName)
                     if (event.detail != null && problems.developer) problems.report(text, event.detail) else messages.show(text)
                 }
-                is TuttiEvent.MicUnavailable -> problems.report(context.getString(R.string.voice_mic_unavailable), event.detail)
+                is TuttiEvent.MicUnavailable -> problems.report(resources.getString(R.string.voice_mic_unavailable), event.detail)
                 is TuttiEvent.WakeFailed -> problems.report(
-                    context.getString(
+                    resources.getString(
                         when (event.cause) {
                             WakeAttempt.Cause.TV_NO_MAC -> R.string.power_wake_failed_tv_no_mac
                             WakeAttempt.Cause.TV_NOT_FOUND -> R.string.power_wake_failed_tv_not_found

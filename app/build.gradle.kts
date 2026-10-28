@@ -2,7 +2,6 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
@@ -20,7 +19,7 @@ val releaseKeystore: String? = providers.environmentVariable("TUTTI_KEYSTORE_PAT
 
 android {
     namespace = "io.kud.tutti"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = appId
@@ -80,6 +79,9 @@ android {
         resources {
             // BouncyCastle jars each ship this file; AGP refuses duplicates.
             excludes += "/META-INF/versions/9/OSGI-INF/MANIFEST.MF"
+            // BC 1.86's every-jar packaging (root build.gradle) bundles LICENSE.md into
+            // bcprov, bcutil and bcpkix alike, which mergeJavaRes then refuses to merge.
+            excludes += "/META-INF/LICENSE.md"
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
             // BouncyCastle's Picnic (post-quantum signature) tables, 1.2 MB: only its picnic
             // classes read them, and tutti only builds an RSA certificate (ClientCertificates).

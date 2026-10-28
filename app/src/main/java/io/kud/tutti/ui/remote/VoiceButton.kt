@@ -40,6 +40,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
@@ -86,6 +87,7 @@ fun VoiceButton(
 ) {
     val nudge = LocalChipNudge.current
     val context = LocalContext.current
+    val resources = LocalResources.current
     val haptics = rememberHaptics()
     val voice by controller.voice.collectAsState()
     var hold by remember { mutableStateOf(Hold.NONE) }
@@ -98,7 +100,7 @@ fun VoiceButton(
             granted -> R.string.voice_hold_hint
             else -> R.string.voice_permission_denied
         }
-        messages?.show(context.getString(text))
+        messages?.show(resources.getString(text))
     }
 
     val isDown by rememberUpdatedState(down)
@@ -120,7 +122,7 @@ fun VoiceButton(
                 VoiceEvent.CAPPED -> {
                     haptics.bump()
                     hold = Hold.NONE
-                    messages?.show(context.getString(R.string.voice_capped))
+                    messages?.show(resources.getString(R.string.voice_capped))
                 }
                 VoiceEvent.SENT, VoiceEvent.CANCELLED -> Unit
             }
@@ -137,7 +139,7 @@ fun VoiceButton(
             VoiceFailure.NO_REPLY -> R.string.voice_no_reply
             VoiceFailure.DISCONNECTED -> R.string.voice_disconnected
         }
-        reportProblem(context.getString(text), controller.failureDetail("voice: hold to talk", outcome = failed.reason.name))
+        reportProblem(resources.getString(text), controller.failureDetail("voice: hold to talk", outcome = failed.reason.name))
         controller.clearVoiceFailure()
     }
 
@@ -271,7 +273,7 @@ fun VoiceButton(
                         cancelled || wasCancelling -> controller.cancelVoice()
                         SystemClock.uptimeMillis() - pressedAt < MIN_HOLD_MS -> {
                             controller.cancelVoice()
-                            messages?.show(context.getString(R.string.voice_hold_hint))
+                            messages?.show(resources.getString(R.string.voice_hold_hint))
                         }
                         else -> {
                             haptics.click()

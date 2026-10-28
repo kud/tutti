@@ -86,13 +86,13 @@ Keep it (and its passwords) somewhere safe outside the repo. If a secret is miss
 
 | Area | Choice |
 | --- | --- |
-| Language | Kotlin 2.3, JVM 17 |
+| Language | Kotlin 2.4, JVM 17 |
 | UI | Jetpack Compose, Material 3, Glance (widget) |
 | Dependency injection | Hilt (KSP) |
 | Storage | DataStore, Android Keystore |
 | Networking | OkHttp 5, Bouncy Castle, Wire (Android TV Remote v2 protos) |
 | Concurrency | Kotlin coroutines and Flow |
-| Build | Gradle 8, AGP 8 |
+| Build | Gradle 9, AGP 9 |
 
 ## 📝 Docs
 

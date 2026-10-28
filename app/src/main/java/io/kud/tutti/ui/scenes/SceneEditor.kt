@@ -53,7 +53,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -115,7 +115,7 @@ fun SceneEditorScreen(
 ) {
     val targets by controller.targetNames.collectAsState()
     val haptics = rememberHaptics()
-    val context = LocalContext.current
+    val resources = LocalResources.current
     val messages = LocalMessages.current
     val original = remember(sceneId) { state.scenes.firstOrNull { it.scene.id == sceneId }?.scene }
     val id = remember(sceneId) { original?.id ?: controller.newSceneId() }
@@ -259,7 +259,7 @@ fun SceneEditorScreen(
                 onClick = {
                     val captured = controller.captureCurrent()
                     if (captured.isEmpty()) {
-                        messages?.show(context.getString(R.string.editor_capture_empty))
+                        messages?.show(resources.getString(R.string.editor_capture_empty))
                     } else {
                         haptics.doublePulse()
                         settings = settings + captured

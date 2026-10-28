@@ -73,7 +73,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -123,7 +123,7 @@ fun InputView(
     modifier: Modifier = Modifier,
 ) {
     val haptics = rememberHaptics()
-    val context = LocalContext.current
+    val resources = LocalResources.current
     val messages = LocalMessages.current
     val focus = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
@@ -354,7 +354,7 @@ fun InputView(
                     try {
                         dictate.launch(intent)
                     } catch (e: ActivityNotFoundException) {
-                        messages?.show(context.getString(R.string.keyboard_dictation_unavailable), MessageKind.PROBLEM)
+                        messages?.show(resources.getString(R.string.keyboard_dictation_unavailable), MessageKind.PROBLEM)
                     }
                 },
                 label = { Text(stringResource(R.string.keyboard_dictate)) },
