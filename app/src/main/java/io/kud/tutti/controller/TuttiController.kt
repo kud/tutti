@@ -26,6 +26,7 @@ import io.kud.tutti.platform.net.OkHttpBraviaTransport
 import io.kud.tutti.platform.net.PinMismatchException
 import io.kud.tutti.platform.net.WakeOnLanSender
 import io.kud.tutti.platform.security.ClientIdentityStore
+import io.kud.tutti.platform.security.StagedIdentity
 import io.kud.tutti.platform.security.SecureStore
 import io.kud.tutti.protocol.apps.AppIcons
 import io.kud.tutti.protocol.apps.AppLauncher
@@ -108,6 +109,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -131,6 +133,7 @@ import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -2353,7 +2356,7 @@ class TuttiController @Inject constructor(
             val attemptJob = coroutineContext.job
             attemptJob.invokeOnCompletion { watchdog?.cancel() }
             suspend fun pairWith(identity: ClientIdentity): PairingResult {
-                val attempt = AtvPairing(tls, serviceName = "tutti", clientName = "tutti").also { session = it }
+                val attempt = AtvPairing(tls).also { session = it }
                 return attempt.pair(address, identity) { tries ->
                     val answer = CompletableDeferred<String?>()
                     codeAnswer = answer
@@ -2371,43 +2374,57 @@ class TuttiController @Inject constructor(
                     }
                 }
             }
-            val result = try {
-                try {
-                    pairWith(identities.getOrCreate())
-                } catch (e: SSLException) {
-                    // The keystore key couldn't sign in the handshake: retry once with the software key.
-                    if (e.message?.contains("RSA routines") != true) throw e
-                    steps += "keystore key refused, software key"
-                    pairWith(identities.replaceWithSoftware())
-                }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Throwable) {
-                // Throwable, not Exception: an Error here (a missing class, a provider failure) would otherwise kill the app.
-                watchdog?.cancel()
-                pairing.value = PairingUi.Failed(PairingError.UNREACHABLE, detail("failed before pairing finished", e))
-                return@launch
-            }
-            when (result) {
-                is PairingResult.Paired -> {
-                    steps += "paired, saving pin"
-                    secure.setTvRemotePin(result.serverPin)
-                    // The six-character Remote v2 code is the user's explicit trust ceremony.
-                    // Use that moment to refresh REST trust from an unauthenticated HTTPS probe:
-                    // no PSK/cookie is sent before the new certificate has been stored.
-                    refreshRestTrustAfterPairing(address)
-                    steps += "saving device"
-                    store.updateDevices { it.copy(tv = (it.tv ?: TvDevice(address)).copy(host = address)) }
-                    restart.update { it + 1 }
+            // Pairing again mints a fresh identity, named per install (ClientNames), and keeps the
+            // stored one until the TV accepts the code: a cancel or a failure leaves the old pairing
+            // working. Identities from before per-install names ("tutti") are replaced this way.
+            var staged: StagedIdentity? = null
+            var committed = false
+            try {
+                val result = try {
+                    try {
+                        pairWith(identities.stage().also { staged = it }.identity)
+                    } catch (e: SSLException) {
+                        // The keystore key couldn't sign in the handshake: retry once with a software key.
+                        if (e.message?.contains("RSA routines") != true) throw e
+                        steps += "keystore key refused, software key"
+                        staged?.let { identities.discard(it) }
+                        pairWith(identities.stage(software = true).also { staged = it }.identity)
+                    }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Throwable) {
+                    // Throwable, not Exception: an Error here (a missing class, a provider failure) would otherwise kill the app.
                     watchdog?.cancel()
-                    pairing.value = PairingUi.Done
+                    pairing.value = PairingUi.Failed(PairingError.UNREACHABLE, detail("failed before pairing finished", e))
+                    return@launch
                 }
-                is PairingResult.Failed -> pairing.value = when (result.failure.also { watchdog?.cancel() }) {
-                    PairingFailure.Cancelled -> PairingUi.Idle
-                    PairingFailure.BadCode -> PairingUi.Failed(PairingError.BAD_CODE, detail("the TV rejected the code"))
-                    PairingFailure.Closed -> PairingUi.Failed(PairingError.UNREACHABLE, detail("closed before pairing finished"))
-                    else -> PairingUi.Failed(PairingError.REFUSED, detail("refused: ${result.failure}"))
+                when (result) {
+                    is PairingResult.Paired -> {
+                        steps += "paired, saving identity and pin"
+                        // Paired: the code timeout must not cancel the saving that follows.
+                        watchdog?.cancel()
+                        staged?.let { identities.commit(it) }
+                        committed = true
+                        secure.setTvRemotePin(result.serverPin)
+                        // The six-character Remote v2 code is the user's explicit trust ceremony.
+                        // Use that moment to refresh REST trust from an unauthenticated HTTPS probe:
+                        // no PSK/cookie is sent before the new certificate has been stored.
+                        refreshRestTrustAfterPairing(address)
+                        steps += "saving device"
+                        store.updateDevices { it.copy(tv = (it.tv ?: TvDevice(address)).copy(host = address)) }
+                        restart.update { it + 1 }
+                        watchdog?.cancel()
+                        pairing.value = PairingUi.Done
+                    }
+                    is PairingResult.Failed -> pairing.value = when (result.failure.also { watchdog?.cancel() }) {
+                        PairingFailure.Cancelled -> PairingUi.Idle
+                        PairingFailure.BadCode -> PairingUi.Failed(PairingError.BAD_CODE, detail("the TV rejected the code"))
+                        PairingFailure.Closed -> PairingUi.Failed(PairingError.UNREACHABLE, detail("closed before pairing finished"))
+                        else -> PairingUi.Failed(PairingError.REFUSED, detail("refused: ${result.failure}"))
+                    }
                 }
+            } finally {
+                if (!committed) staged?.let { withContext(NonCancellable) { identities.discard(it) } }
             }
         }
     }
