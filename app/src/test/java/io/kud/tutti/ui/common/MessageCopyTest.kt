@@ -97,8 +97,11 @@ class MessageCopyTest {
             "scene_undone",
             "scene_undone_generic",
             "scene_undo_failed",
+            "pin_done",
+            "pin_done_page",
             // Actions.
             "scene_undo",
+            "pin_undo",
             "unlock_show_how",
             "problem_copy",
         )

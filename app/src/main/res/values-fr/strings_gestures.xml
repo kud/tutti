@@ -100,4 +100,7 @@
     <!-- The one-time hint bubble (GestureHintBubble): the gesture's own title, then its sentence. -->
     <string name="hint_title">Astuce : %1$s</string>
     <string name="hint_close">Fermer l’astuce</string>
+    <string name="pin_done">« %1$s » épinglé en %2$d.</string>
+    <string name="pin_done_page">« %1$s » épinglé en %2$d, page %3$d.</string>
+    <string name="pin_undo">Annuler</string>
 </resources>
