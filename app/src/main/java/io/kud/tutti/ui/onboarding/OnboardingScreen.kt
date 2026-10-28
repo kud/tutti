@@ -13,8 +13,10 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
@@ -26,6 +28,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -75,6 +78,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.core.app.ActivityCompat
 import io.kud.tutti.R
@@ -92,6 +96,8 @@ import io.kud.tutti.platform.net.LocalNetworkRules
 import io.kud.tutti.ui.common.LocalReducedMotion
 import io.kud.tutti.ui.common.PressStyle
 import io.kud.tutti.ui.common.ProblemNote
+import io.kud.tutti.ui.common.keepAboveIme
+import io.kud.tutti.ui.common.roomWhileTyping
 import io.kud.tutti.ui.common.rememberFeedback
 import io.kud.tutti.ui.common.rememberPressSource
 import io.kud.tutti.ui.intro.LaunchMark
@@ -189,17 +195,28 @@ fun OnboardingScreen(
             Modifier
                 .fillMaxSize()
                 .padding(padding)
+                // The Scaffold's padding already holds the navigation bar, which the keyboard's
+                // inset contains too: consumed first, it is counted once (Ime.kt, rule 1).
+                .consumeWindowInsets(padding)
                 .imePadding()
                 .padding(horizontal = 24.dp, vertical = 16.dp),
         ) {
-            if (onCancel != null) {
-                // 48 dp, pulled into the margin so the arrow lines up with the content's edge.
-                IconButton(onClick = cancel, modifier = Modifier.offset(x = (-12).dp, y = (-8).dp).size(48.dp)) {
+            val showBar = step.segment >= 0 && !barOnly
+            // 48 dp, pulled into the margin so the arrow lines up with the content's edge.
+            val back: @Composable () -> Unit = {
+                IconButton(onClick = cancel, modifier = Modifier.offset(x = (-12).dp).size(48.dp)) {
                     Icon(painterResource(R.drawable.ic_back), contentDescription = stringResource(R.string.intro_leave))
                 }
             }
-            AnimatedVisibility(step.segment >= 0 && !barOnly, enter = fadeIn(Motion.fade()), exit = fadeOut(Motion.exit())) {
-                StepBar(current = step.segment.coerceAtLeast(0), labels = segments, modifier = Modifier.padding(bottom = 24.dp))
+            // With the step bar, the arrow shares its "Step 2 of 4" line rather than a row of its own.
+            if (onCancel != null && !showBar) Box(Modifier.offset(y = (-8).dp)) { back() }
+            AnimatedVisibility(showBar, enter = fadeIn(Motion.fade()), exit = fadeOut(Motion.exit())) {
+                StepBar(
+                    current = step.segment.coerceAtLeast(0),
+                    labels = segments,
+                    modifier = Modifier.padding(bottom = 24.dp),
+                    leading = if (onCancel != null) back else null,
+                )
             }
             AnimatedContent(
                 targetState = step,
@@ -356,69 +373,82 @@ private fun SearchStep(
         waited = true
     }
     val forward = waited && found.isEmpty()
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Text(stringResource(R.string.intro_search_title), style = MaterialTheme.typography.headlineSmall)
-        Text(stringResource(R.string.intro_search_body), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        if (lanMissing) {
-            LanCard(asks = !lan.cantAsk, onAllow = lan::ask)
-        } else if (!reduced) {
-            Radar(found.map { it.host }, Modifier.fillMaxWidth(0.8f).aspectRatio(1f).align(Alignment.CenterHorizontally))
-        }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            if (!reduced) {
-                CircularProgressIndicator(Modifier.size(12.dp), color = MaterialTheme.colorScheme.onSurfaceVariant, strokeWidth = 1.5.dp)
-                Spacer(Modifier.width(8.dp))
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        // Typing an address with the keyboard up, the radar yields unless everything fits (Ime.kt, rule 2):
+        // the cards found already say what it would, and "Searching…" stays. Drawing: the radar, the
+        // field 56, the button 52, a card 88 each, gaps; type: title, two body lines, the status, the field's error.
+        val radarRoom = roomWhileTyping(fixed = maxWidth * 0.8f + (200 + 88 * found.size).dp, text = 120.sp)
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Text(stringResource(R.string.intro_search_title), style = MaterialTheme.typography.headlineSmall)
+            Text(stringResource(R.string.intro_search_body), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (lanMissing) {
+                LanCard(asks = !lan.cantAsk, onAllow = lan::ask)
+            } else if (!reduced) {
+                AnimatedVisibility(
+                    radarRoom,
+                    enter = fadeIn(Motion.fade()) + expandVertically(tween(Motion.MEDIUM, easing = Motion.Emphasized)),
+                    exit = fadeOut(Motion.exit()) + shrinkVertically(tween(Motion.MEDIUM, easing = Motion.Emphasized)),
+                    modifier = Modifier.align(Alignment.CenterHorizontally),
+                ) {
+                    Radar(found.map { it.host }, Modifier.fillMaxWidth(0.8f).aspectRatio(1f))
+                }
             }
-            Text(
-                if (found.isEmpty()) {
-                    stringResource(R.string.intro_searching)
-                } else {
-                    pluralStringResource(R.plurals.intro_search_found, found.size, found.size)
-                },
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        for (tv in found) {
-            androidx.compose.runtime.key(tv.host) {
-                TvCard(tv, phaseFor(tv.host), failure.takeIf { failedHost == tv.host }, onPair = { onPair(tv.host) })
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (!reduced) {
+                    CircularProgressIndicator(Modifier.size(12.dp), color = MaterialTheme.colorScheme.onSurfaceVariant, strokeWidth = 1.5.dp)
+                    Spacer(Modifier.width(8.dp))
+                }
+                Text(
+                    if (found.isEmpty()) {
+                        stringResource(R.string.intro_searching)
+                    } else {
+                        pluralStringResource(R.plurals.intro_search_found, found.size, found.size)
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
-        }
-        if (manual) {
-            OutlinedTextField(
-                value = typed,
-                onValueChange = { typed = it.trim() },
-                label = { Text(stringResource(R.string.onboarding_ip)) },
-                singleLine = true,
-                isError = typed.isNotEmpty() && !LanAddress.isPrivate(typed),
-                // The error in words, not only the red outline.
-                supportingText = if (typed.isNotEmpty() && !LanAddress.isPrivate(typed)) {
-                    { Text(stringResource(R.string.onboarding_ip_invalid)) }
-                } else {
-                    null
-                },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-                modifier = Modifier.fillMaxWidth(),
-            )
-            ProgressButton(
-                phase = phaseFor(typed),
-                label = stringResource(R.string.onboarding_pair),
-                onClick = { onPair(typed) },
-                enabled = LanAddress.isPrivate(typed),
-                pendingLabel = stringResource(R.string.progress_connecting),
-                failureMessage = failure.takeIf { failedHost == typed && found.none { it.host == typed } },
-            )
-        } else {
-            // Comes forward once the search has had its chance: tonal, where it was a text link.
-            Crossfade(forward, animationSpec = Motion.fade(), label = "manual", modifier = Modifier.align(Alignment.CenterHorizontally)) { prominent ->
-                if (prominent) {
-                    FilledTonalButton(onClick = { manual = true }) { Text(stringResource(R.string.intro_enter_ip)) }
-                } else {
-                    TextButton(onClick = { manual = true }) { Text(stringResource(R.string.intro_enter_ip)) }
+            for (tv in found) {
+                androidx.compose.runtime.key(tv.host) {
+                    TvCard(tv, phaseFor(tv.host), failure.takeIf { failedHost == tv.host }, onPair = { onPair(tv.host) })
+                }
+            }
+            if (manual) Column(Modifier.keepAboveIme(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                OutlinedTextField(
+                    value = typed,
+                    onValueChange = { typed = it.trim() },
+                    label = { Text(stringResource(R.string.onboarding_ip)) },
+                    singleLine = true,
+                    isError = typed.isNotEmpty() && !LanAddress.isPrivate(typed),
+                    // The error in words, not only the red outline.
+                    supportingText = if (typed.isNotEmpty() && !LanAddress.isPrivate(typed)) {
+                        { Text(stringResource(R.string.onboarding_ip_invalid)) }
+                    } else {
+                        null
+                    },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                ProgressButton(
+                    phase = phaseFor(typed),
+                    label = stringResource(R.string.onboarding_pair),
+                    onClick = { onPair(typed) },
+                    enabled = LanAddress.isPrivate(typed),
+                    pendingLabel = stringResource(R.string.progress_connecting),
+                    failureMessage = failure.takeIf { failedHost == typed && found.none { it.host == typed } },
+                )
+            }
+            if (!manual) {
+                // Comes forward once the search has had its chance: tonal, where it was a text link.
+                Crossfade(forward, animationSpec = Motion.fade(), label = "manual", modifier = Modifier.align(Alignment.CenterHorizontally)) { prominent ->
+                    if (prominent) {
+                        FilledTonalButton(onClick = { manual = true }) { Text(stringResource(R.string.intro_enter_ip)) }
+                    } else {
+                        TextButton(onClick = { manual = true }) { Text(stringResource(R.string.intro_enter_ip)) }
+                    }
                 }
             }
         }
-    }
 }
 
 /** The LAN ask as the onboarding steps share it: [ask] opens the system dialog or, once [cantAsk], tutti's system page. */
@@ -572,57 +602,76 @@ private fun CodeStep(pairing: PairingUi, codeSent: Boolean, onSubmit: (String) -
     val failed = pairing is PairingUi.Failed
     val submit = { onSubmit(code) }
     val colors = MaterialTheme.colorScheme
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Text(stringResource(R.string.intro_code_title), style = MaterialTheme.typography.headlineSmall)
-        Text(stringResource(R.string.intro_code_body), style = MaterialTheme.typography.bodyMedium, color = colors.onSurfaceVariant)
-        TvIllustration(Modifier.align(Alignment.CenterHorizontally).padding(vertical = 8.dp))
-        PairingCodeField(
-            code = code,
-            onCodeChange = {
-                // The sixth character sends it: nothing is left to confirm.
-                val completed = completesCode(code, it)
-                code = it
-                if (completed) submit()
-            },
-            onDone = { if (PairingCode.isComplete(code)) submit() },
-            locked = sent && !failed,
-            mismatch = mismatch,
-        )
-        when {
-            sent && !failed -> Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(painterResource(R.drawable.ic_lock), contentDescription = null, tint = colors.onSurfaceVariant, modifier = Modifier.size(14.dp))
-                Spacer(Modifier.width(6.dp))
-                Text(stringResource(R.string.intro_code_sent), style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
+    val reduced = LocalReducedMotion.current
+    val action = sent || failed || pairing == PairingUi.Done
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        // Keyboard up and short of room, the TV drawing yields: the body already says where the code is,
+        // and the cells, their count and the action stay in view (Ime.kt, rule 2). Drawing: cells 56,
+        // the TV's frame and stand 93, gaps 64, the action 68 when shown; type: title, two body lines,
+        // the count and the TV's two lines.
+        val roomy = roomWhileTyping(fixed = (213 + if (action) 68 else 0).dp, text = 152.sp)
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Text(stringResource(R.string.intro_code_title), style = MaterialTheme.typography.headlineSmall)
+            Text(stringResource(R.string.intro_code_body), style = MaterialTheme.typography.bodyMedium, color = colors.onSurfaceVariant)
+            AnimatedVisibility(
+                roomy,
+                enter = if (reduced) fadeIn(Motion.fade()) else fadeIn(Motion.fade()) + expandVertically(tween(Motion.MEDIUM, easing = Motion.Emphasized)),
+                exit = if (reduced) fadeOut(Motion.exit()) else fadeOut(Motion.exit()) + shrinkVertically(tween(Motion.MEDIUM, easing = Motion.Emphasized)),
+                modifier = Modifier.align(Alignment.CenterHorizontally),
+            ) {
+                TvIllustration(Modifier.padding(vertical = 8.dp))
             }
-            mismatch > 0 && !failed -> FailureLine(stringResource(R.string.pairing_code_retry))
-            else -> Text(
-                stringResource(R.string.intro_code_count, code.length, PairingCode.LENGTH),
-                style = MaterialTheme.typography.bodySmall,
-                color = colors.onSurfaceVariant,
-            )
-        }
-        // No Confirm: the sixth character sends the code. The button only appears to show it
-        // going, and to retry a failure, right under the field so the keyboard never hides it.
-        if (sent || failed || pairing == PairingUi.Done) ProgressButton(
-            phase = when {
-                failed -> ActionPhase.FAILURE
-                pairing == PairingUi.Done -> ActionPhase.SUCCESS
-                else -> ActionPhase.PENDING
-            },
-            label = stringResource(R.string.action_retry),
-            onClick = {
-                if (failed) {
-                    code = ""
-                    onRetry()
+            // The cells, their count and the action are one group, kept above the keyboard together.
+            Column(Modifier.keepAboveIme(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                PairingCodeField(
+                    code = code,
+                    onCodeChange = {
+                        // The sixth character sends it: nothing is left to confirm.
+                        val completed = completesCode(code, it)
+                        code = it
+                        if (completed) submit()
+                    },
+                    onDone = { if (PairingCode.isComplete(code)) submit() },
+                    locked = sent && !failed,
+                    mismatch = mismatch,
+                )
+                when {
+                    sent && !failed -> Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(painterResource(R.drawable.ic_lock), contentDescription = null, tint = colors.onSurfaceVariant, modifier = Modifier.size(14.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text(stringResource(R.string.intro_code_sent), style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
+                    }
+                    mismatch > 0 && !failed -> FailureLine(stringResource(R.string.pairing_code_retry))
+                    else -> Text(
+                        stringResource(R.string.intro_code_count, code.length, PairingCode.LENGTH),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.onSurfaceVariant,
+                    )
                 }
-            },
-            enabled = failed,
-            pendingLabel = stringResource(R.string.progress_checking),
-            successLabel = stringResource(R.string.pairing_done),
-            failureMessage = (pairing as? PairingUi.Failed)?.let { pairingStatus(it)?.first },
-            modifier = Modifier.align(Alignment.CenterHorizontally),
-        )
-        if (pairing is PairingUi.Failed) ProblemNote(message = null, detail = pairing.detail)
+                // No Confirm: the sixth character sends the code. The button only appears to show it
+                // going, and to retry a failure, right under the field so the keyboard never hides it.
+                if (action) ProgressButton(
+                    phase = when {
+                        failed -> ActionPhase.FAILURE
+                        pairing == PairingUi.Done -> ActionPhase.SUCCESS
+                        else -> ActionPhase.PENDING
+                    },
+                    label = stringResource(R.string.action_retry),
+                    onClick = {
+                        if (failed) {
+                            code = ""
+                            onRetry()
+                        }
+                    },
+                    enabled = failed,
+                    pendingLabel = stringResource(R.string.progress_checking),
+                    successLabel = stringResource(R.string.pairing_done),
+                    failureMessage = (pairing as? PairingUi.Failed)?.let { pairingStatus(it)?.first },
+                    modifier = Modifier.align(Alignment.CenterHorizontally),
+                )
+            }
+            if (pairing is PairingUi.Failed) ProblemNote(message = null, detail = pairing.detail)
+        }
     }
 }
 
