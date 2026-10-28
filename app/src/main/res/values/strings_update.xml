@@ -22,6 +22,11 @@
     <string name="update_failed_package">The file isn’t a newer build of this app, so it was deleted.</string>
     <string name="update_failed_install">Android didn’t install the update.</string>
     <string name="update_failed_install_detail">Android didn’t install the update: %1$s</string>
-    <string name="update_note">Checks GitHub when you ask, and at most once a day when the app opens. Nothing installs without your confirmation.</string>
-    <string name="update_message_see">See</string>
+    <string name="update_note">Checks GitHub when you ask, and when the app opens or comes back: at most once an hour for a test build, once a day otherwise. Nothing installs without your confirmation.</string>
+    <!-- How a newer build makes itself known (docs/design.md, "Updates"; Iris, 2026-10-28). -->
+    <string name="update_message_install">Install</string>
+    <string name="update_later">Later</string>
+    <string name="update_menu_row">Install version %1$s</string>
+    <string name="action_more_update">More options, update available</string>
+    <string name="settings_line_update">Version %1$s available</string>
 </resources>

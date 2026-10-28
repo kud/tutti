@@ -13,6 +13,8 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -37,6 +39,9 @@ import io.kud.tutti.R
 import io.kud.tutti.platform.update.UpdateProblem
 import io.kud.tutti.platform.update.UpdateState
 import io.kud.tutti.platform.update.Updater
+import io.kud.tutti.protocol.update.AppVersion
+import io.kud.tutti.protocol.update.UpdateCue
+import io.kud.tutti.ui.common.LocalMessages
 import io.kud.tutti.ui.common.TuttiSheet
 import kotlinx.coroutines.launch
 
@@ -79,6 +84,76 @@ internal fun UpdateRow() {
     }
 
     if (open) UpdateSheet(updater, state, onDismiss = { open = false })
+}
+
+/**
+ * Everything the rest of the app knows of the updater, in one place (Iris, 2026-10-28): the GitHub
+ * updater is meant to be temporary (final releases will likely go to F-Droid), so a build without it
+ * needs only these three to return nothing. [newer] is a newer build, set aside or not; [notice] is
+ * true until "Later".
+ */
+data class UpdateCueState(val newer: AppVersion?, val notice: Boolean)
+
+@Composable
+fun rememberUpdateCue(): UpdateCueState {
+    val context = LocalContext.current
+    val updater = remember(context) { Updater.from(context) }
+    val newer by updater.newer.collectAsStateWithLifecycle()
+    val cue by updater.cue.collectAsStateWithLifecycle()
+    return UpdateCueState(newer, newer != null && cue == UpdateCue.NOTICE)
+}
+
+/**
+ * The automatic check, while the app is in front: on opening and on coming back, at most once an
+ * hour for a dev build and once a day for a final release ([io.kud.tutti.protocol.update.CheckSchedule]).
+ * A build found for the first time says so once, with Install ([onInstall]); after that the ⋮'s dot
+ * and row carry it, so nothing repeats. Never an install by itself.
+ */
+@Composable
+fun UpdateCheckEffect(onInstall: () -> Unit) {
+    val context = LocalContext.current
+    val updater = remember(context) { Updater.from(context) }
+    val messages = LocalMessages.current
+    val scope = rememberCoroutineScope()
+    androidx.lifecycle.compose.LifecycleStartEffect(updater) {
+        val job = scope.launch {
+            kotlinx.coroutines.delay(3_000)
+            val update = updater.checkIfDue() ?: return@launch
+            messages?.show(
+                context.getString(R.string.update_available, update.version.toString()),
+                actionLabel = context.getString(R.string.update_message_install),
+                onAction = onInstall,
+                long = true,
+            )
+        }
+        onStopOrDispose { job.cancel() }
+    }
+}
+
+/**
+ * The same sheet opened from outside About, by the remote's ⋮ row or the "Install" on the message
+ * (docs/design.md, "Updates"): one tap means install, so it asks GitHub for the build if this run
+ * doesn't hold it yet, then starts the download at once. Android still asks to confirm the install.
+ */
+@Composable
+fun UpdateNowSheet(onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    val updater = remember(context) { Updater.from(context) }
+    val state by updater.state.collectAsStateWithLifecycle()
+    var started by rememberSaveable { mutableStateOf(false) }
+    // One run, keyed on nothing: a state change must not cancel the check or the download it starts.
+    LaunchedEffect(Unit) {
+        if (started) return@LaunchedEffect
+        started = true
+        val update = when (val now = updater.state.value) {
+            is UpdateState.Available -> now.update
+            // A check that finds nothing or fails leaves the sheet to say so.
+            UpdateState.Idle, UpdateState.UpToDate, is UpdateState.Failed -> updater.check()
+            else -> null
+        }
+        update?.let { updater.downloadAndInstall(it) }
+    }
+    UpdateSheet(updater, state, onDismiss)
 }
 
 @Composable
@@ -158,10 +233,20 @@ private fun UpdateSheet(updater: Updater, state: UpdateState, onDismiss: () -> U
             }
             Spacer(Modifier.height(20.dp))
             when (state) {
-                is UpdateState.Available -> Button(
-                    onClick = { scope.launch { updater.downloadAndInstall(state.update) } },
-                    modifier = Modifier.fillMaxWidth(),
-                ) { Text(stringResource(R.string.update_download_install)) }
+                is UpdateState.Available -> {
+                    Button(
+                        onClick = { scope.launch { updater.downloadAndInstall(state.update) } },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { Text(stringResource(R.string.update_download_install)) }
+                    // "Later" sets this build aside: the remote's dot goes, the ⋮ row and About keep it.
+                    TextButton(
+                        onClick = {
+                            updater.setAside(state.update.version)
+                            onDismiss()
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { Text(stringResource(R.string.update_later)) }
+                }
                 is UpdateState.NeedsPermission -> Button(
                     onClick = {
                         try {

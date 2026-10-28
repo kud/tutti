@@ -170,9 +170,39 @@ object Hosts {
 }
 
 object CheckSchedule {
-    const val DAY_MS = 24L * 60 * 60 * 1000
+    const val HOUR_MS = 60L * 60 * 1000
+    const val DAY_MS = 24 * HOUR_MS
 
-    /** The automatic check runs at most once a day; a clock moved backwards counts as due. */
-    fun isDue(lastCheckMs: Long?, nowMs: Long): Boolean =
-        lastCheckMs == null || nowMs < lastCheckMs || nowMs - lastCheckMs >= DAY_MS
+    /**
+     * How often the automatic check may run for the [installed] build (Iris, 2026-10-28): a dev
+     * build, which is replaced several times a day, at most once an hour; a final release at most
+     * once a day, as before.
+     */
+    fun intervalFor(installed: AppVersion): Long = if (installed.dev != null) HOUR_MS else DAY_MS
+
+    /** The automatic check runs at most once per [intervalMs]; a clock moved backwards counts as due. */
+    fun isDue(lastCheckMs: Long?, nowMs: Long, intervalMs: Long = DAY_MS): Boolean =
+        lastCheckMs == null || nowMs < lastCheckMs || nowMs - lastCheckMs >= intervalMs
+}
+
+/**
+ * How loudly a newer build makes itself known (docs/design.md, "Updates"; Iris, 2026-10-28).
+ * [NONE]: nothing newer is known. [QUIET]: a newer build is known but was set aside with "Later",
+ * so only the places you go looking say it (the ⋮ menu's row, About). [NOTICE]: also a dot on the
+ * remote's ⋮. A newer build than the one set aside notices again.
+ */
+enum class UpdateCue {
+    NONE, QUIET, NOTICE;
+
+    companion object {
+        fun of(installed: AppVersion, found: AppVersion?, setAside: AppVersion?): UpdateCue = when {
+            found == null || found <= installed -> NONE
+            setAside != null && found <= setAside -> QUIET
+            else -> NOTICE
+        }
+
+        /** The once-per-build message: only a build newer than any found before announces itself. */
+        fun announces(found: AppVersion, previouslyFound: AppVersion?): Boolean =
+            previouslyFound == null || found > previouslyFound
+    }
 }
