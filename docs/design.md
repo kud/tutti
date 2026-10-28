@@ -94,7 +94,7 @@ Room in the playback sheet (Iris, 2026-10-27, from Erwann's « Genre Voice etc, 
 
 ### Now-showing card: what Cast reports playing (Iris, 2026-10-25)
 
-Shown only when the TV reports it over Cast (architecture § 7). YouTube does; Netflix doesn't. When nothing is reported, nothing new appears and the card reads as before.
+Shown only when the TV reports it over Cast (architecture § 7). YouTube does; Netflix doesn't. When nothing is reported, nothing new appears and the card reads as before. A short silence from Cast (a reconnect, a status between two items) doesn't blink the card back to the bare app line: the last item stays, its time still running, for up to 12 s, and goes at once when the TV says something else is on (architecture § 7, `CastHold`). No "updating" cue: nothing on screen changes while it holds.
 
 - Full card: "On the TV" and the app name stay. In that same column the Cast title replaces the detail line: bodyMedium, onSurface (it is the content now), one line, ellipsised. Under it, the channel or artist whenever Cast reports one (Erwann, 2026-10-27: « J'aimerais toujours afficher la chaîne sur la première photo »): one line, bodySmall in onSurfaceVariant, ellipsised; at 104 dp the title gives up its second line for it so the track still fits, and from 122 dp it keeps both. TalkBack hears the title, then the channel.
 - Under the title, a 2 dp read-only track across the text column: filled part in primary, the rest in surfaceContainerHighest (surfaceVariant sits too close to the 3:1 non-text floor on surfaceContainer in light). Round caps, no thumb, never a scrubber. It steps once a second with no animated fill, so reduced motion needs nothing extra.
