@@ -99,6 +99,7 @@ class MessageCopyTest {
             "scene_undo_failed",
             "pin_done",
             "pin_done_page",
+            "app_hidden",
             // Actions.
             "scene_undo",
             "pin_undo",

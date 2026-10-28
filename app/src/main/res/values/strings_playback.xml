@@ -12,6 +12,8 @@
     <string name="app_actions_pin_detail">Choose which pin it takes</string>
     <string name="app_actions_unpin">Remove from the dock</string>
     <string name="app_actions_unpin_detail">Frees pin %1$d</string>
+    <string name="app_actions_hide">Hide from Apps</string>
+    <string name="app_actions_hide_detail">Settings → Apps shows it again</string>
     <string name="app_actions_close">Close apps on the TV</string>
     <string name="app_actions_close_detail">Every app, not just this one</string>
     <string name="app_actions_close_down">Needs IP control, which isn\'t answering</string>

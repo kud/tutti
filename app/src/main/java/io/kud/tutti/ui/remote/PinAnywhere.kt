@@ -94,6 +94,26 @@ fun rememberPinToSlot(state: TuttiUiState, controller: TuttiController): (slot: 
     }
 }
 
+/**
+ * Takes an app off tutti's Apps list and says so, with Undo; Settings → Apps shows it again.
+ * The TV keeps the app: this only tidies tutti's own list.
+ */
+@Composable
+fun rememberHideApp(controller: TuttiController): (packageName: String, name: String) -> Unit {
+    val haptics = rememberHaptics()
+    val messages = LocalMessages.current
+    val resources = LocalResources.current
+    return { packageName, name ->
+        haptics.select()
+        controller.setAppShown(packageName, false)
+        messages?.show(
+            resources.getString(R.string.app_hidden, name),
+            actionLabel = resources.getString(R.string.pin_undo),
+            onAction = { controller.setAppShown(packageName, true) },
+        )
+    }
+}
+
 /** Which dock slot takes the pin; each row says what it replaces, every page under its heading. */
 @Composable
 fun PinToDockDialog(name: String, state: TuttiUiState, onPick: (Int) -> Unit, onDismiss: () -> Unit) {

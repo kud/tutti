@@ -483,6 +483,7 @@ internal fun AppActionsSheet(
     closeDown: Boolean,
     onPin: () -> Unit,
     onUnpin: () -> Unit,
+    onHide: () -> Unit,
     onCloseApps: () -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -506,6 +507,12 @@ internal fun AppActionsSheet(
                             stringResource(R.string.app_actions_unpin),
                             stringResource(R.string.app_actions_unpin_detail, (pinnedAt ?: 0) + 1),
                             onClick = onUnpin,
+                        )
+                        AppAction.HIDE -> ActionRow(
+                            R.drawable.ic_visibility_off,
+                            stringResource(R.string.app_actions_hide),
+                            stringResource(R.string.app_actions_hide_detail),
+                            onClick = onHide,
                         )
                         AppAction.CLOSE_APPS -> ActionRow(
                             R.drawable.ic_close,

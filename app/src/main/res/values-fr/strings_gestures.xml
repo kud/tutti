@@ -102,5 +102,6 @@
     <string name="hint_close">Fermer l’astuce</string>
     <string name="pin_done">« %1$s » épinglé en %2$d.</string>
     <string name="pin_done_page">« %1$s » épinglé en %2$d, page %3$d.</string>
+    <string name="app_hidden">« %1$s » masquée des apps.</string>
     <string name="pin_undo">Annuler</string>
 </resources>

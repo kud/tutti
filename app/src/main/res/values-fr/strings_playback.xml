@@ -11,6 +11,8 @@
     <string name="app_actions_pin_detail">Choisissez son emplacement</string>
     <string name="app_actions_unpin">Retirer du dock</string>
     <string name="app_actions_unpin_detail">Libère l\'épingle %1$d</string>
+    <string name="app_actions_hide">Masquer des apps</string>
+    <string name="app_actions_hide_detail">Réglages → Apps la réaffiche</string>
     <string name="app_actions_close">Fermer les apps de la TV</string>
     <string name="app_actions_close_detail">Toutes les apps, pas seulement celle-ci</string>
     <string name="app_actions_close_down">Demande le contrôle IP, qui ne répond pas</string>
