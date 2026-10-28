@@ -233,8 +233,9 @@ private fun Full(
             )
             Text(words.title, style = title, maxLines = 1, overflow = TextOverflow.Ellipsis)
             if (cast != null) {
-                // Iris: the Cast title takes the detail line's place; no secondary line at 104 dp.
-                CastLine(cast)
+                // Iris: the Cast title takes the detail line's place, the channel always under it
+                // (Erwann, 2026-10-27); at 104 dp the title gives up its second line for it.
+                CastLine(cast, roomy = grow >= 0.5f)
             } else words.detail?.let {
                 Text(
                     it,
