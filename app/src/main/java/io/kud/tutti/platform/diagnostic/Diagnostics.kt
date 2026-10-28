@@ -10,6 +10,7 @@ import io.kud.tutti.platform.data.IconBitmaps
 import io.kud.tutti.platform.data.PhoneIconBitmaps
 import io.kud.tutti.platform.discovery.DiscoveredTv
 import io.kud.tutti.platform.discovery.TvDiscovery
+import io.kud.tutti.platform.net.LocalNetworkPermission
 import io.kud.tutti.platform.net.OkHttpBraviaTransport
 import io.kud.tutti.platform.security.ClientIdentityStore
 import io.kud.tutti.platform.security.SecureStore
@@ -65,6 +66,7 @@ class Diagnostics @Inject constructor(
     private val tls: TlsConnector,
     private val tcp: TcpConnector,
     private val discovery: TvDiscovery,
+    private val lan: LocalNetworkPermission,
     private val target: dagger.Lazy<io.kud.tutti.controller.TargetController>,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -91,7 +93,7 @@ class Diagnostics @Inject constructor(
                 ipCookie = secure.tvIpCookie()?.value,
             )
             // Pins learned here are not saved: the diagnostic never changes what the app trusts.
-            val transport = tv?.let { OkHttpBraviaTransport(it.host, restPin) {} }
+            val transport = tv?.let { OkHttpBraviaTransport(it.host, restPin, {}, lan::require) }
             val runner = DiagnosticRunner(
                 targets = targets,
                 bravia = transport,
@@ -103,7 +105,7 @@ class Diagnostics @Inject constructor(
                 deviceInfo = ClientDeviceInfo(model = "tutti", packageName = context.packageName),
                 // Keeps the scrubbed getPlayingContentInfo reply, to copy while an app plays.
                 developer = ui.prefs.developerMode,
-                barHttp = bar?.let { io.kud.tutti.platform.net.OkHttpBarHttpTransport(it.host) },
+                barHttp = bar?.let { io.kud.tutti.platform.net.OkHttpBarHttpTransport(it.host, lan::require) },
             )
             val environment = environment(targets, remoteIdentity != null)
             val publisher = launch {

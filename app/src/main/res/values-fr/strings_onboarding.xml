@@ -43,6 +43,8 @@
         <item quantity="other">Recherche… %d trouvées</item>
     </plurals>
     <string name="intro_enter_ip">Saisir l’adresse IP</string>
+    <string name="intro_lan_title">Autoriser le réseau domestique</string>
+    <string name="intro_lan_body">Android 17 garde les apps hors du réseau local tant qu’elles ne sont pas autorisées. Sans ça, tutti ne peut ni trouver ni joindre la TV.</string>
     <string name="intro_code_title">Regardez la TV</string>
     <string name="intro_code_body">Elle affiche un code à 6 caractères. Saisissez-le ici.</string>
     <string name="intro_code_on_tv">Code d’association</string>

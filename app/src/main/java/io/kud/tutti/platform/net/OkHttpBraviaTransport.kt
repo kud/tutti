@@ -60,9 +60,10 @@ class OkHttpBraviaTransport internal constructor(
     private val httpPort: Int,
     private val checkHost: (String) -> Unit,
     private val readTimeoutMs: Long,
+    private val requireAccess: () -> Unit = {},
 ) : BraviaTransport {
-    constructor(host: String, initialPin: ServerIdentityPin?, savePin: suspend (PublicKeyPin) -> Unit) :
-        this(host, initialPin, savePin, HTTPS_PORT, HTTP_PORT, ::requireLan, READ_TIMEOUT_MS)
+    constructor(host: String, initialPin: ServerIdentityPin?, savePin: suspend (PublicKeyPin) -> Unit, requireAccess: () -> Unit) :
+        this(host, initialPin, savePin, HTTPS_PORT, HTTP_PORT, ::requireLan, READ_TIMEOUT_MS, requireAccess)
 
     @Volatile private var observedKeyPin: PublicKeyPin? = null
     @Volatile private var useHttp = false
@@ -104,6 +105,9 @@ class OkHttpBraviaTransport internal constructor(
 
     override suspend fun post(path: String, body: String, headers: Map<String, String>): HttpReply =
         withContext(Dispatchers.IO) {
+            // First of all: no socket may open while Android 17 keeps the LAN shut. Typed, so the
+            // callers say "permission", never "unreachable".
+            requireAccess()
             checkHost(host)
             val authenticated = BraviaClient.carriesCredential(headers)
             if (useHttp && authenticated) return@withContext execute("http", path, body, headers)
@@ -146,6 +150,8 @@ class OkHttpBraviaTransport internal constructor(
             else -> null
         }
         fun failed(outcome: IconOutcome, detail: String? = null) = IconFetch.Failed(IconAttempt(outcome, detail))
+        // No icon without the LAN; not an exception outcome, the diagnostic reads it as any other.
+        runCatching { requireAccess() }.onFailure { return@withContext failed(IconOutcome.NETWORK, "local network permission") }
         val parsed = url.toHttpUrlOrNull() ?: return@withContext failed(IconOutcome.MALFORMED)
         if (parsed.host.removePrefix("[").removeSuffix("]") != host.removePrefix("[").removeSuffix("]")) {
             return@withContext failed(IconOutcome.INTERNET, "not the tv")

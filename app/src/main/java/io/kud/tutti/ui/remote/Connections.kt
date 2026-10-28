@@ -85,6 +85,12 @@ enum class ConnAction {
 
     /** Settings › Devices, where the phone's Bluetooth and its permission are asked for. */
     OPEN_DEVICES,
+
+    /** Android 17's local-network permission is missing: tutti asks the system again (the banner too). */
+    LAN_REQUEST,
+
+    /** Asked and refused without another dialog coming: the system's page for tutti, where the switch is. */
+    LAN_OPEN_SETTINGS,
 }
 
 data class ConnLine(val link: ConnLink, val words: ConnWords, val action: ConnAction? = null)
@@ -153,9 +159,13 @@ data class ConnInput(
     val hidConnectedTo: String? = null,
     val bonded: Set<String> = emptySet(),
     val targetId: String? = null,
+    /** Android 17 keeps the LAN shut behind its runtime permission and nothing is granted. */
+    val lanMissing: Boolean = false,
+    /** Asked before and refused with "don't ask again" in the way: only the system's page helps. */
+    val lanCantAsk: Boolean = false,
 )
 
-fun connInput(state: TuttiUiState, t: TargetState, barOffer: Boolean = false): ConnInput {
+fun connInput(state: TuttiUiState, t: TargetState, barOffer: Boolean = false, lanCantAsk: Boolean = false): ConnInput {
     val tv = t.list.tv
     return ConnInput(
         tvId = tv?.id,
@@ -179,6 +189,8 @@ fun connInput(state: TuttiUiState, t: TargetState, barOffer: Boolean = false): C
         hidConnectedTo = t.hidConnectedTo,
         bonded = t.hidBonded,
         targetId = t.target?.id,
+        lanMissing = state.lanPermissionMissing,
+        lanCantAsk = lanCantAsk,
     )
 }
 
@@ -213,7 +225,7 @@ fun connections(input: ConnInput): List<ConnDevice> = buildList {
             add(ConnDevice(BAR_SLOT, null, DeviceKind.SOUNDBAR, listOf(ConnLine(ConnLink.NETWORK, ConnWords.NOT_ADDED, ConnAction.ADD_BAR))))
         }
     } else {
-        val network = barNetwork(input.bar, input.barOffer)
+        val network = barNetwork(input)
         add(ConnDevice(input.barId ?: BAR_SLOT, input.barName, DeviceKind.SOUNDBAR, listOf(network), note = barNote(input, network)))
     }
     for (computer in input.computers) {
@@ -230,6 +242,9 @@ fun connections(input: ConnInput): List<ConnDevice> = buildList {
 }
 
 private fun googleTv(input: ConnInput): ConnLine = when {
+    // Every LAN link answers nothing while Android 17 keeps the local network shut: the ask rides
+    // on the TV's line (the bar's says it on its own), whatever the links report.
+    input.lanMissing -> ConnLine(ConnLink.GOOGLE_TV, ConnWords.NEEDS_PERMISSION, lanAction(input))
     input.tvAsleep -> ConnLine(ConnLink.GOOGLE_TV, ConnWords.STANDBY, ConnAction.WAKE_TV)
     else -> when (input.tvShown.link) {
         Link.ONLINE -> ConnLine(ConnLink.GOOGLE_TV, ConnWords.CONNECTED)
@@ -281,10 +296,11 @@ private fun sonyIp(input: ConnInput, wakeShown: Boolean): ConnLine = when {
  * no way to wake a bar that is off the network (no Wake-on-LAN for it), and the connection already
  * retries on its own (Iris, 2026-10-26).
  */
-private fun barNetwork(link: Link, offer: Boolean): ConnLine = when {
-    link == Link.ONLINE -> ConnLine(ConnLink.NETWORK, ConnWords.CONNECTED)
-    offer -> ConnLine(ConnLink.NETWORK, ConnWords.MOVED, ConnAction.USE_NEW_ADDRESS)
-    else -> when (link) {
+private fun barNetwork(input: ConnInput): ConnLine = when {
+    input.lanMissing -> ConnLine(ConnLink.NETWORK, ConnWords.NEEDS_PERMISSION, lanAction(input))
+    input.bar == Link.ONLINE -> ConnLine(ConnLink.NETWORK, ConnWords.CONNECTED)
+    input.barOffer -> ConnLine(ConnLink.NETWORK, ConnWords.MOVED, ConnAction.USE_NEW_ADDRESS)
+    else -> when (input.bar) {
         Link.ONLINE -> ConnLine(ConnLink.NETWORK, ConnWords.CONNECTED)
         Link.CONNECTING, Link.ABSENT -> ConnLine(ConnLink.NETWORK, ConnWords.CONNECTING)
         Link.UNREACHABLE, Link.UNAUTHORIZED, Link.NEEDS_PAIRING -> ConnLine(ConnLink.NETWORK, ConnWords.UNREACHABLE)
@@ -297,6 +313,10 @@ private fun barNote(input: ConnInput, network: ConnLine): ConnNote? = when {
     input.barStandby == true -> ConnNote.BAR_OFF_NETWORK_STANDBY_ON
     else -> ConnNote.BAR_OFF_NETWORK
 }
+
+/** What a missing local-network permission offers: the ask while a dialog may still come, the system's page once not. */
+fun lanAction(input: ConnInput): ConnAction =
+    if (input.lanCantAsk) ConnAction.LAN_OPEN_SETTINGS else ConnAction.LAN_REQUEST
 
 /**
  * A Bluetooth link. The phone holds one HID connection at a time and only while the remote is in

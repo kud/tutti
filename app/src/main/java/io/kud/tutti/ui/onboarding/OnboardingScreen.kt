@@ -1,6 +1,13 @@
 package io.kud.tutti.ui.onboarding
 
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import android.Manifest
+import android.app.Activity
+import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
@@ -23,6 +30,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -59,6 +67,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -67,6 +76,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.core.app.ActivityCompat
 import io.kud.tutti.R
 import io.kud.tutti.ui.common.StateMark
 import io.kud.tutti.controller.Link
@@ -78,6 +88,7 @@ import io.kud.tutti.platform.discovery.DiscoveredTv
 import io.kud.tutti.platform.discovery.TvDiscovery
 import io.kud.tutti.protocol.atv.PairingCode
 import io.kud.tutti.protocol.net.LanAddress
+import io.kud.tutti.platform.net.LocalNetworkRules
 import io.kud.tutti.ui.common.LocalReducedMotion
 import io.kud.tutti.ui.common.PressStyle
 import io.kud.tutti.ui.common.ProblemNote
@@ -208,6 +219,8 @@ fun OnboardingScreen(
                     IntroStep.TV -> SearchStep(
                         found = discovered,
                         initialHost = tvHost,
+                        lanMissing = state.lanPermissionMissing,
+                        onGranted = controller::onLanPermissionGranted,
                         phaseFor = { host ->
                             if (pairPressed && host == tvHost) pairStep(pairing, codeSent = codeSent, pressed = true).phase else ActionPhase.IDLE
                         },
@@ -322,6 +335,9 @@ private fun WelcomeMark(modifier: Modifier = Modifier) {
 private fun SearchStep(
     found: List<DiscoveredTv>,
     initialHost: String,
+    /** Android 17 shut the LAN behind its runtime permission: the ask replaces the radar. */
+    lanMissing: Boolean,
+    onGranted: () -> Unit,
     phaseFor: (String) -> ActionPhase,
     failure: String?,
     failedHost: String?,
@@ -331,6 +347,32 @@ private fun SearchStep(
     var manual by rememberSaveable { mutableStateOf(false) }
     var typed by rememberSaveable { mutableStateOf(initialHost) }
     var waited by remember { mutableStateOf(false) }
+
+    // The same ask as the remote's banner: launch the system dialog; a refusal with no rationale
+    // afterwards sends the user to tutti's system page, where the switch stands.
+    var lanCantAsk by rememberSaveable { mutableStateOf(false) }
+    val context = LocalContext.current
+    val lanLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) {
+            onGranted()
+        } else {
+            val activity = context as? Activity
+            val rationale = activity != null &&
+                ActivityCompat.shouldShowRequestPermissionRationale(activity, Manifest.permission.ACCESS_LOCAL_NETWORK)
+            lanCantAsk = LocalNetworkRules.outlook(denied = true, shouldShowRationale = rationale) ==
+                LocalNetworkRules.Outlook.CANNOT_ASK
+        }
+    }
+    fun askLanAccess() {
+        if (lanCantAsk) {
+            context.startActivity(
+                Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null)),
+            )
+        } else {
+            lanLauncher.launch(Manifest.permission.ACCESS_LOCAL_NETWORK)
+        }
+    }
+
     LaunchedEffect(Unit) {
         delay(SEARCH_NUDGE_MS)
         waited = true
@@ -339,7 +381,11 @@ private fun SearchStep(
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text(stringResource(R.string.intro_search_title), style = MaterialTheme.typography.headlineSmall)
         Text(stringResource(R.string.intro_search_body), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        if (!reduced) Radar(found.map { it.host }, Modifier.fillMaxWidth(0.8f).aspectRatio(1f).align(Alignment.CenterHorizontally))
+        if (lanMissing) {
+            LanCard(asks = !lanCantAsk, onAllow = { askLanAccess() })
+        } else if (!reduced) {
+            Radar(found.map { it.host }, Modifier.fillMaxWidth(0.8f).aspectRatio(1f).align(Alignment.CenterHorizontally))
+        }
         Row(verticalAlignment = Alignment.CenterVertically) {
             if (!reduced) {
                 CircularProgressIndicator(Modifier.size(12.dp), color = MaterialTheme.colorScheme.onSurfaceVariant, strokeWidth = 1.5.dp)
@@ -392,6 +438,41 @@ private fun SearchStep(
                 } else {
                     TextButton(onClick = { manual = true }) { Text(stringResource(R.string.intro_enter_ip)) }
                 }
+            }
+        }
+    }
+}
+
+/**
+ * The search step's local-network card (Android 17): what the permission is there for, and the
+ * Allow step, where the radar would otherwise show a search that cannot find anything.
+ */
+@Composable
+private fun LanCard(asks: Boolean, onAllow: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    Surface(
+        shape = RoundedCornerShape(24.dp),
+        color = colors.surfaceContainer,
+        border = BorderStroke(1.5.dp, colors.outline),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Icon(
+                    painterResource(R.drawable.ic_warning),
+                    contentDescription = null,
+                    tint = colors.error,
+                    modifier = Modifier.size(20.dp),
+                )
+                Text(stringResource(R.string.intro_lan_title), style = MaterialTheme.typography.titleSmall)
+            }
+            Text(
+                stringResource(R.string.intro_lan_body),
+                style = MaterialTheme.typography.bodyMedium,
+                color = colors.onSurfaceVariant,
+            )
+            TextButton(onClick = onAllow, modifier = Modifier.heightIn(min = 48.dp)) {
+                Text(stringResource(if (asks) R.string.conn_action_lan_allow else R.string.conn_action_lan_open_settings))
             }
         }
     }

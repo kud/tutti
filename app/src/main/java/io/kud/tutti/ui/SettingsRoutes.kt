@@ -33,6 +33,8 @@ internal object SettingsRoutes {
         ConnAction.ADD_BAR -> listOf(Screen.Onboarding(barOnly = true, cancellable = true))
         ConnAction.PAIR_COMPUTER, ConnAction.OPEN_DEVICES,
         ConnAction.WAKE_TV, ConnAction.CONTROL, ConnAction.USE_NEW_ADDRESS,
+        // Never routed here: the LAN ask and its system page are the remote's own handling.
+        ConnAction.LAN_REQUEST, ConnAction.LAN_OPEN_SETTINGS,
         -> into(SettingsCategory.DEVICES)
     }
 }
