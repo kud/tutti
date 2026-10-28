@@ -449,6 +449,7 @@ private fun SearchStep(
                 }
             }
         }
+    }
 }
 
 /** The LAN ask as the onboarding steps share it: [ask] opens the system dialog or, once [cantAsk], tutti's system page. */
