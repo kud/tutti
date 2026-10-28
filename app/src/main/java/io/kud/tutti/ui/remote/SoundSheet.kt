@@ -21,6 +21,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import io.kud.tutti.ui.motion.refusalShake
 import io.kud.tutti.ui.motion.rememberRefusalShake
+import io.kud.tutti.ui.motion.RefusalShake
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.animateFloatAsState
@@ -352,25 +353,26 @@ private fun ChoiceSegments(state: TuttiUiState, feature: TheatreFeature, onSelec
     }
 }
 
+/**
+ * What a bar toggle shows, shared by the Son sheet's tile and the playback sheet's chip: why it is
+ * greyed, whether it is on, and the outcome of a press. The control has already flipped
+ * (optimistic); a spinner may show only if the bar takes more than 150 ms; a refusal springs it
+ * back (the rollback), plays the shared refusal shake with its reject and says so for 3 s.
+ */
+internal class BarToggleStatus(
+    val reason: String?,
+    val on: Boolean,
+    val failed: Boolean,
+    val spinner: Boolean,
+    val shake: RefusalShake,
+    val stateLine: String,
+)
+
 @Composable
-internal fun SoundTile(state: TuttiUiState, feature: TheatreFeature, onTap: () -> Unit, onPin: (String) -> Unit, modifier: Modifier = Modifier) {
+internal fun rememberBarToggleStatus(state: TuttiUiState, feature: TheatreFeature): BarToggleStatus {
     val reason = barReason(state, feature)
     val value = state.bar.value(feature)
     val on = state.bar.isOn(feature) == true
-    val scheme = MaterialTheme.colorScheme
-    val container by animateColorAsState(if (on && reason == null) scheme.primary else scheme.surfaceContainerHigh, snappyOrFade(), label = "tile")
-    val content = if (on && reason == null) scheme.onPrimary else scheme.onSurface
-    val interaction = remember { MutableInteractionSource() }
-    val press = rememberPress(interaction, PressStyle.TILE)
-    val feedback = rememberFeedback()
-    val reduced = LocalReducedMotion.current
-    val corner by animateDpAsState(if (on && reason == null) 16.dp else 24.dp, if (reduced) snap() else Motion.snappy(), label = "corner")
-    val name = stringResource(featureLabel(feature))
-    val hint = explanation(feature)?.let { stringResource(it) }
-
-    // Pending, then the outcome: the tile has already flipped (optimistic). An arc shows only if the
-    // bar takes more than 150 ms; a refusal springs the tile back (the rollback), plays the
-    // shared refusal shake with its reject (RefusalShake) and says so for 3 s.
     val pending = state.bar.pending[feature.key]?.value
     val waiting = rememberWaiting(pending != null)
     val outcome = remember { TileOutcome() }
@@ -400,6 +402,27 @@ internal fun SoundTile(state: TuttiUiState, feature: TheatreFeature, onTap: () -
     } else {
         reason ?: stringResource(if (on) R.string.toggle_state_on else R.string.toggle_state_off)
     }
+    return BarToggleStatus(reason, on, failed, waiting.spinner && !failed, shake, stateLine)
+}
+
+@Composable
+internal fun SoundTile(state: TuttiUiState, feature: TheatreFeature, onTap: () -> Unit, onPin: (String) -> Unit, modifier: Modifier = Modifier) {
+    val status = rememberBarToggleStatus(state, feature)
+    val reason = status.reason
+    val on = status.on
+    val failed = status.failed
+    val shake = status.shake
+    val stateLine = status.stateLine
+    val scheme = MaterialTheme.colorScheme
+    val container by animateColorAsState(if (on && reason == null) scheme.primary else scheme.surfaceContainerHigh, snappyOrFade(), label = "tile")
+    val content = if (on && reason == null) scheme.onPrimary else scheme.onSurface
+    val interaction = remember { MutableInteractionSource() }
+    val press = rememberPress(interaction, PressStyle.TILE)
+    val feedback = rememberFeedback()
+    val reduced = LocalReducedMotion.current
+    val corner by animateDpAsState(if (on && reason == null) 16.dp else 24.dp, if (reduced) snap() else Motion.snappy(), label = "corner")
+    val name = stringResource(featureLabel(feature))
+    val hint = explanation(feature)?.let { stringResource(it) }
     Column(
         modifier
             .heightIn(min = 76.dp)
@@ -429,7 +452,7 @@ internal fun SoundTile(state: TuttiUiState, feature: TheatreFeature, onTap: () -
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(painterResource(barIcon(feature.key)), contentDescription = null, tint = content, modifier = Modifier.size(20.dp))
             Spacer(Modifier.weight(1f))
-            TileMark(on = on, locked = reason != null, pending = waiting.spinner && !failed, color = content, onColor = container)
+            TileMark(on = on, locked = reason != null, pending = status.spinner, color = content, onColor = container)
         }
         Spacer(Modifier.height(4.dp))
         Text(name, style = MaterialTheme.typography.titleSmall, color = content)

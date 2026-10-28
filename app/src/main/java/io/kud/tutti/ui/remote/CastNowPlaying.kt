@@ -38,13 +38,14 @@ import kotlin.math.roundToLong
 
 /**
  * The full card's Cast line (Iris, 2026-10-25, design.md "Now-showing card: what Cast reports
- * playing"): the title in place of the detail line, a 2 dp read-only track and "12:03 / 41:10"
+ * playing"): the title in place of the detail line (two lines, then an ellipsis), the channel or
+ * artist on one line under it whenever Cast reports one, a 2 dp read-only track and "12:03 / 41:10"
  * beside it, or under it when the column is under 200 dp. Paused and loading say so in words;
  * live content has no track and reads "Live". The time steps once a second with no animated fill.
  * TalkBack hears [castSpoken], which leaves the time out while playing so the tick never re-reads.
  */
 @Composable
-internal fun CastLine(cast: CastNowPlaying, modifier: Modifier = Modifier) {
+internal fun CastLine(cast: CastNowPlaying, modifier: Modifier = Modifier, roomy: Boolean = true) {
     val context = LocalContext.current
     val now by produceState(System.currentTimeMillis(), cast) {
         while (true) {
@@ -53,7 +54,9 @@ internal fun CastLine(cast: CastNowPlaying, modifier: Modifier = Modifier) {
             delay(1_000L - value % 1_000L)
         }
     }
-    val spoken = castSpoken(cast, now) { id, args -> context.getString(id, *args) }
+    // The channel or artist joins the title for TalkBack: "<title>, <channel>, paused".
+    val secondary = cast.secondary?.takeIf { it.isNotBlank() }
+    val spoken = castSpoken(if (secondary == null) cast else cast.copy(title = "${cast.title}, $secondary"), now) { id, args -> context.getString(id, *args) }
     // Two lines, then an ellipsis, with no tap (Erwann, 2026-10-26): the playback sheet shows it whole.
     var wrapped by remember(cast.title) { mutableStateOf(false) }
     Column(modifier.clearAndSetSemantics { contentDescription = spoken }) {
@@ -61,10 +64,22 @@ internal fun CastLine(cast: CastNowPlaying, modifier: Modifier = Modifier) {
             cast.title,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurface,
-            maxLines = CARD_TITLE_LINES,
+            // At 104 dp the channel takes the title's second line, so the card keeps its height.
+            maxLines = if (secondary == null || roomy) CARD_TITLE_LINES else 1,
             overflow = TextOverflow.Ellipsis,
             onTextLayout = { wrapped = it.lineCount > 1 },
         )
+        // The channel or artist, always, when Cast reports one (Erwann, 2026-10-27: « J'aimerais
+        // toujours afficher la chaîne sur la première photo »): one quiet line under the title's two.
+        secondary?.let {
+            Text(
+                it,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
         // A second line takes most of the gap, so the card keeps its 104 dp.
         Spacer(Modifier.height(if (wrapped) 2.dp else 4.dp))
         BoxWithConstraints(Modifier.fillMaxWidth()) {

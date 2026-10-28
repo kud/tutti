@@ -930,25 +930,23 @@ fun RemoteScreen(
             onDismiss = { playbackFor = null },
             barToggles = if (state.links.bar == Link.ABSENT) null else {
                 {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        for (feature in PLAYBACK_BAR_TOGGLES) {
-                            SoundTile(
-                                state = state,
-                                feature = feature,
-                                onTap = {
-                                    haptics.select()
-                                    controller.toggleBar(feature)
-                                },
-                                onPin = { name ->
-                                    haptics.longPress()
-                                    keysPinner.request(DockAction.ToggleBar(feature.key), name)
-                                },
-                                modifier = Modifier.weight(1f),
-                            )
-                        }
+                    for (feature in PLAYBACK_BAR_TOGGLES) {
+                        BarToggleChip(
+                            state = state,
+                            feature = feature,
+                            onTap = {
+                                haptics.select()
+                                controller.toggleBar(feature)
+                            },
+                            onPin = { name ->
+                                haptics.longPress()
+                                keysPinner.request(DockAction.ToggleBar(feature.key), name)
+                            },
+                        )
                     }
                 }
             },
+            barDownReason = if (state.links.bar == Link.ABSENT) null else barReason(state, TheatreFeature.VOICE),
             cast = castNowPlaying,
             onScrub = { code -> sendKey(code) },
         )
