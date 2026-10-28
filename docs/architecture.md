@@ -170,6 +170,16 @@ After three connection failures in a row at the stored address (`Rediscovery.AFT
 - **The bar is only ever an offer.** Port 33336 has no authentication, so nothing proves which bar answers. tutti browses `_googlecast._tcp`, `_airplay._tcp` and `_spotify-connect._tcp`, asks each new address one `get system.modeltype` (`BarProbe`, read-only, its own connection, closed at once), and keeps the first that names a model, the same model as the configured bar when it is known (`Rediscovery.barOffer`). Connexions then reads « semble répondre à une nouvelle adresse » with « L’utiliser »; only that tap changes the stored host. The offer goes when the bar answers at its own address again.
 - **Unverified on real hardware:** which of those three services the Bar 9 advertises, and that the XR80 keeps advertising `_androidtvremote2._tcp` at its new address.
 
+## The local-network permission (Android 17; built 2026-10-28)
+
+Android 17 (API 37, which tutti targets) gates LAN sockets behind a new runtime permission, `ACCESS_LOCAL_NETWORK` (NEARBY_DEVICES group). The system may pre-grant it when a group neighbour such as `BLUETOOTH_CONNECT` is already granted, but nothing in tutti may assume that: every path that opens a local socket is gated the same way. Below API 37 nothing is asked and nothing is gated.
+
+- **Rules** (`:app` `platform/net/LocalNetworkPermission.kt`; `:protocol` stays free of Android). `LocalNetworkRules` is pure and tested: `decide(sdkInt, granted, outlook)` gives ALLOWED / NEEDS_REQUEST / PERMANENTLY_DENIED, `outlook(denied, shouldShowRationale)` decides whether another system dialog can still appear. `LocalNetworkPermissionMissing` is a typed `IOException`; the Hilt-held `LocalNetworkPermission.require()` throws it before any socket opens, so a missing permission is a typed failure on screen, never a timeout read as a dead TV.
+- **Gates.** The `requireAccess` seam sits at the end of every LAN opener's constructor (`AndroidTcpConnector`, `AndroidTlsConnector`, `AndroidCastConnector`, `OkHttpBraviaTransport`, `OkHttpBarHttpTransport`, `WakeOnLanSender`), checked at the top of `connect()`/`post()` before the first byte; `TvDiscovery.discover()` returns an empty list while it is missing. All production sites inject `LocalNetworkPermission`; the sim tests keep the default no-op seam.
+- **State.** `TuttiController` keeps a `lanMissing` flag, raised by the gate (loops, pairing, code request) and cleared by a success or the grant; `TuttiUiState.lanPermissionMissing` carries it to the UI, where `Connections` shows NEEDS_PERMISSION once per LAN line (the TV's Google TV line and the bar's Network line) with one step: `LAN_REQUEST` (the system dialog again) or, after a refusal without a rationale, `LAN_OPEN_SETTINGS` (tutti's system app page). The remote's banner says the same in one line; onboarding's search step replaces the radar with the explanation and its Allow. Both ask at the moment the connection or pairing flow hits the gate, never at cold start.
+- **Background surfaces** (tile, widget, notification, sleep timer) open no new path: their links already fail closed through the same gates, they show their disconnected state, and tapping them opens the app, where the banner waits.
+- **Unverified on a real Android 17 device:** that the permission's grant actually unblocks sockets without an app restart, and the exact wording Android shows.
+
 ## Verified vs not
 
 | Item | Status |
@@ -208,6 +218,7 @@ After three connection failures in a row at the stored address (`Rediscovery.AFT
 | Sony-cloud gRPC | Interface only, nothing on the wire |
 | v2 voice (search key → begin → 8 kHz PCM payloads → end) | Facts from androidtvremote2 (Python, Home Assistant's library); **never run by tutti against any TV**, the XR80 included. Whether the BRAVIA's assistant (Gemini or Google Assistant) accepts it, and whether 20 KiB chunks give a live transcript, are open |
 | Bluetooth HID mode (descriptor, pairing from the TV, reconnect on screen open, consumer keys, AZERTY dead keys, gyro axis signs and gain) | Encoders and maths unit-tested; **nothing run on a phone or against the XR80**. Whether Google TV picks the French layout for this keyboard by itself is **unverified** |
+| The local-network permission gate (`LocalNetworkRules.decide`/`outlook`, sheet and banner states, onboarding card) | Pure functions and the Connections states unit-tested; **nothing run on an Android 17 (API 37) device or emulator**: that the gates are what stops the LAN, the grant unblocks the loops without a restart, and the refusal flow matches Android's dialog behaviour |
 | Kotlin 2.4.21, KSP 2.3.12, Hilt 2.60.1, Wire 7.1.0, Gradle 9.8.2, AGP 9.5.0 | JVM-side tags verified upstream 2026-10-28; AGP 9.5.0 and the AndroidX versions checked against Google Maven metadata (core 1.19.1 needs compileSdk 37 and AGP ≥ 9.1.0) |
 
 ## Diagnostic (Réglages › Diagnostic)

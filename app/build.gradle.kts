@@ -24,7 +24,7 @@ android {
     defaultConfig {
         applicationId = appId
         minSdk = 29
-        targetSdk = 36
+        targetSdk = 37
         // CI passes a monotonically increasing code (the run number) so each release installs over the last.
         versionCode = providers.environmentVariable("TUTTI_VERSION_CODE").orElse("1").get().toInt()
         versionName = providers.environmentVariable("TUTTI_VERSION_NAME").orElse("0.0.0-dev").get()

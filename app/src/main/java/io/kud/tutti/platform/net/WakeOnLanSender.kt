@@ -16,9 +16,10 @@ import java.net.InetAddress
  * Sends the magic packet over UDP, to private LAN addresses only ([WakeOnLan.targets]).
  * Best effort: a TV with "Remote start" off simply does not answer, and nothing here can tell.
  */
-class WakeOnLanSender(private val context: Context) {
-    /** True when at least one packet left the phone. */
+class WakeOnLanSender(private val context: Context, private val requireAccess: () -> Unit = {}) {
+    /** True when at least one packet left the phone. Gated like a socket: no permission, no packet. */
     suspend fun send(tvHost: String, mac: String): Boolean = withContext(Dispatchers.IO) {
+        if (runCatching { requireAccess() }.isFailure) return@withContext false
         val packet = WakeOnLan.magicPacket(mac) ?: return@withContext false
         val (phone, prefix) = phoneIpv4() ?: (null to null)
         val targets = WakeOnLan.targets(tvHost, phone, prefix)

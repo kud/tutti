@@ -303,7 +303,7 @@ private fun PairStep(targets: TargetController, hid: HidLink?, os: ComputerOs, o
     val already = known.list.devices.mapNotNull { it.bluetooth?.address }.toSet()
     val choices = bonded.filter { it.address !in already }
 
-    val permissions = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { targets.settingsShown() }
+    val permissions = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { targets.settingsShown(); targets.onBluetoothPermissionResult() }
     val enable = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { targets.settingsShown() }
     val discoverable = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { }
 

@@ -37,10 +37,12 @@ internal fun requireLan(host: String) {
 class AndroidTcpConnector internal constructor(
     private val checkHost: (String) -> Unit,
     private val readTimeoutMs: Int,
+    private val requireAccess: () -> Unit = {},
 ) : TcpConnector {
-    @Inject constructor() : this(::requireLan, BAR_READ_TIMEOUT_MS)
+    @Inject constructor(localNetwork: LocalNetworkPermission) : this(::requireLan, BAR_READ_TIMEOUT_MS, localNetwork::require)
 
     override suspend fun connect(host: String, port: Int): Connection = closingIfCancelled { opened -> withContext(Dispatchers.IO) {
+        requireAccess()
         checkHost(host)
         val socket = Socket()
         try {
@@ -70,8 +72,9 @@ class AndroidTcpConnector internal constructor(
 class AndroidTlsConnector internal constructor(
     private val checkHost: (String) -> Unit,
     private val readTimeoutMs: Int,
+    private val requireAccess: () -> Unit = {},
 ) : TlsConnector {
-    @Inject constructor() : this(::requireLan, TV_READ_TIMEOUT_MS)
+    @Inject constructor(localNetwork: LocalNetworkPermission) : this(::requireLan, TV_READ_TIMEOUT_MS, localNetwork::require)
 
     override suspend fun connect(
         host: String,
@@ -79,6 +82,7 @@ class AndroidTlsConnector internal constructor(
         identity: ClientIdentity,
         expectedPin: CertificatePin?,
     ): TlsConnection = closingIfCancelled { opened -> withContext(Dispatchers.IO) {
+        requireAccess()
         checkHost(host)
         // A pinned device reuses its context, so its session cache lets the TV resume the TLS
         // session on reconnect rather than redo the full RSA handshake. Keyed by the pin and our

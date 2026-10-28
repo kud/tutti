@@ -27,10 +27,12 @@ import javax.net.ssl.X509TrustManager
 class AndroidCastConnector internal constructor(
     private val checkHost: (String) -> Unit,
     private val readTimeoutMs: Int,
+    private val requireAccess: () -> Unit = {},
 ) : CastConnector {
-    @Inject constructor() : this(::requireLan, CAST_READ_TIMEOUT_MS)
+    @Inject constructor(localNetwork: LocalNetworkPermission) : this(::requireLan, CAST_READ_TIMEOUT_MS, localNetwork::require)
 
     override suspend fun connect(host: String, port: Int): CastConnection = closingIfCancelled { opened -> withContext(Dispatchers.IO) {
+        requireAccess()
         checkHost(host)
         val recorder = PeerRecorder()
         val context = SSLContext.getInstance("TLS")

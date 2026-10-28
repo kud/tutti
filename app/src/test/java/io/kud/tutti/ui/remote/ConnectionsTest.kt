@@ -174,6 +174,22 @@ class ConnectionsTest {
         assertNull(busy.action)
     }
 
+    /** Android 17's local-network permission: said once on each LAN line, the ask with it. */
+    @Test
+    fun theLocalNetworkGateSaidOnTheLanLinesWithItsOneStep() {
+        val shut = room.copy(lanMissing = true)
+        assertEquals(ConnLine(ConnLink.GOOGLE_TV, ConnWords.NEEDS_PERMISSION, ConnAction.LAN_REQUEST), line(shut, "tv", ConnLink.GOOGLE_TV))
+        assertEquals(ConnLine(ConnLink.NETWORK, ConnWords.NEEDS_PERMISSION, ConnAction.LAN_REQUEST), line(shut, "bar", ConnLink.NETWORK))
+        assertEquals(ConnFocus("tv", ConnLink.GOOGLE_TV), problemLine(connections(shut)))
+        // The links' own words stay theirs: the gate is said, not repeated per line.
+        assertEquals(ConnWords.CONNECTED, line(shut, "tv", ConnLink.SONY_IP).words)
+        // Asked and refused without another dialog coming: only the system's page helps.
+        assertEquals(ConnLine(ConnLink.GOOGLE_TV, ConnWords.NEEDS_PERMISSION, ConnAction.LAN_OPEN_SETTINGS), line(shut.copy(lanCantAsk = true), "tv", ConnLink.GOOGLE_TV))
+        assertEquals(ConnLine(ConnLink.NETWORK, ConnWords.NEEDS_PERMISSION, ConnAction.LAN_OPEN_SETTINGS), line(shut.copy(lanCantAsk = true), "bar", ConnLink.NETWORK))
+        // Granted: nothing shows, the links read normally.
+        assertEquals(ConnLine(ConnLink.GOOGLE_TV, ConnWords.CONNECTED), line(room, "tv", ConnLink.GOOGLE_TV))
+    }
+
     @Test
     fun thePillsTroubleLandsOnItsLine() {
         assertNull(problemLine(connections(room)))

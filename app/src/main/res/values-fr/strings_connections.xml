@@ -46,4 +46,7 @@
     <string name="conn_action_use_address">L’utiliser</string>
     <string name="conn_action_control">Contrôler</string>
     <string name="conn_action_devices">Ouvrir Appareils</string>
+    <string name="conn_banner_lan">Android garde tutti hors du réseau domestique tant que vous ne l’autorisez pas. La TV et la barre ne répondent à rien d’ici là.</string>
+    <string name="conn_action_lan_allow">Autoriser</string>
+    <string name="conn_action_lan_open_settings">Ouvrir Réglages</string>
 </resources>

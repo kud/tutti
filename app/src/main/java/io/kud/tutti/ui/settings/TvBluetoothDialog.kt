@@ -69,7 +69,7 @@ fun TvBluetoothDialog(targets: TargetController, hid: HidLink, onDismiss: () -> 
         if (hidState.phase == HidPhase.CONNECTED && host != null) targets.linkTvBluetooth(host)
     }
 
-    val permissions = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { targets.tvPairingShown() }
+    val permissions = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { targets.tvPairingShown(); targets.onBluetoothPermissionResult() }
     val enable = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { targets.tvPairingShown() }
     val discoverable = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { }
 

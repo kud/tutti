@@ -109,6 +109,8 @@ private fun actionLabel(action: ConnAction): String = stringResource(
         ConnAction.USE_NEW_ADDRESS -> R.string.conn_action_use_address
         ConnAction.CONTROL -> R.string.conn_action_control
         ConnAction.OPEN_DEVICES -> R.string.conn_action_devices
+        ConnAction.LAN_REQUEST -> R.string.conn_action_lan_allow
+        ConnAction.LAN_OPEN_SETTINGS -> R.string.conn_action_lan_open_settings
     },
 )
 
