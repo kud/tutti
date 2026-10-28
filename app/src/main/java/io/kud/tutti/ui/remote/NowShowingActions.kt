@@ -45,7 +45,7 @@ fun cardTap(showing: CardShowing?, onComputerInput: Boolean): CardTap = when {
 fun cardActionsApp(showing: CardShowing?): NowShowing.App? = (showing as? CardShowing.Showing)?.now as? NowShowing.App
 
 /** One row of the app actions sheet. */
-enum class AppAction { PIN, UNPIN, CLOSE_APPS }
+enum class AppAction { PIN, UNPIN, HIDE, CLOSE_APPS }
 
 /** The first pin that launches [packageName], or null when none does. */
 fun pinnedIndex(dock: DockConfig, packageName: String): Int? =
@@ -59,6 +59,8 @@ fun pinnedIndex(dock: DockConfig, packageName: String): Int? =
  */
 fun appActions(pinnedAt: Int?, pskSet: Boolean): List<AppAction> = buildList {
     add(if (pinnedAt == null) AppAction.PIN else AppAction.UNPIN)
+    // Hiding only takes it off tutti's Apps list; Settings → Apps shows it again.
+    add(AppAction.HIDE)
     if (pskSet) add(AppAction.CLOSE_APPS)
 }
 

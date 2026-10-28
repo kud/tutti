@@ -84,9 +84,10 @@ fun AppsSheet(
     inputs: TvInputsRow? = null,
     onInput: (uri: String) -> Unit = {},
     onPinInput: ((uri: String, name: String) -> Unit)? = null,
+    onHide: ((KnownApp) -> Unit)? = null,
 ) {
     TuttiSheet(onDismissRequest = onDismiss) {
-        AppsSheetContent(state, onLaunch, onLaunched, onAllApps, onPin, Modifier.fillMaxHeight(), recents, inputs, onInput, onPinInput)
+        AppsSheetContent(state, onLaunch, onLaunched, onAllApps, onPin, Modifier.fillMaxHeight(), recents, inputs, onInput, onPinInput, onHide)
     }
 }
 
@@ -115,6 +116,7 @@ fun AppsSheetContent(
     inputs: TvInputsRow? = null,
     onInput: (uri: String) -> Unit = {},
     onPinInput: ((uri: String, name: String) -> Unit)? = null,
+    onHide: ((KnownApp) -> Unit)? = null,
 ) {
     var pinning by remember { mutableStateOf<KnownApp?>(null) }
     // The launch this sheet asked for (its id): the sheet closes once it has gone out.
@@ -253,6 +255,7 @@ fun AppsSheetContent(
                 pinning = null
             },
             onDismiss = { pinning = null },
+            onHide = onHide?.let { hide -> { hide(app); pinning = null } },
         )
     }
 }
@@ -386,7 +389,13 @@ private val TILE_SHAPE = RoundedCornerShape(16.dp)
 
 /** Which dock slot takes the app; each row says what it replaces. */
 @Composable
-internal fun PinDialog(app: KnownApp, state: TuttiUiState, onPick: (Int) -> Unit, onDismiss: () -> Unit) {
+internal fun PinDialog(
+    app: KnownApp,
+    state: TuttiUiState,
+    onPick: (Int) -> Unit,
+    onDismiss: () -> Unit,
+    onHide: (() -> Unit)? = null,
+) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.apps_pin_title, app.name)) },
@@ -419,7 +428,10 @@ internal fun PinDialog(app: KnownApp, state: TuttiUiState, onPick: (Int) -> Unit
                 }
             }
         },
-        confirmButton = {},
+        // A long press on a tile is the app's only menu there, so hiding sits beside Cancel.
+        confirmButton = {
+            if (onHide != null) TextButton(onClick = onHide) { Text(stringResource(R.string.app_actions_hide)) }
+        },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
     )
 }

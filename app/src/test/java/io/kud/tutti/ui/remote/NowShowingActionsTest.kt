@@ -74,9 +74,9 @@ class NowShowingActionsTest {
     }
 
     @Test
-    fun `actions offer pin or unpin, and closing only with ip control`() {
-        assertEquals(listOf(AppAction.PIN), appActions(pinnedAt = null, pskSet = false))
-        assertEquals(listOf(AppAction.UNPIN, AppAction.CLOSE_APPS), appActions(pinnedAt = 3, pskSet = true))
+    fun `actions offer pin or unpin, hide, and closing only with ip control`() {
+        assertEquals(listOf(AppAction.PIN, AppAction.HIDE), appActions(pinnedAt = null, pskSet = false))
+        assertEquals(listOf(AppAction.UNPIN, AppAction.HIDE, AppAction.CLOSE_APPS), appActions(pinnedAt = 3, pskSet = true))
     }
 
     @Test
