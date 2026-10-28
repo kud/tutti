@@ -323,17 +323,11 @@ fun TuttiApp(
         seenShows = shows
     }
 
-    // The updater's automatic check: at most once a day, only when the app opens, never an install.
-    LaunchedEffect(Unit) {
-        kotlinx.coroutines.delay(3_000)
-        val update = io.kud.tutti.platform.update.Updater.from(context).checkIfDue() ?: return@LaunchedEffect
-        messages.show(
-            context.getString(R.string.update_available, update.version.toString()),
-            actionLabel = context.getString(R.string.update_message_see),
-            onAction = { push(Screen.About) },
-            long = true,
-        )
-    }
+    // A newer build makes itself known (docs/design.md, "Updates"): the check, its once-per-build
+    // message, the ⋮'s dot and row, and the one-tap sheet all come from ui/about/UpdateSection.kt.
+    val updateCue = io.kud.tutti.ui.about.rememberUpdateCue()
+    var updateSheet by rememberSaveable { mutableStateOf(false) }
+    io.kud.tutti.ui.about.UpdateCheckEffect(onInstall = { updateSheet = true })
 
     LaunchedEffect(state.loaded) {
         if (state.loaded && state.devices.isEmpty && !state.prefs.onboarded && stack.none { it is Screen.Onboarding }) push(Screen.Onboarding())
@@ -379,6 +373,9 @@ fun TuttiApp(
                             },
                             editing = editingLayout,
                             onEditingChange = { editingLayout = it },
+                            update = updateCue.newer,
+                            updateNotice = updateCue.notice,
+                            onUpdate = { updateSheet = true },
                         )
                         Screen.Scenes -> ScenesScreen(
                             state = state,
@@ -453,6 +450,8 @@ fun TuttiApp(
                         Screen.About -> AboutScreen(onBack = ::pop)
                     }
                 }
+            // The one-tap install, over whichever screen asked for it.
+            if (updateSheet) io.kud.tutti.ui.about.UpdateNowSheet(onDismiss = { updateSheet = false })
         }
     }
 }

@@ -261,8 +261,14 @@ private fun categoryLine(category: SettingsCategory, state: TuttiUiState, comput
         ).joinToString(" · ")
     }
     SettingsCategory.ADVANCED -> stringResource(if (state.prefs.developerMode) R.string.settings_line_developer_on else R.string.settings_line_developer_off)
-    SettingsCategory.ABOUT -> stringResource(R.string.about_entry_detail)
+    SettingsCategory.ABOUT -> aboutLine()
 }
+
+/** About's line names a newer build while one waits, set aside or not (docs/design.md, "Updates"). */
+@Composable
+private fun aboutLine(): String = io.kud.tutti.ui.about.rememberUpdateCue().newer
+    ?.let { stringResource(R.string.settings_line_update, it.toString()) }
+    ?: stringResource(R.string.about_entry_detail)
 
 /** Settings › Devices: the TV, the bar and the computers, adding one, setup again, the Sony account. */
 @Composable

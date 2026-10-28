@@ -114,6 +114,10 @@ fun RemoteScreen(
     onConnectionStep: (ConnAction) -> Unit = { onOpenSettings() },
     editing: Boolean = false,
     onEditingChange: (Boolean) -> Unit = {},
+    /** A newer build, its cue, and the one-tap install (docs/design.md, "Updates"). */
+    update: io.kud.tutti.protocol.update.AppVersion? = null,
+    updateNotice: Boolean = false,
+    onUpdate: () -> Unit = {},
 ) {
     val haptics = rememberHaptics()
     val layout = state.prefs.layout
@@ -479,6 +483,9 @@ fun RemoteScreen(
                         onEditDock = { onEditingChange(true) },
                         onSettings = onOpenSettings,
                         onGestures = { gesturesSheet = true },
+                        update = update,
+                        notice = updateNotice,
+                        onUpdate = onUpdate,
                     )
                     Spacer(Modifier.width(POWER_GAP_DP.dp))
                     // Waking a sleeping TV takes seconds: a turning ring says so (not a colour), and the label follows.

@@ -21,6 +21,7 @@ import io.kud.tutti.protocol.update.Flavour
 import io.kud.tutti.protocol.update.Hosts
 import io.kud.tutti.protocol.update.ReleaseFeed
 import io.kud.tutti.protocol.update.Sha256
+import io.kud.tutti.protocol.update.UpdateCue
 import io.kud.tutti.protocol.update.Update
 import java.io.File
 import java.io.IOException
@@ -85,12 +86,53 @@ class Updater @Inject constructor(@ApplicationContext private val context: Conte
     private val flavour = if (BuildConfig.DEBUG) Flavour.DEBUG else Flavour.RELEASE
     private val current: AppVersion = AppVersion.parse(BuildConfig.VERSION_NAME) ?: AppVersion(0, 0, 0, 0)
 
-    /** The automatic check: at most once a day, and only from the app being opened. Returns a newer release, if any. */
+    /**
+     * The newest build the last check found, kept across restarts so the cue outlives the process,
+     * and the build set aside with "Later" (docs/design.md, "Updates").
+     */
+    private val _found = MutableStateFlow(readVersion(KEY_FOUND))
+    private val _setAside = MutableStateFlow(readVersion(KEY_SET_ASIDE))
+
+    /** A newer build than the installed one, if a check found one, whether or not it was set aside. */
+    val newer: StateFlow<AppVersion?> get() = _newer
+    private val _newer = MutableStateFlow(_found.value?.takeIf { it > current })
+
+    /** How loudly that build makes itself known: the remote's dot only for [UpdateCue.NOTICE]. */
+    val cue: StateFlow<UpdateCue> get() = _cue
+    private val _cue = MutableStateFlow(UpdateCue.of(current, _found.value, _setAside.value))
+
+    /** "Later": the dot goes for this build; the ⋮ menu's row and About still say it. A newer build notices again. */
+    fun setAside(version: AppVersion) {
+        prefs.edit().putString(KEY_SET_ASIDE, version.toString()).apply()
+        _setAside.value = version
+        refreshCue()
+    }
+
+    /**
+     * The automatic check, from the app being opened or coming back: at most once an hour for a dev
+     * build, once a day for a final release ([CheckSchedule.intervalFor]). Returns a newer release
+     * only the first time that build is found, so its message shows once.
+     */
     suspend fun checkIfDue(): Update? {
         val last = prefs.getLong(KEY_LAST_CHECK, -1L).takeIf { it >= 0 }
-        if (!CheckSchedule.isDue(last, System.currentTimeMillis())) return null
-        return check()
+        if (!CheckSchedule.isDue(last, System.currentTimeMillis(), CheckSchedule.intervalFor(current))) return null
+        val before = _found.value
+        val update = check() ?: return null
+        return update.takeIf { UpdateCue.announces(it.version, before) }
     }
+
+    private fun rememberFound(found: AppVersion?) {
+        prefs.edit().apply { if (found == null) remove(KEY_FOUND) else putString(KEY_FOUND, found.toString()) }.apply()
+        _found.value = found
+        refreshCue()
+    }
+
+    private fun refreshCue() {
+        _newer.value = _found.value?.takeIf { it > current }
+        _cue.value = UpdateCue.of(current, _found.value, _setAside.value)
+    }
+
+    private fun readVersion(key: String): AppVersion? = prefs.getString(key, null)?.let { AppVersion.parse(it) }
 
     /** Asks GitHub now. Leaves a download or install in progress alone. */
     suspend fun check(): Update? = busy.withLock {
@@ -109,6 +151,7 @@ class Updater @Inject constructor(@ApplicationContext private val context: Conte
         }
         val update = ReleaseFeed.pickUpdate(current, releases, flavour)
         _state.value = if (update == null) UpdateState.UpToDate else UpdateState.Available(update)
+        rememberFound(update?.version)
         if (update == null) withContext(Dispatchers.IO) { apkFile().delete() }
         update
     }
@@ -278,6 +321,8 @@ class Updater @Inject constructor(@ApplicationContext private val context: Conte
     companion object {
         private const val PREFS = "updates"
         private const val KEY_LAST_CHECK = "last_check_ms"
+        private const val KEY_FOUND = "found_version"
+        private const val KEY_SET_ASIDE = "set_aside_version"
         private const val MAX_APK_BYTES = 200L * 1024 * 1024
 
         fun from(context: Context): Updater =

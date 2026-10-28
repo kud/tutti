@@ -2,6 +2,9 @@ package io.kud.tutti.ui.remote
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -11,11 +14,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import io.kud.tutti.R
+import io.kud.tutti.protocol.update.AppVersion
 import io.kud.tutti.ui.common.TuttiMenu
 
 /**
@@ -44,14 +50,50 @@ fun chipWidthDp(barWidthDp: Int): Int = barWidthDp - BAR_FIXED_DP
  * the menu. Edit dock opens the layout editor, the dock's one way in now its "+ Add" slots are gone
  * (Erwann, 2026-10-25).
  */
+/**
+ * A newer build (docs/design.md, "Updates"; Iris, 2026-10-28): [update] puts "Update to version x"
+ * first in the menu, which installs in one tap ([onUpdate]); with [notice] the ⋮ also wears a dot,
+ * and TalkBack hears "More options, update available". The dot is a shape in a fixed place and its
+ * words are one tap away, so it never rests on colour; "Later" in the sheet takes it off.
+ */
 @Composable
-fun TopBarOverflow(onScenes: () -> Unit, onEditDock: () -> Unit, onSettings: () -> Unit, onGestures: () -> Unit) {
+fun TopBarOverflow(
+    onScenes: () -> Unit,
+    onEditDock: () -> Unit,
+    onSettings: () -> Unit,
+    onGestures: () -> Unit,
+    update: AppVersion? = null,
+    notice: Boolean = false,
+    onUpdate: () -> Unit = {},
+) {
     var open by remember { mutableStateOf(false) }
     Box {
         IconButton(onClick = { open = true }) {
-            Icon(painterResource(R.drawable.ic_more_vert), contentDescription = stringResource(R.string.action_more))
+            Box {
+                Icon(
+                    painterResource(R.drawable.ic_more_vert),
+                    contentDescription = stringResource(if (notice && update != null) R.string.action_more_update else R.string.action_more),
+                )
+                if (notice && update != null) UpdateDot(Modifier.align(Alignment.TopEnd).offset(x = 3.dp, y = (-1).dp))
+            }
         }
         TuttiMenu(expanded = open, onDismissRequest = { open = false }) {
+            if (update != null) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.update_menu_row, update.toString())) },
+                    leadingIcon = { Icon(painterResource(R.drawable.ic_download), contentDescription = null) },
+                    trailingIcon = if (notice) {
+                        { UpdateDot() }
+                    } else {
+                        null
+                    },
+                    onClick = {
+                        open = false
+                        onUpdate()
+                    },
+                    modifier = Modifier.heightIn(min = 48.dp),
+                )
+            }
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.action_scenes)) },
                 leadingIcon = { Icon(painterResource(R.drawable.ic_scene), contentDescription = null) },
@@ -90,4 +132,17 @@ fun TopBarOverflow(onScenes: () -> Unit, onEditDock: () -> Unit, onSettings: () 
             )
         }
     }
+}
+
+/** The update's dot: an 8 dp disc in the primary colour, cut out of what is under it by a ring of the surface. */
+@Composable
+private fun UpdateDot(modifier: Modifier = Modifier) {
+    val dot = MaterialTheme.colorScheme.primary
+    val cutout = MaterialTheme.colorScheme.background
+    Box(
+        modifier.size(12.dp).drawBehind {
+            drawCircle(cutout, 6.dp.toPx())
+            drawCircle(dot, 4.dp.toPx())
+        },
+    )
 }

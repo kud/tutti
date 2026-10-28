@@ -161,4 +161,35 @@ class UpdatesTest {
         assertTrue(CheckSchedule.isDue(now - CheckSchedule.DAY_MS, now))
         assertTrue(CheckSchedule.isDue(now + 60_000, now), "a clock moved backwards")
     }
+
+    @Test
+    fun devBuildsCheckHourlyAndReleasesDaily() {
+        assertEquals(CheckSchedule.HOUR_MS, CheckSchedule.intervalFor(v("0.2.0-dev.26")))
+        assertEquals(CheckSchedule.HOUR_MS, CheckSchedule.intervalFor(v("0.0.0-dev")))
+        assertEquals(CheckSchedule.DAY_MS, CheckSchedule.intervalFor(v("0.2.0")))
+        val now = 10 * CheckSchedule.DAY_MS
+        val hour = CheckSchedule.HOUR_MS
+        assertFalse(CheckSchedule.isDue(now - hour + 1, now, hour))
+        assertTrue(CheckSchedule.isDue(now - hour, now, hour))
+        assertFalse(CheckSchedule.isDue(now - hour, now), "the default stays a day")
+    }
+
+    @Test
+    fun cueNoticesANewerBuildUntilSetAside() {
+        val installed = v("0.2.0-dev.26")
+        assertEquals(UpdateCue.NONE, UpdateCue.of(installed, null, null))
+        assertEquals(UpdateCue.NONE, UpdateCue.of(installed, v("0.2.0-dev.26"), null), "already installed")
+        assertEquals(UpdateCue.NONE, UpdateCue.of(v("0.2.0-dev.27"), v("0.2.0-dev.27"), v("0.2.0-dev.27")), "installed since")
+        assertEquals(UpdateCue.NOTICE, UpdateCue.of(installed, v("0.2.0-dev.27"), null))
+        assertEquals(UpdateCue.QUIET, UpdateCue.of(installed, v("0.2.0-dev.27"), v("0.2.0-dev.27")), "Later")
+        assertEquals(UpdateCue.NOTICE, UpdateCue.of(installed, v("0.2.0-dev.28"), v("0.2.0-dev.27")), "a newer one notices again")
+        assertEquals(UpdateCue.NOTICE, UpdateCue.of(installed, v("0.2.0"), v("0.2.0-dev.27")), "the final release too")
+    }
+
+    @Test
+    fun eachBuildAnnouncesOnce() {
+        assertTrue(UpdateCue.announces(v("0.2.0-dev.27"), null))
+        assertFalse(UpdateCue.announces(v("0.2.0-dev.27"), v("0.2.0-dev.27")))
+        assertTrue(UpdateCue.announces(v("0.2.0-dev.28"), v("0.2.0-dev.27")))
+    }
 }

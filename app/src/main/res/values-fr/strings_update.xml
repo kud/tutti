@@ -21,6 +21,10 @@
     <string name="update_failed_package">Ce fichier n’est pas une version plus récente de cette app : il a été supprimé.</string>
     <string name="update_failed_install">Android n’a pas installé la mise à jour.</string>
     <string name="update_failed_install_detail">Android n’a pas installé la mise à jour : %1$s</string>
-    <string name="update_note">Cherche sur GitHub quand vous le demandez, et au plus une fois par jour à l’ouverture. Rien ne s’installe sans votre accord.</string>
-    <string name="update_message_see">Voir</string>
+    <string name="update_note">Cherche sur GitHub quand vous le demandez, et quand l’app s’ouvre ou revient : au plus une fois par heure pour une version de test, une fois par jour sinon. Rien ne s’installe sans votre accord.</string>
+    <string name="update_message_install">Installer</string>
+    <string name="update_later">Plus tard</string>
+    <string name="update_menu_row">Installer la version %1$s</string>
+    <string name="action_more_update">Plus d’options, mise à jour disponible</string>
+    <string name="settings_line_update">Version %1$s disponible</string>
 </resources>
