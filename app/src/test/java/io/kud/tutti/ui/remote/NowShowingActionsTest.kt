@@ -6,6 +6,8 @@ import io.kud.tutti.platform.data.DockSlot
 import io.kud.tutti.protocol.atv.KeyGroup
 import io.kud.tutti.protocol.atv.NamedKeys
 import io.kud.tutti.protocol.atv.V2Key
+import io.kud.tutti.protocol.cast.CastNowPlaying
+import io.kud.tutti.protocol.cast.CastPlayerState
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -101,5 +103,34 @@ class NowShowingActionsTest {
     fun `a wobble on the scrub strip sends nothing`() {
         val track = ScrubTrack(10f)
         repeat(20) { assertTrue(track.move(if (it % 2 == 0) 6f else -6f).isEmpty()) }
+    }
+
+    @Test
+    fun `the jog wheel goes forward when its surface is pushed left`() {
+        val wheel = JogTrack(10f)
+        assertEquals(listOf(1), wheel.move(-12f))
+        assertEquals(listOf(-1, -1), wheel.move(30f))
+        wheel.reset()
+        assertTrue(wheel.move(-9f).isEmpty())
+    }
+
+    @Test
+    fun `a trusted cast time gives a timeline, anything else the wheel`() {
+        val at = 1_000_000L
+        val playing = CastNowPlaying("t", null, CastPlayerState.PLAYING, 600.0, 2400.0, 1.0, at)
+        val strip = playbackStrip(playing, at + 3_000)
+        assertTrue(strip is PlaybackStrip.Timeline)
+        strip as PlaybackStrip.Timeline
+        assertEquals(603.0, strip.elapsedSec, 0.001)
+        assertEquals(2400.0, strip.totalSec, 0.001)
+        assertEquals(603f / 2400f, strip.progress, 0.0001f)
+        // No cast, live, a reading at its end while playing, a stale reading: the wheel.
+        assertEquals(PlaybackStrip.JogWheel, playbackStrip(null, at))
+        assertEquals(PlaybackStrip.JogWheel, playbackStrip(playing.copy(durationSec = null), at))
+        assertEquals(PlaybackStrip.JogWheel, playbackStrip(playing.copy(positionSec = 2400.0), at))
+        assertEquals(PlaybackStrip.JogWheel, playbackStrip(playing, at + CastNowPlaying.MAX_RUN_MS + 1))
+        // Paused holds its time however old the reading.
+        val paused = playing.copy(state = CastPlayerState.PAUSED)
+        assertTrue(playbackStrip(paused, at + 600_000) is PlaybackStrip.Timeline)
     }
 }

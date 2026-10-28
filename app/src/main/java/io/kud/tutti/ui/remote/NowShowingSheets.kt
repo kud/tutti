@@ -1,6 +1,22 @@
 package io.kud.tutti.ui.remote
 
 import androidx.annotation.DrawableRes
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.layout.height
+import androidx.compose.runtime.produceState
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import io.kud.tutti.protocol.cast.CastPlayerState
+import io.kud.tutti.ui.motion.Motion
+import kotlinx.coroutines.delay
+import kotlin.math.PI
+import kotlin.math.ceil
+import kotlin.math.cos
+import kotlin.math.roundToLong
+import kotlin.math.sin
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -102,10 +118,10 @@ private fun NowShowingSheetHeader(
 
 /**
  * The card's tap (Erwann, 2026-10-25): the TV's media keys under the thumb. Nothing here claims a
- * state: only Cast reports a title, and only for some apps, so play/pause is one toggle glyph,
- * the header names the Cast title when there is one, and there is no progress bar. With the TV's link down every key wears the down
- * dress, can't be pressed, and the reason shows above them; the sheet stays open and comes back
- * to life with the link.
+ * state Cast didn't report: play/pause is one toggle glyph, the header names the Cast title when
+ * there is one, and a timeline shows only for a trusted Cast time; otherwise the jog wheel. With
+ * the TV's link down every key wears the down dress, can't be pressed, and the reason shows above
+ * them; the sheet stays open and comes back to life with the link.
  */
 @Composable
 internal fun PlaybackSheet(
@@ -119,12 +135,13 @@ internal fun PlaybackSheet(
     onScrub: ((Int) -> Unit)? = null,
     appShortcuts: (@Composable () -> Unit)? = null,
 ) {
+    val shownCast = cast?.takeIf { castFits(showing) }
     TuttiSheet(onDismissRequest = onDismiss) {
         val scroll = rememberScrollState()
         PinnedHeader(
             scrolled = scroll.canScrollBackward,
             modifier = Modifier.fillMaxWidth(),
-            header = { NowShowingSheetHeader(stringResource(R.string.playback_label), showing, tvName, appIcons, cast?.takeIf { castFits(showing) }) },
+            header = { NowShowingSheetHeader(stringResource(R.string.playback_label), showing, tvName, appIcons, shownCast) },
         ) {
             Column(
                 Modifier.fillMaxWidth().verticalScroll(scroll).padding(start = 16.dp, end = 16.dp, bottom = 24.dp),
@@ -134,7 +151,7 @@ internal fun PlaybackSheet(
             ) {
                 downReason?.let { ReasonLine(it) }
                 // How far rewind and fast forward go is the app's choice: TalkBack hears it on
-                // those two keys, where the quiet footnote used to say it (Iris, 2026-10-27).
+                // those two keys and as the jog wheel's state (Iris, 2026-10-27).
                 val appDecides = stringResource(R.string.playback_note)
                 Row(
                     Modifier.fillMaxWidth(),
@@ -164,7 +181,31 @@ internal fun PlaybackSheet(
                 PlaybackChipRow(Modifier.fillMaxWidth()) {
                     for (code in PLAYBACK_TRACKS) KeyChip(code, downReason, onKey)
                 }
-                onScrub?.let { ScrubStrip(downReason, appDecides, it) }
+                // A timeline when Cast gives a trusted time, else the jog wheel (Erwann, 2026-10-28).
+                // Fade through on a switch, never every second: the key is the kind, not the time.
+                onScrub?.let { send ->
+                    val now by produceState(System.currentTimeMillis(), shownCast) {
+                        while (true) {
+                            value = System.currentTimeMillis()
+                            if (shownCast?.state != CastPlayerState.PLAYING) break
+                            delay(1_000L - value % 1_000L)
+                        }
+                    }
+                    AnimatedContent(
+                        targetState = playbackStrip(shownCast, now),
+                        contentKey = { it is PlaybackStrip.Timeline },
+                        transitionSpec = {
+                            fadeIn(tween(Motion.MEDIUM, delayMillis = Motion.FADE_OUT)) togetherWith fadeOut(tween(Motion.FADE_OUT))
+                        },
+                        label = "playback-strip",
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { strip ->
+                        when (strip) {
+                            is PlaybackStrip.Timeline -> Timeline(strip, shownCast?.state)
+                            PlaybackStrip.JogWheel -> JogWheel(downReason, appDecides, send)
+                        }
+                    }
+                }
             }
         }
     }
@@ -181,38 +222,109 @@ private fun ReasonLine(reason: String) {
 }
 
 /**
- * The scrub strip under the chips (benchmark idea 2): a sideways drag moves back
- * or forward, one key per [SCRUB_STEP_DP] of travel ([ScrubTrack], [scrubKey]) and one select
- * haptic per key, so the thumb counts the steps. It names no duration and shows no target
- * position: the app decides how far a key goes and no source tells tutti where playback is.
- * Ticks along the bottom edge follow the finger and settle back on the lift. TalkBack hears it as
- * one control with "Rewind" and "Fast forward" actions, and [appDecides] as its state. Down: the
- * dashed ring, no drag, the reason as its state.
+ * Where playback is, when Cast says so and the reading is trusted (`playbackStrip`): elapsed at
+ * the start, the total at the end, a 4 dp track filled to the position and a playhead mark on it,
+ * so right is always later. Display only, with no thumb to grab: no seek reaches the TV (Cast stays
+ * read-only, architecture.md § 7), and skipping stays on the transport row's ⏪ ⏩. Paused and
+ * loading say so in words between the times. It steps once a second with no animated fill, so
+ * reduced motion needs nothing extra. TalkBack hears "Playback position" and the minutes as its
+ * state, which changes once a minute, never every tick.
  */
 @Composable
-private fun ScrubStrip(downReason: String?, appDecides: String, onKey: (Int) -> Unit) {
+private fun Timeline(strip: PlaybackStrip.Timeline, state: CastPlayerState?) {
+    val scheme = MaterialTheme.colorScheme
+    val track = scheme.surfaceContainerHighest
+    val fill = scheme.primary
+    val head = scheme.onSurface
+    val label = stringResource(R.string.timeline_label)
+    val spoken = stringResource(R.string.timeline_spoken, (strip.elapsedSec / 60.0).roundToLong(), (strip.totalSec / 60.0).roundToLong())
+    val word = when (state) {
+        CastPlayerState.PAUSED -> R.string.cast_paused
+        CastPlayerState.BUFFERING -> R.string.cast_loading
+        else -> null
+    }?.let { stringResource(it) }
+    val timeStyle = MaterialTheme.typography.labelLarge.copy(fontFeatureSettings = "tnum")
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = STRIP_HEIGHT)
+            .clearAndSetSemantics {
+                contentDescription = label
+                stateDescription = listOfNotNull(spoken, word).joinToString(", ")
+            },
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(16.dp)
+                .drawBehind {
+                    val y = size.height / 2
+                    val stroke = 4.dp.toPx()
+                    val x = size.width * strip.progress
+                    drawLine(track, Offset(0f, y), Offset(size.width, y), strokeWidth = stroke, cap = StrokeCap.Round)
+                    if (x > 0f) drawLine(fill, Offset(0f, y), Offset(x, y), strokeWidth = stroke, cap = StrokeCap.Round)
+                    // The playhead: a short upright bar, not a round thumb, so it marks a place
+                    // without inviting a drag. Its shape says where, whatever the colours.
+                    val w = 3.dp.toPx()
+                    val hx = x.coerceIn(w / 2, size.width - w / 2)
+                    drawLine(head, Offset(hx, 0f), Offset(hx, size.height), strokeWidth = w, cap = StrokeCap.Round)
+                },
+        )
+        Spacer(Modifier.height(4.dp))
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(clockOf(strip.elapsedSec), style = timeStyle, color = scheme.onSurface)
+            Row(Modifier.weight(1f), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+                if (state == CastPlayerState.PAUSED) {
+                    Icon(painterResource(R.drawable.ic_pause), contentDescription = null, tint = scheme.onSurfaceVariant, modifier = Modifier.size(14.dp))
+                    Spacer(Modifier.width(4.dp))
+                }
+                word?.let { Text(it, style = MaterialTheme.typography.labelMedium, color = scheme.onSurfaceVariant, maxLines = 1) }
+            }
+            Text(clockOf(strip.totalSec), style = timeStyle, color = scheme.onSurfaceVariant)
+        }
+    }
+}
+
+/**
+ * The jog wheel, when no trusted time is known (Erwann, 2026-10-28: « Si on drag left ou right
+ * c'est comme une roulette donc ça devrait faire l'opposé »): a wheel seen edge-on, its ticks
+ * crowding and fading towards both ends like a cylinder's. The surface follows the finger and
+ * stays where it is left, as a wheel does (no spring back, so nothing moves on its own and reduced
+ * motion needs nothing). Pushing it left goes forward, right goes back ([JogTrack]): one rewind or
+ * fast-forward key per [SCRUB_STEP_DP] of travel and one select haptic per key, so the thumb
+ * counts the steps. At rest it reads "Spin to skip"; while turning, the name of the key it sends,
+ * so the direction is said in words. It names no duration and no target: the app on the TV
+ * decides how far a key goes. TalkBack hears "Jog wheel" with "Rewind" and "Fast forward"
+ * actions and [appDecides] as its state. Down: the dashed ring, no drag, the reason as its state.
+ */
+@Composable
+private fun JogWheel(downReason: String?, appDecides: String, onKey: (Int) -> Unit) {
     val haptics = rememberHaptics()
     val send by rememberUpdatedState(onKey)
     val stepPx = with(LocalDensity.current) { SCRUB_STEP_DP.dp.toPx() }
-    val track = remember(stepPx) { ScrubTrack(stepPx) }
+    val track = remember(stepPx) { JogTrack(stepPx) }
     var offset by remember { mutableFloatStateOf(0f) }
+    var turning by remember { mutableStateOf<Int?>(null) }
     val down = downReason != null
     val shape = RoundedCornerShape(16.dp)
     val ring = MaterialTheme.colorScheme.outline
     val fill = MaterialTheme.colorScheme.surfaceContainerHigh
     val ink = if (down) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
-    val tick = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-    val label = stringResource(R.string.scrub_label)
+    val tick = MaterialTheme.colorScheme.onSurfaceVariant
+    val name = stringResource(R.string.jog_name)
+    val rest = stringResource(R.string.jog_label)
     val back = keyLabel(V2Key.MEDIA_REWIND)
     val forward = keyLabel(V2Key.MEDIA_FAST_FORWARD)
     fun step(delta: Int) {
         haptics.select()
+        turning = delta
         send(scrubKey(delta))
     }
-    Row(
+    Box(
         Modifier
             .fillMaxWidth()
-            .heightIn(min = 48.dp)
+            .heightIn(min = STRIP_HEIGHT)
             .clip(shape)
             .then(
                 if (down) {
@@ -223,13 +335,30 @@ private fun ScrubStrip(downReason: String?, appDecides: String, onKey: (Int) -> 
             )
             .drawBehind {
                 if (down) return@drawBehind
-                val gap = SCRUB_TICK_GAP_DP.dp.toPx()
-                val height = 6.dp.toPx()
-                val shift = ((offset % gap) + gap) % gap
-                var x = shift
-                while (x < size.width) {
-                    drawLine(tick, Offset(x, size.height - height - 4.dp.toPx()), Offset(x, size.height - 4.dp.toPx()), strokeWidth = 1.5.dp.toPx(), cap = StrokeCap.Round)
-                    x += gap
+                // A cylinder of radius half the width: a tick at angle a sits at sin(a) from the
+                // middle and is as tall and as strong as cos(a), so the middle reads flat and the
+                // ends turn away. The surface under the finger moves one px per px dragged.
+                val radius = size.width / 2
+                val gap = SCRUB_TICK_GAP_DP.dp.toPx() / radius
+                val turn = offset / radius
+                val tallest = size.height * 0.36f
+                val stroke = 1.5.dp.toPx()
+                val shift = ((turn % gap) + gap) % gap
+                var a = -PI / 2 + shift - gap * ceil((PI / 2) / gap)
+                while (a < PI / 2) {
+                    val depth = cos(a).toFloat()
+                    if (a > -PI / 2 && depth > 0.05f) {
+                        val x = radius + radius * sin(a).toFloat()
+                        val h = tallest * (0.35f + 0.65f * depth)
+                        drawLine(
+                            tick.copy(alpha = 0.2f + 0.5f * depth),
+                            Offset(x, size.height - 6.dp.toPx() - h),
+                            Offset(x, size.height - 6.dp.toPx()),
+                            strokeWidth = stroke,
+                            cap = StrokeCap.Round,
+                        )
+                    }
+                    a += gap
                 }
             }
             .then(
@@ -239,8 +368,8 @@ private fun ScrubStrip(downReason: String?, appDecides: String, onKey: (Int) -> 
                     Modifier.pointerInput(track) {
                         detectHorizontalDragGestures(
                             onDragStart = { track.reset() },
-                            onDragEnd = { offset = 0f },
-                            onDragCancel = { offset = 0f },
+                            onDragEnd = { turning = null },
+                            onDragCancel = { turning = null },
                         ) { change, amount ->
                             change.consume()
                             offset += amount
@@ -250,34 +379,44 @@ private fun ScrubStrip(downReason: String?, appDecides: String, onKey: (Int) -> 
                 },
             )
             .semantics(mergeDescendants = true) {
-                contentDescription = label
+                contentDescription = name
                 stateDescription = downReason ?: appDecides
                 if (!down) {
                     customActions = listOf(
-                        CustomAccessibilityAction(back) { step(-1); true },
-                        CustomAccessibilityAction(forward) { step(1); true },
+                        CustomAccessibilityAction(back) { step(-1); turning = null; true },
+                        CustomAccessibilityAction(forward) { step(1); turning = null; true },
                     )
                 }
             }
-            .padding(horizontal = 16.dp),
-        verticalAlignment = Alignment.CenterVertically,
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        contentAlignment = Alignment.TopCenter,
     ) {
-        Icon(painterResource(keyIcon(V2Key.MEDIA_REWIND)), contentDescription = null, tint = ink, modifier = Modifier.size(20.dp))
-        Text(
-            label,
-            style = MaterialTheme.typography.labelLarge,
-            color = ink,
-            textAlign = TextAlign.Center,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
-        )
-        Icon(painterResource(keyIcon(V2Key.MEDIA_FAST_FORWARD)), contentDescription = null, tint = ink, modifier = Modifier.size(20.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            turning?.let { delta ->
+                Icon(painterResource(keyIcon(scrubKey(delta))), contentDescription = null, tint = ink, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(6.dp))
+            }
+            Text(
+                when (turning) {
+                    null -> rest
+                    1 -> forward
+                    else -> back
+                },
+                style = MaterialTheme.typography.labelLarge,
+                color = ink,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
     }
 }
 
-/** Spacing of the strip's ticks: closer than a step, so a step crosses a few of them. */
+/** Spacing of the wheel's ticks at its middle: closer than a step, so a step crosses a few. */
 private const val SCRUB_TICK_GAP_DP = 12f
+
+/** The timeline and the wheel stand the same height, so the sheet doesn't jump between them. */
+private val STRIP_HEIGHT = 56.dp
 
 /**
  * One media key: a glyph (and its name when [wide]), 56 dp or more. Up: a tonal fill (the
