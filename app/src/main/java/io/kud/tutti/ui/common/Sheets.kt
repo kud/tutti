@@ -42,14 +42,18 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import io.kud.tutti.ui.motion.Motion
 import io.kud.tutti.ui.motion.snappyOrFade
 import kotlin.math.abs
+import kotlin.math.roundToInt
 
 /**
  * Caps a sheet's content so the whole sheet, drag handle included, stops below the status bar.
@@ -95,12 +99,21 @@ fun TuttiSheet(onDismissRequest: () -> Unit, content: @Composable ColumnScope.()
         dragHandle = { SheetHandle(sheetState, grip) },
         contentWindowInsets = { WindowInsets(0, 0, 0, 0) },
     ) {
-        // The keyboard is read here, inside the sheet's own window, the one it answers: with the sheet's
-        // insets off it would cover a field and the end of a list (the pin editor's name, the picker's
-        // search results). Its inset already holds the navigation bar, so the larger of the two pads.
-        val ime = with(density) { WindowInsets.ime.getBottom(density).toDp() }
-        val bottom = maxOf(navigationBottom, ime)
-        Box(Modifier.belowStatusBar(statusTop).grip(grip, sheetState)) {
+        // The keyboard pads only the part of the sheet it actually covers, measured: the sheet may
+        // already end above it, and padding by the whole inset then counted it twice, which crushed
+        // the picker to its title and an empty search (Erwann, 2026-10-28, after dev.37). Read inside
+        // the sheet's own window, whose inset also holds the navigation bar.
+        val ime = WindowInsets.ime.getBottom(density)
+        val windowHeight = LocalView.current.rootView.height
+        var sheetBottom by remember { mutableIntStateOf(0) }
+        val covered = if (ime > 0 && sheetBottom > 0) (sheetBottom - (windowHeight - ime)).coerceAtLeast(0) else 0
+        val bottom = if (ime > 0) with(density) { covered.toDp() } else navigationBottom
+        Box(
+            Modifier
+                .belowStatusBar(statusTop)
+                .grip(grip, sheetState)
+                .onGloballyPositioned { sheetBottom = (it.positionInWindow().y + it.size.height).roundToInt() },
+        ) {
             Column(
                 Modifier
                     .padding(bottom = bottom)

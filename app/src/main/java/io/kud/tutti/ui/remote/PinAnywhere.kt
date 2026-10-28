@@ -26,6 +26,8 @@ import io.kud.tutti.controller.TuttiController
 import io.kud.tutti.controller.TuttiUiState
 import io.kud.tutti.platform.data.DockAction
 import io.kud.tutti.platform.data.DockConfig
+import androidx.compose.ui.platform.LocalResources
+import io.kud.tutti.ui.common.LocalMessages
 import io.kud.tutti.ui.common.actionLabel
 import io.kud.tutti.ui.common.rememberHaptics
 
@@ -48,20 +50,48 @@ class DockPinner internal constructor() {
 @Composable
 fun rememberDockPinner(state: TuttiUiState, controller: TuttiController): DockPinner {
     val pinner = remember { DockPinner() }
-    val haptics = rememberHaptics()
+    val pin = rememberPinToSlot(state, controller)
     pinner.pending?.let { (action, name) ->
         PinToDockDialog(
             name = name,
             state = state,
             onPick = { slot ->
-                haptics.longPress()
-                controller.assignDock(slot, action, state.dock.slot(slot).secondary)
+                pin(slot, action, name)
                 pinner.pending = null
             },
             onDismiss = { pinner.pending = null },
         )
     }
     return pinner
+}
+
+/**
+ * Writes a pin into a slot and says so: the dialog closes on the tap, and with the dock behind a
+ * sheet nothing on screen changed (Erwann, 2026-10-28: no sign a pin from the Apps sheet worked).
+ * The message names the slot and offers Undo, which puts back what the slot held.
+ */
+@Composable
+fun rememberPinToSlot(state: TuttiUiState, controller: TuttiController): (slot: Int, action: DockAction, name: String) -> Unit {
+    val haptics = rememberHaptics()
+    val messages = LocalMessages.current
+    val resources = LocalResources.current
+    return { slot, action, name ->
+        haptics.longPress()
+        val before = state.dock.slot(slot)
+        controller.assignDock(slot, action, before.secondary)
+        val pages = state.dock.pages.size
+        val number = slot % DockConfig.PAGE_SIZE + 1
+        val text = if (pages > 1) {
+            resources.getString(R.string.pin_done_page, name, number, slot / DockConfig.PAGE_SIZE + 1)
+        } else {
+            resources.getString(R.string.pin_done, name, number)
+        }
+        messages?.show(
+            text,
+            actionLabel = resources.getString(R.string.pin_undo),
+            onAction = { controller.assignDock(slot, before.primary, before.secondary) },
+        )
+    }
 }
 
 /** Which dock slot takes the pin; each row says what it replaces, every page under its heading. */

@@ -958,6 +958,7 @@ fun RemoteScreen(
             },
         )
     }
+    val pinToSlot = rememberPinToSlot(state, controller)
     pinningScene?.let { id ->
         val scene = state.scenes.firstOrNull { it.scene.id == id }?.scene
         if (scene != null) {
@@ -965,8 +966,7 @@ fun RemoteScreen(
                 sceneName = scene.name,
                 state = state,
                 onPick = { slot ->
-                    haptics.longPress()
-                    controller.assignDock(slot, DockAction.RunScene(id), state.dock.slot(slot).secondary)
+                    pinToSlot(slot, DockAction.RunScene(id), scene.name)
                     pinningScene = null
                 },
                 onDismiss = { pinningScene = null },
@@ -1027,8 +1027,7 @@ fun RemoteScreen(
             app = state.apps.firstOrNull { it.packageName == app.packageName } ?: KnownApp(app.packageName, app.name),
             state = state,
             onPick = { slot ->
-                haptics.longPress()
-                controller.assignDock(slot, DockAction.LaunchApp(app.packageName, app.name), state.dock.slot(slot).secondary)
+                pinToSlot(slot, DockAction.LaunchApp(app.packageName, app.name), app.name)
                 pinningNow = null
                 actionsFor = null
             },
@@ -1047,10 +1046,7 @@ fun RemoteScreen(
                 controller.openAllApps()
                 sheet2 = null
             },
-            onPin = { app, index ->
-                haptics.longPress()
-                controller.assignDock(index, DockAction.LaunchApp(app.packageName, app.name), state.dock.slots.getOrNull(index)?.secondary)
-            },
+            onPin = { app, index -> pinToSlot(index, DockAction.LaunchApp(app.packageName, app.name), app.name) },
             onDismiss = { sheet2 = null },
             recents = recentApps,
             inputs = tvInputsRow(
