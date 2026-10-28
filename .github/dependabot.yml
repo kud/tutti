@@ -10,14 +10,6 @@ updates:
         patterns: ["androidx.*"]
       kotlin:
         patterns: ["org.jetbrains.kotlin*", "com.google.devtools.ksp*"]
-    ignore:
-      # AGP 9 needs Gradle 9 and Hilt 2.59+ (whose plugin needs AGP 9 APIs): one deliberate move, not a bot PR.
-      - dependency-name: "com.android.application"
-        update-types: ["version-update:semver-major"]
-      - dependency-name: "com.android.tools.build:gradle"
-        update-types: ["version-update:semver-major"]
-      - dependency-name: "com.google.dagger*"
-        versions: [">= 2.59"]
 
   - package-ecosystem: github-actions
     directory: "/"

@@ -208,7 +208,7 @@ After three connection failures in a row at the stored address (`Rediscovery.AFT
 | Sony-cloud gRPC | Interface only, nothing on the wire |
 | v2 voice (search key → begin → 8 kHz PCM payloads → end) | Facts from androidtvremote2 (Python, Home Assistant's library); **never run by tutti against any TV**, the XR80 included. Whether the BRAVIA's assistant (Gemini or Google Assistant) accepts it, and whether 20 KiB chunks give a live transcript, are open |
 | Bluetooth HID mode (descriptor, pairing from the TV, reconnect on screen open, consumer keys, AZERTY dead keys, gyro axis signs and gain) | Encoders and maths unit-tested; **nothing run on a phone or against the XR80**. Whether Google TV picks the French layout for this keyboard by itself is **unverified** |
-| Wire 7.1.0, Hilt 2.58, KSP 2.3.12, Kotlin 2.3.20 | Tags verified upstream; AGP 8.13.0 and AndroidX versions chosen without access to Google Maven, settled by CI |
+| Kotlin 2.4.21, KSP 2.3.12, Hilt 2.60.1, Wire 7.1.0, Gradle 9.8.2, AGP 9.5.0 | JVM-side tags verified upstream 2026-10-28; AGP 9.5.0 and the AndroidX versions checked against Google Maven metadata (core 1.19.1 needs compileSdk 37 and AGP ≥ 9.1.0) |
 
 ## Diagnostic (Réglages › Diagnostic)
 

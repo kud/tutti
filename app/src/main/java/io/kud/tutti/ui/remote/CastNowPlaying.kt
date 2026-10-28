@@ -23,7 +23,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -46,7 +46,7 @@ import kotlin.math.roundToLong
  */
 @Composable
 internal fun CastLine(cast: CastNowPlaying, modifier: Modifier = Modifier, roomy: Boolean = true) {
-    val context = LocalContext.current
+    val resources = LocalResources.current
     val now by produceState(System.currentTimeMillis(), cast) {
         while (true) {
             value = System.currentTimeMillis()
@@ -56,7 +56,7 @@ internal fun CastLine(cast: CastNowPlaying, modifier: Modifier = Modifier, roomy
     }
     // The channel or artist joins the title for TalkBack: "<title>, <channel>, paused".
     val secondary = cast.secondary?.takeIf { it.isNotBlank() }
-    val spoken = castSpoken(if (secondary == null) cast else cast.copy(title = "${cast.title}, $secondary"), now) { id, args -> context.getString(id, *args) }
+    val spoken = castSpoken(if (secondary == null) cast else cast.copy(title = "${cast.title}, $secondary"), now) { id, args -> resources.getString(id, *args) }
     // Two lines, then an ellipsis, with no tap (Erwann, 2026-10-26): the playback sheet shows it whole.
     var wrapped by remember(cast.title) { mutableStateOf(false) }
     Column(modifier.clearAndSetSemantics { contentDescription = spoken }) {
