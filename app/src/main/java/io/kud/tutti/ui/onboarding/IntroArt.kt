@@ -30,6 +30,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -187,13 +188,22 @@ internal fun DrawnCheck(progress: Float, color: Color, modifier: Modifier = Modi
  * by number, fill and tick, never by colour: done ✓ name, current "2. Name" in bold, later muted.
  */
 @Composable
-internal fun StepBar(current: Int, labels: List<String>, modifier: Modifier = Modifier) {
+internal fun StepBar(current: Int, labels: List<String>, modifier: Modifier = Modifier, leading: (@Composable () -> Unit)? = null) {
     val reduced = LocalReducedMotion.current
     val colors = MaterialTheme.colorScheme
     val stepOf = stringResource(R.string.intro_step_of, current + 1, labels.size)
-    Column(modifier.semantics { contentDescription = "$stepOf · ${labels[current]}" }, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(stepOf, style = MaterialTheme.typography.labelMedium, color = colors.onSurfaceVariant, modifier = Modifier.align(Alignment.End))
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        // A [leading] back arrow shares the count's line, so the header costs one row, not two.
+        // The bar's description sits on the bar alone, so TalkBack still reaches the arrow on its own.
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            leading?.invoke()
+            Spacer(Modifier.weight(1f))
+            Text(stepOf, style = MaterialTheme.typography.labelMedium, color = colors.onSurfaceVariant, modifier = Modifier.clearAndSetSemantics { })
+        }
+        Row(
+            Modifier.clearAndSetSemantics { contentDescription = "$stepOf · ${labels[current]}" },
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
             labels.forEachIndexed { i, name ->
                 val fill by animateFloatAsState(
                     when {
