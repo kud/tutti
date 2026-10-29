@@ -102,7 +102,8 @@ data class TonightCap(val level: Int, val until: Long)
 const val DEFAULT_VOLUME_GUARD = 30
 
 /**
- * The round buttons the row under the pad can hold. [MUTE] stays only so stored rows still decode:
+ * The remote's own keys, once the round row under the pad; since 2026-10-29 they are dock pins
+ * ([DockAction.Remote]) and the row survives only to be joined into the dock once. [MUTE] stays only so stored rows still decode:
  * mute lives on the volume rail's foot now (Erwann, 2026-10-24), so the row never draws or offers it.
  */
 @Serializable
@@ -275,10 +276,27 @@ sealed interface DockAction {
     @Serializable
     @SerialName("open.keys")
     data object OpenKeys : DockAction
+
+    /**
+     * One of the remote's own keys, the round row under the pad until 2026-10-29 (Erwann: « un
+     * dock de 2 lignes au final et basta »). It behaves exactly as the row's key did, its long
+     * press included: [DockConfig.longPress] for Back, Home, Play/Pause and Input (or their
+     * defaults), the paste on Keyboard, hold to talk on the mic. Screen-only, like [OpenApps]:
+     * offered for a pin's tap, never in a scene, a macro step or a long press.
+     */
+    @Serializable
+    @SerialName("remote")
+    data class Remote(val button: RowButton) : DockAction
 }
 
 /** True for the two pins that open a sheet of the remote rather than send anything. */
 val DockAction?.opensSheet: Boolean get() = this == DockAction.OpenApps || this == DockAction.OpenKeys
+
+/** A tap that is the whole pin: no steps, no wait, no "Try" (the remote's sheets and its own keys). */
+val DockAction?.wholePin: Boolean get() = opensSheet || this is DockAction.Remote
+
+/** A slot that does something, on tap or on long press. */
+val DockSlot.isSet: Boolean get() = primary != null || secondary != null
 
 /** A macro's steps with any nested macro spliced in, so a pin never holds a macro inside a macro. */
 fun List<MacroStep>.flattened(): List<MacroStep> = flatMap { step ->
@@ -336,15 +354,17 @@ data class DockSlot(
 enum class SecondaryButton { HOME, BACK, PLAY, INPUT }
 
 /**
- * The pins live in one flat [slots] list, [PAGE_SIZE] to a page: two rows of [ROW], so page n is
- * slots 12n..12n+11 and its second row starts at 12n+6 (Erwann, 2026-10-28: « deux lignes custom »).
- * Apps and Keys are ordinary pins ([DockAction.OpenApps], [DockAction.OpenKeys]); a fresh dock
- * holds them first.
+ * The dock: one grid of two rows of [ROW], twelve places, no pages (Erwann, 2026-10-29: « un dock
+ * de 2 lignes au final et basta »). The remote's own keys (the round row until then) are pins like
+ * the rest ([DockAction.Remote]), as are Apps and Keys ([DockAction.OpenApps], [DockAction.OpenKeys]).
  *
- * Stored under the key `pins`. A dock stored before 2026-10-28 has only `slots` ([legacySlots]):
- * four to a page, behind two fixed doors. [normalised] turns it into this model once, when read:
- * the two doors first, then every pin in its old order with the empty slots closed up, so nothing
- * is lost or reordered (at most 12 old pins, plus the doors, fit in two pages of twelve).
+ * Stored under the key `pins`. Two upgrades run once, when read ([normalised]):
+ * - a dock from before 2026-10-28 has only `slots` ([legacySlots]), four to a page behind two
+ *   fixed doors: it becomes Apps, Keys, then every pin in its old order, empty slots closed up;
+ * - a dock from before 2026-10-29 has no `one` mark ([merged]): the row he saw on screen joins it
+ *   ([joinRow]). Its keys take the first row in the order they stood, his pins follow from the
+ *   second row in order; whatever passes twelve goes to [spare], never thrown away, and the editor
+ *   offers to put it back or let it go. A dock never stored is the default row plus [DEFAULT_SLOTS].
  */
 @Serializable
 data class DockConfig(
@@ -354,64 +374,67 @@ data class DockConfig(
     /** The pre-2026-10-28 dock, read only to migrate it; null once [normalised]. */
     @SerialName("slots")
     val legacySlots: List<DockSlot>? = null,
+    /** True once the round row has joined the dock; false on every dock stored before 2026-10-29. */
+    @SerialName("one")
+    val merged: Boolean = false,
+    /** Pins that didn't fit the twelve when the row joined, in order: kept until he puts them back or lets them go. */
+    val spare: List<DockSlot> = emptyList(),
 ) {
-    /** The dock in today's model: a stored legacy dock migrated, anything else as it is. */
-    fun normalised(): DockConfig {
-        val legacy = legacySlots ?: return this
-        return copy(slots = fromLegacy(legacy), legacySlots = null)
+    /** The dock in today's model, the row of [layout] joined in if it hasn't been; anything else as it is. */
+    fun normalised(layout: RemoteLayout = RemoteLayout()): DockConfig {
+        val current = legacySlots?.let { copy(slots = fromLegacy(it), legacySlots = null) } ?: this
+        if (current.merged) return current
+        val laid = joinRow(layout.rowOnScreen, current.slots)
+        return current.copy(
+            slots = laid.take(PAGE_SIZE),
+            spare = current.spare + laid.drop(PAGE_SIZE).filter { it.isSet },
+            merged = true,
+        )
     }
 
-    /** Whole pages, at least one and at most [MAX_PAGES]. */
+    /** The one page of twelve. A list of pages so "Pin to dock" and the pickers read as they did. */
     val pages: List<List<DockSlot>>
-        get() {
-            val count = ((slots.size + PAGE_SIZE - 1) / PAGE_SIZE).coerceIn(1, MAX_PAGES)
-            return List(count) { page -> List(PAGE_SIZE) { slots.getOrNull(page * PAGE_SIZE + it) ?: DockSlot() } }
-        }
+        get() = listOf(List(PAGE_SIZE) { slots.getOrNull(it) ?: DockSlot() })
 
     fun slot(index: Int): DockSlot = slots.getOrNull(index) ?: DockSlot()
 
-    /** True when some pin opens [action]'s sheet, on tap or on long press. */
+    /** True when some pin runs [action], on tap or on long press. */
     fun holds(action: DockAction): Boolean = slots.any { it.primary == action || it.secondary == action }
 
-    /** Pin [index] replaced, padding the pages up to it. */
+    /** True when every place holds a pin. */
+    val full: Boolean get() = pages.single().all { it.isSet }
+
+    /** Pin [index] replaced. */
     fun withSlot(index: Int, slot: DockSlot): DockConfig {
-        val padded = pages.flatten().toMutableList()
-        while (padded.size <= index) padded += DockSlot()
-        padded[index] = slot
-        return copy(slots = padded.take(MAX_PAGES * PAGE_SIZE))
+        if (index !in 0 until PAGE_SIZE) return this
+        val all = pages.single().toMutableList()
+        all[index] = slot
+        return copy(slots = all)
     }
 
-    /** Pin [from] moved to [to], counted across pages; the pins between shift along. */
-    fun withSlotMoved(from: Int, to: Int): DockConfig {
-        val all = pages.flatten()
-        return copy(slots = all.moved(from, to))
+    /** Pin [from] moved to [to]; the pins between shift along. */
+    fun withSlotMoved(from: Int, to: Int): DockConfig = copy(slots = pages.single().moved(from, to))
+
+    /** Spare [index] back in the first free place; nothing changes while the dock is full. */
+    fun withSpareRestored(index: Int): DockConfig {
+        val pin = spare.getOrNull(index) ?: return this
+        val all = pages.single().toMutableList()
+        val free = all.indexOfFirst { !it.isSet }
+        if (free < 0) return this
+        all[free] = pin
+        return copy(slots = all, spare = spare.filterIndexed { i, _ -> i != index })
     }
 
-    /** True when page [page] holds no pin at all, so removing it loses nothing. */
-    fun pageIsEmpty(page: Int): Boolean = pages.getOrNull(page)?.all { it.primary == null && it.secondary == null } ?: true
-
-    /** One more empty page at the end, while there is room. */
-    fun withPageAdded(): DockConfig =
-        if (pages.size >= MAX_PAGES) this else copy(slots = pages.flatten() + List(PAGE_SIZE) { DockSlot() })
-
-    /** Page [page] and its pins gone; the last page left is never removed. */
-    fun withPageRemoved(page: Int): DockConfig {
-        val all = pages
-        if (all.size <= 1 || page !in all.indices) return this
-        return copy(slots = all.filterIndexed { i, _ -> i != page }.flatten())
-    }
+    /** Spare [index] let go, on his word. */
+    fun withSpareDropped(index: Int): DockConfig = copy(spare = spare.filterIndexed { i, _ -> i != index })
 
     companion object {
-        /** Pins per row: the six tiles a full width held when the doors stood beside four pins. */
+        /** Pins per row: six round keys filled the row edge to edge, so a tile keeps the width his thumb knows. */
         const val ROW = 6
         const val ROWS = 2
         const val PAGE_SIZE = ROW * ROWS
-        const val MAX_PAGES = 2
 
-        /**
-         * A fresh dock: Apps and Keys first, where the doors stood, then the two bar toggles the
-         * design asks for one tap away.
-         */
+        /** A fresh dock's pins; the default row joins in front of them ([normalised]). */
         val DEFAULT_SLOTS = listOf(
             DockSlot(DockAction.OpenApps),
             DockSlot(DockAction.OpenKeys),
@@ -419,10 +442,19 @@ data class DockConfig(
             DockSlot(DockAction.ToggleBar("audio.voiceenhancer")),
         )
 
-        /** A pre-2026-10-28 dock (four to a page, behind the doors) in today's model; see [DockConfig]. */
-        internal fun fromLegacy(legacy: List<DockSlot>): List<DockSlot> {
-            val pins = legacy.filter { it.primary != null || it.secondary != null }
-            return (listOf(DockSlot(DockAction.OpenApps), DockSlot(DockAction.OpenKeys)) + pins).take(MAX_PAGES * PAGE_SIZE)
+        /** A pre-2026-10-28 dock (four to a page, behind the doors) as a list of pins; see [DockConfig]. */
+        internal fun fromLegacy(legacy: List<DockSlot>): List<DockSlot> =
+            listOf(DockSlot(DockAction.OpenApps), DockSlot(DockAction.OpenKeys)) + legacy.filter { it.isSet }
+
+        /**
+         * The row as it stood on screen ([row], at most six) followed by his pins, empty places
+         * closed up. While his pins fit the second row they start there, so the keys keep a row
+         * of their own; past six they follow the keys directly, so as few as possible go spare.
+         */
+        internal fun joinRow(row: List<RowButton>, slots: List<DockSlot>): List<DockSlot> {
+            val keys = row.take(ROW).map { DockSlot(DockAction.Remote(it)) }
+            val pins = slots.filter { it.isSet }
+            return if (pins.size <= ROW) keys + List(ROW - keys.size) { DockSlot() } + pins else keys + pins
         }
     }
 }

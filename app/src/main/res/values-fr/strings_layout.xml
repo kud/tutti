@@ -3,7 +3,7 @@
     <string name="layout_title">Modifier la télécommande</string>
     <string name="layout_done">OK</string>
     <string name="layout_entry">Disposition de la télécommande</string>
-    <string name="layout_entry_detail">Boutons de la rangée, scènes, taille du pavé, main</string>
+    <string name="layout_entry_detail">Dock, scènes, taille du pavé, main</string>
     <string name="layout_edit_from_pin">Modifier la disposition</string>
     <string name="layout_fixed">Fixe</string>
     <string name="layout_scenes">Scènes</string>
@@ -32,7 +32,7 @@
     <string name="layout_pins_hint">Glisser pour réordonner · toucher pour modifier</string>
     <string name="layout_reset">Réinitialiser la disposition</string>
     <string name="layout_reset_title">Réinitialiser la disposition ?</string>
-    <string name="layout_reset_body">La rangée, les scènes et le pavé reviennent comme au premier jour. Vos boutons restent.</string>
+    <string name="layout_reset_body">Les scènes, le pavé et la main reviennent comme au premier jour. Votre dock reste.</string>
     <string name="layout_reset_confirm">Réinitialiser</string>
     <string name="layout_anchors">Marche / arrêt, volume et Son ne bougent jamais</string>
     <string name="row_info">Info</string>
@@ -47,4 +47,12 @@
     <string name="apps_pin_page">Page %1$d</string>
     <string name="pin_step_drag">Glisser pour réordonner</string>
     <string name="layout_volume">Volume</string>
+    <string name="layout_dock">Dock · %1$d places</string>
+    <string name="layout_spare_title">N\'ont pas tenu quand la rangée a rejoint le dock</string>
+    <string name="layout_spare_note">Touchez-en une pour la remettre à une place libre, ou laissez-la partir avec son badge.</string>
+    <string name="layout_spare_full">Le dock est plein : retirez une épingle pour en remettre une</string>
+    <string name="layout_spare_drop">Laisser partir %1$s</string>
+    <string name="dock_spare_notice">Épingles hors du dock : %1$d · les voir</string>
+    <string name="pin_long_remote">Une touche de la télécommande garde son propre appui long, comme dans la rangée. Celui de Retour, Accueil, Lecture / pause et Entrée se change dans les Réglages.</string>
+    <string name="voice_sheet_hint">Maintenez le micro et parlez à la TV, puis relâchez pour envoyer.</string>
 </resources>

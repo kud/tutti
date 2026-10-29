@@ -2349,7 +2349,7 @@ class TuttiController @Inject constructor(
             }
             is DockAction.PictureOff -> if (bravia == null) actionFailed("shortcut: picture off", outcomeOf(null)) else setPictureOff(action.on)
             // Screen-only: the remote opens their sheet and never hands them here (DockAction.OpenApps).
-            DockAction.OpenApps, DockAction.OpenKeys -> Unit
+            DockAction.OpenApps, DockAction.OpenKeys, is DockAction.Remote -> Unit
             is DockAction.Macro -> for (step in action.steps) {
                 when (step) {
                     is MacroStep.Wait -> delay(step.millis.coerceIn(0, MAX_MACRO_WAIT_MS))
@@ -2388,19 +2388,20 @@ class TuttiController @Inject constructor(
         scope.launch { store.updatePrefs { it.copy(layout = transform(it.layout)) } }
     }
 
-    /** Back to the screen as it shipped; pins and their pages are his and stay. */
+    /** Scenes, pad and hand back as they shipped; the dock is his and stays. */
     fun resetLayout() {
         scope.launch { store.updatePrefs { it.copy(layout = RemoteLayout()) } }
     }
 
-    /** A new empty page of pins at the end (three at most). */
-    fun addDockPage() {
-        scope.launch { store.updateDock { it.withPageAdded() } }
+
+    /** A pin that didn't fit when the row joined the dock, back in the first free place. */
+    fun restoreSparePin(index: Int) {
+        scope.launch { store.updateDock { it.withSpareRestored(index) } }
     }
 
-    /** Page [page] goes, with its pins; the first page left always stays. */
-    fun removeDockPage(page: Int) {
-        scope.launch { store.updateDock { it.withPageRemoved(page) } }
+    /** A pin that didn't fit, let go on his word. */
+    fun dropSparePin(index: Int) {
+        scope.launch { store.updateDock { it.withSpareDropped(index) } }
     }
 
     fun assignLongPress(button: SecondaryButton, action: DockAction?) {
