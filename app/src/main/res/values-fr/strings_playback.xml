@@ -25,6 +25,5 @@
     <string name="jog_label">Tournez pour sauter</string>
     <string name="shortcut_subscriptions">Abonnements</string>
     <string name="shortcut_history">Historique</string>
-    <string name="shortcut_watch_later">À regarder plus tard</string>
     <string name="shortcut_library">Bibliothèque</string>
 </resources>
