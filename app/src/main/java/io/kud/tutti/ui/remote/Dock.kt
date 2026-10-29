@@ -34,6 +34,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -72,6 +73,13 @@ import io.kud.tutti.ui.common.drawDownRing
 import io.kud.tutti.controller.TuttiUiState
 import io.kud.tutti.platform.data.DockAction
 import io.kud.tutti.platform.data.DockConfig
+import io.kud.tutti.platform.data.DockLabels
+import io.kud.tutti.ui.common.LocalDockLabels
+import io.kud.tutti.ui.common.PIN_FACE
+import io.kud.tutti.ui.common.PIN_ICON_LARGE
+import io.kud.tutti.ui.common.PinDress
+import io.kud.tutti.ui.common.PinNameOnly
+import io.kud.tutti.ui.common.pinDress
 import io.kud.tutti.platform.data.DockSlot
 import io.kud.tutti.platform.data.RowButton
 import io.kud.tutti.protocol.theatre.TheatreFeature
@@ -123,6 +131,8 @@ fun Dock(
     val span = dockSpan(pages)
     val rows = dockRows(pages)
     val pager = rememberPagerState(initialPage = initialPage) { pages.size }
+    // His dress for every pin, the remote's own keys included (PinDress).
+    CompositionLocalProvider(LocalDockLabels provides state.prefs.layout.dockLabels) {
     BoxWithConstraints(modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
         // Six equal tiles and five 6dp gaps: the width the doors and four pins shared before.
         // Fewer pins keep that width and the grid centres, rather than stretching (Iris, 2026-10-25).
@@ -190,6 +200,7 @@ fun Dock(
                 }
             }
         }
+    }
     }
 }
 
@@ -301,6 +312,7 @@ private fun PinTile(
     // The long press opens the pin's menu or editor: the same ring as the segments and tiles
     // (discoverability rule 1). Editing is local, so it sweeps even while the device is down.
     val ring = rememberLongPressProgress(press.interaction, enabled = true)
+    val dress = pinDress(LocalDockLabels.current, label)
     Box(
         modifier
             .refusalShake(shake)
@@ -310,6 +322,7 @@ private fun PinTile(
             background = background,
             content = content,
             label = label,
+            dress = dress,
             press = press,
             shape = shape,
             stateText = reason ?: toggleStateText(toggle, state),
@@ -342,11 +355,16 @@ private fun PinTile(
             ),
         ) { tint ->
             Box(contentAlignment = Alignment.Center) {
-                PinFace(slot.primary ?: slot.secondary, slot.icon, slot.letters, state, tint, iconSize = 20.dp)
+                PinFace(slot.primary ?: slot.secondary, slot.icon, slot.letters, state, tint, iconSize = dress.glyphSize, faceSize = dress.faceSize)
                 if (toggle != null) {
                     PinStateBadge(toggle, tint, background, Modifier.align(Alignment.TopEnd).offset(x = 8.dp, y = (-6).dp))
                 }
             }
+        }
+        // Names alone: the toggle's mark has no glyph to sit on, so it takes the tile's corner. The
+        // mark, never the fill alone, still says on, off or not known.
+        if (toggle != null && !dress.glyph) {
+            PinStateBadge(toggle, content, background, Modifier.align(Alignment.TopEnd).padding(top = 4.dp, end = 4.dp))
         }
         if (secondary != null) {
             TuttiMenu(expanded = menu, onDismissRequest = { menu = false }) {
@@ -387,6 +405,8 @@ internal fun PinFace(
     state: TuttiUiState,
     tint: Color,
     iconSize: Dp,
+    /** An app's own face, which reads a size larger than a glyph (24 dp beside a name). */
+    faceSize: Dp = PIN_FACE,
 ) {
     val shown = letters?.trim()?.takeIf { it.isNotEmpty() }
     when {
@@ -394,14 +414,15 @@ internal fun PinFace(
         shown != null -> Box(Modifier.height(iconSize), contentAlignment = Alignment.Center) {
             Text(
                 shown,
-                style = MaterialTheme.typography.titleMedium.copy(lineHeight = iconSize.value.sp),
+                style = (if (iconSize >= PIN_ICON_LARGE) MaterialTheme.typography.titleLarge else MaterialTheme.typography.titleMedium)
+                    .copy(lineHeight = iconSize.value.sp),
                 fontWeight = FontWeight.SemiBold,
                 color = tint,
                 maxLines = 1,
             )
         }
         icon == null && action is DockAction.LaunchApp ->
-            AppIcon(action.label, state.appIcons[action.packageName], size = 24.dp, corner = 6.dp, packageName = action.packageName)
+            AppIcon(action.label, state.appIcons[action.packageName], size = faceSize, corner = faceSize / 4, packageName = action.packageName)
         else -> Icon(
             painter = painterResource(icon?.let(::pinGlyphRes) ?: action?.let { actionIcon(it, state) } ?: R.drawable.ic_add),
             contentDescription = null,
@@ -418,6 +439,7 @@ private fun Tile(
     label: String,
     press: PressSource,
     modifier: Modifier,
+    dress: PinDress = pinDress(DockLabels.BOTH, label),
     outer: Modifier = Modifier.fillMaxWidth(),
     shape: Shape = TileShape,
     stateText: String? = null,
@@ -439,15 +461,22 @@ private fun Tile(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        icon(content)
-        Spacer(Modifier.height(4.dp))
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelSmall,
-            color = content,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
+        // The dock's dress (PinDress): the tile's own node carries the name for TalkBack in every one.
+        when {
+            !dress.name -> icon(content)
+            !dress.glyph -> PinNameOnly(label, dress.nameLines, content, description = null)
+            else -> {
+                icon(content)
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = content,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
     }
 }
 

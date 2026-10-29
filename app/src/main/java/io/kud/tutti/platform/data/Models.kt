@@ -122,6 +122,15 @@ enum class PadSize { COMPACT, NORMAL, LARGE }
 enum class Hand { LEFT, RIGHT }
 
 /**
+ * What a dock pin wears (Erwann, 2026-10-29: « savoir si l'utilisateur veut afficher label ou icône
+ * ou les deux »): its glyph and its name ([BOTH], the dock as it shipped and the default, also for
+ * layouts stored before this existed), the glyph alone, larger ([ICON]), or the name alone, on up to
+ * two lines ([NAME]). TalkBack hears the pin's name in every one ([PinDress]).
+ */
+@Serializable
+enum class DockLabels { ICON, BOTH, NAME }
+
+/**
  * The parts of the remote screen he may arrange. Power, the volume rail and the Son sheet are
  * anchors and have no field here, so no stored layout can move or hide them; [hand] only picks
  * which side the pad and the rail stand on, never a dragged place. Every field has a default, so
@@ -142,6 +151,8 @@ data class RemoteLayout(
      * equals a default that shipped ([SHIPPED_ROWS]); any other row is his and is kept as it is.
      */
     val rowChosen: Boolean = false,
+    /** What the dock's pins wear; [DockLabels.BOTH] until he picks, so nothing changes on upgrade. */
+    val dockLabels: DockLabels = DockLabels.BOTH,
 ) {
     /** The row he arranged, or today's default while he hasn't ([rowChosen]). */
     private val effectiveRow: List<RowButton> get() = if (rowChosen || row !in SHIPPED_ROWS) row else DEFAULT_ROW

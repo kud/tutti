@@ -63,6 +63,9 @@ import androidx.compose.ui.unit.dp
 import io.kud.tutti.R
 import io.kud.tutti.controller.TuttiUiState
 import io.kud.tutti.platform.data.DockConfig
+import io.kud.tutti.platform.data.DockLabels
+import io.kud.tutti.ui.common.PinNameOnly
+import io.kud.tutti.ui.common.pinDress
 import io.kud.tutti.platform.data.Hand
 import io.kud.tutti.platform.data.PadSize
 import io.kud.tutti.platform.data.RemoteLayout
@@ -170,6 +173,8 @@ fun LayoutEditor(
 
             Spacer(Modifier.height(12.dp))
             PinsFrame(state, onMovePin, onEditPin)
+            Spacer(Modifier.height(8.dp))
+            DockLabelsFrame(layout.dockLabels, onLabels = { labels -> onLayout { it.copy(dockLabels = labels) } })
             if (state.dock.spare.isNotEmpty()) {
                 Spacer(Modifier.height(12.dp))
                 SpareFrame(state, onRestoreSpare, onDropSpare)
@@ -382,6 +387,46 @@ private fun HandFrame(hand: Hand, onHand: (Hand) -> Unit) {
     }
 }
 
+/**
+ * What the dock's pins wear (Erwann, 2026-10-29): Icons, Both or Names, one segmented choice under
+ * the dock it changes, so the pins above redress as he picks. Both is the default; the tile's size
+ * never changes, only what sits in it ([PinDress]).
+ */
+@Composable
+private fun DockLabelsFrame(labels: DockLabels, onLabels: (DockLabels) -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    Column(Modifier.fillMaxWidth().dashedFrame().padding(horizontal = 16.dp, vertical = 10.dp)) {
+        Text(
+            stringResource(R.string.layout_dock_labels),
+            style = MaterialTheme.typography.titleMedium,
+            color = colors.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(8.dp))
+        // Three words, never glyphs alone: the choice is between words and glyphs.
+        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+            DockLabels.entries.forEachIndexed { index, entry ->
+                SegmentedButton(
+                    selected = entry == labels,
+                    onClick = { onLabels(entry) },
+                    shape = SegmentedButtonDefaults.itemShape(index, DockLabels.entries.size),
+                ) {
+                    Text(
+                        stringResource(
+                            when (entry) {
+                                DockLabels.ICON -> R.string.layout_dock_labels_icon
+                                DockLabels.BOTH -> R.string.layout_dock_labels_both
+                                DockLabels.NAME -> R.string.layout_dock_labels_name
+                            },
+                        ),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+        }
+    }
+}
+
 @Composable
 private fun RemoveBadge(description: String, onClick: () -> Unit, modifier: Modifier) {
     val colors = MaterialTheme.colorScheme
@@ -452,9 +497,17 @@ private fun PinsFrame(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center,
                     ) {
-                        PinFace(slot.primary, slot.icon, slot.letters, state, colors.onSurfaceVariant, iconSize = 20.dp)
-                        Spacer(Modifier.height(4.dp))
-                        Text(label, style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        // Dressed as the dock is, so the choice below shows here as it is made.
+                        val dress = pinDress(state.prefs.layout.dockLabels, label)
+                        if (dress.glyph) {
+                            PinFace(slot.primary, slot.icon, slot.letters, state, colors.onSurfaceVariant, iconSize = dress.glyphSize, faceSize = dress.faceSize)
+                        }
+                        if (dress.glyph && dress.name) Spacer(Modifier.height(4.dp))
+                        if (!dress.glyph) {
+                            PinNameOnly(label, dress.nameLines, colors.onSurfaceVariant, description = null)
+                        } else if (dress.name) {
+                            Text(label, style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
                     }
                     Icon(
                         painterResource(R.drawable.ic_drag),

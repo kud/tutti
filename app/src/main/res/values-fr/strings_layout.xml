@@ -18,6 +18,10 @@
     <string name="layout_hand">Main</string>
     <string name="layout_hand_left">Gauche</string>
     <string name="layout_hand_right">Droite</string>
+    <string name="layout_dock_labels">Les épingles affichent</string>
+    <string name="layout_dock_labels_icon">Icônes</string>
+    <string name="layout_dock_labels_both">Les deux</string>
+    <string name="layout_dock_labels_name">Noms</string>
     <string name="layout_row">Rangée</string>
     <string name="layout_row_add">Ajouter à la rangée (%1$d au plus)</string>
     <string name="layout_row_full">La rangée est pleine : retirez un bouton pour en ajouter un</string>
