@@ -163,7 +163,8 @@ jobs:
       - name: Assemble debug
         if: env.SIGNED != 'true'
         run: |
-          ./gradlew --stacktrace :app:assembleDebug
+          # Non-debuggable (app/build.gradle.kts): same id and signature, but compiled by ART.
+          ./gradlew --stacktrace -Ptutti.devRelease :app:assembleDebug
           apk=app/build/outputs/apk/debug/app-debug.apk
           [ -f "$apk" ] || { echo "::error::$apk not found"; ls -la app/build/outputs/apk/debug/ || true; exit 1; }
           name=$(grep '^app.name=' gradle.properties | cut -d= -f2)
