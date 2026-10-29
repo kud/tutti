@@ -63,6 +63,7 @@ import io.kud.tutti.controller.TuttiUiState
 import io.kud.tutti.platform.data.DockAction
 import io.kud.tutti.platform.data.DockConfig
 import io.kud.tutti.platform.data.DockSlot
+import io.kud.tutti.platform.data.opensSheet
 import io.kud.tutti.platform.data.MacroStep
 import io.kud.tutti.platform.data.asAction
 import io.kud.tutti.platform.data.asSteps
@@ -311,7 +312,8 @@ fun PinEditorContent(
                     Spacer(Modifier.width(8.dp))
                     OutlinedButton(
                         onClick = { if (steps.size < MAX_STEPS) steps += MacroStep.Wait(DEFAULT_WAIT_MS) },
-                        enabled = steps.size < MAX_STEPS,
+                        // A wait has nothing to wait for after Apps or Keys, which only open a sheet.
+                        enabled = steps.size < MAX_STEPS && !action.opensSheet,
                         modifier = Modifier.semantics { contentDescription = addWait },
                     ) {
                         Icon(painterResource(R.drawable.ic_timer), contentDescription = null, modifier = Modifier.size(18.dp))
@@ -322,7 +324,7 @@ fun PinEditorContent(
                 Spacer(Modifier.weight(1f))
                 FilledTonalButton(
                     onClick = { action?.let(onTry) },
-                    enabled = action != null,
+                    enabled = action != null && !action.opensSheet,
                     modifier = Modifier.semantics { contentDescription = tryDescription },
                 ) {
                     Icon(painterResource(R.drawable.ic_play_pause), contentDescription = null, modifier = Modifier.size(18.dp))
@@ -435,13 +437,19 @@ fun PinEditorContent(
             },
             onLoadTv = onLoadTv,
             onDismiss = { picking = null },
+            sheets = true,
         )
         else -> ActionPickerSheet(
             title = stringResource(R.string.picker_title),
             state = state,
             allowRemove = false,
             onPick = { picked ->
-                if (picked != null) {
+                if (picked != null && picked.opensSheet) {
+                    // Apps and Keys open a sheet on the phone: a whole pin, never one step among others.
+                    steps.clear()
+                    steps.add(MacroStep.Run(picked))
+                } else if (picked != null) {
+                    steps.removeAll { (it as? MacroStep.Run)?.action.opensSheet }
                     val added = picked.asSteps()
                     if (target is Picking.ReplaceStep && target.at in steps.indices) {
                         steps.removeAt(target.at)
@@ -454,6 +462,7 @@ fun PinEditorContent(
             },
             onLoadTv = onLoadTv,
             onDismiss = { picking = null },
+            sheets = true,
         )
     }
 }

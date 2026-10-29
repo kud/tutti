@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.consumeWindowInsets
@@ -333,8 +334,12 @@ fun SceneEditorScreen(
             )
 
             SectionTitle(stringResource(R.string.editor_dock))
-            Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                for (index in 0 until DockConfig.SIZE) {
+            // The dock's first page, as it stands: two rows of six.
+            for (row in 0 until DockConfig.ROWS) Row(
+                Modifier.padding(start = 16.dp, end = 16.dp, top = if (row > 0) 8.dp else 0.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                for (index in row * DockConfig.ROW until (row + 1) * DockConfig.ROW) {
                     val holds = (state.dock.slots.getOrNull(index)?.primary as? DockAction.RunScene)?.sceneId == id
                     FilledTonalButton(
                         enabled = name.isNotBlank() && !holds,
@@ -344,6 +349,7 @@ fun SceneEditorScreen(
                             controller.assignDock(index, DockAction.RunScene(id), state.dock.slots.getOrNull(index)?.secondary)
                         },
                         modifier = Modifier.weight(1f),
+                        contentPadding = PaddingValues(0.dp),
                     ) { Text((index + 1).toString()) }
                 }
             }

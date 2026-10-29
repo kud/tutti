@@ -2348,6 +2348,8 @@ class TuttiController @Inject constructor(
                 else -> setOutputTerminal(action.terminal)
             }
             is DockAction.PictureOff -> if (bravia == null) actionFailed("shortcut: picture off", outcomeOf(null)) else setPictureOff(action.on)
+            // Screen-only: the remote opens their sheet and never hands them here (DockAction.OpenApps).
+            DockAction.OpenApps, DockAction.OpenKeys -> Unit
             is DockAction.Macro -> for (step in action.steps) {
                 when (step) {
                     is MacroStep.Wait -> delay(step.millis.coerceIn(0, MAX_MACRO_WAIT_MS))

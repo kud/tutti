@@ -260,7 +260,25 @@ sealed interface DockAction {
     @Serializable
     @SerialName("macro")
     data class Macro(val name: String, val steps: List<MacroStep>) : DockAction
+
+    /**
+     * Opens the Apps sheet. Apps and Keys were fixed doors at the dock's left until 2026-10-28; now
+     * they are pins like any other, which he may move or drop (Iris). The remote screen runs them,
+     * never the controller, so they are offered only for a dock pin, never in a scene, a macro step
+     * or a row button's long press.
+     */
+    @Serializable
+    @SerialName("open.apps")
+    data object OpenApps : DockAction
+
+    /** Opens the Keys sheet, the rest of the remote; see [OpenApps]. */
+    @Serializable
+    @SerialName("open.keys")
+    data object OpenKeys : DockAction
 }
+
+/** True for the two pins that open a sheet of the remote rather than send anything. */
+val DockAction?.opensSheet: Boolean get() = this == DockAction.OpenApps || this == DockAction.OpenKeys
 
 /** A macro's steps with any nested macro spliced in, so a pin never holds a macro inside a macro. */
 fun List<MacroStep>.flattened(): List<MacroStep> = flatMap { step ->
@@ -318,15 +336,31 @@ data class DockSlot(
 enum class SecondaryButton { HOME, BACK, PLAY, INPUT }
 
 /**
- * The pins live in one flat [slots] list, [PAGE_SIZE] to a page: page n is slots 4n..4n+3. A dock
- * stored before pages existed holds four slots, which is page 1 exactly, so nothing new is stored
- * and nothing old is read differently. A short list is padded out to whole pages when read.
+ * The pins live in one flat [slots] list, [PAGE_SIZE] to a page: two rows of [ROW], so page n is
+ * slots 12n..12n+11 and its second row starts at 12n+6 (Erwann, 2026-10-28: « deux lignes custom »).
+ * Apps and Keys are ordinary pins ([DockAction.OpenApps], [DockAction.OpenKeys]); a fresh dock
+ * holds them first.
+ *
+ * Stored under the key `pins`. A dock stored before 2026-10-28 has only `slots` ([legacySlots]):
+ * four to a page, behind two fixed doors. [normalised] turns it into this model once, when read:
+ * the two doors first, then every pin in its old order with the empty slots closed up, so nothing
+ * is lost or reordered (at most 12 old pins, plus the doors, fit in two pages of twelve).
  */
 @Serializable
 data class DockConfig(
+    @SerialName("pins")
     val slots: List<DockSlot> = DEFAULT_SLOTS,
     val longPress: Map<SecondaryButton, DockAction> = emptyMap(),
+    /** The pre-2026-10-28 dock, read only to migrate it; null once [normalised]. */
+    @SerialName("slots")
+    val legacySlots: List<DockSlot>? = null,
 ) {
+    /** The dock in today's model: a stored legacy dock migrated, anything else as it is. */
+    fun normalised(): DockConfig {
+        val legacy = legacySlots ?: return this
+        return copy(slots = fromLegacy(legacy), legacySlots = null)
+    }
+
     /** Whole pages, at least one and at most [MAX_PAGES]. */
     val pages: List<List<DockSlot>>
         get() {
@@ -335,6 +369,9 @@ data class DockConfig(
         }
 
     fun slot(index: Int): DockSlot = slots.getOrNull(index) ?: DockSlot()
+
+    /** True when some pin opens [action]'s sheet, on tap or on long press. */
+    fun holds(action: DockAction): Boolean = slots.any { it.primary == action || it.secondary == action }
 
     /** Pin [index] replaced, padding the pages up to it. */
     fun withSlot(index: Int, slot: DockSlot): DockConfig {
@@ -365,24 +402,28 @@ data class DockConfig(
     }
 
     companion object {
-        const val PAGE_SIZE = 4
-        const val MAX_PAGES = 3
-
-        /** Pins per page; kept for the callers that only know page 1. */
-        const val SIZE = PAGE_SIZE
+        /** Pins per row: the six tiles a full width held when the doors stood beside four pins. */
+        const val ROW = 6
+        const val ROWS = 2
+        const val PAGE_SIZE = ROW * ROWS
+        const val MAX_PAGES = 2
 
         /**
-         * A fresh install pins the two bar toggles the design asks for one tap away; apps live
-         * behind the Apps tile, and the other slots wait for his own pins. A dock already
-         * stored (any earlier assignment wrote all four slots) is read as it is: nothing in it
-         * is dropped or rewritten.
+         * A fresh dock: Apps and Keys first, where the doors stood, then the two bar toggles the
+         * design asks for one tap away.
          */
         val DEFAULT_SLOTS = listOf(
+            DockSlot(DockAction.OpenApps),
+            DockSlot(DockAction.OpenKeys),
             DockSlot(DockAction.ToggleBar("audio.nightmode")),
             DockSlot(DockAction.ToggleBar("audio.voiceenhancer")),
-            DockSlot(),
-            DockSlot(),
         )
+
+        /** A pre-2026-10-28 dock (four to a page, behind the doors) in today's model; see [DockConfig]. */
+        internal fun fromLegacy(legacy: List<DockSlot>): List<DockSlot> {
+            val pins = legacy.filter { it.primary != null || it.secondary != null }
+            return (listOf(DockSlot(DockAction.OpenApps), DockSlot(DockAction.OpenKeys)) + pins).take(MAX_PAGES * PAGE_SIZE)
+        }
     }
 }
 

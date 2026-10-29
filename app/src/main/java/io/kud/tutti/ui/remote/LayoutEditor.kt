@@ -476,7 +476,8 @@ private fun PinsFrame(
     val pages = state.dock.pages
     var page by remember { mutableIntStateOf(0) }
     if (page > pages.lastIndex) page = pages.lastIndex
-    val reorder = rememberReorderState()
+    // One drag axis per row: each row keeps its own centres.
+    val rowReorders = List(DockConfig.ROWS) { rememberReorderState() }
     val left = stringResource(R.string.layout_move_left)
     val right = stringResource(R.string.layout_move_right)
     val base = page * DockConfig.PAGE_SIZE
@@ -508,25 +509,32 @@ private fun PinsFrame(
             }
         }
         Spacer(Modifier.height(8.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            pages[page].forEachIndexed { offset, slot ->
+        // The dock's shape: two rows of six. A drag moves a pin along its row; TalkBack's left and
+        // right step across the whole page, so a pin can also change rows.
+        pages[page].chunked(DockConfig.ROW).forEachIndexed { row, cells ->
+            val rowReorder = rowReorders[row]
+            val first = row * DockConfig.ROW
+            if (row > 0) Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            cells.forEachIndexed { column, slot ->
+                val offset = first + column
                 val label = slotLabel(slot, state) ?: stringResource(R.string.dock_add)
                 Column(
                     Modifier
                         .weight(1f)
-                        .reorderable(reorder, offset, vertical = false, onMove = move, shape = RoundedCornerShape(20.dp))
+                        .reorderable(rowReorder, column, vertical = false, onMove = { from, to -> move(first + from, first + to) }, shape = RoundedCornerShape(16.dp))
                         .reorderActions(offset, DockConfig.PAGE_SIZE, left, right, move),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Column(
                         Modifier
                             .fillMaxWidth()
-                            .height(64.dp)
-                            .clip(RoundedCornerShape(20.dp))
+                            .height(56.dp)
+                            .clip(RoundedCornerShape(16.dp))
                             .background(colors.surfaceContainerHigh)
                             .clickable { onEditPin(base + offset) }
                             .semantics { contentDescription = label }
-                            .padding(horizontal = 4.dp, vertical = 8.dp),
+                            .padding(horizontal = 2.dp, vertical = 6.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center,
                     ) {
@@ -541,6 +549,7 @@ private fun PinsFrame(
                         modifier = Modifier.padding(top = 4.dp).size(20.dp),
                     )
                 }
+            }
             }
         }
     }

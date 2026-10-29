@@ -47,6 +47,8 @@ class TuttiStore @Inject constructor(
     val devices: Flow<Devices> = deviceList.map(DeviceViews::legacy).distinctUntilChanged()
     val prefs: Flow<AppPrefs> = field(PREFS, AppPrefs.serializer(), StoreJson) { AppPrefs() }
     val dock: Flow<DockConfig> = field(DOCK, DockConfig.serializer(), StoreJson) { DockConfig() }
+        .map { it.normalised() }
+        .distinctUntilChanged()
     val scenes: Flow<List<Scene>> = field(SCENES, SceneListSerializer, SceneJson) { StarterScenes.all }
         .map(::localiseStarters)
     /** Apps the TV ever listed, kept so the Apps sheet works without IP control. */
@@ -83,7 +85,7 @@ class TuttiStore @Inject constructor(
 
     suspend fun updatePrefs(transform: (AppPrefs) -> AppPrefs) = update(PREFS, AppPrefs.serializer(), StoreJson, AppPrefs(), transform)
 
-    suspend fun updateDock(transform: (DockConfig) -> DockConfig) = update(DOCK, DockConfig.serializer(), StoreJson, DockConfig(), transform)
+    suspend fun updateDock(transform: (DockConfig) -> DockConfig) = update(DOCK, DockConfig.serializer(), StoreJson, DockConfig()) { transform(it.normalised()) }
 
     suspend fun updateScenes(transform: (List<Scene>) -> List<Scene>) =
         update(SCENES, SceneListSerializer, SceneJson, StarterScenes.all) { transform(localiseStarters(it)) }
