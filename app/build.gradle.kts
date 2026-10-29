@@ -54,6 +54,11 @@ android {
         debug {
             applicationIdSuffix = ".debug"
             signingConfig = signingConfigs.getByName("debug")
+            // A dev pre-release passes -Ptutti.devRelease: the same id and signature, so it still
+            // installs over the last with every pairing kept, but not debuggable, so ART compiles
+            // it instead of running every first frame (the Quick Settings overlay's above all)
+            // through the debuggable runtime.
+            isDebuggable = !providers.gradleProperty("tutti.devRelease").isPresent
         }
         release {
             // R8 shrinks and optimises, names stay readable (docs/architecture.md, "Release build: R8").

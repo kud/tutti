@@ -83,7 +83,8 @@ class Updater @Inject constructor(@ApplicationContext private val context: Conte
     }
 
     val installed: String get() = BuildConfig.VERSION_NAME
-    private val flavour = if (BuildConfig.DEBUG) Flavour.DEBUG else Flavour.RELEASE
+    // The build type, not DEBUG: a dev pre-release is the debug build made non-debuggable.
+    private val flavour = if (BuildConfig.BUILD_TYPE == "debug") Flavour.DEBUG else Flavour.RELEASE
     private val current: AppVersion = AppVersion.parse(BuildConfig.VERSION_NAME) ?: AppVersion(0, 0, 0, 0)
 
     /**
