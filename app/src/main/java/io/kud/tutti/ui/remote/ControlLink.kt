@@ -67,7 +67,8 @@ fun TuttiUiState.controlLink(owner: Owner): ControlLink = controlLink(
  * macros mix devices and wake the TV themselves: those are [Owner.ANY] and never go down.
  */
 fun dockOwner(action: DockAction?): Owner = when (action) {
-    null, is DockAction.RunScene, is DockAction.Macro -> Owner.ANY
+    // Apps and Keys open a sheet of tutti's own: nothing to go down with.
+    null, is DockAction.RunScene, is DockAction.Macro, DockAction.OpenApps, DockAction.OpenKeys -> Owner.ANY
     is DockAction.ToggleBar, is DockAction.SetBar -> Owner.BAR
     is DockAction.Key -> if (action.keyCode in WAKE_KEYS) Owner.ANY else Owner.TV
     is DockAction.LaunchApp, is DockAction.Input, is DockAction.Ircc,

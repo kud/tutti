@@ -150,8 +150,8 @@
     <string name="pin_page_of">Page %1$d of %2$d</string>
     <string name="pin_page_add">Add a page</string>
     <string name="pin_page_remove">Remove this page</string>
-    <string name="pin_page_remove_note">Its four pins go with it.</string>
-    <string name="pin_pages_full">Three pages at most.</string>
+    <string name="pin_page_remove_note">Its pins go with it.</string>
+    <string name="pin_pages_full">Two pages at most.</string>
     <string name="dock_page_desc">Pins, page %1$d of %2$d</string>
     <plurals name="macro_steps">
         <item quantity="one">%d step</item>
@@ -160,4 +160,5 @@
     <string name="picker_tv_sound">Sound output</string>
     <string name="action_tv_sound_bar">Sound to the bar</string>
     <string name="action_tv_sound_speaker">Sound to the TV speakers</string>
+    <string name="picker_sheets">This remote</string>
 </resources>
