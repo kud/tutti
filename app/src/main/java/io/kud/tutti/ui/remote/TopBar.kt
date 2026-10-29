@@ -46,7 +46,7 @@ fun chipWidthDp(barWidthDp: Int): Int = barWidthDp - BAR_FIXED_DP
 
 /**
  * The bar's "⋮": one icon button, heard as "More options", opening text rows, Scenes, Edit dock,
- * Settings then Gestures, each with its icon and at least 48 dp tall. A tap runs the row and closes
+ * Settings then Gestures (led by Apps and Keys for whichever no dock pin opens: [onApps], [onKeys]), each with its icon and at least 48 dp tall. A tap runs the row and closes
  * the menu. Edit dock opens the layout editor, the dock's one way in now its "+ Add" slots are gone
  * (Erwann, 2026-10-25).
  */
@@ -65,6 +65,8 @@ fun TopBarOverflow(
     update: AppVersion? = null,
     notice: Boolean = false,
     onUpdate: () -> Unit = {},
+    onApps: (() -> Unit)? = null,
+    onKeys: (() -> Unit)? = null,
 ) {
     var open by remember { mutableStateOf(false) }
     Box {
@@ -90,6 +92,21 @@ fun TopBarOverflow(
                     onClick = {
                         open = false
                         onUpdate()
+                    },
+                    modifier = Modifier.heightIn(min = 48.dp),
+                )
+            }
+            // Apps and Keys, while no dock pin opens them: the dock's former doors are never out of reach.
+            listOfNotNull(
+                onApps?.let { Triple(R.string.dock_apps, R.drawable.ic_apps, it) },
+                onKeys?.let { Triple(R.string.dock_keys, R.drawable.ic_dialpad, it) },
+            ).forEach { (label, icon, run) ->
+                DropdownMenuItem(
+                    text = { Text(stringResource(label)) },
+                    leadingIcon = { Icon(painterResource(icon), contentDescription = null) },
+                    onClick = {
+                        open = false
+                        run()
                     },
                     modifier = Modifier.heightIn(min = 48.dp),
                 )

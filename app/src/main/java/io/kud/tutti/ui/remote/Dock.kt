@@ -2,7 +2,6 @@ package io.kud.tutti.ui.remote
 
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
-import androidx.annotation.DrawableRes
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
@@ -91,23 +90,25 @@ import io.kud.tutti.ui.common.pinGlyphRes
 import io.kud.tutti.ui.common.slotLabel
 
 /**
- * The bottom row: two fixed doors, Apps and Keys (the rest of the remote), then his pins, four to
- * a page. The doors share a tone so they read as one family, apart from the pins. Only filled pins
- * show (Erwann, 2026-10-25: no "+ Add" slots; the editor is in the top bar's ⋮): every tile keeps
- * the one width a full row gives it, and the row, doors and pins together, is centred as a group,
- * sized by the fullest page so a swipe never moves the doors. An empty dock shows one quiet
- * "Customise the dock" in the pins' place. From two pages the pins swipe sideways under the still
- * doors and small dots show where he is. A pin runs on tap and opens its editor on long press; a
- * pin with its own long press offers that first, the editor below it, like a launcher's shortcuts.
- * A pin whose tap toggles a bar setting wears that setting's state
- * ([PinToggle]): a check badge and the accent-filled, squarer tile when on (Power's and Mute's on), an empty ring when off, a
- * dashed ring when tutti does not know, and TalkBack hears it as a switch.
+ * The dock: his pins, two rows of six to a page (Erwann, 2026-10-28: « deux lignes custom de
+ * docks »). Apps and Keys are pins like the rest ([DockAction.OpenApps], [DockAction.OpenKeys]), first
+ * on a fresh dock, and he may move or drop them; the ⋮ offers whichever no pin opens. Every pin
+ * wears one tone (Erwann, 2026-10-28: « tous la même couleur »): the quiet container, so the
+ * bright tonal fill stays the row buttons' above, the remote's own, and an app keeps its own icon
+ * on it. Only filled pins show (Erwann, 2026-10-25: no "+ Add" slots; the editor is in the top
+ * bar's ⋮): each row lays its pins from the left at the one width six across give them, rows
+ * line up in columns, and the grid is centred, sized by the widest row and the most rows on any
+ * page, so a swipe never moves it. A row with no pin is left out, so a dock of six or fewer stays
+ * one row high. An empty dock shows one quiet "Customise the dock". From two pages the grid swipes
+ * sideways and small dots show where he is. A pin runs on tap and opens its editor on long press;
+ * a pin with its own long press offers that first, the editor below it, like a launcher's
+ * shortcuts. A pin whose tap toggles a bar setting wears that setting's state ([PinToggle]): a
+ * check badge and the accent-filled, squarer tile when on (Power's and Mute's on), an empty ring
+ * when off, a dashed ring when tutti does not know, and TalkBack hears it as a switch.
  */
 @Composable
 fun Dock(
     state: TuttiUiState,
-    onApps: () -> Unit,
-    onKeys: () -> Unit,
     onRun: (index: Int, slot: DockSlot) -> Unit,
     onEdit: (index: Int) -> Unit,
     onCustomise: () -> Unit,
@@ -117,51 +118,53 @@ fun Dock(
 ) {
     val pages = shownPins(state.dock)
     val span = dockSpan(pages)
+    val rows = dockRows(pages)
     val pager = rememberPagerState(initialPage = initialPage) { pages.size }
     BoxWithConstraints(modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-        // Six equal tiles: five 6dp gaps plus the 6dp step between the doors and the pins. Fewer pins
-        // keep that width and the group centres, rather than stretching (Iris, 2026-10-25).
-        val tile = (maxWidth - GAP * 6) / 6
+        // Six equal tiles and five 6dp gaps: the width the doors and four pins shared before.
+        // Fewer pins keep that width and the grid centres, rather than stretching (Iris, 2026-10-25).
+        val tile = (maxWidth - GAP * (DockConfig.ROW - 1)) / DockConfig.ROW
         val pinsWidth = tile * span + GAP * (span - 1).coerceAtLeast(0)
-        Column(Modifier.align(Alignment.TopCenter)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(GAP)) {
-                DoorTile(R.drawable.ic_apps, stringResource(R.string.dock_apps), onApps, Modifier.width(tile))
-                DoorTile(R.drawable.ic_dialpad, stringResource(R.string.dock_keys), onKeys, Modifier.width(tile))
-                Spacer(Modifier.width(0.dp))
-                if (pages.isEmpty()) {
-                    CustomiseEntry(onCustomise, Modifier.width(tile * 4 + GAP * 3))
-                    return@Row
-                }
-                val pageDescription = stringResource(R.string.dock_page_desc, pager.currentPage + 1, pages.size)
-                HorizontalPager(
-                    state = pager,
-                    userScrollEnabled = pages.size > 1,
-                    pageSpacing = GAP,
-                    modifier = Modifier
-                        .width(pinsWidth)
-                        .then(if (pages.size > 1) Modifier.semantics { stateDescription = pageDescription } else Modifier),
-                ) { page ->
-                    // A page with fewer pins than the fullest starts against the doors.
-                    Row(horizontalArrangement = Arrangement.spacedBy(GAP)) {
-                        pages[page].forEach { index ->
-                            val slot = state.dock.slot(index)
-                            PinTile(
-                                slot = slot,
-                                state = state,
-                                // A slot with only a long-press action has no tap: it opens its editor.
-                                onClick = { if (slot.primary != null) onRun(index, slot) else onEdit(index) },
-                                onEdit = { onEdit(index) },
-                                onSecondary = { action -> onRunSecondary(index, action) },
-                                modifier = Modifier.width(tile),
-                            )
+        Column(Modifier.align(Alignment.TopCenter), horizontalAlignment = Alignment.CenterHorizontally) {
+            if (pages.isEmpty()) {
+                CustomiseEntry(onCustomise, Modifier.width(tile * 4 + GAP * 3))
+                return@Column
+            }
+            val pageDescription = stringResource(R.string.dock_page_desc, pager.currentPage + 1, pages.size)
+            HorizontalPager(
+                state = pager,
+                userScrollEnabled = pages.size > 1,
+                pageSpacing = GAP,
+                verticalAlignment = Alignment.Top,
+                modifier = Modifier
+                    .width(pinsWidth)
+                    .then(if (pages.size > 1) Modifier.semantics { stateDescription = pageDescription } else Modifier),
+            ) { page ->
+                Column(verticalArrangement = Arrangement.spacedBy(GAP)) {
+                    pages[page].forEach { row ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(GAP)) {
+                            row.forEach { index ->
+                                val slot = state.dock.slot(index)
+                                PinTile(
+                                    slot = slot,
+                                    state = state,
+                                    // A slot with only a long-press action has no tap: it opens its editor.
+                                    onClick = { if (slot.primary != null) onRun(index, slot) else onEdit(index) },
+                                    onEdit = { onEdit(index) },
+                                    onSecondary = { action -> onRunSecondary(index, action) },
+                                    modifier = Modifier.width(tile),
+                                )
+                            }
                         }
                     }
+                    // A page with fewer rows than the tallest keeps its height, so nothing below jumps.
+                    repeat(rows - pages[page].size) { Spacer(Modifier.height(TILE_MIN)) }
                 }
             }
             if (pages.size > 1) {
                 Row(
                     Modifier
-                        .padding(start = tile * 2 + GAP * 3, top = 8.dp)
+                        .padding(top = 8.dp)
                         .width(pinsWidth),
                     horizontalArrangement = Arrangement.Center,
                 ) {
@@ -183,19 +186,25 @@ fun Dock(
 }
 
 /**
- * The dock as shown: for each page holding at least one pin, its slots' indices across pages, in
- * order. Empty slots and empty pages are left out; the editor and "Pin to dock" still list them.
+ * The dock as shown: for each page holding at least one pin, its rows that hold one, each as its
+ * pins' slot indices across pages, in order. Empty slots, rows and pages are left out; the editor
+ * and "Pin to dock" still list them.
  */
-internal fun shownPins(dock: DockConfig): List<List<Int>> =
+internal fun shownPins(dock: DockConfig): List<List<List<Int>>> =
     dock.pages.mapIndexedNotNull { page, slots ->
-        slots.indices
-            .filter { slots[it].primary != null || slots[it].secondary != null }
-            .map { page * DockConfig.PAGE_SIZE + it }
-            .takeIf { it.isNotEmpty() }
+        slots.chunked(DockConfig.ROW).mapIndexedNotNull { row, cells ->
+            cells.indices
+                .filter { cells[it].primary != null || cells[it].secondary != null }
+                .map { page * DockConfig.PAGE_SIZE + row * DockConfig.ROW + it }
+                .takeIf { it.isNotEmpty() }
+        }.takeIf { it.isNotEmpty() }
     }
 
-/** How many pin widths the row reserves: the fullest shown page, so a swipe never moves the doors. */
-internal fun dockSpan(pages: List<List<Int>>): Int = pages.maxOfOrNull { it.size } ?: 0
+/** How many pin widths the grid reserves: the widest row on any page, so a swipe never moves it. */
+internal fun dockSpan(pages: List<List<List<Int>>>): Int = pages.flatten().maxOfOrNull { it.size } ?: 0
+
+/** How many rows the grid reserves: the most any page shows, so a swipe never changes its height. */
+internal fun dockRows(pages: List<List<List<Int>>>): Int = pages.maxOfOrNull { it.size } ?: 0
 
 /** An empty dock's one way in: quiet text where the pins would be, never a tile that looks like one. */
 @Composable
@@ -218,28 +227,6 @@ private fun CustomiseEntry(onClick: () -> Unit, modifier: Modifier = Modifier) {
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
-    }
-}
-
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-private fun DoorTile(@DrawableRes icon: Int, label: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    val feedback = rememberFeedback()
-    val press = rememberPressSource { feedback.click() }
-    val content = MaterialTheme.colorScheme.onSecondaryContainer
-    Tile(
-        background = MaterialTheme.colorScheme.secondaryContainer,
-        content = content,
-        label = label,
-        press = press,
-        modifier = Modifier.combinedClickable(
-            interactionSource = press.interaction,
-            indication = rememberTuttiIndication(TileShape, layerColor = content),
-            onClick = onClick,
-        ),
-        outer = modifier,
-    ) { tint ->
-        Icon(painterResource(icon), contentDescription = null, tint = tint, modifier = Modifier.size(22.dp))
     }
 }
 
@@ -431,7 +418,7 @@ private fun Tile(
     Column(
         // At least 64 dp, taller when large text needs it: the label is never clipped mid-line.
         modifier = outer
-            .heightIn(min = 64.dp)
+            .heightIn(min = TILE_MIN)
             .pressScale(press.state)
             .clip(shape)
             .background(background, shape)
@@ -516,4 +503,5 @@ private fun PinStateBadge(toggle: PinToggle, color: Color, cutout: Color, modifi
 }
 
 private val GAP = 6.dp
+private val TILE_MIN = 64.dp
 private val TileShape = RoundedCornerShape(20.dp)
