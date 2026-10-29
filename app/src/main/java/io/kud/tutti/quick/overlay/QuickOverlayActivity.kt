@@ -9,11 +9,11 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -23,8 +23,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilledTonalIconButton
@@ -39,6 +38,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -228,24 +228,31 @@ private fun QuickOverlay(
                     )
                 } else if (state.scenes.isNotEmpty()) {
                     Spacer(Modifier.height(12.dp))
-                    LazyRow(
-                        contentPadding = PaddingValues(horizontal = 16.dp),
+                    // A plain scrolling row, not a LazyRow: a handful of pills, composed in the first
+                    // frame without subcomposition or prefetch (the sheet must draw at once).
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState())
+                            .padding(horizontal = 16.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        items(state.scenes, key = { it.id }) { scene ->
-                            ScenePill(
-                                scene = scene,
-                                active = scene.id == state.activeSceneId,
-                                modified = scene.id == state.activeSceneId && state.activeSceneModified,
-                                enabled = enabled,
-                                onClick = {
-                                    feedback.click()
-                                    scope.launch {
-                                        act { applyScene(scene.id) }?.join()
-                                        feedback.doublePulse()
-                                    }
-                                },
-                            )
+                        for (scene in state.scenes) {
+                            key(scene.id) {
+                                ScenePill(
+                                    scene = scene,
+                                    active = scene.id == state.activeSceneId,
+                                    modified = scene.id == state.activeSceneId && state.activeSceneModified,
+                                    enabled = enabled,
+                                    onClick = {
+                                        feedback.click()
+                                        scope.launch {
+                                            act { applyScene(scene.id) }?.join()
+                                            feedback.doublePulse()
+                                        }
+                                    },
+                                )
+                            }
                         }
                     }
                 }
