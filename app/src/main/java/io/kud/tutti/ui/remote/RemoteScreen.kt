@@ -1,5 +1,6 @@
 package io.kud.tutti.ui.remote
 
+import io.kud.tutti.platform.data.RowButton
 import io.kud.tutti.sleep.SleepTimers
 import io.kud.tutti.sleep.gentleOffRow
 import io.kud.tutti.protocol.sleep.SleepFade
@@ -447,7 +448,8 @@ fun RemoteScreen(
                 onReset = controller::resetLayout,
                 onMovePin = controller::moveDockSlot,
                 onEditPin = { picker = PickerTarget.Edit(it) },
-                onAddPage = controller::addDockPage,
+                onRestoreSpare = controller::restoreSparePin,
+                onDropSpare = controller::dropSparePin,
                 onDone = { onEditingChange(false) },
                 modifier = Modifier.padding(padding),
             )
@@ -521,6 +523,11 @@ fun RemoteScreen(
                         // Apps and Keys are pins he may drop: the ⋮ offers each one the dock no longer holds.
                         onApps = if (state.dock.holds(DockAction.OpenApps)) null else ({ sheet2 = RemoteSheet.APPS }),
                         onKeys = if (state.dock.holds(DockAction.OpenKeys)) null else ({ sheet2 = RemoteSheet.KEYS }),
+                        // So are the remote's keys that open something of tutti's (the row until 2026-10-29).
+                        // Back, Home, Play/Pause, Info, Subtitles, Guide and TV settings stay in Keys.
+                        onMic = if (state.dock.holds(DockAction.Remote(RowButton.VOICE))) null else ({ sheet2 = RemoteSheet.VOICE }),
+                        onKeyboard = if (state.dock.holds(DockAction.Remote(RowButton.KEYBOARD))) null else ({ input = InputRules.keyboardKey(input) }),
+                        onInput = if (state.dock.holds(DockAction.Remote(RowButton.INPUT))) null else ({ sheet2 = RemoteSheet.INPUTS }),
                         onScenes = onOpenScenes,
                         onEditDock = { onEditingChange(true) },
                         onSettings = onOpenSettings,
@@ -757,32 +764,6 @@ fun RemoteScreen(
                     }
                 }
 
-                val row = layout.rowOnScreen
-                if (row.isNotEmpty()) {
-                    Row(
-                        Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                        horizontalArrangement = rowArrangement(row.size),
-                    ) {
-                        row.forEach { button ->
-                            LiveRowButton(
-                                button = button,
-                                state = state,
-                                controller = controller,
-                                haptics = haptics,
-                                fieldWaiting = input.fieldWaiting,
-                                onKeyboard = { input = InputRules.keyboardKey(input) },
-                                onSecondary = ::secondary,
-                                size = ROW_BUTTON,
-                                onKey = ::sendKey,
-                                keyDown = ::keyDown,
-                                keyDownReason = computerUnavailable,
-                                keyMeaning = ::keyMeaning,
-                                onInputs = { sheet2 = RemoteSheet.INPUTS },
-                            )
-                        }
-                    }
-                }
-
                 Spacer(Modifier.height(12.dp))
                 Dock(
                     state = state,
@@ -815,7 +796,36 @@ fun RemoteScreen(
                             else -> controller.run(action)
                         }
                     },
+                    // The remote's own keys, the row until 2026-10-29: the same live key, drawn as a pin.
+                    remoteKey = { button, keyModifier ->
+                        LiveRowButton(
+                            button = button,
+                            state = state,
+                            controller = controller,
+                            haptics = haptics,
+                            fieldWaiting = input.fieldWaiting,
+                            onKeyboard = { input = InputRules.keyboardKey(input) },
+                            onSecondary = ::secondary,
+                            size = ROW_BUTTON,
+                            onKey = ::sendKey,
+                            keyDown = ::keyDown,
+                            keyDownReason = computerUnavailable,
+                            keyMeaning = ::keyMeaning,
+                            onInputs = { sheet2 = RemoteSheet.INPUTS },
+                            modifier = keyModifier,
+                            pin = true,
+                        )
+                    },
                 )
+                // Pins that didn't fit when the row joined: said once in words, until he decides.
+                if (state.dock.spare.isNotEmpty()) {
+                    TextButton(
+                        onClick = { onEditingChange(true) },
+                        modifier = Modifier.align(Alignment.CenterHorizontally).heightIn(min = 48.dp),
+                    ) {
+                        Text(stringResource(R.string.dock_spare_notice, state.dock.spare.size), style = MaterialTheme.typography.labelLarge)
+                    }
+                }
                 Spacer(Modifier.height(12.dp))
             }
         }
@@ -1059,6 +1069,8 @@ fun RemoteScreen(
     }
 
     when (sheet2) {
+        // The mic from the ⋮ while no pin holds it: the same hold-to-talk key, large, in a sheet.
+        RemoteSheet.VOICE -> VoiceSheet(state, controller, onDismiss = { sheet2 = null })
         RemoteSheet.APPS -> AppsSheet(
             state = state,
             // The tile plays its own click on down and confirm or reject on the outcome.
@@ -1157,11 +1169,6 @@ fun RemoteScreen(
                 haptics.click()
                 controller.run(action)
             },
-            onAddPage = controller::addDockPage,
-            onRemovePage = { page ->
-                controller.removeDockPage(page)
-                picker = null
-            },
             onEditLayout = if (editing) {
                 null
             } else {
@@ -1220,7 +1227,7 @@ fun secondaryLabel(button: SecondaryButton): String = when (button) {
 }
 
 /** The full-height sheets the bottom row's doors open. */
-private enum class RemoteSheet { APPS, KEYS, INPUTS }
+private enum class RemoteSheet { APPS, KEYS, INPUTS, VOICE }
 
 /** How far the input view rises when the TV opens it. */
 private val INPUT_RISE = 24.dp

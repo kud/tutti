@@ -3,7 +3,7 @@
     <string name="layout_title">Edit the remote</string>
     <string name="layout_done">Done</string>
     <string name="layout_entry">Remote layout</string>
-    <string name="layout_entry_detail">Row buttons, scenes, pad size, hand</string>
+    <string name="layout_entry_detail">Dock, scenes, pad size, hand</string>
     <string name="layout_edit_from_pin">Edit the remote layout</string>
     <string name="layout_fixed">Fixed</string>
     <string name="layout_scenes">Scenes</string>
@@ -32,7 +32,7 @@
     <string name="layout_pins_hint">Drag to reorder · tap to edit</string>
     <string name="layout_reset">Reset the layout</string>
     <string name="layout_reset_title">Reset the layout?</string>
-    <string name="layout_reset_body">The row, the scenes and the pad go back to how they first were. Your pins stay.</string>
+    <string name="layout_reset_body">The scenes, the pad and the hand go back to how they first were. Your dock stays.</string>
     <string name="layout_reset_confirm">Reset</string>
     <string name="layout_anchors">Power, volume and Sound never move</string>
     <string name="row_info">Info</string>
@@ -47,4 +47,12 @@
     <string name="apps_pin_page">Page %1$d</string>
     <string name="pin_step_drag">Drag to reorder</string>
     <string name="layout_volume">Volume</string>
+    <string name="layout_dock">Dock · %1$d places</string>
+    <string name="layout_spare_title">Didn\'t fit when the row joined the dock</string>
+    <string name="layout_spare_note">Tap one to put it back in a free place, or let it go with its badge.</string>
+    <string name="layout_spare_full">The dock is full: remove a pin to put one of these back</string>
+    <string name="layout_spare_drop">Let %1$s go</string>
+    <string name="dock_spare_notice">Pins that didn\'t fit the dock: %1$d · see them</string>
+    <string name="pin_long_remote">A key of the remote keeps its own long press, as it had in the row. Back, Home, Play / pause and Input\'s can be changed in Settings.</string>
+    <string name="voice_sheet_hint">Hold the mic and talk to the TV, then let go to send.</string>
 </resources>

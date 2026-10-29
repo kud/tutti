@@ -93,8 +93,6 @@ class RemoteLayoutCompatTest {
         val rest = List(DockConfig.PAGE_SIZE - 3) { DockSlot() }
         assertEquals(listOf(c, a, b) + rest, dock.withSlotMoved(2, 0).slots)
         assertEquals(listOf(a, b, c) + rest, dock.withSlotMoved(1, 1).slots)
-        assertTrue(dock.withPageAdded().pageIsEmpty(1))
-        assertTrue(!dock.pageIsEmpty(0))
     }
 
     @Test

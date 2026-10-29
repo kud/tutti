@@ -63,7 +63,7 @@ import io.kud.tutti.controller.TuttiUiState
 import io.kud.tutti.platform.data.DockAction
 import io.kud.tutti.platform.data.DockConfig
 import io.kud.tutti.platform.data.DockSlot
-import io.kud.tutti.platform.data.opensSheet
+import io.kud.tutti.platform.data.wholePin
 import io.kud.tutti.platform.data.MacroStep
 import io.kud.tutti.platform.data.asAction
 import io.kud.tutti.platform.data.asSteps
@@ -98,8 +98,6 @@ fun PinEditorSheet(
     onLoadTv: () -> Unit,
     onDismiss: () -> Unit,
     onTry: (DockAction) -> Unit = {},
-    onAddPage: () -> Unit = {},
-    onRemovePage: (page: Int) -> Unit = {},
     onEditLayout: (() -> Unit)? = null,
 ) {
     TuttiSheet(onDismissRequest = onDismiss) {
@@ -110,8 +108,6 @@ fun PinEditorSheet(
             onSave,
             onLoadTv,
             onTry = onTry,
-            onAddPage = onAddPage,
-            onRemovePage = onRemovePage,
             onEditLayout = onEditLayout,
         )
     }
@@ -133,11 +129,8 @@ fun PinEditorContent(
     onLoadTv: () -> Unit,
     startPicking: Boolean = false,
     onTry: (DockAction) -> Unit = {},
-    onAddPage: () -> Unit = {},
-    onRemovePage: (page: Int) -> Unit = {},
     onEditLayout: (() -> Unit)? = null,
 ) {
-    var confirmRemovePage by remember { mutableStateOf(false) }
     val reorder = rememberReorderState()
     val up = stringResource(R.string.layout_move_up)
     val down = stringResource(R.string.layout_move_down)
@@ -150,8 +143,6 @@ fun PinEditorContent(
     var picking by remember { mutableStateOf<Picking?>(if (startPicking) Picking.AddStep else null) }
     val action = steps.toList().asAction(name.trim())
     val auto = action?.let { actionLabel(it, state) }
-    val pages = state.dock.pages.size
-    val page = index / DockConfig.PAGE_SIZE
 
     fun built() = slot.copy(
         primary = action,
@@ -313,7 +304,7 @@ fun PinEditorContent(
                     OutlinedButton(
                         onClick = { if (steps.size < MAX_STEPS) steps += MacroStep.Wait(DEFAULT_WAIT_MS) },
                         // A wait has nothing to wait for after Apps or Keys, which only open a sheet.
-                        enabled = steps.size < MAX_STEPS && !action.opensSheet,
+                        enabled = steps.size < MAX_STEPS && !action.wholePin,
                         modifier = Modifier.semantics { contentDescription = addWait },
                     ) {
                         Icon(painterResource(R.drawable.ic_timer), contentDescription = null, modifier = Modifier.size(18.dp))
@@ -324,7 +315,7 @@ fun PinEditorContent(
                 Spacer(Modifier.weight(1f))
                 FilledTonalButton(
                     onClick = { action?.let(onTry) },
-                    enabled = action != null && !action.opensSheet,
+                    enabled = action != null && !action.wholePin,
                     modifier = Modifier.semantics { contentDescription = tryDescription },
                 ) {
                     Icon(painterResource(R.drawable.ic_play_pause), contentDescription = null, modifier = Modifier.size(18.dp))
@@ -336,6 +327,14 @@ fun PinEditorContent(
             Spacer(Modifier.height(20.dp))
             Text(stringResource(R.string.pin_on_long_press), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
             Spacer(Modifier.height(8.dp))
+            // One of the remote's own keys keeps its own long press, as on the row: nothing to pick here.
+            if (action is DockAction.Remote) {
+                Text(
+                    stringResource(R.string.pin_long_remote),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
             ActionRow(secondary, state, empty = stringResource(R.string.pin_long_none), onClick = { picking = Picking.LongPress }) {
                 if (secondary != null) {
                     TextButton(onClick = { secondary = null }) { Text(stringResource(R.string.pin_long_clear)) }
@@ -354,39 +353,8 @@ fun PinEditorContent(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+            }
 
-            Spacer(Modifier.height(20.dp))
-            Text(stringResource(R.string.pin_pages), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
-            Spacer(Modifier.height(2.dp))
-            Text(
-                stringResource(R.string.pin_page_of, page + 1, pages) +
-                    if (pages >= DockConfig.MAX_PAGES) " · " + stringResource(R.string.pin_pages_full) else "",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Row {
-                if (pages < DockConfig.MAX_PAGES) {
-                    TextButton(onClick = onAddPage) {
-                        Icon(painterResource(R.drawable.ic_add), contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text(stringResource(R.string.pin_page_add))
-                    }
-                }
-                if (pages > 1) {
-                    TextButton(onClick = { if (state.dock.pageIsEmpty(page)) onRemovePage(page) else confirmRemovePage = true }) {
-                        Icon(painterResource(R.drawable.ic_delete), contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text(stringResource(R.string.pin_page_remove))
-                    }
-                }
-            }
-            if (pages > 1) {
-                Text(
-                    stringResource(R.string.pin_page_remove_note),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
 
             if (slot.primary != null) {
                 Spacer(Modifier.height(12.dp))
@@ -405,23 +373,6 @@ fun PinEditorContent(
                 }
             }
         }
-    }
-
-    if (confirmRemovePage) {
-        AlertDialog(
-            onDismissRequest = { confirmRemovePage = false },
-            title = { Text(stringResource(R.string.pin_page_remove_title, page + 1)) },
-            text = { Text(stringResource(R.string.pin_page_remove_body)) },
-            confirmButton = {
-                TextButton(onClick = {
-                    confirmRemovePage = false
-                    onRemovePage(page)
-                }) { Text(stringResource(R.string.pin_page_remove_confirm), color = MaterialTheme.colorScheme.error) }
-            },
-            dismissButton = {
-                TextButton(onClick = { confirmRemovePage = false }) { Text(stringResource(R.string.cancel)) }
-            },
-        )
     }
 
     when (val target = picking) {
@@ -444,12 +395,12 @@ fun PinEditorContent(
             state = state,
             allowRemove = false,
             onPick = { picked ->
-                if (picked != null && picked.opensSheet) {
+                if (picked != null && picked.wholePin) {
                     // Apps and Keys open a sheet on the phone: a whole pin, never one step among others.
                     steps.clear()
                     steps.add(MacroStep.Run(picked))
                 } else if (picked != null) {
-                    steps.removeAll { (it as? MacroStep.Run)?.action.opensSheet }
+                    steps.removeAll { (it as? MacroStep.Run)?.action.wholePin }
                     val added = picked.asSteps()
                     if (target is Picking.ReplaceStep && target.at in steps.indices) {
                         steps.removeAt(target.at)

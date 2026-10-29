@@ -67,6 +67,10 @@ fun TopBarOverflow(
     onUpdate: () -> Unit = {},
     onApps: (() -> Unit)? = null,
     onKeys: (() -> Unit)? = null,
+    /** The remote's keys that open something of tutti's, while no pin holds them (the row until 2026-10-29). */
+    onMic: (() -> Unit)? = null,
+    onKeyboard: (() -> Unit)? = null,
+    onInput: (() -> Unit)? = null,
 ) {
     var open by remember { mutableStateOf(false) }
     Box {
@@ -96,10 +100,14 @@ fun TopBarOverflow(
                     modifier = Modifier.heightIn(min = 48.dp),
                 )
             }
-            // Apps and Keys, while no dock pin opens them: the dock's former doors are never out of reach.
+            // Apps, Keys, the mic, the keyboard and the input chooser, while no pin opens them: what
+            // only a door or the old row reached is never out of reach.
             listOfNotNull(
                 onApps?.let { Triple(R.string.dock_apps, R.drawable.ic_apps, it) },
                 onKeys?.let { Triple(R.string.dock_keys, R.drawable.ic_dialpad, it) },
+                onMic?.let { Triple(R.string.row_voice, R.drawable.ic_mic, it) },
+                onKeyboard?.let { Triple(R.string.action_keyboard, R.drawable.ic_keyboard, it) },
+                onInput?.let { Triple(R.string.row_input, R.drawable.ic_input, it) },
             ).forEach { (label, icon, run) ->
                 DropdownMenuItem(
                     text = { Text(stringResource(label)) },

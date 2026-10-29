@@ -61,6 +61,7 @@ import io.kud.tutti.ui.common.tvSoundOutputLabel
 import io.kud.tutti.controller.Link
 import io.kud.tutti.controller.TuttiUiState
 import io.kud.tutti.platform.data.DockAction
+import io.kud.tutti.platform.data.RowButton
 import io.kud.tutti.ui.common.actionIcon
 import io.kud.tutti.ui.common.actionLabel
 import io.kud.tutti.protocol.apps.AppLibrary
@@ -173,7 +174,9 @@ fun ActionPickerContent(
     val irccRows = ircc.filter { matches(Ircc.displayName(it.name)) }
     val soundRows = soundOutputs.filter { matches(soundLabels.getValue(it)) }
     val scenesShown = sceneRows.filter { matches(it.name) }
-    val sheetLabels = listOf(DockAction.OpenApps, DockAction.OpenKeys).associateWith { actionLabel(it, state) }
+    // The remote's own keys follow, the round row until 2026-10-29: pins like the rest now.
+    val sheetLabels = (listOf(DockAction.OpenApps, DockAction.OpenKeys) + RowButton.entries.filter { it != RowButton.MUTE }.map { DockAction.Remote(it) })
+        .associateWith { actionLabel(it, state) }
     val sheetRows = if (sheets && filter == null) sheetLabels.keys.filter { matches(sheetLabels.getValue(it)) } else emptyList()
     val nothing = searching && keyRows.all { it.second.isEmpty() } && appRows.isEmpty() && inputRows.isEmpty() &&
         barRows.isEmpty() && pictureRows.isEmpty() && irccRows.isEmpty() && soundRows.isEmpty() && scenesShown.isEmpty() && sheetRows.isEmpty()

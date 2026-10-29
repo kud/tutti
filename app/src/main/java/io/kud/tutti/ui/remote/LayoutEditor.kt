@@ -85,7 +85,8 @@ fun LayoutEditor(
     onReset: () -> Unit,
     onMovePin: (from: Int, to: Int) -> Unit,
     onEditPin: (index: Int) -> Unit,
-    onAddPage: () -> Unit,
+    onRestoreSpare: (index: Int) -> Unit,
+    onDropSpare: (index: Int) -> Unit,
     onDone: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -167,44 +168,12 @@ fun LayoutEditor(
             Spacer(Modifier.height(8.dp))
             HandFrame(layout.hand, onHand = { hand -> onLayout { it.copy(hand = hand) } })
 
-            Spacer(Modifier.height(8.dp))
-            RowFrame(layout, onLayout)
-
             Spacer(Modifier.height(12.dp))
-            Text(
-                stringResource(R.string.layout_row_add, RemoteLayout.MAX_ROW),
-                style = MaterialTheme.typography.titleSmall,
-                color = colors.onSurface,
-                modifier = Modifier.padding(horizontal = 8.dp),
-            )
-            Spacer(Modifier.height(6.dp))
-            val full = layout.shownRow.size >= RemoteLayout.MAX_ROW
-            Row(
-                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                layout.addable.forEach { button ->
-                    AssistChip(
-                        onClick = { onLayout { it.withAdded(button) } },
-                        enabled = !full,
-                        label = { Text(rowButtonLabel(button)) },
-                        leadingIcon = {
-                            Icon(painterResource(rowButtonIcon(button)), contentDescription = null, modifier = Modifier.size(AssistChipDefaults.IconSize))
-                        },
-                    )
-                }
+            PinsFrame(state, onMovePin, onEditPin)
+            if (state.dock.spare.isNotEmpty()) {
+                Spacer(Modifier.height(12.dp))
+                SpareFrame(state, onRestoreSpare, onDropSpare)
             }
-            if (full) {
-                Text(
-                    stringResource(R.string.layout_row_full),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = colors.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 8.dp),
-                )
-            }
-
-            Spacer(Modifier.height(12.dp))
-            PinsFrame(state, onMovePin, onEditPin, onAddPage)
 
             Spacer(Modifier.height(8.dp))
             Text(
@@ -414,44 +383,6 @@ private fun HandFrame(hand: Hand, onHand: (Hand) -> Unit) {
 }
 
 @Composable
-private fun RowFrame(layout: RemoteLayout, onLayout: ((RemoteLayout) -> RemoteLayout) -> Unit) {
-    val row = layout.rowOnScreen
-    val reorder = rememberReorderState()
-    val left = stringResource(R.string.layout_move_left)
-    val right = stringResource(R.string.layout_move_right)
-    val move: (Int, Int) -> Unit = { from, to -> onLayout { it.withMovedOnScreen(from, to) } }
-    Box(Modifier.fillMaxWidth().dashedFrame().padding(horizontal = 8.dp, vertical = 14.dp)) {
-        if (row.isEmpty()) {
-            Text(
-                stringResource(R.string.layout_row_empty),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.align(Alignment.Center).padding(vertical = 16.dp),
-            )
-        } else {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = rowArrangement(row.size)) {
-                row.forEachIndexed { index, button ->
-                    val label = rowButtonLabel(button)
-                    Box(
-                        Modifier
-                            .reorderable(reorder, index, vertical = false, onMove = move, shape = CircleShape)
-                            .reorderActions(index, row.size, left, right, move),
-                    ) {
-                        // Shown, not live: a tap here never reaches the TV.
-                        TonalRoundButton(icon = rowButtonIcon(button), contentDescription = label, onClick = {}, size = 48.dp)
-                        RemoveBadge(
-                            description = stringResource(R.string.layout_row_remove, label),
-                            onClick = { onLayout { it.withRemoved(button) } },
-                            modifier = Modifier.align(Alignment.TopEnd).offset(x = 6.dp, y = (-6).dp),
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
 private fun RemoveBadge(description: String, onClick: () -> Unit, modifier: Modifier) {
     val colors = MaterialTheme.colorScheme
     // A 24dp mark inside a 32dp touch target.
@@ -470,12 +401,10 @@ private fun PinsFrame(
     state: TuttiUiState,
     onMovePin: (from: Int, to: Int) -> Unit,
     onEditPin: (index: Int) -> Unit,
-    onAddPage: () -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
     val pages = state.dock.pages
-    var page by remember { mutableIntStateOf(0) }
-    if (page > pages.lastIndex) page = pages.lastIndex
+    val page = 0
     // One drag axis per row: each row keeps its own centres.
     val rowReorders = List(DockConfig.ROWS) { rememberReorderState() }
     val left = stringResource(R.string.layout_move_left)
@@ -487,30 +416,15 @@ private fun PinsFrame(
     Column(Modifier.fillMaxWidth().dashedFrame().padding(12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                stringResource(R.string.layout_pins, page + 1, pages.size),
+                stringResource(R.string.layout_dock, DockConfig.PAGE_SIZE),
                 style = MaterialTheme.typography.titleSmall,
                 color = colors.onSurface,
                 modifier = Modifier.weight(1f).padding(start = 4.dp),
             )
-            if (pages.size > 1) {
-                IconButton(onClick = { page-- }, enabled = page > 0) {
-                    Icon(painterResource(R.drawable.ic_chevron_left), contentDescription = stringResource(R.string.layout_move_left))
-                }
-                IconButton(onClick = { page++ }, enabled = page < pages.lastIndex) {
-                    Icon(painterResource(R.drawable.ic_chevron_right), contentDescription = stringResource(R.string.layout_move_right))
-                }
-            }
-            if (pages.size < DockConfig.MAX_PAGES) {
-                TextButton(onClick = onAddPage) {
-                    Icon(painterResource(R.drawable.ic_add), contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text(stringResource(R.string.layout_pins_add_page))
-                }
-            }
         }
         Spacer(Modifier.height(8.dp))
-        // The dock's shape: two rows of six. A drag moves a pin along its row; TalkBack's left and
-        // right step across the whole page, so a pin can also change rows.
+        // The dock's shape: two rows of six, the remote's own keys among the pins. A drag moves a pin
+        // along its row; TalkBack's left and right step across both rows, so a pin can change rows.
         pages[page].chunked(DockConfig.ROW).forEachIndexed { row, cells ->
             val rowReorder = rowReorders[row]
             val first = row * DockConfig.ROW
@@ -550,6 +464,56 @@ private fun PinsFrame(
                     )
                 }
             }
+            }
+        }
+    }
+}
+
+/**
+ * Pins that didn't fit the twelve when the row joined the dock (2026-10-29), kept rather than lost:
+ * a tap puts one back in the first free place, the badge lets it go.
+ */
+@Composable
+private fun SpareFrame(state: TuttiUiState, onRestore: (Int) -> Unit, onDrop: (Int) -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    val full = state.dock.full
+    Column(Modifier.fillMaxWidth().dashedFrame().padding(12.dp)) {
+        Text(
+            stringResource(R.string.layout_spare_title),
+            style = MaterialTheme.typography.titleSmall,
+            color = colors.onSurface,
+            modifier = Modifier.padding(start = 4.dp),
+        )
+        Spacer(Modifier.height(2.dp))
+        Text(
+            stringResource(if (full) R.string.layout_spare_full else R.string.layout_spare_note),
+            style = MaterialTheme.typography.bodySmall,
+            color = colors.onSurfaceVariant,
+            modifier = Modifier.padding(start = 4.dp),
+        )
+        Spacer(Modifier.height(8.dp))
+        Row(
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            state.dock.spare.forEachIndexed { index, slot ->
+                val label = slotLabel(slot, state) ?: stringResource(R.string.dock_reassign)
+                Box {
+                    AssistChip(
+                        onClick = { onRestore(index) },
+                        enabled = !full,
+                        label = { Text(label) },
+                        leadingIcon = {
+                            PinFace(slot.primary ?: slot.secondary, slot.icon, slot.letters, state, colors.onSurfaceVariant, iconSize = AssistChipDefaults.IconSize)
+                        },
+                        modifier = Modifier.padding(top = 8.dp, end = 8.dp),
+                    )
+                    RemoveBadge(
+                        description = stringResource(R.string.layout_spare_drop, label),
+                        onClick = { onDrop(index) },
+                        modifier = Modifier.align(Alignment.TopEnd).offset(x = 6.dp, y = (-6).dp),
+                    )
+                }
             }
         }
     }
