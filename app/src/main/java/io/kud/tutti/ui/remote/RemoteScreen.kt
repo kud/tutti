@@ -518,6 +518,9 @@ fun RemoteScreen(
                     }
                     Spacer(Modifier.width(4.dp))
                     TopBarOverflow(
+                        // Apps and Keys are pins he may drop: the ⋮ offers each one the dock no longer holds.
+                        onApps = if (state.dock.holds(DockAction.OpenApps)) null else ({ sheet2 = RemoteSheet.APPS }),
+                        onKeys = if (state.dock.holds(DockAction.OpenKeys)) null else ({ sheet2 = RemoteSheet.KEYS }),
                         onScenes = onOpenScenes,
                         onEditDock = { onEditingChange(true) },
                         onSettings = onOpenSettings,
@@ -783,18 +786,15 @@ fun RemoteScreen(
                 Spacer(Modifier.height(12.dp))
                 Dock(
                     state = state,
-                    onApps = {
-                        sheet2 = RemoteSheet.APPS
-                    },
-                    onKeys = {
-                        sheet2 = RemoteSheet.KEYS
-                    },
                     onRun = { _, slot ->
                         // A bar toggle with no bar to answer is refused, not guessed: the Sound
                         // tile's bump, and the pin's dashed badge already says why.
                         when (pinToggle(slot.primary, state.bar, state.devices.bar != null)) {
                             PinToggle.Unreachable, PinToggle.NoBar -> haptics.bump()
                             else -> when (val action = slot.primary) {
+                                // Apps and Keys are pins now (Iris, 2026-10-28): they open their sheet here.
+                                DockAction.OpenApps -> sheet2 = RemoteSheet.APPS
+                                DockAction.OpenKeys -> sheet2 = RemoteSheet.KEYS
                                 // A pinned key follows the target like the remote's own keys.
                                 is DockAction.Key -> if (routed && !action.long) sendKey(action.keyCode) else controller.run(action)
                                 null -> Unit
@@ -809,7 +809,11 @@ fun RemoteScreen(
                     onCustomise = { onEditingChange(true) },
                     onRunSecondary = { _, action ->
                         haptics.click()
-                        controller.run(action)
+                        when (action) {
+                            DockAction.OpenApps -> sheet2 = RemoteSheet.APPS
+                            DockAction.OpenKeys -> sheet2 = RemoteSheet.KEYS
+                            else -> controller.run(action)
+                        }
                     },
                 )
                 Spacer(Modifier.height(12.dp))

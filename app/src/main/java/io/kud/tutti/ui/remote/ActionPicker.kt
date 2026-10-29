@@ -61,6 +61,8 @@ import io.kud.tutti.ui.common.tvSoundOutputLabel
 import io.kud.tutti.controller.Link
 import io.kud.tutti.controller.TuttiUiState
 import io.kud.tutti.platform.data.DockAction
+import io.kud.tutti.ui.common.actionIcon
+import io.kud.tutti.ui.common.actionLabel
 import io.kud.tutti.protocol.apps.AppLibrary
 import io.kud.tutti.protocol.atv.KeyGroup
 import io.kud.tutti.protocol.atv.NamedKeys
@@ -107,9 +109,10 @@ fun ActionPickerSheet(
     onPick: (DockAction?) -> Unit,
     onLoadTv: () -> Unit,
     onDismiss: () -> Unit,
+    sheets: Boolean = false,
 ) {
     TuttiSheet(onDismissRequest = onDismiss) {
-        ActionPickerContent(title, state, allowRemove, onPick, onLoadTv, Modifier.fillMaxHeight())
+        ActionPickerContent(title, state, allowRemove, onPick, onLoadTv, Modifier.fillMaxHeight(), sheets = sheets)
     }
 }
 
@@ -121,6 +124,8 @@ fun ActionPickerContent(
     onPick: (DockAction?) -> Unit,
     onLoadTv: () -> Unit,
     modifier: Modifier = Modifier,
+    // Apps and Keys, the remote's own sheets: only a dock pin can open them (DockAction.OpenApps).
+    sheets: Boolean = false,
 ) {
     // Picture modes and the TV's own keys come from the settings load: ask once IP control answers.
     LaunchedEffect(state.ipControl) {
@@ -168,8 +173,10 @@ fun ActionPickerContent(
     val irccRows = ircc.filter { matches(Ircc.displayName(it.name)) }
     val soundRows = soundOutputs.filter { matches(soundLabels.getValue(it)) }
     val scenesShown = sceneRows.filter { matches(it.name) }
+    val sheetLabels = listOf(DockAction.OpenApps, DockAction.OpenKeys).associateWith { actionLabel(it, state) }
+    val sheetRows = if (sheets && filter == null) sheetLabels.keys.filter { matches(sheetLabels.getValue(it)) } else emptyList()
     val nothing = searching && keyRows.all { it.second.isEmpty() } && appRows.isEmpty() && inputRows.isEmpty() &&
-        barRows.isEmpty() && pictureRows.isEmpty() && irccRows.isEmpty() && soundRows.isEmpty() && scenesShown.isEmpty()
+        barRows.isEmpty() && pictureRows.isEmpty() && irccRows.isEmpty() && soundRows.isEmpty() && scenesShown.isEmpty() && sheetRows.isEmpty()
 
     val list = rememberLazyListState()
     // Title, search and chips are the pinned header: only the list scrolls (design.md, Sheets).
@@ -226,6 +233,13 @@ fun ActionPickerContent(
         ) {
             if (nothing) {
                 item(key = "none") { Note(stringResource(R.string.picker_no_match, query.trim())) }
+            }
+
+            if (sheetRows.isNotEmpty()) {
+                header("sheets", R.string.picker_sheets)
+                items(sheetRows, key = { "sheet-${sheetLabels.getValue(it)}" }) { action ->
+                    PickRow(sheetLabels.getValue(action), actionIcon(action, state)) { onPick(action) }
+                }
             }
 
             if (shows(Category.KEYS)) {
