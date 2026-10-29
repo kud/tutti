@@ -3,6 +3,7 @@ package io.kud.tutti.ui.remote
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
@@ -102,7 +103,11 @@ fun LiveRowButton(
     keyMeaning: (Int) -> String? = { null },
     /** Input's tap: tutti's own input chooser ([TvInputSheet]). */
     onInputs: () -> Unit = {},
+    modifier: Modifier = Modifier,
+    /** Drawn as a dock pin (the row joined the dock on 2026-10-29), its name under the glyph. */
+    pin: Boolean = false,
 ) {
+    val pinLabel = if (pin) rowButtonLabel(button) else null
     // One rule for every control (controlLink): a TV key goes down with the TV's link, Mute with
     // the bar's, connecting and out of reach alike, and a down key bumps and sends nothing.
     val tv = state.controlLink(Owner.TV)
@@ -113,7 +118,7 @@ fun LiveRowButton(
     val pasteNoField = stringResource(R.string.keyboard_long_paste_no_field)
     val pasteDone = stringResource(R.string.keyboard_long_paste_done)
     when (button) {
-        RowButton.VOICE -> VoiceButton(controller = controller, down = tv.down, downReason = tvReason, size = size)
+        RowButton.VOICE -> VoiceButton(controller = controller, down = tv.down, downReason = tvReason, size = size, modifier = modifier, pinLabel = pinLabel)
         RowButton.KEYBOARD -> TonalRoundButton(
             icon = R.drawable.ic_keyboard,
             contentDescription = rowButtonLabel(button),
@@ -142,6 +147,8 @@ fun LiveRowButton(
             unreachable = tv.down,
             size = size,
             stateDescription = tvReason,
+            modifier = modifier,
+            pinLabel = pinLabel,
         )
         RowButton.MUTE -> {
             val bar = state.controlLink(Owner.BAR)
@@ -155,6 +162,8 @@ fun LiveRowButton(
                 active = muted,
                 unreachable = bar.down,
                 size = size,
+                modifier = modifier,
+                pinLabel = pinLabel,
                 stateDescription = controlLinkReason(bar, Owner.BAR, state) ?: if (muted) stringResource(R.string.volume_muted) else null,
             )
         }
@@ -179,6 +188,8 @@ fun LiveRowButton(
                 onLongClickLabel = state.dock.longPress[secondary]?.let { actionLabel(it, state) }
                     ?: rowDefault(secondary)?.let { stringResource(it.label) },
                 size = size,
+                modifier = modifier,
+                pinLabel = pinLabel,
             )
         }
         else -> {
@@ -198,6 +209,8 @@ fun LiveRowButton(
                 },
                 size = size,
                 stateDescription = tvReason,
+                modifier = modifier,
+                pinLabel = pinLabel,
             )
         }
     }

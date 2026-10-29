@@ -10,6 +10,13 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -84,6 +91,11 @@ fun TonalRoundButton(
     feedback: FeedbackEvent = FeedbackEvent.KEY,
     size: Dp = 56.dp,
     stateDescription: String? = null,
+    /**
+     * Drawn as a dock pin rather than a round key (2026-10-29: the row joined the dock): the pins'
+     * one tone and rounded tile, at the width the caller gives, this name under the glyph.
+     */
+    pinLabel: String? = null,
 ) {
     val interaction = remember { MutableInteractionSource() }
     val haptics = rememberFeedback()
@@ -107,14 +119,17 @@ fun TonalRoundButton(
         }
     }
     val tagAlpha by animateFloatAsState(if (tag) 1f else 0f, tween(Motion.FADE_OUT), label = "tag")
-    val shape = remember(press, restCorner) {
+    val morph = remember(press, restCorner) {
         MorphCornerShape { restCorner.value + (ON_CORNER - restCorner.value).coerceAtMost(0f) * press.fraction }
     }
+    // As a pin: the pins' corners, squarer when on (the remote's one "on" dress).
+    val shape: Shape = if (pinLabel != null) RoundedCornerShape(if (active) PIN_ON_CORNER else PIN_CORNER) else morph
     val scheme = MaterialTheme.colorScheme
     val container by animateColorAsState(
         when {
             unreachable -> Color.Transparent
             active -> scheme.primary
+            pinLabel != null -> scheme.surfaceContainerHigh
             else -> scheme.secondaryContainer
         },
         snappyOrFade(),
@@ -123,12 +138,13 @@ fun TonalRoundButton(
     val content = when {
         unreachable -> scheme.onSurfaceVariant
         active -> scheme.onPrimary
+        pinLabel != null -> scheme.onSurfaceVariant
         else -> scheme.onSecondaryContainer
     }
     val dashed = scheme.outline
     Box(
         modifier = modifier
-            .size(size)
+            .then(if (pinLabel != null) Modifier.heightIn(min = PIN_MIN_HEIGHT) else Modifier.size(size))
             .graphicsLayer {
                 val scale = press.scale * pop
                 scaleX = scale
@@ -156,7 +172,11 @@ fun TonalRoundButton(
             .then(if (stateDescription != null) Modifier.semantics { this.stateDescription = stateDescription } else Modifier),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(painterResource(icon), contentDescription = contentDescription, tint = content)
+        if (pinLabel != null) {
+            PinKeyFace(icon, contentDescription, pinLabel, content)
+        } else {
+            Icon(painterResource(icon), contentDescription = contentDescription, tint = content)
+        }
         if (tagAlpha > 0f && tagLabel != null) {
             val gap = with(LocalDensity.current) { TAG_GAP.roundToPx() }
             Popup(popupPositionProvider = remember(gap) { AboveAnchor(gap) }, properties = PopupProperties(focusable = false)) {
@@ -165,6 +185,32 @@ fun TonalRoundButton(
         }
     }
 }
+
+/** A remote key's face as a dock pin: its glyph, its name under it; TalkBack hears the description only. */
+@Composable
+fun PinKeyFace(@DrawableRes icon: Int, contentDescription: String?, label: String, tint: Color) {
+    Column(
+        Modifier.padding(horizontal = 4.dp, vertical = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Icon(painterResource(icon), contentDescription = contentDescription, tint = tint, modifier = Modifier.size(PIN_ICON))
+        Spacer(Modifier.height(4.dp))
+        Text(
+            label,
+            style = MaterialTheme.typography.labelSmall,
+            color = tint,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.clearAndSetSemantics {},
+        )
+    }
+}
+
+/** The dock pin's measures, shared by the pins and the remote's keys drawn as pins. */
+val PIN_MIN_HEIGHT = 64.dp
+val PIN_CORNER = 20.dp
+val PIN_ON_CORNER = 14.dp
+val PIN_ICON = 20.dp
 
 /**
  * The down dress (Iris, 2026-10-25): a control whose device's link isn't up, connecting or out of
