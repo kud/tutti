@@ -4,14 +4,13 @@ package io.kud.tutti.protocol.apps
 enum class AppShortcut(val link: String) {
     SUBSCRIPTIONS("https://www.youtube.com/feed/subscriptions"),
     HISTORY("https://www.youtube.com/feed/history"),
-    WATCH_LATER("https://www.youtube.com/playlist?list=WL"),
     LIBRARY("https://www.youtube.com/feed/library"),
 }
 
 /**
  * The commands offered for the app in front, sent as Remote v2 app links. Shipped untested on the
- * BRAVIA (Erwann, 2026-10-29: « Essayons à l'aveugle ? »): a link the app ignores only brings
- * YouTube to the front, which is harmless, and Erwann's report decides which stay.
+ * BRAVIA (Erwann, 2026-10-29: « Essayons à l'aveugle ? »); all three open their tab there. Watch
+ * later (`playlist?list=WL`) only brought YouTube forward and was dropped: it sits under Library.
  */
 object AppShortcuts {
     private val youtube = setOf("com.google.android.youtube.tv", "com.google.android.youtube")

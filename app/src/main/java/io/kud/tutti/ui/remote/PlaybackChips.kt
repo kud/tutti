@@ -113,7 +113,6 @@ internal fun ShortcutChip(shortcut: AppShortcut, downReason: String?, onOpen: (A
 private fun shortcutIcon(shortcut: AppShortcut): Int = when (shortcut) {
     AppShortcut.SUBSCRIPTIONS -> R.drawable.ic_subscriptions
     AppShortcut.HISTORY -> R.drawable.ic_history
-    AppShortcut.WATCH_LATER -> R.drawable.ic_watch_later
     AppShortcut.LIBRARY -> R.drawable.ic_video_library
 }
 
@@ -121,7 +120,6 @@ private fun shortcutIcon(shortcut: AppShortcut): Int = when (shortcut) {
 private fun shortcutLabel(shortcut: AppShortcut): Int = when (shortcut) {
     AppShortcut.SUBSCRIPTIONS -> R.string.shortcut_subscriptions
     AppShortcut.HISTORY -> R.string.shortcut_history
-    AppShortcut.WATCH_LATER -> R.string.shortcut_watch_later
     AppShortcut.LIBRARY -> R.string.shortcut_library
 }
 

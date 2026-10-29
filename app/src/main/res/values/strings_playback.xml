@@ -28,6 +28,5 @@
     <string name="jog_label">Spin to skip</string>
     <string name="shortcut_subscriptions">Subscriptions</string>
     <string name="shortcut_history">History</string>
-    <string name="shortcut_watch_later">Watch later</string>
     <string name="shortcut_library">Library</string>
 </resources>
