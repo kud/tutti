@@ -137,3 +137,9 @@ fun playbackStrip(cast: CastNowPlaying?, nowMillis: Long): PlaybackStrip {
     val at = cast.positionAt(nowMillis) ?: return PlaybackStrip.JogWheel
     return PlaybackStrip.Timeline(at, total, progress)
 }
+
+/** The app in front's own commands for the playback sheet, or null when it has none. */
+fun playbackShortcuts(showing: CardShowing): List<io.kud.tutti.protocol.apps.AppShortcut>? {
+    val app = (showing as? CardShowing.Showing)?.now as? NowShowing.App ?: return null
+    return io.kud.tutti.protocol.apps.AppShortcuts.forPackage(app.packageName).ifEmpty { null }
+}
