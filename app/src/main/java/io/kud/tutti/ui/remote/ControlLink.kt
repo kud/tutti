@@ -68,7 +68,8 @@ fun TuttiUiState.controlLink(owner: Owner): ControlLink = controlLink(
  */
 fun dockOwner(action: DockAction?): Owner = when (action) {
     // Apps and Keys open a sheet of tutti's own: nothing to go down with.
-    null, is DockAction.RunScene, is DockAction.Macro, DockAction.OpenApps, DockAction.OpenKeys -> Owner.ANY
+    // The remote's own keys follow their link themselves, exactly as the row did (LiveRowButton).
+    null, is DockAction.RunScene, is DockAction.Macro, DockAction.OpenApps, DockAction.OpenKeys, is DockAction.Remote -> Owner.ANY
     is DockAction.ToggleBar, is DockAction.SetBar -> Owner.BAR
     is DockAction.Key -> if (action.keyCode in WAKE_KEYS) Owner.ANY else Owner.TV
     is DockAction.LaunchApp, is DockAction.Input, is DockAction.Ircc,

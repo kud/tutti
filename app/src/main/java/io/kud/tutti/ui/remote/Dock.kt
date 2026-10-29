@@ -73,6 +73,7 @@ import io.kud.tutti.controller.TuttiUiState
 import io.kud.tutti.platform.data.DockAction
 import io.kud.tutti.platform.data.DockConfig
 import io.kud.tutti.platform.data.DockSlot
+import io.kud.tutti.platform.data.RowButton
 import io.kud.tutti.protocol.theatre.TheatreFeature
 import io.kud.tutti.ui.common.AppIcon
 import io.kud.tutti.ui.common.LocalReducedMotion
@@ -90,12 +91,12 @@ import io.kud.tutti.ui.common.pinGlyphRes
 import io.kud.tutti.ui.common.slotLabel
 
 /**
- * The dock: his pins, two rows of six to a page (Erwann, 2026-10-28: « deux lignes custom de
- * docks »). Apps and Keys are pins like the rest ([DockAction.OpenApps], [DockAction.OpenKeys]), first
- * on a fresh dock, and he may move or drop them; the ⋮ offers whichever no pin opens. Every pin
- * wears one tone (Erwann, 2026-10-28: « tous la même couleur »): the quiet container, so the
- * bright tonal fill stays the row buttons' above, the remote's own, and an app keeps its own icon
- * on it. Only filled pins show (Erwann, 2026-10-25: no "+ Add" slots; the editor is in the top
+ * The dock: one grid of two rows of six, twelve places, no pages (Erwann, 2026-10-29: « un dock de
+ * 2 lignes au final et basta »). The remote's own keys, the round row until then, are pins here
+ * ([DockAction.Remote], drawn by [remoteKey] so they behave exactly as the row's keys did), and so
+ * are Apps and Keys; he may move or drop any of them, and the ⋮ offers whatever sheet no pin
+ * opens any more. Every pin wears one tone (Erwann, 2026-10-28: « tous la même couleur »), the
+ * quiet container, keys included; an app keeps its own icon on it. Only filled pins show (Erwann, 2026-10-25: no "+ Add" slots; the editor is in the top
  * bar's ⋮): each row lays its pins from the left at the one width six across give them, rows
  * line up in columns, and the grid is centred, sized by the widest row and the most rows on any
  * page, so a swipe never moves it. A row with no pin is left out, so a dock of six or fewer stays
@@ -115,6 +116,8 @@ fun Dock(
     modifier: Modifier = Modifier,
     onRunSecondary: (index: Int, action: DockAction) -> Unit = { _, _ -> },
     initialPage: Int = 0,
+    /** Draws one of the remote's own keys as a pin, at the width given: the remote screen's live key. */
+    remoteKey: @Composable (button: RowButton, modifier: Modifier) -> Unit = { _, _ -> },
 ) {
     val pages = shownPins(state.dock)
     val span = dockSpan(pages)
@@ -145,6 +148,11 @@ fun Dock(
                         Row(horizontalArrangement = Arrangement.spacedBy(GAP)) {
                             row.forEach { index ->
                                 val slot = state.dock.slot(index)
+                                val key = slot.primary as? DockAction.Remote
+                                if (key != null) {
+                                    remoteKey(key.button, Modifier.width(tile))
+                                    return@forEach
+                                }
                                 PinTile(
                                     slot = slot,
                                     state = state,

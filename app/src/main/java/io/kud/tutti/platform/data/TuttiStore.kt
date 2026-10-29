@@ -15,6 +15,8 @@ import io.kud.tutti.protocol.scenes.SceneJson
 import io.kud.tutti.protocol.scenes.SceneListSerializer
 import io.kud.tutti.protocol.scenes.StarterScenes
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.KSerializer
@@ -46,8 +48,9 @@ class TuttiStore @Inject constructor(
     /** The TV and the bar as the rest of the app reads them: a view of [deviceList]. */
     val devices: Flow<Devices> = deviceList.map(DeviceViews::legacy).distinctUntilChanged()
     val prefs: Flow<AppPrefs> = field(PREFS, AppPrefs.serializer(), StoreJson) { AppPrefs() }
+    /** The dock, with the round row he had joined in once (2026-10-29; [DockConfig.normalised]). */
     val dock: Flow<DockConfig> = field(DOCK, DockConfig.serializer(), StoreJson) { DockConfig() }
-        .map { it.normalised() }
+        .combine(prefs.map { it.layout }) { dock, layout -> dock.normalised(layout) }
         .distinctUntilChanged()
     val scenes: Flow<List<Scene>> = field(SCENES, SceneListSerializer, SceneJson) { StarterScenes.all }
         .map(::localiseStarters)
@@ -85,7 +88,10 @@ class TuttiStore @Inject constructor(
 
     suspend fun updatePrefs(transform: (AppPrefs) -> AppPrefs) = update(PREFS, AppPrefs.serializer(), StoreJson, AppPrefs(), transform)
 
-    suspend fun updateDock(transform: (DockConfig) -> DockConfig) = update(DOCK, DockConfig.serializer(), StoreJson, DockConfig()) { transform(it.normalised()) }
+    suspend fun updateDock(transform: (DockConfig) -> DockConfig) {
+        val layout = prefs.first().layout
+        update(DOCK, DockConfig.serializer(), StoreJson, DockConfig()) { transform(it.normalised(layout)) }
+    }
 
     suspend fun updateScenes(transform: (List<Scene>) -> List<Scene>) =
         update(SCENES, SceneListSerializer, SceneJson, StarterScenes.all) { transform(localiseStarters(it)) }
