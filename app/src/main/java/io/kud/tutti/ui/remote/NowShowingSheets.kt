@@ -173,7 +173,7 @@ internal fun PlaybackSheet(
                     }
                 }
                 // The room kept for the per-app row (Erwann, 2026-10-27: commands for the app on
-                // the TV, such as YouTube's), under the transport keys and above the chips. None yet.
+                // the TV, such as YouTube's), under the transport keys and above the chips.
                 appShortcuts?.invoke()
                 // Captions and Audio track open a picker on the TV: one row of two compact chips.
                 // No sound settings here (Erwann, 2026-10-28: « Pourquoi on a encore des settings

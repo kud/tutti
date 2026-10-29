@@ -23,4 +23,8 @@
     <string name="timeline_spoken">%1$d sur %2$d minutes</string>
     <string name="jog_name">Molette</string>
     <string name="jog_label">Tournez pour sauter</string>
+    <string name="shortcut_subscriptions">Abonnements</string>
+    <string name="shortcut_history">Historique</string>
+    <string name="shortcut_watch_later">À regarder plus tard</string>
+    <string name="shortcut_library">Bibliothèque</string>
 </resources>

@@ -1,5 +1,7 @@
 package io.kud.tutti.ui.remote
 
+import androidx.annotation.DrawableRes
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -20,6 +22,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -27,6 +30,8 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
+import io.kud.tutti.R
+import io.kud.tutti.protocol.apps.AppShortcut
 import io.kud.tutti.ui.common.drawDownRing
 import io.kud.tutti.ui.common.keyIcon
 import io.kud.tutti.ui.common.keyLabel
@@ -92,7 +97,36 @@ internal fun PlaybackChipRow(modifier: Modifier = Modifier, content: @Composable
  */
 @Composable
 internal fun KeyChip(code: Int, downReason: String?, onKey: (Int) -> Unit) {
-    val label = keyLabel(code)
+    ActionChip(keyIcon(code), keyLabel(code), downReason) { onKey(code) }
+}
+
+/**
+ * A command for the app in front (YouTube's Subscriptions, History…): the same compact chip, since
+ * a press opens something on the TV and switches nothing here.
+ */
+@Composable
+internal fun ShortcutChip(shortcut: AppShortcut, downReason: String?, onOpen: (AppShortcut) -> Unit) {
+    ActionChip(shortcutIcon(shortcut), stringResource(shortcutLabel(shortcut)), downReason) { onOpen(shortcut) }
+}
+
+@DrawableRes
+private fun shortcutIcon(shortcut: AppShortcut): Int = when (shortcut) {
+    AppShortcut.SUBSCRIPTIONS -> R.drawable.ic_subscriptions
+    AppShortcut.HISTORY -> R.drawable.ic_history
+    AppShortcut.WATCH_LATER -> R.drawable.ic_watch_later
+    AppShortcut.LIBRARY -> R.drawable.ic_video_library
+}
+
+@StringRes
+private fun shortcutLabel(shortcut: AppShortcut): Int = when (shortcut) {
+    AppShortcut.SUBSCRIPTIONS -> R.string.shortcut_subscriptions
+    AppShortcut.HISTORY -> R.string.shortcut_history
+    AppShortcut.WATCH_LATER -> R.string.shortcut_watch_later
+    AppShortcut.LIBRARY -> R.string.shortcut_library
+}
+
+@Composable
+private fun ActionChip(@DrawableRes icon: Int, label: String, downReason: String?, onClick: () -> Unit) {
     val down = downReason != null
     val scheme = MaterialTheme.colorScheme
     val ink = if (down) scheme.onSurfaceVariant else scheme.onSurface
@@ -108,7 +142,7 @@ internal fun KeyChip(code: Int, downReason: String?, onKey: (Int) -> Unit) {
                     Modifier.background(scheme.surfaceContainerHigh, CHIP_SHAPE)
                 },
             )
-            .clickable(enabled = !down, role = Role.Button, onClickLabel = label) { onKey(code) }
+            .clickable(enabled = !down, role = Role.Button, onClickLabel = label, onClick = onClick)
             .semantics(mergeDescendants = true) {
                 contentDescription = label
                 downReason?.let { stateDescription = it }
@@ -117,7 +151,7 @@ internal fun KeyChip(code: Int, downReason: String?, onKey: (Int) -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center,
     ) {
-        Icon(painterResource(keyIcon(code)), contentDescription = null, tint = ink, modifier = Modifier.size(18.dp))
+        Icon(painterResource(icon), contentDescription = null, tint = ink, modifier = Modifier.size(18.dp))
         Spacer(Modifier.width(8.dp))
         Text(label, style = MaterialTheme.typography.labelLarge, color = ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }

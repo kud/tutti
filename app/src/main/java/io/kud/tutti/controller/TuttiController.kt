@@ -1600,6 +1600,11 @@ class TuttiController @Inject constructor(
             canObserve = { atv.state.value.ready },
         )
 
+    /** Opens a per-app command ([io.kud.tutti.protocol.apps.AppShortcut]) as an app link; never logged. */
+    fun openAppLink(link: String) {
+        scope.launch { atv.launch(link) }
+    }
+
     /** Keeps what the TV listed, then fetches the icons not cached yet. */
     private suspend fun rememberApps(fresh: List<TvApp>) {
         store.updateApps { AppLibrary.remember(it, fresh) }
