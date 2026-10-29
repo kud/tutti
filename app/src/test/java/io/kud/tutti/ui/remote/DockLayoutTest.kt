@@ -40,13 +40,12 @@ class DockLayoutTest {
     }
 
     @Test
-    fun anEmptyRowIsLeftOutAndAnEmptyPageIsNotSwipedTo() {
-        // Page 1: only row two holds a pin. Page 2: one in each row.
-        val slots = List(6) { empty } + listOf(empty, night) + List(4) { empty } + listOf(voice) + List(5) { empty } + listOf(night)
+    fun anEmptyRowIsLeftOutAndTheDockIsOnePage() {
+        // Only row two holds a pin: the dock is one row high. Anything past twelve is never drawn.
+        val slots = List(6) { empty } + listOf(empty, night) + List(4) { empty } + listOf(voice)
         val shown = shownPins(DockConfig(slots = slots))
-        assertEquals(listOf(listOf(listOf(7)), listOf(listOf(12), listOf(18))), shown)
-        // The tallest page sets the height, the widest row the width, so a swipe moves nothing.
-        assertEquals(2, dockRows(shown))
+        assertEquals(listOf(listOf(listOf(7))), shown)
+        assertEquals(1, dockRows(shown))
         assertEquals(1, dockSpan(shown))
         assertEquals(DockConfig.PAGE_SIZE, DockConfig.ROW * DockConfig.ROWS)
     }
