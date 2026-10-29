@@ -186,14 +186,27 @@ fun TonalRoundButton(
     }
 }
 
-/** A remote key's face as a dock pin: its glyph, its name under it; TalkBack hears the description only. */
+/**
+ * A remote key's face as a dock pin, in the dock's dress ([LocalDockLabels], [pinDress]): its
+ * glyph, its name under it, or either alone. TalkBack hears [contentDescription] in every dress,
+ * never the drawn name (a caller that passes null, the mic, names the key on its own node).
+ */
 @Composable
 fun PinKeyFace(@DrawableRes icon: Int, contentDescription: String?, label: String, tint: Color) {
+    val dress = pinDress(LocalDockLabels.current, label)
     Column(
         Modifier.padding(horizontal = 4.dp, vertical = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Icon(painterResource(icon), contentDescription = contentDescription, tint = tint, modifier = Modifier.size(PIN_ICON))
+        if (!dress.name) {
+            Icon(painterResource(icon), contentDescription = contentDescription, tint = tint, modifier = Modifier.size(dress.glyphSize))
+            return@Column
+        }
+        if (!dress.glyph) {
+            PinNameOnly(label, dress.nameLines, tint, contentDescription)
+            return@Column
+        }
+        Icon(painterResource(icon), contentDescription = contentDescription, tint = tint, modifier = Modifier.size(dress.glyphSize))
         Spacer(Modifier.height(4.dp))
         Text(
             label,

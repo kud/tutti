@@ -18,6 +18,10 @@
     <string name="layout_hand">Hand</string>
     <string name="layout_hand_left">Left</string>
     <string name="layout_hand_right">Right</string>
+    <string name="layout_dock_labels">Pins show</string>
+    <string name="layout_dock_labels_icon">Icons</string>
+    <string name="layout_dock_labels_both">Both</string>
+    <string name="layout_dock_labels_name">Names</string>
     <string name="layout_row">Row</string>
     <string name="layout_row_add">Add to the row (%1$d at most)</string>
     <string name="layout_row_full">The row is full: remove a button to add another</string>
