@@ -433,6 +433,8 @@ fun RemoteScreen(
         }
     }
 
+    // The Sound sheet open, or the phone keyboard's field, covers the remote as a modal sheet does.
+    io.kud.tutti.ui.common.CoversRemote(active = inputOpen || sheet.bottomSheetState.currentValue == SheetValue.Expanded)
     val navigationInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     BottomSheetScaffold(
         scaffoldState = sheet,

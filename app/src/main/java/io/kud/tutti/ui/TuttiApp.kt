@@ -28,6 +28,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -329,7 +330,9 @@ fun TuttiApp(
     // message, the ⋮'s dot and row, and the one-tap sheet all come from ui/about/UpdateSection.kt.
     val updateCue = io.kud.tutti.ui.about.rememberUpdateCue()
     var updateSheet by rememberSaveable { mutableStateOf(false) }
-    io.kud.tutti.ui.about.UpdateCheckEffect(onInstall = { updateSheet = true })
+    val onRemote by rememberUpdatedState(stack.last() == Screen.Remote)
+    val editingNow by rememberUpdatedState(editingLayout)
+    io.kud.tutti.ui.about.UpdateCheckEffect(onRemote = { onRemote }, editing = { editingNow }, onInstall = { updateSheet = true })
 
     LaunchedEffect(state.loaded) {
         if (state.loaded && state.devices.isEmpty && !state.prefs.onboarded && stack.none { it is Screen.Onboarding }) push(Screen.Onboarding())
