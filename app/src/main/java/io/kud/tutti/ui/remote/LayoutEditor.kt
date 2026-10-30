@@ -17,6 +17,7 @@ import androidx.compose.ui.zIndex
 import io.kud.tutti.ui.common.rememberHaptics
 import kotlin.math.roundToInt
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -43,6 +44,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Button
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -123,7 +125,9 @@ fun LayoutEditor(
 
     // The dock's frame draws above its neighbours while a pin is lifted, so the pin shows wherever it is dragged.
     var lifting by remember { mutableStateOf(false) }
-    Column(modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
+    // The page is the workbench, a tone up from the remote; the remote itself sits on its own
+    // screen in it ([remoteStage]), on the background it really has (Erwann, 2026-10-30).
+    Column(modifier.fillMaxSize().background(colors.surfaceContainer).statusBarsPadding().navigationBarsPadding()) {
         Row(
             Modifier.fillMaxWidth().padding(start = 20.dp, end = 12.dp, top = 8.dp, bottom = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -141,66 +145,8 @@ fun LayoutEditor(
             Modifier
                 .weight(1f)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 12.dp),
+                .padding(horizontal = 8.dp),
         ) {
-            // Anchors: the chip and Power drawn as themselves, dimmed and untouchable (Erwann, 2026-10-30).
-            Row(Modifier.fillMaxWidth().padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
-                Fixed(stringResource(R.string.layout_status), Modifier.weight(1f)) {
-                    SystemChip(state, onClick = {}, modifier = Modifier.fillMaxWidth())
-                }
-                Spacer(Modifier.width(POWER_GAP_DP.dp))
-                Fixed(stringResource(R.string.action_power)) {
-                    TonalRoundButton(
-                        icon = R.drawable.ic_power,
-                        contentDescription = stringResource(R.string.action_power),
-                        onClick = {},
-                        active = state.powered == true,
-                        size = 52.dp,
-                    )
-                }
-            }
-
-            Spacer(Modifier.height(8.dp))
-            ScenesFrame(state, layout.scenes, onToggle = { onLayout { it.copy(scenes = !it.scenes) } })
-
-            Spacer(Modifier.height(8.dp))
-            // The pad and the rail as they stand for the chosen hand: the pad under the thumb.
-            val padOnRight = layout.hand.padOnRight
-            Row(Modifier.fillMaxWidth().height(220.dp).semantics { isTraversalGroup = true }) {
-                val pad = @Composable {
-                    PadFrame(
-                        hand = layout.hand,
-                        onHand = { hand -> onLayout { it.copy(hand = hand) } },
-                        modifier = Modifier.weight(1f).fillMaxHeight().semantics { traversalIndex = 0f },
-                    )
-                }
-                val rail = @Composable {
-                    Fixed(volumeName, Modifier.fillMaxHeight().semantics { traversalIndex = 1f }) {
-                        VolumeRail(
-                            volume = state.volume,
-                            cap = state.volumeCap,
-                            muted = state.muted,
-                            enabled = state.bar.connected,
-                            onVolume = {},
-                            onStep = {},
-                            onMute = {},
-                            guardLine = state.volumeGuardLine,
-                            landmarks = state.volumeLandmarks,
-                        )
-                    }
-                }
-                if (padOnRight) {
-                    rail()
-                    Spacer(Modifier.width(12.dp))
-                    pad()
-                } else {
-                    pad()
-                    Spacer(Modifier.width(12.dp))
-                    rail()
-                }
-            }
-
-            Spacer(Modifier.height(12.dp))
             PinsFrame(
                 state = state,
                 onSwap = onSwapPin,
@@ -210,11 +156,74 @@ fun LayoutEditor(
                 onKind = onKind,
                 onLifting = { lifting = it },
                 modifier = Modifier.zIndex(if (lifting) 2f else 0f),
+                above = {
+                    // Anchors: the chip and Power drawn as themselves, dimmed and untouchable (Erwann, 2026-10-30).
+                    Row(Modifier.fillMaxWidth().padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Fixed(stringResource(R.string.layout_status), Modifier.weight(1f)) {
+                            SystemChip(state, onClick = {}, modifier = Modifier.fillMaxWidth())
+                        }
+                        Spacer(Modifier.width(POWER_GAP_DP.dp))
+                        Fixed(stringResource(R.string.action_power)) {
+                            TonalRoundButton(
+                                icon = R.drawable.ic_power,
+                                contentDescription = stringResource(R.string.action_power),
+                                onClick = {},
+                                active = state.powered == true,
+                                size = 52.dp,
+                            )
+                        }
+                    }
+
+                    Spacer(Modifier.height(8.dp))
+                    ScenesFrame(state, layout.scenes, onToggle = { onLayout { it.copy(scenes = !it.scenes) } })
+
+                    Spacer(Modifier.height(8.dp))
+                    // The pad and the rail as they stand for the chosen hand: the pad under the thumb.
+                    val padOnRight = layout.hand.padOnRight
+                    Row(Modifier.fillMaxWidth().height(220.dp).semantics { isTraversalGroup = true }) {
+                        val pad = @Composable {
+                            PadFrame(
+                                hand = layout.hand,
+                                onHand = { hand -> onLayout { it.copy(hand = hand) } },
+                                modifier = Modifier.weight(1f).fillMaxHeight().semantics { traversalIndex = 0f },
+                            )
+                        }
+                        val rail = @Composable {
+                            Fixed(volumeName, Modifier.fillMaxHeight().semantics { traversalIndex = 1f }) {
+                                VolumeRail(
+                                    volume = state.volume,
+                                    cap = state.volumeCap,
+                                    muted = state.muted,
+                                    enabled = state.bar.connected,
+                                    onVolume = {},
+                                    onStep = {},
+                                    onMute = {},
+                                    guardLine = state.volumeGuardLine,
+                                    landmarks = state.volumeLandmarks,
+                                )
+                            }
+                        }
+                        if (padOnRight) {
+                            rail()
+                            Spacer(Modifier.width(12.dp))
+                            pad()
+                        } else {
+                            pad()
+                            Spacer(Modifier.width(12.dp))
+                            rail()
+                        }
+                    }
+
+                    Spacer(Modifier.height(12.dp))
+                },
+                // Not on the remote: the spare tray sits under the screen, with the tools.
+                between = {
+                    if (state.dock.spare.isNotEmpty()) {
+                        Spacer(Modifier.height(12.dp))
+                        SpareFrame(state, onRestoreSpare, onDropSpare)
+                    }
+                },
             )
-            if (state.dock.spare.isNotEmpty()) {
-                Spacer(Modifier.height(12.dp))
-                SpareFrame(state, onRestoreSpare, onDropSpare)
-            }
 
 
             // Options, not layout (Erwann, 2026-10-30): plain rows under a rule, never a dashed frame.
@@ -557,4 +566,31 @@ private fun SpareFrame(state: TuttiUiState, onRestore: (Int) -> Unit, onDrop: (I
             }
         }
     }
+}
+
+/**
+ * The screen (Erwann, 2026-10-30: « j'aimerais distinguer visuellement la partie écran du reste »):
+ * what the remote will look like, from the chip to the dock, sits on the background the remote
+ * really has, inside a solid outline with the screen's large corners, on a page a tone up. The
+ * line and the heading say it, so it never rests on the tone alone.
+ */
+internal fun Modifier.remoteStage(colors: ColorScheme): Modifier {
+    val shape = RoundedCornerShape(STAGE_CORNER)
+    return this
+        .background(colors.background, shape)
+        .border(1.dp, colors.outlineVariant, shape)
+        .padding(horizontal = 8.dp, vertical = 10.dp)
+}
+
+private val STAGE_CORNER = 28.dp
+
+/** "The remote" over the screen, in the voice of "Options" and "Add to the dock" below it. */
+@Composable
+internal fun StageHeading() {
+    Text(
+        stringResource(R.string.layout_stage),
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.padding(start = 16.dp, top = 4.dp, bottom = 8.dp).semantics { heading() },
+    )
 }

@@ -8,6 +8,7 @@ import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
@@ -119,6 +120,8 @@ internal fun PinsFrame(
     onKind: (index: Int, kind: PinKind) -> Unit,
     onLifting: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
+    above: @Composable ColumnScope.() -> Unit = {},
+    between: @Composable ColumnScope.() -> Unit = {},
 ) {
     val colors = MaterialTheme.colorScheme
     val haptics = rememberHaptics()
@@ -202,64 +205,71 @@ internal fun PinsFrame(
 
     Box(modifier.fillMaxWidth().onGloballyPositioned { frame[0] = it }) {
         Column(Modifier.fillMaxWidth()) {
-            Column(
-                Modifier
-                    .fillMaxWidth()
-                    .onGloballyPositioned { dock[0] = it }
-                    .dashedOutline(colors.primary.copy(alpha = 0.7f), 20.dp, dashed = true, width = 1.5.dp)
-                    .padding(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 14.dp),
-            ) {
-                Text(
-                    stringResource(R.string.layout_dock, DockConfig.PAGE_SIZE),
-                    style = MaterialTheme.typography.titleSmall,
-                    color = colors.onSurface,
-                    modifier = Modifier.padding(start = 4.dp),
-                )
-                Spacer(Modifier.height(14.dp))
-                pins.chunked(DockConfig.ROW).forEachIndexed { row, cells ->
-                    if (row > 0) Spacer(Modifier.height(14.dp))
-                    // Later rows draw above earlier ones, and each place above its right neighbour,
-                    // so a badge reaching past its tile's corner takes the touch there.
-                    Row(Modifier.zIndex(row.toFloat()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        cells.forEachIndexed { column, slot ->
-                            val index = row * DockConfig.ROW + column
-                            Place(
-                                index = index,
-                                slot = slot,
-                                label = labels[index],
-                                state = state,
-                                lifted = lift?.from == index,
-                                lit = lift != null || selected != null,
-                                hovered = lift != null && hover == index && lift?.from != index,
-                                badge = lift == null,
-                                frame = { frame[0] },
-                                onPositioned = { places[index] = it },
-                                onTap = {
-                                    val kind = selected
-                                    when {
-                                        kind != null -> {
-                                            selected = null
-                                            haptics.confirm()
-                                            onKind(index, kind)
+            // The screen: the remote as it will look, from the chip down to the dock, on its own
+            // surface; the tools (kinds, hints, options) stay on the page around it (Erwann, 2026-10-30).
+            StageHeading()
+            Column(Modifier.fillMaxWidth().remoteStage(colors)) {
+                above()
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .onGloballyPositioned { dock[0] = it }
+                        .dashedOutline(colors.primary.copy(alpha = 0.7f), 20.dp, dashed = true, width = 1.5.dp)
+                        .padding(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 14.dp),
+                ) {
+                    Text(
+                        stringResource(R.string.layout_dock, DockConfig.PAGE_SIZE),
+                        style = MaterialTheme.typography.titleSmall,
+                        color = colors.onSurface,
+                        modifier = Modifier.padding(start = 4.dp),
+                    )
+                    Spacer(Modifier.height(14.dp))
+                    pins.chunked(DockConfig.ROW).forEachIndexed { row, cells ->
+                        if (row > 0) Spacer(Modifier.height(14.dp))
+                        // Later rows draw above earlier ones, and each place above its right neighbour,
+                        // so a badge reaching past its tile's corner takes the touch there.
+                        Row(Modifier.zIndex(row.toFloat()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            cells.forEachIndexed { column, slot ->
+                                val index = row * DockConfig.ROW + column
+                                Place(
+                                    index = index,
+                                    slot = slot,
+                                    label = labels[index],
+                                    state = state,
+                                    lifted = lift?.from == index,
+                                    lit = lift != null || selected != null,
+                                    hovered = lift != null && hover == index && lift?.from != index,
+                                    badge = lift == null,
+                                    frame = { frame[0] },
+                                    onPositioned = { places[index] = it },
+                                    onTap = {
+                                        val kind = selected
+                                        when {
+                                            kind != null -> {
+                                                selected = null
+                                                haptics.confirm()
+                                                onKind(index, kind)
+                                            }
+                                            slot.isSet -> onEdit(index)
+                                            else -> chooseFor = index
                                         }
-                                        slot.isSet -> onEdit(index)
-                                        else -> chooseFor = index
-                                    }
-                                },
-                                onLift = { at, size -> begin(Lift(from = index), at, size) },
-                                onDrag = ::drag,
-                                onEnd = { end(it, removedText) },
-                                onMoveTo = { moveFrom = index },
-                                onRemove = {
-                                    haptics.confirm()
-                                    remove(index, removedText(index))
-                                },
-                                modifier = Modifier.weight(1f).zIndex((DockConfig.ROW - column).toFloat()),
-                            )
+                                    },
+                                    onLift = { at, size -> begin(Lift(from = index), at, size) },
+                                    onDrag = ::drag,
+                                    onEnd = { end(it, removedText) },
+                                    onMoveTo = { moveFrom = index },
+                                    onRemove = {
+                                        haptics.confirm()
+                                        remove(index, removedText(index))
+                                    },
+                                    modifier = Modifier.weight(1f).zIndex((DockConfig.ROW - column).toFloat()),
+                                )
+                            }
                         }
                     }
                 }
             }
+            between()
 
             // The list of kinds: never a dashed frame, since it is not a piece of the layout; a pin
             // dropped here leaves the dock, as one dropped on Firefox's palette does.
@@ -547,7 +557,7 @@ private fun KindChip(
         Modifier
             .heightIn(min = 48.dp)
             .clip(RoundedCornerShape(12.dp))
-            .background(if (selected) colors.secondaryContainer else colors.surfaceContainerHigh)
+            .background(if (selected) colors.secondaryContainer else colors.surfaceContainerHighest)
             .then(if (selected) Modifier.dashedOutline(colors.primary, 12.dp, dashed = false, width = 2.dp) else Modifier)
             .clickable(onClick = onTap)
             .lifter(kind, frame, onLift, onDrag, onEnd)

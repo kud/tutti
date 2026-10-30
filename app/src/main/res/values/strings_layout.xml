@@ -52,6 +52,7 @@
     <string name="pin_long_remote">A key of the remote keeps its own long press, as it had in the row. Back, Home, Play / pause and Input\'s can be changed in Settings.</string>
     <string name="voice_sheet_hint">Hold the mic and talk to the TV, then let go to send.</string>
     <string name="layout_options">Options</string>
+    <string name="layout_stage">The remote</string>
     <string name="layout_status">Status</string>
     <string name="layout_cannot_change">Can\'t be changed</string>
     <string name="layout_pad_swap">Drag across to swap sides</string>
