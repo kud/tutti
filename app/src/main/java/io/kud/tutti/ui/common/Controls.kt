@@ -167,6 +167,7 @@ fun TuttiMenu(
     modifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit,
 ) {
+    CoversRemote(active = expanded)
     DropdownMenu(
         expanded = expanded,
         onDismissRequest = onDismissRequest,

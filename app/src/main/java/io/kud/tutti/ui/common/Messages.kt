@@ -29,6 +29,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -80,6 +81,17 @@ class Messages {
         private set
 
     private val layers = mutableStateListOf<Any>()
+
+    /**
+     * How many sheets, menus and other layers cover the remote right now ([CoversRemote]). A message
+     * that may wait its turn, like the update notice, asks this before it speaks.
+     */
+    var covers by mutableIntStateOf(0)
+        private set
+
+    internal fun cover() { covers++ }
+
+    internal fun uncover() { covers = (covers - 1).coerceAtLeast(0) }
     private var next = 0L
 
     /** Shows [text], replacing whatever was showing. [long] (or an action) keeps it twice as long. */
@@ -102,6 +114,20 @@ class Messages {
     internal fun leave(layer: Any) { layers.remove(layer) }
 
     internal fun isTop(layer: Any): Boolean = layers.lastOrNull() === layer
+}
+
+/**
+ * Marks a layer over the remote (a sheet, a menu, the expanded Sound sheet) while [active], so a
+ * message that only speaks on the plain remote ([Messages.covers]) keeps quiet.
+ */
+@Composable
+fun CoversRemote(active: Boolean = true) {
+    val messages = LocalMessages.current ?: return
+    if (!active) return
+    DisposableEffect(messages) {
+        messages.cover()
+        onDispose { messages.uncover() }
+    }
 }
 
 /** Provided by MainActivity; null only in previews, where a message simply goes unsaid. */
