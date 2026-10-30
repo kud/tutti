@@ -138,8 +138,10 @@ fun VolumeRail(
     val shown = if (connected) dragLevel ?: volume else null
     val fraction by animateFloatAsState((shown ?: 0) / TuttiController.MAX_VOLUME.toFloat(), snappyOrFade(), label = "volume")
     val scheme = MaterialTheme.colorScheme
-    val fill = if (muted) scheme.outline else scheme.primary
-    val onFill = if (muted) scheme.surface else scheme.onPrimary
+    // An amount, not an "on": the fill wears secondary like the other gauges, never the accent
+    // (Erwann, 2026-10-30: « You can change the colour to make it like other but that's it »).
+    val fill = if (muted) scheme.outline else scheme.secondary
+    val onFill = if (muted) scheme.surface else scheme.onSecondary
     val capColor = scheme.tertiary
     val hatch = onFill.copy(alpha = HATCH_ALPHA)
     val label = stringResource(R.string.volume_label)
