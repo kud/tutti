@@ -10,7 +10,9 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.foundation.layout.size
@@ -23,6 +25,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -32,17 +35,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.RoundRect
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
@@ -116,6 +118,7 @@ fun VolumeRail(
     val currentGuard by rememberUpdatedState(guardLine)
     val currentLandmarks by rememberUpdatedState(landmarks)
     var dragLevel by remember { mutableStateOf<Int?>(null) }
+    var railHeight by remember { mutableIntStateOf(0) }
     val currentVolume by rememberUpdatedState(volume)
     val currentCap by rememberUpdatedState(cap)
     val setVolume by rememberUpdatedState(onVolume)
@@ -135,14 +138,10 @@ fun VolumeRail(
     val shown = if (connected) dragLevel ?: volume else null
     val fraction by animateFloatAsState((shown ?: 0) / TuttiController.MAX_VOLUME.toFloat(), snappyOrFade(), label = "volume")
     val scheme = MaterialTheme.colorScheme
-    // The amount is a gauge of its own between the readout and −, never under a key: from the foot
-    // of the rail it once rose round Mute as a bright crescent that read as "mute on" (Iris,
-    // 2026-10-30). Not the accent either: bright primary means "on" and nothing else, and a gauge is
-    // an amount (design.md, Visual › State). secondary is light on the dark track, dark in light.
-    val fill = if (muted) scheme.outline else scheme.secondary
-    val track = scheme.surfaceContainerHighest
+    val fill = if (muted) scheme.outline else scheme.primary
+    val onFill = if (muted) scheme.surface else scheme.onPrimary
     val capColor = scheme.tertiary
-    val hatch = scheme.surface.copy(alpha = HATCH_ALPHA)
+    val hatch = onFill.copy(alpha = HATCH_ALPHA)
     val label = stringResource(R.string.volume_label)
     val openLabel = stringResource(R.string.volume_open_sheet)
     val openLevel by rememberUpdatedState(onOpenLevel)
@@ -152,6 +151,7 @@ fun VolumeRail(
         muted -> stringResource(R.string.volume_state_muted, shown)
         else -> shown.toString()
     }
+    val density = LocalDensity.current
 
     // A step key: the controller steps (and bumps at a wall); here, the tick inside the range or the
     // stretch against the wall, as a drag gets.
@@ -185,6 +185,7 @@ fun VolumeRail(
                     scaleY = stretch.value
                     transformOrigin = TransformOrigin(0.5f, stretchOrigin)
                 }
+                .onSizeChanged { railHeight = it.height }
                 .clip(RoundedCornerShape(32.dp))
                 .background(if (connected) scheme.surfaceContainerHigh else scheme.surfaceContainerLow)
                 .then(
@@ -210,37 +211,10 @@ fun VolumeRail(
                     }
                 }
                 .drawWithContent {
-                    val gauge = gaugeBounds(size.height, GAUGE_TOP.toPx(), GAUGE_BOTTOM.toPx(), GAUGE_WIDTH.toPx())
-                    if (connected && gauge != null) {
-                        val w = GAUGE_WIDTH.toPx()
-                        val x = (size.width - w) / 2f
-                        val radius = CornerRadius(w / 2f)
-                        drawRoundRect(track, Offset(x, gauge.start), Size(w, gauge.endInclusive - gauge.start), radius)
-                        val f = fraction.coerceIn(0f, 1f)
-                        if (f > 0f) {
-                            // At least a round dot, so level 1 still shows.
-                            val h = maxOf(f * (gauge.endInclusive - gauge.start), w)
-                            val bar = Path().apply {
-                                addRoundRect(RoundRect(x, gauge.endInclusive - h, x + w, gauge.endInclusive, radius))
-                            }
-                            drawPath(bar, fill)
-                            // Muted is a pattern, not a hue: diagonal hatching over the greyed fill.
-                            if (muted) {
-                                clipPath(bar) {
-                                    val gap = HATCH_GAP.toPx()
-                                    var y = gauge.endInclusive - h - w
-                                    while (y < gauge.endInclusive) {
-                                        drawLine(hatch, Offset(x, y + w), Offset(x + w, y), strokeWidth = 2.dp.toPx())
-                                        y += gap
-                                    }
-                                }
-                            }
-                        }
-                    }
                     drawContent()
                     val c = currentCap
-                    if (c != null && connected && gauge != null) {
-                        val y = gauge.endInclusive - (gauge.endInclusive - gauge.start) * (c / TuttiController.MAX_VOLUME.toFloat())
+                    if (c != null && connected) {
+                        val y = size.height * (1f - c / TuttiController.MAX_VOLUME.toFloat())
                         val dash = PathEffect.dashPathEffect(floatArrayOf(6.dp.toPx(), 4.dp.toPx()))
                         val width = (if (onCap) 3.dp else 2.dp).toPx()
                         drawLine(capColor, Offset(10.dp.toPx(), y), Offset(size.width - 10.dp.toPx(), y), strokeWidth = width, pathEffect = dash)
@@ -305,58 +279,91 @@ fun VolumeRail(
                     )
                 },
         ) {
+            Box(
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .fillMaxHeight(fraction.coerceIn(0f, 1f))
+                    .background(fill)
+                    .drawWithContent {
+                        drawContent()
+                        // Muted is a pattern, not a hue: diagonal hatching over the greyed fill.
+                        if (muted) {
+                            clipRect {
+                                val gap = HATCH_GAP.toPx()
+                                var x = -size.height
+                                while (x < size.width) {
+                                    drawLine(hatch, Offset(x, size.height), Offset(x + size.height, 0f), strokeWidth = 2.dp.toPx())
+                                    x += gap
+                                }
+                            }
+                        }
+                    },
+            )
             // Always a number while connected (the controller keeps the last level until the bar
             // echoes a new one); an ellipsis while its level is not reported yet; nothing while the
             // bar is unreachable (the crossed speaker and the hollow track say so), never a stale level,
-            // and never a dash that would read as the − key under it.
+            // and never a dash that would read as the − key under it. Drawn twice and cut at the
+            // fill's edge, onSurface above and the fill's ink below, so a number the edge crosses
+            // stays whole and legible.
             if (connected) {
-                val opens = onOpenLevel != null && shown != null
-                // The number is a door (Iris's gesture audit): a tap opens the volume sheet. It sits
-                // in a key of its own, the rail keys' dress (surface, hairline ring) drawn as a
-                // rounded square, so it reads as pressable by its shape. The small up chevron under
-                // it went (Iris, 2026-10-30): beside + and − it read as "louder", not "opens".
-                Box(
-                    Modifier
-                        .align(Alignment.TopCenter)
-                        .padding(top = KEY_INSET + KEY_TARGET)
-                        .size(KEY_TARGET)
-                        .then(
-                            if (onOpenLevel != null) {
-                                Modifier
-                                    .semantics {
-                                        role = Role.Button
-                                        contentDescription = openLabel
-                                        stateDescription = state
-                                    }
-                                    .pointerInput(Unit) { detectTapGestures { openLevel?.invoke() } }
-                            } else {
-                                Modifier.clearAndSetSemantics { }
-                            },
-                        ),
-                    contentAlignment = Alignment.Center,
-                ) {
+                // The number is a door (Iris's gesture audit): a tap opens the volume sheet. A 48 dp
+                // target round it, its own button to TalkBack, and under it the card's quiet chevron
+                // pointing up, where the sheet rises from, says it opens (Erwann, 2026-10-25: the
+                // underline read as a web link, « pas sûr du souligné »). A shape, never colour alone.
+                if (onOpenLevel != null) {
                     Box(
                         Modifier
-                            .size(width = KEY_TARGET, height = READOUT_HEIGHT)
-                            .then(
-                                if (opens) {
-                                    Modifier
-                                        .background(scheme.surface, READOUT_SHAPE)
-                                        .border(1.dp, scheme.outlineVariant, READOUT_SHAPE)
+                            .align(Alignment.TopCenter)
+                            .padding(top = KEY_INSET + KEY_TARGET)
+                            .size(KEY_TARGET)
+                            .semantics {
+                                role = Role.Button
+                                contentDescription = openLabel
+                                stateDescription = state
+                            }
+                            .pointerInput(Unit) { detectTapGestures { openLevel?.invoke() } },
+                    )
+                }
+                val text = shown?.toString() ?: NO_LEVEL
+                val topPx = with(density) { READOUT_TOP.toPx() }
+                val edge = railHeight * (1f - fraction) - topPx
+                val opens = onOpenLevel != null && shown != null
+                for (onFillPart in listOf(false, true)) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .padding(top = READOUT_TOP)
+                            .clearAndSetSemantics { }
+                            .drawWithContent {
+                                val cut = edge.coerceIn(0f, size.height)
+                                if (onFillPart) {
+                                    clipRect(top = cut) { this@drawWithContent.drawContent() }
                                 } else {
-                                    Modifier
-                                },
-                            )
-                            .clearAndSetSemantics { },
-                        contentAlignment = Alignment.Center,
+                                    clipRect(bottom = cut) { this@drawWithContent.drawContent() }
+                                }
+                            },
                     ) {
                         Text(
-                            text = shown?.toString() ?: NO_LEVEL,
+                            text = text,
                             // Tabular figures: the number keeps its width while a drag runs through it.
                             style = MaterialTheme.typography.titleLarge.tabular(),
                             fontWeight = FontWeight.SemiBold,
-                            color = if (shown == null) scheme.onSurfaceVariant else scheme.onSurface,
+                            color = when {
+                                shown == null -> scheme.onSurfaceVariant
+                                onFillPart -> onFill
+                                else -> scheme.onSurface
+                            },
                         )
+                        if (opens) {
+                            Icon(
+                                painterResource(R.drawable.ic_chevron_right),
+                                contentDescription = null,
+                                tint = if (onFillPart) onFill else scheme.onSurfaceVariant,
+                                modifier = Modifier.size(OPENS_CHEVRON).rotate(-90f),
+                            )
+                        }
                     }
                 }
             }
@@ -495,17 +502,11 @@ private val KEY_TARGET = 48.dp
 /** − stands on the speaker's target: the two 48 dp targets meet, neither overlaps. */
 private val MINUS_BOTTOM = FOOT_INSET + FOOT_ICON / 2 + FOOT_TARGET / 2
 
-/** The readout's key: a rounded square inside its 48 dp target, centred under +. */
-private val READOUT_HEIGHT = 40.dp
-private val READOUT_SHAPE = RoundedCornerShape(14.dp)
+/** The readout, under +. */
+private val READOUT_TOP = KEY_INSET + KEY_TARGET + 4.dp
 
-/**
- * The gauge: a 12 dp pill centred on the rail, from 8 dp under the readout's key to 8 dp over −'s
- * target, so no key ever sits on the amount and the speaker never wears it.
- */
-private val GAUGE_WIDTH = 12.dp
-private val GAUGE_TOP = KEY_INSET + KEY_TARGET * 2 + 8.dp
-private val GAUGE_BOTTOM = MINUS_BOTTOM + KEY_TARGET + 8.dp
+/** The readout's "opens" chevron: small enough to stay under the number inside its 48 dp target. */
+private val OPENS_CHEVRON = 16.dp
 
 /** The number while connected and the level is not reported yet: waiting, not zero. */
 private const val NO_LEVEL = "…"
@@ -521,15 +522,6 @@ private const val OFF_ALPHA = 0.38f
 internal fun wallFor(ceiling: Int?, guard: Int?, from: Int): Int {
     val top = ceiling ?: TuttiController.MAX_VOLUME
     return if (guard != null && from <= guard && guard < top) guard else top
-}
-
-/**
- * The gauge's top and foot in a rail [height] px tall, or null when the rail is too short to hold
- * one taller than it is wide (a squeezed layout): then the number alone says the level.
- */
-internal fun gaugeBounds(height: Float, top: Float, bottom: Float, width: Float): ClosedFloatingPointRange<Float>? {
-    val foot = height - bottom
-    return if (foot - top > width) top..foot else null
 }
 
 /** One full rail height covers 60 steps: precise without being slow. */
