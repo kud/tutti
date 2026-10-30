@@ -86,7 +86,13 @@ class TuttiStore @Inject constructor(
     private fun legacyHidHost(): String? =
         context.getSharedPreferences("bluetooth_hid", Context.MODE_PRIVATE).getString("host", null)
 
-    suspend fun updatePrefs(transform: (AppPrefs) -> AppPrefs) = update(PREFS, AppPrefs.serializer(), StoreJson, AppPrefs(), transform)
+    suspend fun updatePrefs(transform: (AppPrefs) -> AppPrefs) {
+        // A dock never written since the round row joined it is still joined on every read, in the
+        // order the hand draws the row ([DockConfig.normalised]), so swapping the pad's side flipped
+        // the dock (Erwann, 2026-10-30). Writing it once, as it stands, fixes it before the hand moves.
+        updateDock { it }
+        update(PREFS, AppPrefs.serializer(), StoreJson, AppPrefs(), transform)
+    }
 
     suspend fun updateDock(transform: (DockConfig) -> DockConfig) {
         val layout = prefs.first().layout
