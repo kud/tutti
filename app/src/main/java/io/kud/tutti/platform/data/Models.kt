@@ -428,6 +428,50 @@ data class DockConfig(
     /** Pin [from] moved to [to]; the pins between shift along. */
     fun withSlotMoved(from: Int, to: Int): DockConfig = copy(slots = pages.single().moved(from, to))
 
+    /** The places (0-based) whose pin runs [action] on tap: the same target may sit in two. */
+    fun placesOf(action: DockAction): List<Int> = pages.single().indices.filter { pages.single()[it].primary == action }
+
+    /**
+     * [slot] copied into place [index] (a drop from a list of things to pin). A pin already there
+     * is never lost: it goes to the end of the [spare] tray, as the row's overflow did.
+     */
+    fun withPlaced(index: Int, slot: DockSlot): DockConfig {
+        if (index !in 0 until PAGE_SIZE || !slot.isSet) return this
+        val all = pages.single().toMutableList()
+        val displaced = all[index]
+        all[index] = slot
+        return copy(slots = all, spare = if (displaced.isSet) spare + displaced else spare)
+    }
+
+    /**
+     * Pin [from] dropped on place [to], across both rows: an empty place takes it, a filled one
+     * trades places with it (Erwann, 2026-10-30). Nothing else moves.
+     */
+    fun withSwapped(from: Int, to: Int): DockConfig {
+        if (from !in 0 until PAGE_SIZE || to !in 0 until PAGE_SIZE || from == to) return this
+        val all = pages.single().toMutableList()
+        val moving = all[from]
+        all[from] = all[to]
+        all[to] = moving
+        return copy(slots = all)
+    }
+
+    /** Pin [index] taken out, its place left empty for the next. */
+    fun withRemoved(index: Int): DockConfig = withSlot(index, DockSlot())
+
+    /**
+     * Undo of [withRemoved]: [slot] back at [index] if that place is still empty, else in the first
+     * free place, else at the end of the spare tray, so an undo never overwrites a pin.
+     */
+    fun withPutBack(index: Int, slot: DockSlot): DockConfig {
+        if (!slot.isSet) return this
+        val all = pages.single().toMutableList()
+        val at = if (index in all.indices && !all[index].isSet) index else all.indexOfFirst { !it.isSet }
+        if (at < 0) return copy(spare = spare + slot)
+        all[at] = slot
+        return copy(slots = all)
+    }
+
     /** Spare [index] back in the first free place; nothing changes while the dock is full. */
     fun withSpareRestored(index: Int): DockConfig {
         val pin = spare.getOrNull(index) ?: return this

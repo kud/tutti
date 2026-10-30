@@ -2404,6 +2404,26 @@ class TuttiController @Inject constructor(
         scope.launch { store.updateDock { it.withSpareDropped(index) } }
     }
 
+    /** Pin [from] dropped on place [to] in the layout editor: moves to an empty place, trades with a filled one. */
+    fun swapDockSlots(from: Int, to: Int) {
+        scope.launch { store.updateDock { it.withSwapped(from, to) } }
+    }
+
+    /** [slot] placed in [index] from the editor's list of kinds; a pin already there goes to the spare tray. */
+    fun placeDockPin(index: Int, slot: DockSlot) {
+        scope.launch { store.updateDock { it.withPlaced(index, slot) } }
+    }
+
+    /** Pin [index] taken out of the dock (dragged off, or its badge); [putBackDockPin] undoes it. */
+    fun removeDockPin(index: Int) {
+        scope.launch { store.updateDock { it.withRemoved(index) } }
+    }
+
+    /** Undo of a removal: back where it was if that place is still free, never over another pin. */
+    fun putBackDockPin(index: Int, slot: DockSlot) {
+        scope.launch { store.updateDock { it.withPutBack(index, slot) } }
+    }
+
     fun assignLongPress(button: SecondaryButton, action: DockAction?) {
         scope.launch {
             store.updateDock { dock ->
