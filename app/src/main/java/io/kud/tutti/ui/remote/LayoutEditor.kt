@@ -82,6 +82,7 @@ import androidx.compose.ui.unit.dp
 import io.kud.tutti.R
 import io.kud.tutti.controller.TuttiUiState
 import io.kud.tutti.platform.data.DockConfig
+import io.kud.tutti.platform.data.DockSlot
 import io.kud.tutti.platform.data.DockLabels
 import io.kud.tutti.ui.common.PinNameOnly
 import io.kud.tutti.ui.common.pinDress
@@ -105,8 +106,11 @@ fun LayoutEditor(
     state: TuttiUiState,
     onLayout: ((RemoteLayout) -> RemoteLayout) -> Unit,
     onReset: () -> Unit,
-    onMovePin: (from: Int, to: Int) -> Unit,
+    onSwapPin: (from: Int, to: Int) -> Unit,
+    onRemovePin: (index: Int) -> Unit,
+    onPutBackPin: (index: Int, slot: DockSlot) -> Unit,
     onEditPin: (index: Int) -> Unit,
+    onKind: (index: Int, kind: PinKind) -> Unit,
     onRestoreSpare: (index: Int) -> Unit,
     onDropSpare: (index: Int) -> Unit,
     onDone: () -> Unit,
@@ -117,6 +121,8 @@ fun LayoutEditor(
     var confirmReset by remember { mutableStateOf(false) }
     val volumeName = stringResource(R.string.layout_volume)
 
+    // The dock's frame draws above its neighbours while a pin is lifted, so the pin shows wherever it is dragged.
+    var lifting by remember { mutableStateOf(false) }
     Column(modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
         Row(
             Modifier.fillMaxWidth().padding(start = 20.dp, end = 12.dp, top = 8.dp, bottom = 8.dp),
@@ -195,20 +201,21 @@ fun LayoutEditor(
             }
 
             Spacer(Modifier.height(12.dp))
-            PinsFrame(state, onMovePin, onEditPin)
+            PinsFrame(
+                state = state,
+                onSwap = onSwapPin,
+                onRemove = onRemovePin,
+                onPutBack = onPutBackPin,
+                onEdit = onEditPin,
+                onKind = onKind,
+                onLifting = { lifting = it },
+                modifier = Modifier.zIndex(if (lifting) 2f else 0f),
+            )
             if (state.dock.spare.isNotEmpty()) {
                 Spacer(Modifier.height(12.dp))
                 SpareFrame(state, onRestoreSpare, onDropSpare)
             }
 
-            Spacer(Modifier.height(8.dp))
-            Text(
-                stringResource(R.string.layout_pins_hint),
-                style = MaterialTheme.typography.bodySmall,
-                color = colors.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth(),
-            )
 
             // Options, not layout (Erwann, 2026-10-30): plain rows under a rule, never a dashed frame.
             Spacer(Modifier.height(20.dp))
@@ -484,97 +491,20 @@ private fun OptionsSection(labels: DockLabels, onLabels: (DockLabels) -> Unit) {
 /** How far the pad travels towards the rail before letting go swaps them: most of the rail's width. */
 private val SWAP_DRAG = 48.dp
 
+/**
+ * The "−" that lets a pin go in one tap (Erwann, 2026-10-30: « J'aimais bien aussi les moins qu'on
+ * avait avant »): a 22 dp mark, the minus glyph saying it rather than the colour, inside a touch
+ * target of [target] (48 dp on the dock's places).
+ */
 @Composable
-private fun RemoveBadge(description: String, onClick: () -> Unit, modifier: Modifier) {
+internal fun RemoveBadge(description: String, onClick: () -> Unit, modifier: Modifier, target: Dp = 32.dp) {
     val colors = MaterialTheme.colorScheme
-    // A 24dp mark inside a 32dp touch target.
-    IconButton(onClick = onClick, modifier = modifier.size(32.dp)) {
+    IconButton(onClick = onClick, modifier = modifier.size(target)) {
         Box(
             Modifier.size(22.dp).clip(CircleShape).background(colors.errorContainer),
             contentAlignment = Alignment.Center,
         ) {
             Icon(painterResource(R.drawable.ic_remove), contentDescription = description, tint = colors.onErrorContainer, modifier = Modifier.size(16.dp))
-        }
-    }
-}
-
-@Composable
-private fun PinsFrame(
-    state: TuttiUiState,
-    onMovePin: (from: Int, to: Int) -> Unit,
-    onEditPin: (index: Int) -> Unit,
-) {
-    val colors = MaterialTheme.colorScheme
-    val pages = state.dock.pages
-    val page = 0
-    // One drag axis per row: each row keeps its own centres.
-    val rowReorders = List(DockConfig.ROWS) { rememberReorderState() }
-    val left = stringResource(R.string.layout_move_left)
-    val right = stringResource(R.string.layout_move_right)
-    val base = page * DockConfig.PAGE_SIZE
-    // Offsets within the page, turned into flat indices for the dock.
-    val move: (Int, Int) -> Unit = { from, to -> onMovePin(base + from, base + to) }
-
-    Column(Modifier.fillMaxWidth().dashedFrame().padding(12.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                stringResource(R.string.layout_dock, DockConfig.PAGE_SIZE),
-                style = MaterialTheme.typography.titleSmall,
-                color = colors.onSurface,
-                modifier = Modifier.weight(1f).padding(start = 4.dp),
-            )
-        }
-        Spacer(Modifier.height(8.dp))
-        // The dock's shape: two rows of six, the remote's own keys among the pins. A drag moves a pin
-        // along its row; TalkBack's left and right step across both rows, so a pin can change rows.
-        pages[page].chunked(DockConfig.ROW).forEachIndexed { row, cells ->
-            val rowReorder = rowReorders[row]
-            val first = row * DockConfig.ROW
-            if (row > 0) Spacer(Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            cells.forEachIndexed { column, slot ->
-                val offset = first + column
-                val label = slotLabel(slot, state) ?: stringResource(R.string.dock_add)
-                Column(
-                    Modifier
-                        .weight(1f)
-                        .reorderable(rowReorder, column, vertical = false, onMove = { from, to -> move(first + from, first + to) }, shape = RoundedCornerShape(16.dp))
-                        .reorderActions(offset, DockConfig.PAGE_SIZE, left, right, move),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Column(
-                        Modifier
-                            .fillMaxWidth()
-                            .height(56.dp)
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(colors.surfaceContainerHigh)
-                            .clickable { onEditPin(base + offset) }
-                            .semantics { contentDescription = label }
-                            .padding(horizontal = 2.dp, vertical = 6.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center,
-                    ) {
-                        // Dressed as the dock is, so the choice below shows here as it is made.
-                        val dress = pinDress(state.prefs.layout.dockLabels, label)
-                        if (dress.glyph) {
-                            PinFace(slot.primary, slot.icon, slot.letters, state, colors.onSurfaceVariant, iconSize = dress.glyphSize, faceSize = dress.faceSize)
-                        }
-                        if (dress.glyph && dress.name) Spacer(Modifier.height(4.dp))
-                        if (!dress.glyph) {
-                            PinNameOnly(label, dress.nameLines, colors.onSurfaceVariant, description = null)
-                        } else if (dress.name) {
-                            Text(label, style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        }
-                    }
-                    Icon(
-                        painterResource(R.drawable.ic_drag),
-                        contentDescription = null,
-                        tint = colors.onSurfaceVariant.copy(alpha = 0.7f),
-                        modifier = Modifier.padding(top = 4.dp).size(20.dp),
-                    )
-                }
-            }
-            }
         }
     }
 }

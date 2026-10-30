@@ -108,6 +108,9 @@ private sealed interface PickerTarget {
 
     /** A pin's editor (long press on it). */
     data class Edit(val index: Int) : PickerTarget
+
+    /** One kind's picker, from the layout editor's list of kinds: what it picks goes in place [index]. */
+    data class Kind(val index: Int, val kind: PinKind) : PickerTarget
 }
 
 /**
@@ -446,8 +449,11 @@ fun RemoteScreen(
                 state = state,
                 onLayout = controller::updateLayout,
                 onReset = controller::resetLayout,
-                onMovePin = controller::moveDockSlot,
+                onSwapPin = controller::swapDockSlots,
+                onRemovePin = controller::removeDockPin,
+                onPutBackPin = controller::putBackDockPin,
                 onEditPin = { picker = PickerTarget.Edit(it) },
+                onKind = { index, kind -> picker = if (kind == PinKind.STEPS) PickerTarget.Edit(index) else PickerTarget.Kind(index, kind) },
                 onRestoreSpare = controller::restoreSparePin,
                 onDropSpare = controller::dropSparePin,
                 onDone = { onEditingChange(false) },
@@ -1154,6 +1160,22 @@ fun RemoteScreen(
             },
             onLoadTv = controller::loadTvSettings,
             onDismiss = { picker = null },
+        )
+        is PickerTarget.Kind -> ActionPickerSheet(
+            title = stringResource(R.string.layout_kind_pick_title, stringResource(target.kind.label), target.index + 1),
+            state = state,
+            allowRemove = false,
+            onPick = { action ->
+                if (action != null) {
+                    haptics.confirm()
+                    controller.placeDockPin(target.index, DockSlot(action))
+                }
+                picker = null
+            },
+            onLoadTv = controller::loadTvSettings,
+            onDismiss = { picker = null },
+            sheets = true,
+            only = target.kind,
         )
         is PickerTarget.Edit -> PinEditorSheet(
             index = target.index,
