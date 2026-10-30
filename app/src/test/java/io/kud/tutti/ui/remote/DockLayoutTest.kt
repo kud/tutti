@@ -27,7 +27,7 @@ class DockLayoutTest {
     @Test
     fun aGapKeepsEachPinItsOwnSlot() {
         val shown = shownPins(DockConfig(slots = listOf(night, empty, voice, empty)))
-        assertEquals(listOf(listOf(listOf(0, 2))), shown)
+        assertEquals(listOf(listOf(listOf(0, null, 2))), shown)
     }
 
     @Test
@@ -44,22 +44,31 @@ class DockLayoutTest {
         // Only row two holds a pin: the dock is one row high. Anything past twelve is never drawn.
         val slots = List(6) { empty } + listOf(empty, night) + List(4) { empty } + listOf(voice)
         val shown = shownPins(DockConfig(slots = slots))
-        assertEquals(listOf(listOf(listOf(7))), shown)
+        assertEquals(listOf(listOf(listOf(null, 7))), shown)
         assertEquals(1, dockRows(shown))
-        assertEquals(1, dockSpan(shown))
+        assertEquals(2, dockSpan(shown))
         assertEquals(DockConfig.PAGE_SIZE, DockConfig.ROW * DockConfig.ROWS)
+    }
+
+    @Test
+    fun aPinPlacedCentralStaysCentral() {
+        // Erwann, 2026-10-30: row two as places 8 to 11, 7 and 12 left empty, on purpose.
+        val slots = List(6) { night } + listOf(empty) + List(4) { voice } + listOf(empty)
+        val shown = shownPins(DockConfig(slots = slots))
+        assertEquals(listOf((0..5).toList(), listOf(null, 7, 8, 9, 10)), shown.single())
+        assertEquals(DockConfig.ROW, dockSpan(shown))
     }
 
     @Test
     fun aLongPressOnlySlotStillShows() {
         val holdOnly = DockSlot(secondary = DockAction.ToggleBar("audio.nightmode"))
-        assertEquals(listOf(listOf(listOf(1))), shownPins(DockConfig(slots = listOf(empty, holdOnly))))
+        assertEquals(listOf(listOf(listOf(null, 1))), shownPins(DockConfig(slots = listOf(empty, holdOnly))))
     }
 
     @Test
     fun anEmptyDockShowsNoPins() {
         val shown = shownPins(DockConfig(slots = List(4) { empty }))
-        assertEquals(emptyList<List<List<Int>>>(), shown)
+        assertEquals(emptyList<List<List<Int?>>>(), shown)
         assertEquals(0, dockSpan(shown))
         assertEquals(0, dockRows(shown))
     }
