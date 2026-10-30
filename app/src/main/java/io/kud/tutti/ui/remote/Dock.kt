@@ -199,7 +199,7 @@ fun Dock(
                                 .size(if (current) 8.dp else 6.dp)
                                 .align(Alignment.CenterVertically)
                                 .clip(CircleShape)
-                                .background(if (current) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant),
+                                .background(if (current) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outlineVariant),
                         )
                     }
                 }

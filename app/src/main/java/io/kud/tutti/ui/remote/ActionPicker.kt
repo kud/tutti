@@ -270,7 +270,7 @@ fun ActionPickerContent(
                         Text(
                             if (allKeys) stringResource(R.string.picker_fewer_keys) else stringResource(R.string.picker_all_keys, NamedKeys.all.size),
                             style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.primary,
+                            color = MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(12.dp))
@@ -381,7 +381,7 @@ private fun LazyListScope.header(key: String, @StringRes text: Int, @StringRes d
         Text(
             full.uppercase(),
             style = if (sub) MaterialTheme.typography.labelMedium else MaterialTheme.typography.labelLarge,
-            color = if (sub) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary,
+            color = if (sub) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = if (sub) 4.dp else 12.dp, start = 4.dp).semantics { heading() },
         )
     }

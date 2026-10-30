@@ -584,7 +584,9 @@ private fun LettersChoice(description: String, selected: Boolean, onClick: () ->
         Modifier
             .size(48.dp)
             .clip(CircleShape)
-            .background(if (selected) colors.primary else colors.surfaceContainerHighest)
+            .background(if (selected) colors.secondaryContainer else colors.surfaceContainerHighest)
+            // Chosen is a ring as well as a fill, never the fill alone (Iris, 2026-10-30).
+            .then(if (selected) Modifier.border(2.dp, colors.onSurface, CircleShape) else Modifier)
             .selectable(selected = selected, role = Role.RadioButton, onClick = onClick)
             .semantics { contentDescription = description },
         contentAlignment = Alignment.Center,
@@ -593,7 +595,7 @@ private fun LettersChoice(description: String, selected: Boolean, onClick: () ->
             stringResource(R.string.pin_letters),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold,
-            color = if (selected) colors.onPrimary else colors.onSurfaceVariant,
+            color = if (selected) colors.onSecondaryContainer else colors.onSurfaceVariant,
         )
     }
 }
@@ -629,7 +631,9 @@ private fun GlyphChoice(icon: Int, description: String, selected: Boolean, outli
         Modifier
             .size(48.dp)
             .clip(CircleShape)
-            .background(if (selected) colors.primary else colors.surfaceContainerHighest)
+            .background(if (selected) colors.secondaryContainer else colors.surfaceContainerHighest)
+            // Chosen is a ring as well as a fill, never the fill alone (Iris, 2026-10-30).
+            .then(if (selected) Modifier.border(2.dp, colors.onSurface, CircleShape) else Modifier)
             .then(if (outlined && !selected) Modifier.border(1.dp, colors.outline, CircleShape) else Modifier)
             .selectable(selected = selected, role = Role.RadioButton, onClick = onClick)
             .semantics { contentDescription = description },
@@ -638,7 +642,7 @@ private fun GlyphChoice(icon: Int, description: String, selected: Boolean, outli
         Icon(
             painterResource(icon),
             contentDescription = null,
-            tint = if (selected) colors.onPrimary else colors.onSurfaceVariant,
+            tint = if (selected) colors.onSecondaryContainer else colors.onSurfaceVariant,
             modifier = Modifier.size(22.dp),
         )
     }
