@@ -92,10 +92,15 @@ fun TuttiSheet(onDismissRequest: () -> Unit, content: @Composable ColumnScope.()
     val navigationBottom = with(density) { WindowInsets.navigationBars.getBottom(density).toDp() }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val grip = remember { SheetGrip() }
+    CoversRemote()
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
         sheetState = sheetState,
         containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+        // The remote goes clearly behind, not half-lit: Material's 32 % dim left Power's "on" fill a
+        // muted teal that read as disabled (Erwann's dev screenshot, 2026-10-30). Android's own window
+        // dim (60 %) puts everything above the sheet in shadow alike, so nothing there reads as a state.
+        scrimColor = MaterialTheme.colorScheme.scrim.copy(alpha = SHEET_SCRIM_ALPHA),
         dragHandle = { SheetHandle(sheetState, grip) },
         contentWindowInsets = { WindowInsets(0, 0, 0, 0) },
     ) {
@@ -245,3 +250,6 @@ private fun SheetHandle(sheetState: SheetState, grip: SheetGrip) {
 @OptIn(ExperimentalMaterial3Api::class)
 private fun SheetState.offsetIfOpen(): Float? =
     if (currentValue == SheetValue.Expanded) runCatching { requireOffset() }.getOrNull() else null
+
+/** A modal sheet's scrim: Android's own window dim (`backgroundDimAmount`), never Material's 32 %. */
+internal const val SHEET_SCRIM_ALPHA = 0.6f
