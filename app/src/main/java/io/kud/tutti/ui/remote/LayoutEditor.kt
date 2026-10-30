@@ -272,7 +272,7 @@ fun LayoutEditor(
  */
 @Composable
 private fun Modifier.dashedFrame(): Modifier {
-    val color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
+    val color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
     return drawBehind {
         val stroke = 1.5.dp.toPx()
         drawRoundRect(
@@ -349,7 +349,7 @@ private fun ScenesFrame(state: TuttiUiState, shown: Boolean, onToggle: () -> Uni
             Icon(
                 painterResource(if (shown) R.drawable.ic_visibility else R.drawable.ic_visibility_off),
                 contentDescription = stringResource(if (shown) R.string.layout_scenes_hide else R.string.layout_scenes_show),
-                tint = if (shown) colors.primary else colors.onSurfaceVariant,
+                tint = if (shown) colors.onSurface else colors.onSurfaceVariant,
             )
         }
     }
@@ -489,7 +489,7 @@ private fun OptionsSection(labels: DockLabels, onLabels: (DockLabels) -> Unit) {
         Text(
             stringResource(R.string.layout_options),
             style = MaterialTheme.typography.labelLarge,
-            color = colors.primary,
+            color = colors.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = 16.dp).semantics { heading() },
         )
         Spacer(Modifier.height(4.dp))
@@ -590,7 +590,7 @@ internal fun StageHeading() {
     Text(
         stringResource(R.string.layout_stage),
         style = MaterialTheme.typography.labelLarge,
-        color = MaterialTheme.colorScheme.primary,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(start = 16.dp, top = 4.dp, bottom = 8.dp).semantics { heading() },
     )
 }

@@ -214,7 +214,7 @@ internal fun PinsFrame(
                     Modifier
                         .fillMaxWidth()
                         .onGloballyPositioned { dock[0] = it }
-                        .dashedOutline(colors.primary.copy(alpha = 0.7f), 20.dp, dashed = true, width = 1.5.dp)
+                        .dashedOutline(colors.onSurfaceVariant.copy(alpha = 0.7f), 20.dp, dashed = true, width = 1.5.dp)
                         .padding(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 14.dp),
                 ) {
                     Text(
@@ -483,8 +483,8 @@ private fun Place(
                 .then(if (filled) Modifier.background(colors.surfaceContainerHigh) else Modifier)
                 .then(
                     when {
-                        hovered -> Modifier.dashedOutline(colors.primary, 16.dp, dashed = false, width = 3.dp)
-                        lit -> Modifier.dashedOutline(colors.primary, 16.dp, dashed = true, width = 2.dp)
+                        hovered -> Modifier.dashedOutline(colors.onSurface, 16.dp, dashed = false, width = 3.dp)
+                        lit -> Modifier.dashedOutline(colors.onSurfaceVariant, 16.dp, dashed = true, width = 2.dp)
                         !filled -> Modifier.dashedOutline(colors.outlineVariant, 16.dp, dashed = true, width = 1.5.dp)
                         else -> Modifier
                     },
@@ -558,7 +558,7 @@ private fun KindChip(
             .heightIn(min = 48.dp)
             .clip(RoundedCornerShape(12.dp))
             .background(if (selected) colors.secondaryContainer else colors.surfaceContainerHighest)
-            .then(if (selected) Modifier.dashedOutline(colors.primary, 12.dp, dashed = false, width = 2.dp) else Modifier)
+            .then(if (selected) Modifier.dashedOutline(colors.onSurface, 12.dp, dashed = false, width = 2.dp) else Modifier)
             .clickable(onClick = onTap)
             .lifter(kind, frame, onLift, onDrag, onEnd)
             .semantics {

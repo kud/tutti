@@ -217,7 +217,7 @@ private fun MessageCard(message: Message, onDismiss: () -> Unit) {
                 Icon(
                     painterResource(if (problem) R.drawable.ic_warning else R.drawable.ic_info),
                     contentDescription = if (problem) stringResource(R.string.message_problem) else null,
-                    tint = if (problem) scheme.error else scheme.primary,
+                    tint = if (problem) scheme.error else scheme.onSurfaceVariant,
                     modifier = Modifier.size(20.dp),
                 )
                 Text(

@@ -109,7 +109,7 @@ private fun CastTrack(progress: Float, modifier: Modifier) {
     val shape = RoundedCornerShape(1.dp)
     Row(modifier.height(2.dp).clip(shape).background(MaterialTheme.colorScheme.surfaceContainerHighest, shape)) {
         if (progress > 0f) {
-            Spacer(Modifier.weight(progress).height(2.dp).clip(shape).background(MaterialTheme.colorScheme.primary, shape))
+            Spacer(Modifier.weight(progress).height(2.dp).clip(shape).background(MaterialTheme.colorScheme.secondary, shape))
         }
         if (progress < 1f) Spacer(Modifier.weight(1f - progress))
     }

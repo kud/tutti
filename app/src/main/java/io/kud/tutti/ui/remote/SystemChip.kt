@@ -87,7 +87,7 @@ fun SystemChip(state: TuttiUiState, onClick: () -> Unit, modifier: Modifier = Mo
         // Scheme roles, so the dot follows dynamic colour and keeps its contrast in both themes;
         // the state itself is told by shape (dot, open ring, hollow) and the chip's words.
         DotState.PARTIAL, DotState.CONNECTING -> MaterialTheme.colorScheme.tertiary
-        DotState.ONLINE -> MaterialTheme.colorScheme.primary
+        DotState.ONLINE -> MaterialTheme.colorScheme.secondary
     }
     val nudge = LocalChipNudge.current
     val pulse = remember { Animatable(0f) }

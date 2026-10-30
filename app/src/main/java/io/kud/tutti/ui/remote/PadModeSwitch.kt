@@ -106,7 +106,7 @@ fun PadModeSwitch(
                 }
                 .focusable(interactionSource = interaction)
                 // A keyboard's focus is the only time anything but the glyph is drawn.
-                .border(2.dp, scheme.primary.copy(alpha = if (focused) 1f else 0f), CircleShape),
+                .border(2.dp, scheme.onSurface.copy(alpha = if (focused) 1f else 0f), CircleShape),
             contentAlignment = Alignment.Center,
         ) {
             Icon(

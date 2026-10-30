@@ -61,7 +61,7 @@ fun GesturesSheet(onDismiss: () -> Unit) {
                     Text(
                         stringResource(surface.title),
                         style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.primary,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(top = 16.dp, bottom = 4.dp).semantics { heading() },
                     )
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {

@@ -219,7 +219,7 @@ private fun Section(@StringRes title: Int) {
     Text(
         stringResource(title),
         style = MaterialTheme.typography.titleSmall,
-        color = MaterialTheme.colorScheme.primary,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(top = 20.dp, bottom = 8.dp).semantics { heading() },
     )
 }

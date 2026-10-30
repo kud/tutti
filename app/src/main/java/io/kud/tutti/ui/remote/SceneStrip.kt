@@ -300,7 +300,7 @@ internal fun ScenePinDialog(
                         Text(
                             stringResource(R.string.apps_pin_page, page + 1),
                             style = MaterialTheme.typography.titleSmall,
-                            color = MaterialTheme.colorScheme.primary,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(start = 8.dp, top = if (page > 0) 8.dp else 0.dp, bottom = 2.dp),
                         )
                     }

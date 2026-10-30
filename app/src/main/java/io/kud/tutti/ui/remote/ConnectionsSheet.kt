@@ -194,7 +194,7 @@ private fun DeviceBlock(device: ConnDevice, focus: ConnFocus?, onAction: (ConnAc
         // Where the keys go: a tick and the word, never colour alone.
         if (device.targeted) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                Icon(painterResource(R.drawable.ic_check), null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
+                Icon(painterResource(R.drawable.ic_check), null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurface)
                 Text(stringResource(R.string.conn_targeted_tag), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }

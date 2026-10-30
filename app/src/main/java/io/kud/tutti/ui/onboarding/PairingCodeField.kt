@@ -147,7 +147,7 @@ private fun Cell(char: Char?, current: Boolean, pop: Boolean, modifier: Modifier
             .widthIn(max = 48.dp)
             .height(56.dp)
             .background(colors.surfaceContainerHighest, shape)
-            .border(if (current) 3.dp else 1.dp, if (current) colors.primary else colors.outline, shape),
+            .border(if (current) 3.dp else 1.dp, if (current) colors.onSurface else colors.outline, shape),
         contentAlignment = Alignment.Center,
     ) {
         when {
@@ -157,7 +157,7 @@ private fun Cell(char: Char?, current: Boolean, pop: Boolean, modifier: Modifier
                 fontFamily = FontFamily.Monospace,
                 color = colors.onSurface,
             )
-            current -> Box(Modifier.width(2.dp).height(24.dp).background(colors.primary))
+            current -> Box(Modifier.width(2.dp).height(24.dp).background(colors.onSurface))
         }
     }
 }

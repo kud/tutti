@@ -234,7 +234,7 @@ private fun ReasonLine(reason: String) {
 private fun Timeline(strip: PlaybackStrip.Timeline, state: CastPlayerState?) {
     val scheme = MaterialTheme.colorScheme
     val track = scheme.surfaceContainerHighest
-    val fill = scheme.primary
+    val fill = scheme.secondary
     val head = scheme.onSurface
     val label = stringResource(R.string.timeline_label)
     val spoken = stringResource(R.string.timeline_spoken, (strip.elapsedSec / 60.0).roundToLong(), (strip.totalSec / 60.0).roundToLong())

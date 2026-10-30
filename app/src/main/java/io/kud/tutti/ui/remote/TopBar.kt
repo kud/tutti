@@ -159,10 +159,10 @@ fun TopBarOverflow(
     }
 }
 
-/** The update's dot: an 8 dp disc in the primary colour, cut out of what is under it by a ring of the surface. */
+/** The update's dot: an 8 dp disc in onSurface, never the accent, cut out of what is under it by a ring of the surface. */
 @Composable
 private fun UpdateDot(modifier: Modifier = Modifier) {
-    val dot = MaterialTheme.colorScheme.primary
+    val dot = MaterialTheme.colorScheme.onSurface
     val cutout = MaterialTheme.colorScheme.background
     Box(
         modifier.size(12.dp).drawBehind {

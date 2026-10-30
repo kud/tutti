@@ -160,7 +160,7 @@ private fun TargetSheetRow(row: TargetRow, onShowOnTv: () -> Unit = {}, onClick:
             }
         }
         if (row.current) {
-            Icon(painterResource(R.drawable.ic_check), null, Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary)
+            Icon(painterResource(R.drawable.ic_check), null, Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onSurface)
         } else {
             Spacer(Modifier.size(24.dp))
         }
