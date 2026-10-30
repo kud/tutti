@@ -105,7 +105,7 @@ import io.kud.tutti.ui.common.slotLabel
  * are Apps and Keys; he may move or drop any of them, and the ⋮ offers whatever sheet no pin
  * opens any more. Every pin wears one tone (Erwann, 2026-10-28: « tous la même couleur »), the
  * quiet container, keys included; an app keeps its own icon on it. Only filled pins show (Erwann, 2026-10-25: no "+ Add" slots; the editor is in the top
- * bar's ⋮): each row lays its pins from the left at the one width six across give them, rows
+ * bar's ⋮): each row lays its pins in the columns he chose in the editor, at the one width six across give them (an empty place before a pin stays empty, after the last one it is dropped), rows
  * line up in columns, and the grid is centred, sized by the widest row and the most rows on any
  * page, so a swipe never moves it. A row with no pin is left out, so a dock of six or fewer stays
  * one row high. An empty dock shows one quiet "Customise the dock". From two pages the grid swipes
@@ -156,7 +156,12 @@ fun Dock(
                 Column(verticalArrangement = Arrangement.spacedBy(GAP)) {
                     pages[page].forEach { row ->
                         Row(horizontalArrangement = Arrangement.spacedBy(GAP)) {
-                            row.forEach { index ->
+                            row.forEach { place ->
+                                // An empty place before the row's last pin keeps its column.
+                                val index = place ?: run {
+                                    Spacer(Modifier.width(tile))
+                                    return@forEach
+                                }
                                 val slot = state.dock.slot(index)
                                 val key = slot.primary as? DockAction.Remote
                                 if (key != null) {
@@ -206,24 +211,28 @@ fun Dock(
 
 /**
  * The dock as shown: for each page holding at least one pin, its rows that hold one, each as its
- * pins' slot indices across pages, in order. Empty slots, rows and pages are left out; the editor
- * and "Pin to dock" still list them.
+ * places' slot indices across pages up to its last pin, null for an empty place before it. A pin
+ * stands in the column he put it in the editor (Erwann, 2026-10-30: « Je l'ai mis central
+ * volontairement »); only empty places after a row's last pin, empty rows and empty pages are left
+ * out. The editor and "Pin to dock" still list every place.
  */
-internal fun shownPins(dock: DockConfig): List<List<List<Int>>> =
+internal fun shownPins(dock: DockConfig): List<List<List<Int?>>> =
     dock.pages.mapIndexedNotNull { page, slots ->
         slots.chunked(DockConfig.ROW).mapIndexedNotNull { row, cells ->
-            cells.indices
-                .filter { cells[it].primary != null || cells[it].secondary != null }
-                .map { page * DockConfig.PAGE_SIZE + row * DockConfig.ROW + it }
-                .takeIf { it.isNotEmpty() }
+            val last = cells.indexOfLast { it.primary != null || it.secondary != null }
+            if (last < 0) return@mapIndexedNotNull null
+            (0..last).map { col ->
+                val cell = cells[col]
+                if (cell.primary != null || cell.secondary != null) page * DockConfig.PAGE_SIZE + row * DockConfig.ROW + col else null
+            }
         }.takeIf { it.isNotEmpty() }
     }
 
 /** How many pin widths the grid reserves: the widest row on any page, so a swipe never moves it. */
-internal fun dockSpan(pages: List<List<List<Int>>>): Int = pages.flatten().maxOfOrNull { it.size } ?: 0
+internal fun dockSpan(pages: List<List<List<Int?>>>): Int = pages.flatten().maxOfOrNull { it.size } ?: 0
 
 /** How many rows the grid reserves: the most any page shows, so a swipe never changes its height. */
-internal fun dockRows(pages: List<List<List<Int>>>): Int = pages.maxOfOrNull { it.size } ?: 0
+internal fun dockRows(pages: List<List<List<Int?>>>): Int = pages.maxOfOrNull { it.size } ?: 0
 
 /** An empty dock's one way in: quiet text where the pins would be, never a tile that looks like one. */
 @Composable
