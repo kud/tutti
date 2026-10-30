@@ -89,6 +89,10 @@ fun ScenesScreen(
                 onClick = { onEdit(null) },
                 icon = { Icon(painterResource(R.drawable.ic_add), contentDescription = null) },
                 text = { Text(stringResource(R.string.scenes_new)) },
+                // In ink, not the accent container (Gamme; Iris, 2026-10-30): the one way to make
+                // something here, and no colour that a scene pill or an "on" could be mistaken for.
+                containerColor = MaterialTheme.colorScheme.inverseSurface,
+                contentColor = MaterialTheme.colorScheme.inverseOnSurface,
             )
         },
     ) { padding ->
