@@ -76,10 +76,13 @@ internal fun UpdateRow() {
                 stringResource(R.string.about_version_detail, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE),
                 style = MaterialTheme.typography.bodyLarge,
             )
+            // Two lines kept for the updater's sentence, whatever it says, so "Checking…" turning
+            // into "Couldn't reach GitHub…" never moves the rows under it (Iris, 2026-10-30).
             Text(
                 summary(state),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                minLines = 2,
             )
         }
     }
@@ -108,10 +111,12 @@ fun rememberUpdateCue(): UpdateCueState {
  * The automatic check, while the app is in front: on opening and on coming back, at most once an
  * hour for a dev build and once a day for a final release ([io.kud.tutti.protocol.update.CheckSchedule]).
  * A build found for the first time says so once, with Install ([onInstall]); after that the ⋮'s dot
- * and row carry it, so nothing repeats. Never an install by itself.
+ * and row carry it, so nothing repeats. Never an install by itself. The message speaks only on the
+ * plain remote ([onRemote] and not [editing], read when the check lands; [updateNoticeAllowed] with the open layers
+ * and any message showing), else it is skipped: never queued, never replacing another message.
  */
 @Composable
-fun UpdateCheckEffect(onInstall: () -> Unit) {
+fun UpdateCheckEffect(onRemote: () -> Boolean, editing: () -> Boolean, onInstall: () -> Unit) {
     val context = LocalContext.current
     val resources = LocalResources.current
     val updater = remember(context) { Updater.from(context) }
@@ -121,7 +126,9 @@ fun UpdateCheckEffect(onInstall: () -> Unit) {
         val job = scope.launch {
             kotlinx.coroutines.delay(3_000)
             val update = updater.checkIfDue() ?: return@launch
-            messages?.show(
+            val quiet = messages ?: return@launch
+            if (!updateNoticeAllowed(onRemote(), editing(), covers = quiet.covers, messageShowing = quiet.current != null)) return@launch
+            quiet.show(
                 resources.getString(R.string.update_available, update.version.toString()),
                 actionLabel = resources.getString(R.string.update_message_install),
                 onAction = onInstall,

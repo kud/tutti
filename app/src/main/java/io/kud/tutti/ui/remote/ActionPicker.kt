@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -225,6 +226,12 @@ fun ActionPickerContent(
                             selected = filter == category,
                             onClick = { filter = if (filter == category) null else category },
                             label = { Text(stringResource(category.label)) },
+                            // A filter on is told by the tick, never by the container alone (Iris, 2026-10-30).
+                            leadingIcon = if (filter == category) {
+                                { Icon(painterResource(R.drawable.ic_check), contentDescription = null, modifier = Modifier.size(FilterChipDefaults.IconSize)) }
+                            } else {
+                                null
+                            },
                         )
                     }
                 }
