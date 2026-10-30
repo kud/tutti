@@ -437,10 +437,12 @@ private fun PlaybackKey(
 ) {
     val label = keyLabel(code)
     val down = downReason != null
-    val fill = if (main) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh
+    // The main key wears OK's dress (secondaryContainer), the pad's own centre: bright primary means "on" only, and
+    // play/pause claims no state (Iris, 2026-10-30).
+    val fill = if (main) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh
     val ink = when {
         down -> MaterialTheme.colorScheme.onSurfaceVariant
-        main -> MaterialTheme.colorScheme.onPrimaryContainer
+        main -> MaterialTheme.colorScheme.onSecondaryContainer
         else -> MaterialTheme.colorScheme.onSurface
     }
     val ring = MaterialTheme.colorScheme.outline
