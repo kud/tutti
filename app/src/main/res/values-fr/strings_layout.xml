@@ -52,6 +52,7 @@
     <string name="pin_long_remote">Une touche de la télécommande garde son propre appui long, comme dans la rangée. Celui de Retour, Accueil, Lecture / pause et Entrée se change dans les Réglages.</string>
     <string name="voice_sheet_hint">Maintenez le micro et parlez à la TV, puis relâchez pour envoyer.</string>
     <string name="layout_options">Options</string>
+    <string name="layout_stage">La télécommande</string>
     <string name="layout_status">État</string>
     <string name="layout_cannot_change">Non modifiable</string>
     <string name="layout_pad_swap">Glisser pour changer de côté</string>
