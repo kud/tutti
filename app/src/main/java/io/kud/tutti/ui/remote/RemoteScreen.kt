@@ -600,8 +600,8 @@ fun RemoteScreen(
 
                 // The thumb reaches about half the screen (Erwann, 2026-10-24): the pad and the rail
                 // stand low, one height side by side, the mode switch a glyph on the pad's corner,
-                // and the free room goes above them to the card (placePad). Large takes the margins back.
-                val large = layout.padSize == PadSize.LARGE
+                // and the free room goes above them to the card (placePad). One size (Erwann, 2026-10-30).
+                val large = layout.padOnScreen == PadSize.LARGE
                 val railGap = if (large) 8.dp else 12.dp
                 val showing = cardShowing(state)
                 Column(
@@ -611,7 +611,7 @@ fun RemoteScreen(
                         .padding(horizontal = if (large) 8.dp else 16.dp),
                 ) {
                     BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
-                        val place = placePad(maxHeight.value, (maxWidth - railGap - RAIL_WIDTH).value, layout.padSize, LocalDensity.current.fontScale, pointer = pointerPad)
+                        val place = placePad(maxHeight.value, (maxWidth - railGap - RAIL_WIDTH).value, layout.padOnScreen, LocalDensity.current.fontScale, pointer = pointerPad)
                         val shown = showing?.takeIf { place.card.size != CardSize.HIDDEN }
                         SideEffect { cardShown = shown != null }
                         // The card centres in the room above the pad (Erwann, 2026-10-24: the band

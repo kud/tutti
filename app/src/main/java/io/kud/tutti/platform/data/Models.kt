@@ -141,7 +141,9 @@ enum class DockLabels { ICON, BOTH, NAME }
 data class RemoteLayout(
     val row: List<RowButton> = DEFAULT_ROW,
     val scenes: Boolean = true,
+    /** Kept only so stored layouts decode: the pad has one size since 2026-10-30 ([padOnScreen]). */
     val padSize: PadSize = PadSize.NORMAL,
+    /** Which side the pad stands, set by dragging it across the rail in the editor; right by default. */
     val hand: Hand = Hand.RIGHT,
     /**
      * True once he has added, removed or moved a row button. Until then the row follows

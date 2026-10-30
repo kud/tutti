@@ -3,6 +3,7 @@ package io.kud.tutti.ui.remote
 import androidx.compose.ui.geometry.Rect
 import io.kud.tutti.platform.data.Hand
 import io.kud.tutti.platform.data.PadSize
+import io.kud.tutti.platform.data.RemoteLayout
 import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
@@ -98,6 +99,26 @@ internal const val CARD_TEXT_LINE = 28f
  * top-right for the left.
  */
 internal val Hand.padOnRight: Boolean get() = this == Hand.RIGHT
+
+/**
+ * The pad's size on screen: always Normal, as tall as it is wide (Erwann, 2026-10-30: « Ça vaut
+ * vraiment le coup le size du pad ? »). One phone, one room: a stored Compact or Large reads fine and
+ * draws Normal, so nothing is lost but a choice that had no job.
+ */
+internal val RemoteLayout.padOnScreen: PadSize get() = PadSize.NORMAL
+
+/** The other side: the pad and the rail trade places. */
+internal val Hand.swapped: Hand get() = if (this == Hand.RIGHT) Hand.LEFT else Hand.RIGHT
+
+/**
+ * Where the pad lands when he lets go of it in the layout editor (Erwann, 2026-10-30: « les gens
+ * drag and drop pour changer les positions des éléments »): dragged towards the rail by at least
+ * [threshold] it trades sides with it; anything shorter, or the other way, springs back.
+ */
+internal fun padSideAfterDrag(hand: Hand, dragX: Float, threshold: Float): Hand {
+    val towardRail = if (hand.padOnRight) -dragX else dragX
+    return if (towardRail >= threshold) hand.swapped else hand
+}
 
 /** The switch sits in the pad's top-left corner when the pad stands on the right. */
 internal val Hand.switchOnLeft: Boolean get() = padOnRight
