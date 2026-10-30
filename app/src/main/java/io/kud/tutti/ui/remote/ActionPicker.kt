@@ -111,9 +111,10 @@ fun ActionPickerSheet(
     onLoadTv: () -> Unit,
     onDismiss: () -> Unit,
     sheets: Boolean = false,
+    only: PinKind? = null,
 ) {
     TuttiSheet(onDismissRequest = onDismiss) {
-        ActionPickerContent(title, state, allowRemove, onPick, onLoadTv, Modifier.fillMaxHeight(), sheets = sheets)
+        ActionPickerContent(title, state, allowRemove, onPick, onLoadTv, Modifier.fillMaxHeight(), sheets = sheets, only = only)
     }
 }
 
@@ -127,13 +128,15 @@ fun ActionPickerContent(
     modifier: Modifier = Modifier,
     // Apps and Keys, the remote's own sheets: only a dock pin can open them (DockAction.OpenApps).
     sheets: Boolean = false,
+    // One kind only, from the layout editor's list of kinds (Erwann, 2026-10-30): no chips, its rows alone.
+    only: PinKind? = null,
 ) {
     // Picture modes and the TV's own keys come from the settings load: ask once IP control answers.
     LaunchedEffect(state.ipControl) {
         if (state.ipControl && !state.tv.settings.loaded && !state.tv.settings.loading) onLoadTv()
     }
     var query by rememberSaveable { mutableStateOf("") }
-    var filter by rememberSaveable { mutableStateOf<Category?>(null) }
+    var filter by rememberSaveable { mutableStateOf(only?.category) }
     var allKeys by rememberSaveable { mutableStateOf(false) }
     val barValues = remember { mutableStateMapOf<TheatreFeature, String>() }
     val needle = fold(query.trim())
@@ -163,6 +166,7 @@ fun ActionPickerContent(
     val sceneRows = state.scenes.map { it.scene }
 
     val keyRows: List<Pair<KeyGroup?, List<Int>>> = when {
+        only == PinKind.CHANNELS -> listOf(null to NamedKeys.all.filter { it.isChannel }.map { it.code }.filter { matches(keyLabels.getValue(it)) })
         searching -> listOf(null to NamedKeys.all.map { it.code }.filter { matches(keyLabels.getValue(it)) })
         allKeys || filter == Category.KEYS -> KeyGroup.entries.map { group -> group to NamedKeys.all.filter { it.group == group }.map { it.code } }
         else -> listOf(null to NamedKeys.common)
@@ -177,7 +181,7 @@ fun ActionPickerContent(
     // The remote's own keys follow, the round row until 2026-10-29: pins like the rest now.
     val sheetLabels = (listOf(DockAction.OpenApps, DockAction.OpenKeys) + RowButton.entries.filter { it != RowButton.MUTE }.map { DockAction.Remote(it) })
         .associateWith { actionLabel(it, state) }
-    val sheetRows = if (sheets && filter == null) sheetLabels.keys.filter { matches(sheetLabels.getValue(it)) } else emptyList()
+    val sheetRows = if (sheets && (filter == null || only == PinKind.KEYS)) sheetLabels.keys.filter { matches(sheetLabels.getValue(it)) } else emptyList()
     val nothing = searching && keyRows.all { it.second.isEmpty() } && appRows.isEmpty() && inputRows.isEmpty() &&
         barRows.isEmpty() && pictureRows.isEmpty() && irccRows.isEmpty() && soundRows.isEmpty() && scenesShown.isEmpty() && sheetRows.isEmpty()
 
@@ -215,7 +219,7 @@ fun ActionPickerContent(
                     ),
                     modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                 )
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (only == null) LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(Category.entries, key = { it.name }) { category ->
                         FilterChip(
                             selected = filter == category,
@@ -254,7 +258,7 @@ fun ActionPickerContent(
                         PickRow(keyLabels.getValue(code), keyIcon(code)) { onPick(DockAction.Key(code)) }
                     }
                 }
-                if (!searching && filter == null) {
+                if (!searching && filter == null && only == null) {
                     item(key = "keys-more") {
                         Text(
                             if (allKeys) stringResource(R.string.picker_fewer_keys) else stringResource(R.string.picker_all_keys, NamedKeys.all.size),
@@ -457,3 +461,15 @@ private fun Chevron(@DrawableRes icon: Int, description: String, onClick: () -> 
         Icon(painterResource(icon), contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
     }
 }
+
+/** The picker's section for one kind of the layout editor's list; channels are keys, sound the bar's settings. */
+private val PinKind.category: Category?
+    get() = when (this) {
+        PinKind.KEYS, PinKind.CHANNELS -> Category.KEYS
+        PinKind.APPS -> Category.APPS
+        PinKind.INPUTS -> Category.INPUTS
+        PinKind.SCENES -> Category.SCENES
+        PinKind.SOUND -> Category.BAR
+        PinKind.TV -> Category.TV
+        PinKind.STEPS -> null
+    }

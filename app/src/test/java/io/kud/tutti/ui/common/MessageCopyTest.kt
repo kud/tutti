@@ -88,6 +88,8 @@ class MessageCopyTest {
             "apps_screen_failed",
             "apps_screen_unconfirmed",
             "voice_hold_hint",
+            // The layout editor: a pin dragged off the dock or let go with its badge.
+            "layout_pin_removed",
             "voice_permission_denied",
             "voice_capped",
             "keyboard_dictation_unavailable",
