@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_layout_file">Fichier de disposition</string>
+    <string name="layout_export">Exporter la disposition</string>
+    <string name="layout_export_detail">Votre dock, appuis longs et main, dans un fichier</string>
+    <string name="layout_import">Importer une disposition</string>
+    <string name="layout_import_detail">Remplacer celle-ci depuis un fichier</string>
+    <string name="layout_exported">Disposition enregistrée dans le fichier.</string>
+    <string name="layout_exported_partial">Disposition enregistrée. Certaines épingles n’ont pas pu suivre.</string>
+    <string name="layout_export_failed">Impossible d’écrire le fichier.</string>
+    <string name="layout_read_failed">Impossible de lire le fichier.</string>
+    <string name="layout_not_a_layout">Ce fichier n’est pas une disposition tutti.</string>
+    <string name="layout_too_large">Ce fichier est trop gros pour une disposition.</string>
+    <string name="layout_from_future">Cette disposition vient d’un tutti plus récent. Mettez tutti à jour d’abord.</string>
+    <string name="layout_imported">Disposition importée</string>
+    <string name="layout_replace_title">Remplacer la disposition ?</string>
+    <string name="layout_replace">Remplacer</string>
+    <string name="layout_cancel">Annuler</string>
+    <plurals name="layout_line_pins">
+        <item quantity="one">%d épingle sur le dock</item>
+        <item quantity="many">%d épingles sur le dock</item>
+        <item quantity="other">%d épingles sur le dock</item>
+    </plurals>
+    <plurals name="layout_line_spare">
+        <item quantity="one">%d épingle mise de côté</item>
+        <item quantity="many">%d épingles mises de côté</item>
+        <item quantity="other">%d épingles mises de côté</item>
+    </plurals>
+    <string name="layout_line_hand">Main : %1$s</string>
+    <string name="layout_hand_left">gauche</string>
+    <string name="layout_hand_right">droite</string>
+    <string name="layout_line_labels">Étiquettes : %1$s</string>
+    <string name="layout_labels_icon">icône seule</string>
+    <string name="layout_labels_both">icône et nom</string>
+    <string name="layout_labels_name">nom seul</string>
+    <string name="layout_line_long_presses">Appuis longs : %1$s</string>
+    <string name="layout_none">aucun</string>
+    <string name="layout_line_scenes_shown">Bandeau des scènes : affiché</string>
+    <string name="layout_line_scenes_hidden">Bandeau des scènes : masqué</string>
+    <string name="layout_skip_scene">Ignorée : l’épingle « %1$s » lance une scène absente de ce téléphone</string>
+    <string name="layout_skip_unreadable">Ignorée : l’épingle « %1$s », illisible pour cette version</string>
+    <string name="layout_skip_unreadable_place">Ignorée : la place %1$d, illisible pour cette version</string>
+    <string name="layout_skip_spare">Ignorée : une épingle mise de côté, illisible pour cette version</string>
+    <string name="layout_skip_long_press">Ignoré : l’appui long sur %1$s</string>
+</resources>
