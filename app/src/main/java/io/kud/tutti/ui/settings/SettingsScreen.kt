@@ -467,6 +467,10 @@ private fun RemotePage(state: TuttiUiState, controller: TuttiController, onEditL
         QuickNotificationSetting(icon = R.drawable.ic_bolt)
     }
 
+    SettingsGroup(stringResource(R.string.settings_layout_file)) {
+        LayoutTransferRows(state, controller)
+    }
+
     if (appsDialog) {
         AppsShownDialog(state, controller::setAppShown) { appsDialog = false }
     }

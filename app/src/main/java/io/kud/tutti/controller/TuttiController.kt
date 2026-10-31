@@ -2388,6 +2388,17 @@ class TuttiController @Inject constructor(
         scope.launch { store.updatePrefs { it.copy(layout = transform(it.layout)) } }
     }
 
+    /**
+     * The layout and the dock replaced whole: an imported file, or the Undo after one, which puts
+     * back exactly what was there, spare tray included (Iris, 2026-10-31).
+     */
+    fun replaceLayout(layout: RemoteLayout, dock: DockConfig) {
+        scope.launch {
+            store.updatePrefs { it.copy(layout = layout) }
+            store.updateDock { dock }
+        }
+    }
+
     /** Scenes, pad and hand back as they shipped; the dock is his and stays. */
     fun resetLayout() {
         scope.launch { store.updatePrefs { it.copy(layout = RemoteLayout()) } }

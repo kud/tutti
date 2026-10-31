@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Settings › Remote & dock: the layout as a file (Iris, 2026-10-31). -->
+    <string name="settings_layout_file">Layout file</string>
+    <string name="layout_export">Export layout</string>
+    <string name="layout_export_detail">Your dock, long presses and hand, as a file</string>
+    <string name="layout_import">Import layout</string>
+    <string name="layout_import_detail">Replace this one from a file</string>
+    <string name="layout_exported">Layout saved to the file.</string>
+    <string name="layout_exported_partial">Layout saved. Some pins couldn’t go in the file.</string>
+    <string name="layout_export_failed">Couldn’t write the file.</string>
+    <string name="layout_read_failed">Couldn’t read the file.</string>
+    <string name="layout_not_a_layout">This file isn’t a tutti layout.</string>
+    <string name="layout_too_large">This file is too large to be a layout.</string>
+    <string name="layout_from_future">This layout comes from a newer tutti. Update tutti first.</string>
+    <string name="layout_imported">Layout imported</string>
+    <string name="layout_replace_title">Replace this layout?</string>
+    <string name="layout_replace">Replace</string>
+    <string name="layout_cancel">Cancel</string>
+    <plurals name="layout_line_pins">
+        <item quantity="one">%d pin on the dock</item>
+        <item quantity="other">%d pins on the dock</item>
+    </plurals>
+    <plurals name="layout_line_spare">
+        <item quantity="one">%d pin set aside</item>
+        <item quantity="other">%d pins set aside</item>
+    </plurals>
+    <string name="layout_line_hand">Hand: %1$s</string>
+    <string name="layout_hand_left">left</string>
+    <string name="layout_hand_right">right</string>
+    <string name="layout_line_labels">Labels: %1$s</string>
+    <string name="layout_labels_icon">icon only</string>
+    <string name="layout_labels_both">icon and name</string>
+    <string name="layout_labels_name">name only</string>
+    <string name="layout_line_long_presses">Long presses: %1$s</string>
+    <string name="layout_none">none</string>
+    <string name="layout_line_scenes_shown">Scene strip: shown</string>
+    <string name="layout_line_scenes_hidden">Scene strip: hidden</string>
+    <string name="layout_skip_scene">Skipped: pin “%1$s” runs a scene that isn’t on this phone</string>
+    <string name="layout_skip_unreadable">Skipped: pin “%1$s”, which this version can’t read</string>
+    <string name="layout_skip_unreadable_place">Skipped: place %1$d, which this version can’t read</string>
+    <string name="layout_skip_spare">Skipped: a pin set aside, which this version can’t read</string>
+    <string name="layout_skip_long_press">Skipped: the long press on %1$s</string>
+</resources>
