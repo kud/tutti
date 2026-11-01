@@ -94,13 +94,15 @@ object ReleaseFeed {
      * The APK in [release] for [flavour]: named `*-debug.apk` for a debug build, any other `*.apk`
      * for a release build (never the R8 mapping), served from this repository's download path, with
      * a SHA-256 digest to check it against. Null when the release has none (a final release carries
-     * no debug APK, so a debug build skips it).
+     * no debug APK, so a debug build skips it). Never an `*-fdroid.apk`: that build has no updater
+     * and is signed by F-Droid, so it could not install over this one. CI never attaches one either,
+     * because installs that predate this rule would take it as their release APK.
      */
     fun assetFor(release: Release, flavour: Flavour): ReleaseAsset? = release.assets.firstOrNull { asset ->
         val debug = asset.name.endsWith("-debug.apk")
         val fits = when (flavour) {
             Flavour.DEBUG -> debug
-            Flavour.RELEASE -> !debug && asset.name.endsWith(".apk")
+            Flavour.RELEASE -> !debug && asset.name.endsWith(".apk") && !asset.name.endsWith("-fdroid.apk")
         }
         fits && isReleaseDownload(asset.url) && Sha256.parse(asset.digest) != null
     }

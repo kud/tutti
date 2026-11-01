@@ -47,6 +47,14 @@ class UpdatesTest {
     )
 
     @Test
+    fun aReleaseBuildNeverTakesAnFdroidApk() {
+        val fdroid = ReleaseAsset("tutti-0.3.0-fdroid.apk", "https://github.com/kud/tutti/releases/download/v0.3.0/tutti-0.3.0-fdroid.apk", digest, 20)
+        assertNull(ReleaseFeed.assetFor(Release("v0.3.0", false, false, listOf(fdroid)), Flavour.RELEASE))
+        val both = Release("v0.3.0", false, false, listOf(fdroid) + releaseAssets("v0.3.0"))
+        assertEquals("tutti-0.3.0.apk", ReleaseFeed.assetFor(both, Flavour.RELEASE)?.name)
+    }
+
+    @Test
     fun pickTakesTheNewestNewerReleaseForTheFlavour() {
         val releases = listOf(
             Release("v0.2.0-dev.26", prerelease = true, draft = false, assets = listOf(debugAsset("v0.2.0-dev.26"))),
