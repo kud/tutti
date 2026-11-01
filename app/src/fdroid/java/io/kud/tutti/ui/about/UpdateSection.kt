@@ -16,7 +16,7 @@ import io.kud.tutti.R
 /*
  * The fdroid build's side of the updater seam (the github build's UpdateSection.kt is the other):
  * F-Droid updates this build, so it carries no updater and no install permission
- * (DistributionGuardsTest, checkDistribution). The same four entry points, each returning nothing (Iris, 2026-10-28:
+ * (DistributionGuardsTest, checkDistribution). The same four entry points, each returning nothing (2026-10-28:
  * "a build without it needs only these to return nothing").
  */
 
