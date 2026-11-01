@@ -199,6 +199,7 @@
     <string name="tv_value_true_cinema">True Cinema</string>
     <plurals name="tv_unavailable_count">
         <item quantity="one">%1$d indisponible avec l’entrée ou le mode actuels</item>
+        <item quantity="many">%1$d indisponibles avec l’entrée ou le mode actuels</item>
         <item quantity="other">%1$d indisponibles avec l’entrée ou le mode actuels</item>
     </plurals>
     <string name="tv_section_sound">Son de la TV</string>
@@ -236,10 +237,12 @@
     <string name="tv_hub_api">API %1$s</string>
     <plurals name="tv_hub_inputs">
         <item quantity="one">%1$d entrée</item>
+        <item quantity="many">%1$d entrées</item>
         <item quantity="other">%1$d entrées</item>
     </plurals>
     <plurals name="tv_hub_settings">
         <item quantity="one">%1$d réglage</item>
+        <item quantity="many">%1$d réglages</item>
         <item quantity="other">%1$d réglages</item>
     </plurals>
     <!-- Réglages par catégories (2026-10-26, étape 2) : les noms et lignes d’état du premier niveau. -->
@@ -254,16 +257,19 @@
     <string name="settings_line_no_bar">Aucune barre de son configurée pour l’instant</string>
     <plurals name="settings_line_hidden_inputs">
         <item quantity="one">%1$d entrée masquée</item>
+        <item quantity="many">%1$d entrées masquées</item>
         <item quantity="other">%1$d entrées masquées</item>
     </plurals>
     <string name="settings_line_no_pins">Aucune épingle</string>
     <plurals name="settings_line_pins">
         <item quantity="one">%1$d épingle</item>
+        <item quantity="many">%1$d épingles</item>
         <item quantity="other">%1$d épingles</item>
     </plurals>
     <string name="settings_line_no_long_press">aucun appui long défini</string>
     <plurals name="settings_line_long_presses">
         <item quantity="one">%1$d appui long défini</item>
+        <item quantity="many">%1$d appuis longs définis</item>
         <item quantity="other">%1$d appuis longs définis</item>
     </plurals>
     <string name="settings_line_theme_system">Thème du système</string>
