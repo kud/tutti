@@ -206,11 +206,13 @@ class AtvRemote(
      * drainer sends them in that order. A coroutine per keystroke on a pool once let "ph" reach
      * the mirror before "p" did.
      */
-    fun type(text: String) {
+    fun type(text: String): List<Char> {
+        var dropped = emptyList<Char>()
         synchronized(typing) {
             var messages = emptyList<RemoteMessage>()
-            mutableState.update { state -> session.type(state, text).also { messages = it.messages }.state }
-            if (messages.isEmpty()) return
+            val now = System.nanoTime() / 1_000_000
+            mutableState.update { state -> session.type(state, text, now).also { messages = it.messages; dropped = it.dropped }.state }
+            if (messages.isEmpty()) return dropped
             typing.addAll(messages)
         }
         scope.launch {
@@ -221,6 +223,7 @@ class AtvRemote(
                 }
             }
         }
+        return dropped
     }
 
     suspend fun launch(link: String): Boolean = send(RemoteMessages.appLink(link))

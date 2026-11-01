@@ -195,10 +195,15 @@ class ImeEchoTest {
             state = step.state
             step.messages.forEach { tv.receive(it)?.let(echoes::add) }
         }
-        echoes.forEach {
-            state = session.reduce(state, it).state
+        // The second letter is the style trial: the rest waits for its echo, then goes as one.
+        while (echoes.isNotEmpty()) {
+            val step = session.reduce(state, echoes.removeAt(0))
+            state = step.state
+            step.replies.forEach { tv.receive(it)?.let(echoes::add) }
             assertEquals("bravia", state.ime?.text)
         }
+        assertEquals(ImeStyle.REPLACE, state.imeStyle)
+        assertEquals(listOf("b", "br", "bravia"), tv.taken)
         assertEquals("bravia", tv.text)
         assertEquals(emptyList(), state.imeEchoes)
     }
@@ -220,10 +225,15 @@ class ImeEchoTest {
         phone.text = "the "
         phone.composing = ""
         type(phone.text)
-        echoes.forEach { state = session.reduce(state, it).state }
+        while (echoes.isNotEmpty()) {
+            val step = session.reduce(state, echoes.removeAt(0))
+            state = step.state
+            step.replies.forEach { tv.receive(it)?.let(echoes::add) }
+        }
         assertEquals("the ", state.ime?.text)
         assertEquals("the ", tv.text)
-        assertEquals(listOf("t", "te", "teh", "te", "the "), tv.taken)
+        // "te" is the style trial; what was typed meanwhile goes as its newest text only.
+        assertEquals(listOf("t", "te", "the "), tv.taken)
     }
 
     @Test
