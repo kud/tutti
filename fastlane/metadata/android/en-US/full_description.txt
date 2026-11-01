@@ -1,0 +1,25 @@
+tutti is a remote for one living room: a Sony BRAVIA TV on Google TV, a BRAVIA Theatre Bar, and the computer shown on the TV. It is built to replace BRAVIA Connect for everyday use.
+
+Everything runs on your local network. tutti needs no Sony account and no cloud service, and it sends nothing about you anywhere.
+
+<b>What it does</b>
+<ul>
+<li>A Google TV–grade remote: touchpad or D-pad, with a strip under the pad to switch between them</li>
+<li>Live keyboard: type into the TV's text fields from the phone</li>
+<li>Voice: hold the mic to talk to the TV's Assistant</li>
+<li>Soundbar controls over the bar's IP control: volume, sound field, night mode, bass and rear level</li>
+<li>Scenes and shortcuts: one tap sets the TV input or app, the picture mode and a volume cap</li>
+<li>A widget, Quick Settings tiles and a media notification</li>
+<li>A gentle switch-off timer</li>
+<li>Developer mode: redacted, copyable details on every error, and a diagnostic of the TV and bar connections</li>
+</ul>
+
+<b>Privacy and security</b>
+Devices are pinned the first time you pair, pairing material is encrypted with an Android Keystore key and kept out of backups, and cleartext HTTP is only ever sent to a private LAN address.
+
+<b>Setup</b>
+Pair with the TV by typing the code it shows. For the soundbar, enable External control (IP control) in BRAVIA Connect. Setup, room calibration and speaker placement stay in BRAVIA Connect, and tutti opens it when you need it.
+
+App buttons show each app's own logo to identify it. These marks belong to their owners.
+
+tutti is not affiliated with or endorsed by Sony. BRAVIA is a trademark of Sony Group Corporation.

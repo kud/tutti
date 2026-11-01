@@ -1,0 +1,34 @@
+Categories:
+  - Connectivity
+  - Multimedia
+License: MIT
+AuthorName: Erwann Mest
+SourceCode: https://github.com/kud/tutti
+IssueTracker: https://github.com/kud/tutti/issues
+Changelog: https://github.com/kud/tutti/releases
+
+AutoName: tutti
+
+RepoType: git
+Repo: https://github.com/kud/tutti.git
+
+AntiFeatures:
+  NonFreeAssets:
+    en-US: App buttons show third-party app logos and icons (some taken from Google Play) to identify the app a button opens; they are not under a free licence.
+    fr-FR: Les boutons d’applis affichent des logos et icônes d’applis tierces (certains tirés de Google Play) pour reconnaître l’appli ouverte ; ils ne sont pas sous licence libre.
+
+Builds:
+  - versionName: 0.2.0
+    versionCode: 200099
+    commit: v0.2.0
+    subdir: app
+    gradle:
+      - fdroid
+    gradleprops:
+      - tutti.versionName=0.2.0
+      - tutti.versionCode=200099
+
+AutoUpdateMode: None
+UpdateCheckMode: Tags ^v[0-9]+\.[0-9]+\.[0-9]+$
+CurrentVersion: 0.2.0
+CurrentVersionCode: 200099
