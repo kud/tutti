@@ -104,6 +104,9 @@ class CastSession(
                 if (result != null) connection.close()
             }
             result ?: CastEnd.Closed("eof")
+        } catch (e: CancellationException) {
+            // Cancelled from outside: propagate, never report it as a closed socket.
+            throw e
         } catch (e: Exception) {
             // Closing the socket after a verdict can fail the read: the verdict is the reason.
             result ?: CastEnd.Closed(e.javaClass.simpleName)
