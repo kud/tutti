@@ -113,4 +113,29 @@ class TvLinkRuleTest {
         assertEquals(true, TvLinkRule.wakesTv(V2Key.HOME, long = false, tvPowered = false, barAlone = true))
         assertEquals(false, TvLinkRule.wakesTv(V2Key.MEDIA_PLAY_PAUSE, long = false, tvPowered = false, barAlone = true))
     }
+
+    @Test
+    fun `an app tapped while the tv is known in standby wakes it, whatever its links say`() {
+        assertEquals(true, TvLinkRule.launchWakes(hasTv = true, tvPowered = false, raw = Link.ONLINE, shown = TvShown(Link.ONLINE)))
+        assertEquals(true, TvLinkRule.launchWakes(hasTv = true, tvPowered = false, raw = Link.UNREACHABLE, shown = TvShown(Link.UNREACHABLE)))
+    }
+
+    @Test
+    fun `an app tapped while the tv is out of reach wakes it, deep standby looks like that`() {
+        assertEquals(true, TvLinkRule.launchWakes(hasTv = true, tvPowered = null, raw = Link.UNREACHABLE, shown = TvShown(Link.UNREACHABLE)))
+    }
+
+    @Test
+    fun `an app tapped on a tv that is on, or coming back from a blip, does not wake it`() {
+        assertEquals(false, TvLinkRule.launchWakes(hasTv = true, tvPowered = true, raw = Link.ONLINE, shown = TvShown(Link.ONLINE)))
+        assertEquals(false, TvLinkRule.launchWakes(hasTv = true, tvPowered = null, raw = Link.UNREACHABLE, shown = TvShown(Link.ONLINE)))
+        assertEquals(false, TvLinkRule.launchWakes(hasTv = true, tvPowered = null, raw = Link.CONNECTING, shown = TvShown(Link.CONNECTING, reconnecting = true)))
+    }
+
+    @Test
+    fun `no tv or a lost pairing never wakes on an app tap`() {
+        assertEquals(false, TvLinkRule.launchWakes(hasTv = false, tvPowered = false, raw = Link.ABSENT, shown = TvShown(Link.ABSENT)))
+        assertEquals(false, TvLinkRule.launchWakes(hasTv = true, tvPowered = false, raw = Link.NEEDS_PAIRING, shown = TvShown(Link.NEEDS_PAIRING)))
+        assertEquals(false, TvLinkRule.launchWakes(hasTv = true, tvPowered = false, raw = Link.UNAUTHORIZED, shown = TvShown(Link.UNAUTHORIZED)))
+    }
 }

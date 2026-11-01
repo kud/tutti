@@ -14,6 +14,9 @@
     <string name="apps_launch_waiting">En attente de la TV</string>
     <string name="apps_launch_held">Ouverture de %1$s dès que la TV répond…</string>
     <string name="apps_launch_not_opened">%1$s ne s’est pas ouverte</string>
+    <string name="apps_launch_waking">Allumage de la TV pour %1$s…</string>
+    <string name="apps_launch_waking_tile">Allumage de la TV</string>
+    <string name="apps_launch_not_woken">%1$s pas ouverte : la TV ne s’est pas allumée</string>
     <string name="apps_launch_expired">%1$s pas ouverte : la TV n’est pas revenue à temps</string>
     <string name="apps_open_tv_screen">Ouvrir l’écran Apps de la TV</string>
     <string name="apps_screen_failed">La TV n’a pas ouvert son écran Apps</string>

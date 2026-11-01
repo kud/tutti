@@ -10,6 +10,12 @@ enum class LaunchLink {
 
     /** No route, and none is coming soon: refuse, and say why. */
     DOWN,
+
+    /**
+     * The TV is asleep (in standby, or out of reach where a wake could bring it back): wake it,
+     * then send once it is on ([LaunchQueue.awake]), the way the TV's own app buttons do.
+     */
+    ASLEEP,
 }
 
 enum class LaunchPhase {
@@ -18,13 +24,19 @@ enum class LaunchPhase {
 
     /** Handed to [AppLauncher]: routes going out, the TV watched for the app. */
     SENDING,
+
+    /** Tapped while the TV slept: one wake is under way, and the launch goes once the TV is on. */
+    WAKING,
 }
 
-/** The one launch in flight. [heldUntil] is when a [LaunchPhase.QUEUED] launch gives up. */
+/** The one launch in flight. [heldUntil] is when a [LaunchPhase.QUEUED] or [LaunchPhase.WAKING] launch gives up. */
 data class PendingLaunch(val id: Long, val packageName: String, val phase: LaunchPhase, val heldUntil: Long? = null)
 
-/** A launch that didn't bring its app up: [expired] when it never went out, [detail] the redacted trace. */
-data class LaunchFailure(val packageName: String, val expired: Boolean, val detail: String? = null)
+/**
+ * A launch that didn't bring its app up: [expired] when it never went out, [asleep] when that was
+ * because the TV it woke never came on, [detail] the redacted trace.
+ */
+data class LaunchFailure(val packageName: String, val expired: Boolean, val detail: String? = null, val asleep: Boolean = false)
 
 /**
  * App launches as the remote shows them, optimistic (CLAUDE.md: never block the UI on the
@@ -56,6 +68,13 @@ sealed interface LaunchEffect {
     /** Held: wait for the link up to [until], then [LaunchQueue.linkReady] or [LaunchQueue.tick]. */
     data class Held(val id: Long, val packageName: String, val until: Long) : LaunchEffect
 
+    /**
+     * The TV is asleep: launch [id] waits on a wake until [until], then [LaunchQueue.awake] or
+     * [LaunchQueue.notWoken]. [start] is false when a wake is already under way for an earlier
+     * tap: this one only takes its place, and nothing wakes twice.
+     */
+    data class Wake(val id: Long, val packageName: String, val until: Long, val start: Boolean) : LaunchEffect
+
     /** The same app tapped again while its launch is in flight: nothing is sent twice. */
     data class Repeat(val packageName: String) : LaunchEffect
 
@@ -77,7 +96,9 @@ data class LaunchStep(val book: LaunchBook, val effects: List<LaunchEffect> = em
 /**
  * The launch reducer: one launch in flight, newest tap wins, a repeat of the same app never
  * launches twice, a launch tapped in a blip waits [HOLD_MS] for the link and is dropped (and said)
- * past it. Pure; time is passed in.
+ * past it. A launch tapped while the TV sleeps wakes it first (Erwann, 2026-11-01: « allumer la TV
+ * quand on appuie sur Netflix »): one wake, up to [WAKE_MS]; a newer app tapped meanwhile takes
+ * the place of the one waiting rather than waking again. Pure; time is passed in.
  */
 object LaunchQueue {
     /**
@@ -90,13 +111,23 @@ object LaunchQueue {
     /** How long an unconfirmed launch ([LaunchVerdict.SENT]) keeps the app on screen before the TV says. */
     const val SENT_GRACE_MS = 5_000L
 
+    /**
+     * How long a launch waits on the TV's wake: the wake's own 12 s to reach it, 2 s for it to
+     * say it is on, and a moment for the screen to settle. Past it the launch is dropped, said.
+     */
+    const val WAKE_MS = 16_000L
+
     fun tap(book: LaunchBook, packageName: String, link: LaunchLink, now: Long): LaunchStep {
         if (book.pending?.packageName == packageName) return LaunchStep(book, listOf(LaunchEffect.Repeat(packageName)))
-        if (link == LaunchLink.DOWN) return LaunchStep(book, listOf(LaunchEffect.Refused(packageName)))
+        // A wake under way: until a route is ready, a new app joins that wake instead of being refused.
+        val waking = book.pending?.takeIf { it.phase == LaunchPhase.WAKING }
+        val route = if (waking != null && link != LaunchLink.READY) LaunchLink.ASLEEP else link
+        if (route == LaunchLink.DOWN) return LaunchStep(book, listOf(LaunchEffect.Refused(packageName)))
         val id = book.nextId
         val superseded = book.pending?.let { listOf(LaunchEffect.Superseded(it.id), LaunchEffect.Done(it.id, ok = false)) }.orEmpty()
-        val pending = when (link) {
+        val pending = when (route) {
             LaunchLink.READY -> PendingLaunch(id, packageName, LaunchPhase.SENDING)
+            LaunchLink.ASLEEP -> PendingLaunch(id, packageName, LaunchPhase.WAKING, heldUntil = waking?.heldUntil ?: (now + WAKE_MS))
             else -> PendingLaunch(id, packageName, LaunchPhase.QUEUED, heldUntil = now + HOLD_MS)
         }
         val next = book.copy(
@@ -107,10 +138,10 @@ object LaunchQueue {
             nextId = id + 1,
             lastSentId = if (pending.phase == LaunchPhase.SENDING) id else book.lastSentId,
         )
-        val go = if (pending.phase == LaunchPhase.SENDING) {
-            LaunchEffect.Send(id, packageName)
-        } else {
-            LaunchEffect.Held(id, packageName, pending.heldUntil!!)
+        val go = when (pending.phase) {
+            LaunchPhase.SENDING -> LaunchEffect.Send(id, packageName)
+            LaunchPhase.WAKING -> LaunchEffect.Wake(id, packageName, pending.heldUntil!!, start = waking == null)
+            LaunchPhase.QUEUED -> LaunchEffect.Held(id, packageName, pending.heldUntil!!)
         }
         return LaunchStep(next, superseded + go)
     }
@@ -126,10 +157,27 @@ object LaunchQueue {
         )
     }
 
-    /** Time passing: a held launch past its window is dropped and said; a stale optimistic app goes. */
+    /** The TV woke and can take a launch: the launch waiting on it goes, whichever app it is now. */
+    fun awake(book: LaunchBook): LaunchStep {
+        val pending = book.pending
+        if (pending == null || pending.phase != LaunchPhase.WAKING) return LaunchStep(book)
+        return LaunchStep(
+            book.copy(pending = pending.copy(phase = LaunchPhase.SENDING, heldUntil = null), lastSentId = pending.id),
+            listOf(LaunchEffect.Send(pending.id, pending.packageName)),
+        )
+    }
+
+    /** The wake failed: the launch waiting on it is dropped, never sent into the void, and said. */
+    fun notWoken(book: LaunchBook): LaunchStep {
+        val pending = book.pending
+        if (pending == null || pending.phase != LaunchPhase.WAKING) return LaunchStep(book)
+        return expire(book, pending)
+    }
+
+    /** Time passing: a held or waking launch past its window is dropped and said; a stale optimistic app goes. */
     fun tick(book: LaunchBook, now: Long): LaunchStep {
         val pending = book.pending
-        if (pending != null && pending.phase == LaunchPhase.QUEUED && now >= pending.heldUntil!!) return expire(book, pending)
+        if (pending != null && pending.phase != LaunchPhase.SENDING && now >= pending.heldUntil!!) return expire(book, pending)
         val until = book.optimisticUntil
         if (pending == null && until != null && now >= until) return LaunchStep(book.copy(optimistic = null, optimisticUntil = null))
         return LaunchStep(book)
@@ -176,7 +224,7 @@ object LaunchQueue {
     fun clearFailure(book: LaunchBook): LaunchBook = book.copy(failure = null)
 
     private fun expire(book: LaunchBook, pending: PendingLaunch): LaunchStep {
-        val failure = LaunchFailure(pending.packageName, expired = true)
+        val failure = LaunchFailure(pending.packageName, expired = true, asleep = pending.phase == LaunchPhase.WAKING)
         return LaunchStep(
             book.copy(pending = null, optimistic = null, optimisticUntil = null, failure = failure),
             listOf(LaunchEffect.Done(pending.id, ok = false), LaunchEffect.Failed(failure)),

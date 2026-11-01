@@ -1290,7 +1290,8 @@ class TuttiController @Inject constructor(
      */
     fun launchPreviousApp(): Boolean {
         val target = appHistory.value.back() ?: return false
-        launchApp(target)
+        // Back means a screen already showing, as for the key: it never wakes the TV.
+        launchApp(target, wake = false)
         return true
     }
 
@@ -1436,17 +1437,19 @@ class TuttiController @Inject constructor(
      * waits up to [LaunchQueue.HOLD_MS] for a link that is only blipping, or is refused with the
      * words a key gets ([TvLinkRule.launchWhileDown]). A repeat tap of the app in flight sends
      * nothing; a different app replaces it. Runs in the controller's scope, so leaving the sheet
-     * never cancels a launch half way.
+     * never cancels a launch half way. With [wake], a tap while the TV sleeps turns it on first
+     * and opens the app once it is ([TvLinkRule.launchWakes], [wakeForLaunch]); only a hand on a
+     * tile, a dock slot or a shortcut asks for that, never anything running on its own.
      */
-    fun launchApp(packageName: String): Long? {
-        val (id, effects) = tapLaunch(packageName, await = false)
+    fun launchApp(packageName: String, wake: Boolean = true): Long? {
+        val (id, effects) = tapLaunch(packageName, await = false, wake = wake)
         handleLaunch(effects)
         return id
     }
 
     /** [launchApp], awaiting the outcome: true once the launch went out (confirmed, or sent unobserved). */
     private suspend fun requestLaunch(packageName: String): Boolean {
-        val (id, effects) = tapLaunch(packageName, await = true)
+        val (id, effects) = tapLaunch(packageName, await = true, wake = true)
         handleLaunch(effects)
         return id?.let { launchWaiters[it]?.await() } ?: false
     }
@@ -1455,8 +1458,8 @@ class TuttiController @Inject constructor(
      * One tap through [LaunchQueue.tap], synchronous so the book has changed before the caller
      * looks. Returns the launch the tap started or joined (null when refused), and the effects.
      */
-    private fun tapLaunch(packageName: String, await: Boolean): Pair<Long?, List<LaunchEffect>> {
-        val link = launchReadiness(packageName)
+    private fun tapLaunch(packageName: String, await: Boolean, wake: Boolean): Pair<Long?, List<LaunchEffect>> {
+        val link = launchReadiness(packageName, wake)
         var id: Long? = null
         val effects = launchStep { book ->
             LaunchQueue.tap(book, packageName, link, SystemClock.elapsedRealtime()).also { step ->
@@ -1473,6 +1476,9 @@ class TuttiController @Inject constructor(
 
     /** The job sending or holding each launch, by id, so a newer tap can stop the one it replaced. */
     private val launchJobs = java.util.concurrent.ConcurrentHashMap<Long, Job>()
+
+    /** The one wake a launch waits on ([LaunchEffect.Wake]); a newer app tapped meanwhile waits on the same one. */
+    @Volatile private var launchWake: Job? = null
 
     /** Applies one [LaunchQueue] step atomically and returns what the caller must do. */
     private fun launchStep(transition: (LaunchBook) -> LaunchStep): List<LaunchEffect> {
@@ -1503,13 +1509,20 @@ class TuttiController @Inject constructor(
                         handleLaunch(launchStep { if (back) LaunchQueue.linkReady(it, effect.id, now) else LaunchQueue.tick(it, now) })
                     }
                 }
+                is LaunchEffect.Wake -> {
+                    mutableEvents.tryEmit(TuttiEvent.AppLaunchWaking(appLabel(effect.packageName)))
+                    if (effect.start) {
+                        launchWake?.cancel()
+                        launchWake = scope.launch { wakeForLaunch(effect.until) }
+                    }
+                }
                 is LaunchEffect.Superseded -> launchJobs.remove(effect.id)?.cancel()
                 is LaunchEffect.Done -> {
                     launchWaiters.remove(effect.id)?.complete(effect.ok)
                     if (effect.ok) scheduleLaunchTick()
                 }
                 is LaunchEffect.Failed -> mutableEvents.tryEmit(
-                    TuttiEvent.AppNotOpened(appLabel(effect.failure.packageName), effect.failure.expired, effect.failure.detail),
+                    TuttiEvent.AppNotOpened(appLabel(effect.failure.packageName), effect.failure.expired, effect.failure.detail, effect.failure.asleep),
                 )
                 is LaunchEffect.Refused -> {
                     val current = links.value
@@ -1518,6 +1531,33 @@ class TuttiController @Inject constructor(
                 is LaunchEffect.Repeat -> Unit
             }
         }
+    }
+
+    /**
+     * Turns the TV on for a launch tapped while it slept, then lets the launch go once the TV says
+     * it is on and a route can carry it. The TV alone, as the short press on Power: the bar follows
+     * it over HDMI-CEC by its own link setting ([shortPress]). A wake that fails is dropped, never
+     * sent into the void; when the wake already said why ([TuttiEvent.WakeFailed], with its Remote
+     * start help), the launch's own failure stays on its tile rather than a second message.
+     */
+    private suspend fun wakeForLaunch(until: Long) {
+        val wake = startPower(PowerTarget.TV, on = true)
+        val window = (until - SystemClock.elapsedRealtime()).coerceAtLeast(0)
+        val on = withTimeoutOrNull(window) {
+            combine(atv.state, tv, links) { remote, rest, link ->
+                val powered = (remote.powered ?: (rest.power == PowerStatus.ACTIVE)) == true
+                powered && (remote.ready || (bravia != null && link.rest == Link.ONLINE && !pskRefused))
+            }.first { it }
+        } != null
+        if (on) {
+            // The screen is still coming up: a launch sent in the same instant can lose to the TV's home.
+            delay(WAKE_KEY_SETTLE_MS)
+            handleLaunch(launchStep(LaunchQueue::awake))
+            return
+        }
+        val said = wake?.let { withTimeoutOrNull(POWER_KNOWN_MS) { it.await() } } != null
+        val effects = launchStep(LaunchQueue::notWoken)
+        handleLaunch(if (said) effects.filterNot { it is LaunchEffect.Failed } else effects)
     }
 
     /** Lets an unconfirmed launch's app leave the screen once its grace is over. */
@@ -1534,14 +1574,21 @@ class TuttiController @Inject constructor(
     /**
      * Whether a launch can go now: the remote link ready, or IP control up with a uri the TV
      * listed. Else the shown link decides ([TvLinkRule.launchWhileDown]): held through a blip only.
+     * With [wake], a TV asleep is woken first ([TvLinkRule.launchWakes]): one known in standby
+     * even while its links answer, since an app sent to it opens on a dark screen or not at all.
      */
-    private fun launchReadiness(packageName: String): LaunchLink {
+    private fun launchReadiness(packageName: String, wake: Boolean): LaunchLink {
+        val shown = links.value
+        val powered = tvPoweredNow()
+        val wakes = wake && TvLinkRule.launchWakes(state.value.devices.tv != null, powered, shown.tv, shown.tvShown)
+        if (wakes && powered == false) return LaunchLink.ASLEEP
         if (atv.state.value.ready) return LaunchLink.READY
         // IP control can launch without the remote link, with a uri the TV listed (now or before).
         val listed = tv.value.apps.any { AppLibrary.packageOf(it.uri) == packageName } ||
             state.value.apps.any { it.packageName == packageName && it.tvUri != null }
         // setActiveApp needs the key: a refused one leaves launches to the remote link.
         if (bravia != null && links.value.rest == Link.ONLINE && !pskRefused && listed) return LaunchLink.READY
+        if (wakes) return LaunchLink.ASLEEP
         val current = links.value
         return if (TvLinkRule.launchWhileDown(current.tv, current.tvShown) == KeyOutcome.HELD) LaunchLink.ON_ITS_WAY else LaunchLink.DOWN
     }
@@ -1772,11 +1819,7 @@ class TuttiController @Inject constructor(
      */
     fun power() {
         val s = state.value
-        val tvPowered = s.remote.powered ?: when (s.tv.power) {
-            PowerStatus.ACTIVE -> true
-            PowerStatus.STANDBY -> false
-            PowerStatus.UNKNOWN -> null
-        }
+        val tvPowered = tvPoweredNow()
         val barPowered = s.bar.isOn(TheatreFeature.POWER).takeIf { s.links.bar == Link.ONLINE }
         val (target, on) = shortPress(s.devices.tv != null, tvPowered, barPowered)
         power(target, on)
@@ -1789,7 +1832,22 @@ class TuttiController @Inject constructor(
      * target names, so [TuttiEvent.WakeFailed] blames only a device that was asked to wake.
      */
     fun power(target: PowerTarget, on: Boolean) {
-        if (waking.value) return
+        startPower(target, on)
+    }
+
+    /** The TV's power as the remote shows it: the remote link's word, else IP control's; null when neither knows. */
+    private fun tvPoweredNow(): Boolean? {
+        val s = state.value
+        return s.remote.powered ?: when (s.tv.power) {
+            PowerStatus.ACTIVE -> true
+            PowerStatus.STANDBY -> false
+            PowerStatus.UNKNOWN -> null
+        }
+    }
+
+    /** [power], returning the wake when one started: it ends with the failure it reported, or null. */
+    private fun startPower(target: PowerTarget, on: Boolean): Deferred<WakeAttempt.Cause?>? {
+        if (waking.value) return null
         val current = state.value
         val tvDevice = current.devices.tv
         val plan = powerPlan(
@@ -1803,20 +1861,24 @@ class TuttiController @Inject constructor(
         plan.overridePowered?.let { powered -> setOverride { it.copy(powered = powered) } }
         if (plan.sendTv) scope.launch { tvPower(on) }
         if (plan.sendBar) scope.launch { theatre.setToggle(TheatreFeature.POWER, on) }
-        if (!plan.waking) return
+        if (!plan.waking) return null
         waking.value = true
+        // A plain launch, so a crash still reaches the scope's handler; the deferred only carries the outcome.
+        val outcome = CompletableDeferred<WakeAttempt.Cause?>()
         scope.launch {
             try {
-                wakeAndPower(tvDevice?.takeIf { plan.wakeTv }, plan.wakeBar)
+                outcome.complete(wakeAndPower(tvDevice?.takeIf { plan.wakeTv }, plan.wakeBar))
             } finally {
                 waking.value = false
+                outcome.complete(null)
             }
         }
+        return outcome
     }
 
     private fun tvReachable(): Boolean = atv.state.value.ready || (bravia != null && links.value.rest == Link.ONLINE)
 
-    private suspend fun wakeAndPower(tvDevice: TvDevice?, bar: Boolean) {
+    private suspend fun wakeAndPower(tvDevice: TvDevice?, bar: Boolean): WakeAttempt.Cause? {
         val mac = tvDevice?.mac
         val sent = AtomicInteger(0)
         val (tvReach, barReach) = coroutineScope {
@@ -1871,8 +1933,9 @@ class TuttiController @Inject constructor(
             timeoutMs = WAKE_TIMEOUT_MS,
             tvLastConnect = tvLastConnect,
         )
-        val cause = attempt.cause ?: return
+        val cause = attempt.cause ?: return null
         mutableEvents.tryEmit(TuttiEvent.WakeFailed(cause, failureDetail("power: wake the devices", outcome = attempt.outcome())))
+        return cause
     }
 
     /**

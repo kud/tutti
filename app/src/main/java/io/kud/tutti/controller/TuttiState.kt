@@ -214,11 +214,15 @@ sealed interface TuttiEvent {
     /** An app launch tapped in a blip of the TV's link: held, and sent the moment it is back ([io.kud.tutti.protocol.apps.LaunchQueue]). */
     data class AppLaunchHeld(val appName: String) : TuttiEvent
 
+    /** An app tapped while the TV slept: the TV is being turned on, and the app opens once it is ([io.kud.tutti.protocol.apps.LaunchQueue.WAKE_MS]). */
+    data class AppLaunchWaking(val appName: String) : TuttiEvent
+
     /**
      * An app launch that didn't bring the app up: [expired] when it was held and the link never
-     * came back in time, else every route was tried. [detail] is the redacted trace, for developers.
+     * came back in time, [asleep] when the TV it woke never came on, else every route was tried.
+     * [detail] is the redacted trace, for developers.
      */
-    data class AppNotOpened(val appName: String, val expired: Boolean, val detail: String?) : TuttiEvent
+    data class AppNotOpened(val appName: String, val expired: Boolean, val detail: String?, val asleep: Boolean = false) : TuttiEvent
 
     /** "Open the TV's own apps screen" finished: what the remote link saw ([AppsScreenOpener]). */
     data class AppsScreen(val verdict: io.kud.tutti.protocol.apps.AppsScreenVerdict) : TuttiEvent

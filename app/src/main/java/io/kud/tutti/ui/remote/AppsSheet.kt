@@ -221,6 +221,7 @@ fun AppsSheetContent(
                 iconPath = state.appIcons[app.packageName],
                 pending = inFlight?.packageName == app.packageName,
                 held = inFlight?.packageName == app.packageName && inFlight.phase == LaunchPhase.QUEUED,
+                waking = inFlight?.packageName == app.packageName && inFlight.phase == LaunchPhase.WAKING,
                 failed = failure?.packageName == app.packageName,
                 pinLabel = pinLabel,
                 variant = app.packageName.takeIf { app.name.trim().lowercase() in shared },
@@ -281,6 +282,7 @@ private fun AppTile(
     iconPath: String?,
     pending: Boolean,
     held: Boolean,
+    waking: Boolean,
     failed: Boolean,
     pinLabel: String,
     variant: String?,
@@ -291,7 +293,13 @@ private fun AppTile(
     val press = rememberPressSource(PressStyle.TILE, onDown = feedback::click)
     val waiting = rememberWaiting(pending)
     val scheme = MaterialTheme.colorScheme
-    val pendingLabel = stringResource(if (held) R.string.apps_launch_waiting else R.string.apps_launch_pending)
+    val pendingLabel = stringResource(
+        when {
+            waking -> R.string.apps_launch_waking_tile
+            held -> R.string.apps_launch_waiting
+            else -> R.string.apps_launch_pending
+        },
+    )
     val failedLabel = stringResource(R.string.apps_launch_failed)
     Column(
         Modifier
@@ -372,8 +380,8 @@ private fun AppTile(
                 maxLines = 2,
                 textAlign = TextAlign.Center,
             )
-        } else if (held) {
-            // Held through a blip of the TV's link: say what it waits for, not only a ring.
+        } else if (held || waking) {
+            // Held through a blip, or waiting on the TV's wake: say what it waits for, not only a ring.
             Text(
                 pendingLabel,
                 style = MaterialTheme.typography.labelSmall,

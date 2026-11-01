@@ -270,10 +270,20 @@ fun TuttiApp(
                     haptics.bump()
                     messages.show(resources.getString(R.string.apps_launch_held, event.appName))
                 }
+                is TuttiEvent.AppLaunchWaking -> {
+                    // The tap's own click already played: a soft bump, as for a held launch.
+                    haptics.bump()
+                    messages.show(resources.getString(R.string.apps_launch_waking, event.appName))
+                }
                 is TuttiEvent.AppNotOpened -> {
                     // The optimistic app has already rolled back on the card; say so quietly.
                     haptics.reject()
-                    val text = resources.getString(if (event.expired) R.string.apps_launch_expired else R.string.apps_launch_not_opened, event.appName)
+                    val words = when {
+                        event.asleep -> R.string.apps_launch_not_woken
+                        event.expired -> R.string.apps_launch_expired
+                        else -> R.string.apps_launch_not_opened
+                    }
+                    val text = resources.getString(words, event.appName)
                     if (event.detail != null && problems.developer) problems.report(text, event.detail) else messages.show(text)
                 }
                 is TuttiEvent.MicUnavailable -> problems.report(resources.getString(R.string.voice_mic_unavailable), event.detail)

@@ -136,6 +136,21 @@ object TvLinkRule {
         else -> KeyOutcome.DROPPED_WAITING
     }
 
+    /**
+     * Whether an app tapped by hand wakes the TV before it opens (Erwann, 2026-11-01: « allumer
+     * la TV quand on appuie sur Netflix », delegated to Maya). Unlike a key ([wakesTv]), an app
+     * means "this, on the TV", the way the TV's own Netflix button powers it straight into
+     * Netflix. So it wakes a TV known in standby, and also one out of reach past the calm rule:
+     * that is where a TV in deep standby sits, and a wake that fails says why (Remote start)
+     * where the tap was only refused. Never with no TV or a lost pairing, and never while a link
+     * that was up is on its way back: a blip holds the launch, and a reconnect is not standby.
+     */
+    fun launchWakes(hasTv: Boolean, tvPowered: Boolean?, raw: Link, shown: TvShown): Boolean = when {
+        !hasTv || raw == Link.ABSENT || raw == Link.NEEDS_PAIRING || raw == Link.UNAUTHORIZED -> false
+        tvPowered == false -> true
+        else -> shown.link == Link.UNREACHABLE
+    }
+
     /** A key pressed while the remote link was not ready: hold it or drop it, and say which. */
     fun whileDown(keyCode: Int, long: Boolean, raw: Link, shown: TvShown): KeyOutcome = when {
         raw == Link.NEEDS_PAIRING -> KeyOutcome.DROPPED_PAIRING
