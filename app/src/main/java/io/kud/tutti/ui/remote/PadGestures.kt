@@ -100,9 +100,11 @@ internal class TwoFingerTrack(private val slop: Float, private val volumeStep: F
 }
 
 /**
- * The keys a skip sends. MEDIA_SKIP_FORWARD / BACKWARD (272 / 273) are the 10 s jumps most
- * Google TV players honour; FAST_FORWARD / REWIND are Iris's fallback for a player that ignores
- * them. The TV never says what a key did, so the fallback can't be chosen at run time: if the
+ * The keys a skip sends. MEDIA_SKIP_FORWARD / BACKWARD (272 / 273) were taken for the 10 s jumps
+ * of Google TV players, but the platform `MediaSession` ignores them by default and Media3's
+ * default maps them to next / previous item (2026-11-01, see `SeekStep`); an app that handles the
+ * key in its own activity may still jump. FAST_FORWARD / REWIND are Iris's fallback for a player
+ * that ignores them. The TV never says what a key did, so the fallback can't be chosen at run time: if the
  * check on the BRAVIA shows the skip keys do nothing in the apps Erwann uses, flip [SKIP_KEYS_FALLBACK].
  */
 internal fun skipKey(delta: Int, fallback: Boolean = SKIP_KEYS_FALLBACK): Int = when {

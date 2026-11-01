@@ -21,11 +21,22 @@
     <string name="app_actions_close_confirm_text">The TV can only close all its apps at once, %1$s included.</string>
     <string name="app_actions_close_confirm">Close apps</string>
     <!-- Under the chips: a read-only timeline when Cast gives a trusted time, else the jog wheel.
-         Neither names how far a key goes: the app on the TV decides. -->
+         Each notch of the wheel is one jump of the app's own step: "About" until an app documents it. -->
     <string name="timeline_label">Playback position</string>
     <string name="timeline_spoken">%1$d of %2$d minutes</string>
     <string name="jog_name">Jog wheel</string>
     <string name="jog_label">Spin to skip</string>
+    <string name="jog_about">About %1$s</string>
+    <string name="jog_none">No skip</string>
+    <string name="jog_revealed">Controls shown on the TV</string>
+    <plurals name="jog_jumps_forward">
+        <item quantity="one">%1$d skip forward</item>
+        <item quantity="other">%1$d skips forward</item>
+    </plurals>
+    <plurals name="jog_jumps_back">
+        <item quantity="one">%1$d skip back</item>
+        <item quantity="other">%1$d skips back</item>
+    </plurals>
     <string name="shortcut_subscriptions">Subscriptions</string>
     <string name="shortcut_history">History</string>
     <string name="shortcut_library">Library</string>

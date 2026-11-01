@@ -80,10 +80,12 @@ class NowShowingActionsTest {
     }
 
     @Test
-    fun `the scrub strip sends the transport row's rewind and fast forward`() {
-        assertEquals(V2Key.MEDIA_FAST_FORWARD, scrubKey(1))
-        assertEquals(V2Key.MEDIA_REWIND, scrubKey(-1))
-        assertTrue(scrubKey(1) in PLAYBACK_TRANSPORT && scrubKey(-1) in PLAYBACK_TRANSPORT)
+    fun `the wheel's jump reads in seconds, then minutes`() {
+        assertEquals("+10 s", seekAmount(10))
+        assertEquals("\u221220 s", seekAmount(-20))
+        assertEquals("+1 min", seekAmount(60))
+        assertEquals("\u22121 min 30 s", seekAmount(-90))
+        assertEquals("+0 s", seekAmount(0))
     }
 
     @Test

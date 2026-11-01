@@ -65,11 +65,22 @@ fun appActions(pinnedAt: Int?, pskSet: Boolean): List<AppAction> = buildList {
 }
 
 /**
- * The jog wheel's key: rewind or fast forward, the transport row's own keys, since
- * architecture.md rules that the sheet moves by them and Cast only ever shows where that lands.
- * How far one key moves is the app's choice, so nothing on the wheel names a duration.
+ * The jog wheel's jump as words, "+1 min 30 s" or "−20 s" (Erwann, 2026-11-01: each notch a fixed
+ * jump, like turning a timeline, never fast forward's 2x, 3x). The keys and their pace are
+ * [io.kud.tutti.protocol.apps.JogSeek]'s; the "about" around it is the string resource's.
  */
-fun scrubKey(delta: Int): Int = if (delta > 0) V2Key.MEDIA_FAST_FORWARD else V2Key.MEDIA_REWIND
+fun seekAmount(seconds: Int): String {
+    val sign = if (seconds < 0) "\u2212" else "+"
+    val abs = kotlin.math.abs(seconds)
+    val min = abs / 60
+    val sec = abs % 60
+    val body = when {
+        min == 0 -> "$sec s"
+        sec == 0 -> "$min min"
+        else -> "$min min $sec s"
+    }
+    return sign + body
+}
 
 /** Travel along the jog wheel's surface for one key. */
 const val SCRUB_STEP_DP = 32f

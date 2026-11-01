@@ -12,6 +12,14 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import io.kud.tutti.protocol.cast.CastPlayerState
 import io.kud.tutti.ui.motion.Motion
 import kotlinx.coroutines.delay
+import android.os.SystemClock
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.ui.res.pluralStringResource
+import io.kud.tutti.protocol.apps.JogReadout
+import io.kud.tutti.protocol.apps.JogSeek
+import io.kud.tutti.protocol.apps.SeekStep
+import io.kud.tutti.protocol.apps.SeekSteps
 import kotlin.math.PI
 import kotlin.math.ceil
 import kotlin.math.cos
@@ -202,7 +210,12 @@ internal fun PlaybackSheet(
                     ) { strip ->
                         when (strip) {
                             is PlaybackStrip.Timeline -> Timeline(strip, shownCast?.state)
-                            PlaybackStrip.JogWheel -> JogWheel(downReason, appDecides, send)
+                            PlaybackStrip.JogWheel -> JogWheel(
+                                downReason,
+                                appDecides,
+                                SeekSteps.forPackage(cardActionsApp(showing)?.packageName),
+                                send,
+                            )
                         }
                     }
                 }
@@ -291,21 +304,26 @@ private fun Timeline(strip: PlaybackStrip.Timeline, state: CastPlayerState?) {
  * c'est comme une roulette donc ça devrait faire l'opposé »): a wheel seen edge-on, its ticks
  * crowding and fading towards both ends like a cylinder's. The surface follows the finger and
  * stays where it is left, as a wheel does (no spring back, so nothing moves on its own and reduced
- * motion needs nothing). Pushing it left goes forward, right goes back ([JogTrack]): one rewind or
- * fast-forward key per [SCRUB_STEP_DP] of travel and one select haptic per key, so the thumb
- * counts the steps. At rest it reads "Spin to skip"; while turning, the name of the key it sends,
- * so the direction is said in words. It names no duration and no target: the app on the TV
- * decides how far a key goes. TalkBack hears "Jog wheel" with "Rewind" and "Fast forward"
- * actions and [appDecides] as its state. Down: the dashed ring, no drag, the reason as its state.
+ * motion needs nothing). Pushing it left goes forward, right goes back ([JogTrack]), one notch per
+ * [SCRUB_STEP_DP] of travel and one select haptic per notch, so the thumb counts them. Each notch
+ * is one fixed jump of the app's own step (Erwann, 2026-11-01: « pas aller en avant, en arrière
+ * avec x2, x3 »): D-pad Right or Left, never fast forward or rewind, through [JogSeek], which
+ * spaces the keys and drops what a flick would pile up. At rest it reads "Spin to skip"; while
+ * turning and for a moment after, the sum: "About +30 s" where the app's step is known, else
+ * "3 skips forward". "About" until an app documents its step. TalkBack hears "Jog wheel" with
+ * "Skip back" and "Skip forward" actions and the sum, or [appDecides], as its state. Down: the
+ * dashed ring, no drag, the reason as its state.
  */
 @Composable
-private fun JogWheel(downReason: String?, appDecides: String, onKey: (Int) -> Unit) {
+private fun JogWheel(downReason: String?, appDecides: String, seekStep: SeekStep, onKey: (Int) -> Unit) {
     val haptics = rememberHaptics()
     val send by rememberUpdatedState(onKey)
     val stepPx = with(LocalDensity.current) { SCRUB_STEP_DP.dp.toPx() }
     val track = remember(stepPx) { JogTrack(stepPx) }
+    val seek = remember(seekStep) { JogSeek(seekStep) }
     var offset by remember { mutableFloatStateOf(0f) }
-    var turning by remember { mutableStateOf<Int?>(null) }
+    var readout by remember { mutableStateOf<JogReadout?>(null) }
+    var notches by remember { mutableIntStateOf(0) }
     val down = downReason != null
     val shape = RoundedCornerShape(16.dp)
     val ring = MaterialTheme.colorScheme.outline
@@ -314,12 +332,23 @@ private fun JogWheel(downReason: String?, appDecides: String, onKey: (Int) -> Un
     val tick = MaterialTheme.colorScheme.onSurfaceVariant
     val name = stringResource(R.string.jog_name)
     val rest = stringResource(R.string.jog_label)
-    val back = keyLabel(V2Key.MEDIA_REWIND)
-    val forward = keyLabel(V2Key.MEDIA_FAST_FORWARD)
+    val back = stringResource(R.string.key_media_skip_backward)
+    val forward = stringResource(R.string.key_media_skip_forward)
+    val said = readout?.let { jogWords(it) }
+    // Each notch restarts the pump: it lets out the keys at JogSeek's pace, then holds the readout
+    // until it fades. The queue lives in JogSeek, so a restart loses nothing.
+    LaunchedEffect(seek, notches) {
+        while (true) {
+            val now = SystemClock.uptimeMillis()
+            seek.next(now)?.let { send(it) }
+            readout = seek.readout(now)
+            val wake = seek.wakeAt(now) ?: break
+            delay((wake - now).coerceAtLeast(1L))
+        }
+    }
     fun step(delta: Int) {
-        haptics.select()
-        turning = delta
-        send(scrubKey(delta))
+        if (seek.turn(delta, SystemClock.uptimeMillis())) haptics.select()
+        notches++
     }
     Box(
         Modifier
@@ -365,11 +394,9 @@ private fun JogWheel(downReason: String?, appDecides: String, onKey: (Int) -> Un
                 if (down) {
                     Modifier
                 } else {
-                    Modifier.pointerInput(track) {
+                    Modifier.pointerInput(track, seek) {
                         detectHorizontalDragGestures(
                             onDragStart = { track.reset() },
-                            onDragEnd = { turning = null },
-                            onDragCancel = { turning = null },
                         ) { change, amount ->
                             change.consume()
                             offset += amount
@@ -380,35 +407,39 @@ private fun JogWheel(downReason: String?, appDecides: String, onKey: (Int) -> Un
             )
             .semantics(mergeDescendants = true) {
                 contentDescription = name
-                stateDescription = downReason ?: appDecides
+                stateDescription = downReason ?: said ?: appDecides
                 if (!down) {
                     customActions = listOf(
-                        CustomAccessibilityAction(back) { step(-1); turning = null; true },
-                        CustomAccessibilityAction(forward) { step(1); turning = null; true },
+                        CustomAccessibilityAction(back) { step(-1); true },
+                        CustomAccessibilityAction(forward) { step(1); true },
                     )
                 }
             }
             .padding(horizontal = 16.dp, vertical = 8.dp),
         contentAlignment = Alignment.TopCenter,
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            turning?.let { delta ->
-                Icon(painterResource(keyIcon(scrubKey(delta))), contentDescription = null, tint = ink, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(6.dp))
-            }
-            Text(
-                when (turning) {
-                    null -> rest
-                    1 -> forward
-                    else -> back
-                },
-                style = MaterialTheme.typography.labelLarge,
-                color = ink,
-                textAlign = TextAlign.Center,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
+        Text(
+            said ?: rest,
+            style = MaterialTheme.typography.labelLarge,
+            color = ink,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+/** The wheel's sum in words: "About +30 s", "3 skips forward", "No skip", or the bar coming up. */
+@Composable
+private fun jogWords(readout: JogReadout): String {
+    val seconds = readout.seconds
+    return when {
+        readout.jumps == 0 && readout.revealed -> stringResource(R.string.jog_revealed)
+        readout.jumps == 0 -> stringResource(R.string.jog_none)
+        seconds != null && readout.approximate -> stringResource(R.string.jog_about, seekAmount(seconds))
+        seconds != null -> seekAmount(seconds)
+        readout.jumps > 0 -> pluralStringResource(R.plurals.jog_jumps_forward, readout.jumps, readout.jumps)
+        else -> pluralStringResource(R.plurals.jog_jumps_back, -readout.jumps, -readout.jumps)
     }
 }
 

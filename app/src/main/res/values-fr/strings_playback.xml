@@ -23,6 +23,19 @@
     <string name="timeline_spoken">%1$d sur %2$d minutes</string>
     <string name="jog_name">Molette</string>
     <string name="jog_label">Tournez pour sauter</string>
+    <string name="jog_about">Environ %1$s</string>
+    <string name="jog_none">Aucun saut</string>
+    <string name="jog_revealed">Commandes affichées sur la TV</string>
+    <plurals name="jog_jumps_forward">
+        <item quantity="one">%1$d saut en avant</item>
+        <item quantity="many">%1$d sauts en avant</item>
+        <item quantity="other">%1$d sauts en avant</item>
+    </plurals>
+    <plurals name="jog_jumps_back">
+        <item quantity="one">%1$d saut en arrière</item>
+        <item quantity="many">%1$d sauts en arrière</item>
+        <item quantity="other">%1$d sauts en arrière</item>
+    </plurals>
     <string name="shortcut_subscriptions">Abonnements</string>
     <string name="shortcut_history">Historique</string>
     <string name="shortcut_library">Bibliothèque</string>
