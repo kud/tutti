@@ -4,6 +4,12 @@
 # see a stack trace on a phone without adb, and they are copied into bug reports as they are.
 # Shrinking and optimisation give the size; obfuscation would only make those reports useless.
 -dontobfuscate
+
+# v0.2.0 crashed at launch, after the splash, and only the release build type differs from
+# the dev builds that work. Until the cause is found on a device, R8 keeps every class and
+# leaves the bytecode as compiled: it still runs, so the mapping the release job keeps exists.
+-dontshrink
+-dontoptimize
 -keepattributes SourceFile,LineNumberTable
 
 # kotlinx.serialization, Hilt, OkHttp, coroutines, DataStore and Compose ship their own rules.

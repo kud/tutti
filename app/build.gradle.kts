@@ -68,7 +68,8 @@ android {
         release {
             // R8 shrinks and optimises, names stay readable (docs/architecture.md, "Release build: R8").
             isMinifyEnabled = true
-            isShrinkResources = true
+            // Off until v0.2.0's launch crash is understood: a release must start (docs/architecture.md).
+            isShrinkResources = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             signingConfig = signingConfigs.findByName("release")
         }
