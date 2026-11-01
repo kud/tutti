@@ -60,7 +60,7 @@ A TV app whose package is unknown but whose title is exactly a catalog app's nam
 
 ## System symbols
 
-Sony's and Google's system apps have no free mark. Rather than a letter that says nothing, a few wear a filled Material symbol for what they are, on the letter tile's own ground and in its colour (`systemSymbol`, by package only; Iris, 2026-10-27). New symbols come from `@material-design-icons/svg` 0.14.13 (`filled/<name>.svg`, Apache 2.0).
+Sony's and Google's system apps have no free mark. Rather than a letter that says nothing, a few wear a filled Material symbol for what they are, on the letter tile's own ground and in its colour (`systemSymbol`, by package only; 2026-10-27). New symbols come from `@material-design-icons/svg` 0.14.13 (`filled/<name>.svg`, Apache 2.0).
 
 | App | Package | Symbol |
 | --- | --- | --- |
