@@ -240,14 +240,14 @@ The Compose group-mapping file is off (`includeComposeMappingFile`): it only dec
 
 ## In-app updates (2026-10-27)
 
-Erwann installs a `-dev` pre-release about every hour, so About › Version checks GitHub itself (`platform/update/Updater.kt`; the rules, with tests, in `:protocol` `update/`).
+Erwann installs a `-dev` pre-release about every hour, so About › Version checks GitHub itself (`app/src/github/…/platform/update/Updater.kt`; the rules, with tests, in `:protocol` `update/`). Only the `github` flavour carries it; the `fdroid` flavour has no updater, no install permission, and stubs for the four UI entry points (`app/src/fdroid/…/ui/about/UpdateSection.kt`), since F-Droid updates it (docs/fdroid.md).
 
 - **Will it install?** Yes: every CI debug build is signed with the committed `app/debug.keystore` (since 2026-10-22), so each `-dev` APK installs over the last; a release build updates only from the release key. A debug build looks only for `*-debug.apk` assets, a release build only for the other `.apk`, so the updater never offers an APK Android would refuse for its signature.
 - **When:** on a tap in About, and when the app opens or comes back to the foreground (`LifecycleStartEffect`), at most once an hour for a dev build and once a day for a final release (`CheckSchedule.intervalFor`); the newest build found and the one set aside with "Later" are kept in the `updates` preferences so the cue outlives the process (docs/design.md, "Updates"). Never in the background otherwise, never an install without Android's own confirmation (`USER_ACTION_REQUIRED`).
 - **Where:** `GET https://api.github.com/repos/kud/tutti/releases` (pre-releases included, no token: 60 unauthenticated requests an hour is far more than once an hour plus taps). The asset's `browser_download_url` must sit under `github.com/kud/tutti/releases/download/`; redirects are followed by hand, each hop HTTPS on port 443 to `github.com`, `objects.githubusercontent.com` or `release-assets.githubusercontent.com` (GitHub's current asset host), at most five. Normal system trust, no pin, no cleartext: these are public hosts with public certificates, not LAN devices.
 - **What is checked before installing:** the SHA-256 of the bytes against the `digest` GitHub reports for the asset (no digest, no offer), then that the APK's package name is this app's and its versionCode is higher. The file lives in `cache/updates/` and is deleted on any mismatch; PackageInstaller then checks the signature.
 - **Versions:** `MAJOR.MINOR.PATCH[-dev.N]`, a dev build below its final release (0.2.0-dev.25 < 0.2.0-dev.26 < 0.2.0), the same order as android.yml's versionCode. A local build (`0.0.0-dev`) counts as dev 0.
-- Permission: `REQUEST_INSTALL_PACKAGES`. Without the "install unknown apps" grant the sheet says so in words and opens Android's page for it, then carries on when the person comes back.
+- Permission: `REQUEST_INSTALL_PACKAGES`, declared in `app/src/github/AndroidManifest.xml` only. Without the "install unknown apps" grant the sheet says so in words and opens Android's page for it, then carries on when the person comes back.
 
 ## The layout file (decided, 2026-10-31)
 

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The github build only: the in-app updater (docs/updates.md). The fdroid build has neither. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- The in-app updater hands a verified APK to PackageInstaller; Android still asks to confirm. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
+    <application>
+        <!-- The in-app updater's install session reports here (platform/update). -->
+        <receiver
+            android:name=".platform.update.UpdateInstallReceiver"
+            android:exported="false" />
+    </application>
+</manifest>

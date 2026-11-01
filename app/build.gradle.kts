@@ -25,9 +25,14 @@ android {
         applicationId = appId
         minSdk = 29
         targetSdk = 37
-        // CI passes a monotonically increasing code (the run number) so each release installs over the last.
-        versionCode = providers.environmentVariable("TUTTI_VERSION_CODE").orElse("1").get().toInt()
-        versionName = providers.environmentVariable("TUTTI_VERSION_NAME").orElse("0.0.0-dev").get()
+        // CI derives both from the tag (.github/workflows/android.yml; never change the formula).
+        // F-Droid's build server sets no environment, so its recipe passes the same two values as
+        // Gradle properties (docs/fdroid.md). Nothing here reads the clock or git: the same commit
+        // and the same two values give the same APK.
+        versionCode = providers.environmentVariable("TUTTI_VERSION_CODE")
+            .orElse(providers.gradleProperty("tutti.versionCode")).orElse("1").get().toInt()
+        versionName = providers.environmentVariable("TUTTI_VERSION_NAME")
+            .orElse(providers.gradleProperty("tutti.versionName")).orElse("0.0.0-dev").get()
         resValue("string", "app_name", appLabel)
     }
 
@@ -67,6 +72,16 @@ android {
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             signingConfig = signingConfigs.findByName("release")
         }
+    }
+
+    // Two builds of the same app (docs/updates.md). `github`: the APKs on GitHub Releases, with the
+    // in-app updater (src/github: REQUEST_INSTALL_PACKAGES, PackageInstaller, GitHub's API). `fdroid`:
+    // no updater at all, F-Droid updates it. Same applicationId and versionCode in both; the
+    // signature is what tells them apart. checkDistribution<Variant> guards the merged manifests.
+    flavorDimensions += "distribution"
+    productFlavors {
+        create("github") { dimension = "distribution" }
+        create("fdroid") { dimension = "distribution" }
     }
 
     compileOptions {
@@ -109,6 +124,48 @@ composeCompiler {
 kotlin {
     compilerOptions {
         jvmTarget.set(JvmTarget.JVM_17)
+    }
+}
+
+// The fdroid build carries no updater: its merged manifest must not ask to install packages or
+// declare the updater's receiver. The github build must still carry both, or every install
+// stops updating. Read before each variant assembles or lints.
+androidComponents {
+    onVariants { variant ->
+        val name = variant.name.replaceFirstChar { it.uppercase() }
+        val check = tasks.register<DistributionCheck>("checkDistribution$name") {
+            manifest.set(variant.artifacts.get(com.android.build.api.artifact.SingleArtifact.MERGED_MANIFEST))
+            updater.set(variant.flavorName == "github")
+        }
+        afterEvaluate {
+            tasks.named("assemble$name") { dependsOn(check) }
+            tasks.findByName("lint$name")?.dependsOn(check)
+        }
+    }
+}
+
+abstract class DistributionCheck : DefaultTask() {
+    @get:InputFile
+    @get:PathSensitive(PathSensitivity.NONE)
+    abstract val manifest: RegularFileProperty
+
+    /** The github flavour: the updater must be there. The fdroid flavour: it must not. */
+    @get:Input
+    abstract val updater: Property<Boolean>
+
+    @TaskAction
+    fun check() {
+        val text = manifest.get().asFile.readText()
+        val marks = UPDATER_MARKS.filter { it in text }
+        if (updater.get()) {
+            check(marks.size == UPDATER_MARKS.size) { "The github build lost its updater: missing ${UPDATER_MARKS - marks.toSet()} (${manifest.get().asFile})" }
+        } else {
+            check(marks.isEmpty()) { "The fdroid build must carry no updater, found $marks (${manifest.get().asFile})" }
+        }
+    }
+
+    private companion object {
+        val UPDATER_MARKS = listOf("android.permission.REQUEST_INSTALL_PACKAGES", "platform.update.UpdateInstallReceiver")
     }
 }
 

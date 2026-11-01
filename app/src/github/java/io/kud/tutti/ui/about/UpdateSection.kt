@@ -90,14 +90,6 @@ internal fun UpdateRow() {
     if (open) UpdateSheet(updater, state, onDismiss = { open = false })
 }
 
-/**
- * Everything the rest of the app knows of the updater, in one place (2026-10-28): the GitHub
- * updater is meant to be temporary (final releases will likely go to F-Droid), so a build without it
- * needs only these three to return nothing. [newer] is a newer build, set aside or not; [notice] is
- * true until "Later".
- */
-data class UpdateCueState(val newer: AppVersion?, val notice: Boolean)
-
 @Composable
 fun rememberUpdateCue(): UpdateCueState {
     val context = LocalContext.current

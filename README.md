@@ -57,11 +57,17 @@ design/     Branding sources
 | Command | What it does |
 | --- | --- |
 | `./gradlew :protocol:test` | Protocol unit tests and simulator tests |
-| `./gradlew :app:testDebugUnitTest` | App unit tests, including the transports against the loopback simulator |
-| `./gradlew :app:lintDebug` | Android lint |
-| `./gradlew :app:assembleDebug` | Debug APK |
+| `./gradlew :app:testGithubDebugUnitTest :app:testFdroidDebugUnitTest` | App unit tests, including the transports against the loopback simulator |
+| `./gradlew :app:lintGithubDebug :app:lintFdroidDebug` | Android lint |
+| `./gradlew :app:assembleGithubDebug` | Debug APK (`assembleFdroidDebug` for the F-Droid build) |
 
-JDK 17. CI (`.github/workflows/android.yml`) runs tests, lint and a debug build on every push and pull request.
+JDK 17. CI (`.github/workflows/android.yml`) runs tests, lint and a debug build of both flavours on every push and pull request.
+
+Two flavours of the same app: `github`, the APKs on GitHub Releases, with the in-app updater; and `fdroid`, without any updater, for F-Droid to build from source.
+
+### F-Droid
+
+Not on F-Droid yet. The build recipe and the submission steps are in [docs/fdroid.md](docs/fdroid.md); the badge goes here once the app is accepted.
 
 ### Release secrets
 
