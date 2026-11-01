@@ -299,9 +299,12 @@ fun RemoteScreen(
     }
     // Typing on a computer (or the TV over Bluetooth) goes through the target's layout; what it can't type is said.
     val untypable = stringResource(R.string.target_typing_unsupported)
+    val keysOnly = stringResource(R.string.keyboard_keys_unsupported)
     fun typeText(text: String) {
         if (!routed) {
-            controller.text(text)
+            // A TV box with no input session takes key presses only (RemoteSession.typeKeys): no accents there.
+            val missed = controller.text(text)
+            if (missed.isNotEmpty()) messages?.show(String.format(keysOnly, missed.joinToString(" ")))
             return
         }
         val missed = target.text(text)

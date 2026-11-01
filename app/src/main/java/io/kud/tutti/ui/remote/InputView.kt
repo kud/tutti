@@ -88,6 +88,11 @@ import io.kud.tutti.R
 import io.kud.tutti.ui.common.MessageKind
 import io.kud.tutti.ui.common.LocalMessages
 import io.kud.tutti.platform.data.PadMode
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import io.kud.tutti.protocol.atv.ImeField
 import io.kud.tutti.protocol.atv.V2Key
 import io.kud.tutti.ui.common.LocalReducedMotion
@@ -285,6 +290,13 @@ fun InputView(
             modifier = m
                 .fillMaxWidth()
                 .focusRequester(focus)
+                // Backspace on an empty phone field changes no text, so nothing would go out; Google
+                // TV's keyboard still deletes on the TV. Send it as the TV's own Delete key.
+                .onPreviewKeyEvent { event ->
+                    val empty = event.key == Key.Backspace && event.type == KeyEventType.KeyDown && value.text.isEmpty() && typable
+                    if (empty) onKey(V2Key.DEL)
+                    empty
+                }
                 .onFocusChanged {
                     focused = it.isFocused
                     onTypingChange(it.isFocused)

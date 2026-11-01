@@ -1375,9 +1375,8 @@ class TuttiController @Inject constructor(
     }
 
     /** Replaces the TV field's text (each keystroke, live). */
-    fun text(text: String) {
-        atv.type(text)
-    }
+    /** Returns what the TV can't take: characters with no key, when the TV's box only takes key presses. */
+    fun text(text: String): List<Char> = atv.type(text)
 
     // region voice
 

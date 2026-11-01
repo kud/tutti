@@ -25,6 +25,7 @@
     <string name="bt_layout_explain">Bluetooth sends key positions, not letters. Pick the layout set on the TV for this keyboard, or the letters come out wrong.</string>
     <string name="target_not_over_bluetooth">Not available over Bluetooth</string>
     <string name="target_link_down">Link down</string>
+    <string name="keyboard_keys_unsupported">This TV box only takes key presses, so these didn\'t go: %1$s</string>
     <string name="target_typing_unsupported">Can\'t type on this keyboard layout: %1$s</string>
     <string name="devices_title">Devices</string>
     <string name="devices_add_computer">Computer</string>

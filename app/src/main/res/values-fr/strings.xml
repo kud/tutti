@@ -26,6 +26,7 @@
     <string name="bt_layout_explain">Le Bluetooth envoie la position des touches, pas les lettres. Choisissez la disposition réglée sur la TV pour ce clavier, sinon les lettres sortent fausses.</string>
     <string name="target_not_over_bluetooth">Indisponible en Bluetooth</string>
     <string name="target_link_down">Liaison coupée</string>
+    <string name="keyboard_keys_unsupported">Ce champ de la TV ne prend que des touches, ceci n\'est pas passé : %1$s</string>
     <string name="target_typing_unsupported">Impossible à taper avec cette disposition : %1$s</string>
     <string name="devices_title">Appareils</string>
     <string name="devices_add_computer">Ordinateur</string>

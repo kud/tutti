@@ -345,9 +345,8 @@ class TargetController @Inject constructor(
         val s = state.value
         val layout = s.layout
         if (layout == null) {
-            controller.text(text)
             typed = text
-            return emptySet()
+            return controller.text(text).toSet()
         }
         val edit = Targeting.textEdit(typed, text, layout)
         typed = text

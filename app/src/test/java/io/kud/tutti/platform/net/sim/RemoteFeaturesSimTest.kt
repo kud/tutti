@@ -106,7 +106,8 @@ class RemoteFeaturesSimTest {
         assertTrue("the TV ended on ${tv.field}", eventually { tv.field == "bravia" })
         Thread.sleep(400)
         assertEquals("bravia", remote.state.value.ime?.text)
-        assertEquals(words, tv.taken.toList())
+        // "br" is the style trial (RemoteSession, ImeStyle): what was typed meanwhile goes as its newest text.
+        assertEquals(listOf("b", "br", "bravia"), tv.taken.toList())
         assertTrue(tv.refused.isEmpty())
     }
 
