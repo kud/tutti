@@ -180,7 +180,7 @@ fun TuttiMenu(
 
 /**
  * A choice among a short list: segments when [SegmentFit] says every label fits at this width and
- * font size, else the [ChoiceRow] menu (Iris, 2026-10-26). Segments show every option in place;
+ * font size, else the [ChoiceRow] menu (2026-10-26). Segments show every option in place;
  * the chosen one is filled and carries a tick above its name, so it never rests on colour. The
  * name and, while the setting can't change, its reason sit above the row, whose segments are then
  * disabled. A tap is optimistic like the menu's: the caller's state moves first, and a failure

@@ -48,7 +48,7 @@ import kotlinx.coroutines.withContext
 /**
  * Settings › Remote & dock, at the foot: the layout out to a file and back in, through the system's
  * file picker (Drive or the phone, no account of ours; Erwann, 2026-10-31). Import asks first, says
- * what it will set and what it leaves out, and offers Undo after (Iris, 2026-10-31).
+ * what it will set and what it leaves out, and offers Undo after (2026-10-31).
  */
 @Composable
 internal fun LayoutTransferRows(state: TuttiUiState, controller: TuttiController) {

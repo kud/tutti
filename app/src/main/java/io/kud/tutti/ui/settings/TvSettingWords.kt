@@ -11,7 +11,7 @@ import io.kud.tutti.protocol.bravia.TvSettingCatalog.Part
 import io.kud.tutti.protocol.bravia.TvSettingCatalog.PictureSection
 
 /**
- * The TV's settings in words (Iris, 2026-10-26): Sony's menu names, in both languages, for every
+ * The TV's settings in words (2026-10-26): Sony's menu names, in both languages, for every
  * target and value tutti knows. A target it doesn't know keeps the TV's title or its raw name, so
  * it can still be looked up; a value it doesn't know is made readable ([TvSettingCatalog.readable]).
  */

@@ -29,7 +29,7 @@ import io.kud.tutti.ui.common.TuttiMenu
  * menu », « le menu à côté du connecteur BRAVIA pour laisser de la place entre le bouton power »,
  * « les dots verticaux »): the system chip, the "⋮" right against it holding Scenes, Edit dock, Settings and
  * Gestures, then [POWER_GAP_DP] of nothing, then Power at the far edge. With one icon left between
- * chip and Power there is nothing to fold any more, so wide screens wear the same bar (Iris): a
+ * chip and Power there is nothing to fold any more, so wide screens wear the same bar: a
  * second layout would only bring back an icon beside Power, which is what the gap is there to stop.
  *
  * Measured, not a device type: the bar's fixed parts are its padding (16 + 12 dp), the 4 dp gap
@@ -51,7 +51,7 @@ fun chipWidthDp(barWidthDp: Int): Int = barWidthDp - BAR_FIXED_DP
  * (Erwann, 2026-10-25).
  */
 /**
- * A newer build (docs/design.md, "Updates"; Iris, 2026-10-28): [update] puts "Update to version x"
+ * A newer build (docs/design.md, "Updates"; 2026-10-28): [update] puts "Update to version x"
  * first in the menu, which installs in one tap ([onUpdate]); with [notice] the ⋮ also wears a dot,
  * and TalkBack hears "More options, update available". The dot is a shape in a fixed place and its
  * words are one tap away, so it never rests on colour; "Later" in the sheet takes it off.

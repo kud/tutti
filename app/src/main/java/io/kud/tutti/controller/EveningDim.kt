@@ -4,7 +4,7 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 
 /**
- * "Salle obscure" (Iris, 2026-10-25, benchmark): in the evening, with the TV on, the phone's own
+ * "Salle obscure" (2026-10-25, benchmark): in the evening, with the TV on, the phone's own
  * screen dims while tutti is in front, so the remote doesn't light the room. Off by default; a
  * switch in Settings. The phone's brightness setting is never written: tutti only lowers its own
  * window ([dimTarget]), and the moment he moves the system brightness, tutti lets go for the rest
@@ -13,7 +13,7 @@ import java.time.LocalDateTime
 object EveningDim {
     /**
      * The window's brightness while dimmed, on Android's 0–1 window scale: low, still legible
-     * (Iris, 2026-10-26). That scale is linear in light while the system slider is perceptual, so
+     * (2026-10-26). That scale is linear in light while the system slider is perceptual, so
      * 0.03 sits about a third of the way up the slider (some 15 nits on a Pixel), where a phone
      * reads comfortably in a room lit by the TV; the first value, 0.12, sat near the slider's
      * middle, brighter than most evenings' own setting.

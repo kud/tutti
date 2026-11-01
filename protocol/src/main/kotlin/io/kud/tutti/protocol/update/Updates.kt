@@ -174,7 +174,7 @@ object CheckSchedule {
     const val DAY_MS = 24 * HOUR_MS
 
     /**
-     * How often the automatic check may run for the [installed] build (Iris, 2026-10-28): a dev
+     * How often the automatic check may run for the [installed] build (2026-10-28): a dev
      * build, which is replaced several times a day, at most once an hour; a final release at most
      * once a day, as before.
      */
@@ -186,7 +186,7 @@ object CheckSchedule {
 }
 
 /**
- * How loudly a newer build makes itself known (docs/design.md, "Updates"; Iris, 2026-10-28).
+ * How loudly a newer build makes itself known (docs/design.md, "Updates"; 2026-10-28).
  * [NONE]: nothing newer is known. [QUIET]: a newer build is known but was set aside with "Later",
  * so only the places you go looking say it (the ⋮ menu's row, About). [NOTICE]: also a dot on the
  * remote's ⋮. A newer build than the one set aside notices again.

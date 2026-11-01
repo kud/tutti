@@ -25,7 +25,7 @@
     <string name="pairing_step_sending">Sending…</string>
     <string name="bar_added">Bar connected</string>
     <string name="bar_add_unreachable">Bar unreachable: check its address and that External control is on.</string>
-    <!-- Intro (motion spec, Iris) -->
+    <!-- Intro (motion spec) -->
     <string name="intro_welcome_title">Your living room,\none remote.</string>
     <string name="intro_welcome_body">BRAVIA 8 and Bar 9 together. Everything stays on your Wi‑Fi: no account.</string>
     <string name="intro_start">Get started</string>

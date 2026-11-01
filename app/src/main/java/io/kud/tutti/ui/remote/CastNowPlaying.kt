@@ -37,7 +37,7 @@ import kotlinx.coroutines.delay
 import kotlin.math.roundToLong
 
 /**
- * The full card's Cast line (Iris, 2026-10-25, design.md "Now-showing card: what Cast reports
+ * The full card's Cast line (2026-10-25, design.md "Now-showing card: what Cast reports
  * playing"): the title in place of the detail line (two lines, then an ellipsis), the channel or
  * artist on one line under it whenever Cast reports one, a 2 dp read-only track and "12:03 / 41:10"
  * beside it, or under it when the column is under 200 dp. Paused and loading say so in words;

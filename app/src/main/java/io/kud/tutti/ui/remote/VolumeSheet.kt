@@ -73,7 +73,7 @@ import java.time.ZoneId
 import java.util.Date
 
 /**
- * The volume sheet (Iris's gesture audit, 2026-10-25), opened by a tap on the rail's number: the
+ * The volume sheet (the gesture audit, 2026-10-25), opened by a tap on the rail's number: the
  * bar's level exactly, three saved levels and a cap for tonight. The rail drives the soundbar, so
  * this sheet does too.
  *

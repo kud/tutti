@@ -135,7 +135,7 @@ fun Dock(
     CompositionLocalProvider(LocalDockLabels provides state.prefs.layout.dockLabels) {
     BoxWithConstraints(modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
         // Six equal tiles and five 6dp gaps: the width the doors and four pins shared before.
-        // Fewer pins keep that width and the grid centres, rather than stretching (Iris, 2026-10-25).
+        // Fewer pins keep that width and the grid centres, rather than stretching (2026-10-25).
         val tile = (maxWidth - GAP * (DockConfig.ROW - 1)) / DockConfig.ROW
         val pinsWidth = tile * span + GAP * (span - 1).coerceAtLeast(0)
         Column(Modifier.align(Alignment.TopCenter), horizontalAlignment = Alignment.CenterHorizontally) {

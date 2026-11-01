@@ -83,7 +83,7 @@ internal fun layoutName(layout: KeyLayout): String = stringResource(
 )
 
 /**
- * One row per computer (Iris, 2026-10-25): the laptop glyph, its name, its link and input in words,
+ * One row per computer (2026-10-25): the laptop glyph, its name, its link and input in words,
  * and its actions as text buttons (each its own 48 dp target, named for TalkBack by its label).
  */
 @Composable

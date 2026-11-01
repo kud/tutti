@@ -61,7 +61,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.filter
 
 /**
- * A big round tonal key (Iris's interaction spec, round keys). On press-down, in the frame: it
+ * A big round tonal key (the interaction spec, round keys). On press-down, in the frame: it
  * tightens to 0.92 with its corners squarer (50 → 30 %), a 12 % layer lands, and [feedback]
  * plays; nothing waits for [onClick], which runs on release so a long press can still be told
  * apart. No ripple: the shape is the response.
@@ -226,7 +226,7 @@ val PIN_ON_CORNER = 14.dp
 val PIN_ICON = 20.dp
 
 /**
- * The down dress (Iris, 2026-10-25): a control whose device's link isn't up, connecting or out of
+ * The down dress (2026-10-25): a control whose device's link isn't up, connecting or out of
  * reach alike, loses its fill and wears a dashed ring in the outline tone, its glyph in
  * onSurfaceVariant. Shape, not colour, says it: a dashed edge is never a normal or "on" look.
  * Every TV and bar control uses it (round keys, mic, Dock pins, the pad's edge).

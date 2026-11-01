@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Open a link on the TV: developer probe for app deep links (Maya, 2026-10-27). -->
+    <!-- Open a link on the TV: developer probe for app deep links (2026-10-27). -->
     <string name="link_probe_title">Open a link on the TV</string>
     <string name="link_probe_intro">Sends a link to the TV as an app link, the way the remote opens apps, then says what the TV showed afterwards. Use it to see which links an app follows.</string>
     <string name="link_probe_field">Link</string>

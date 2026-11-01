@@ -94,7 +94,7 @@ data class QuickState(
     /** What the now-showing card says, for the widget and the overlay; null without a TV. */
     val showing: QuickShowing? = null,
     /**
-     * What plays inside the app on the TV, when something reports it (Cast "now playing", Maya):
+     * What plays inside the app on the TV, when something reports it (Cast "now playing"):
      * fed into the one MediaSession (QuickNotifications), never a second one. Null while unknown.
      */
     val playback: QuickPlayback? = null,
@@ -212,7 +212,7 @@ data class QuickHeadline(val words: List<QuickWord>, @DrawableRes val glyph: Int
  * What's on, as the now-showing card says it: "Netflix · Cinema", "HDMI 1", "TV on standby".
  * The active scene follows what is playing (marked when changed by hand), never a standby or an
  * out-of-reach TV. Without a TV, the soundbar by name, or why it can't be reached. Never
- * "Connected" (Iris, design idea 4): state is told in words and a glyph, not a dot's colour.
+ * "Connected" (design idea 4): state is told in words and a glyph, not a dot's colour.
  */
 fun quickHeadline(state: QuickState): QuickHeadline {
     val scene = state.activeScene?.let {

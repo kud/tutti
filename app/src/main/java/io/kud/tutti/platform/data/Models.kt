@@ -25,7 +25,7 @@ enum class PadMode {
     TOUCHPAD,
     DPAD,
 
-    /** The phone as an air mouse: only for a Bluetooth target, and only with a gyroscope (Iris, 2026-10-25). */
+    /** The phone as an air mouse: only for a Bluetooth target, and only with a gyroscope (2026-10-25). */
     GYRO,
 }
 
@@ -277,7 +277,7 @@ sealed interface DockAction {
 
     /**
      * Opens the Apps sheet. Apps and Keys were fixed doors at the dock's left until 2026-10-28; now
-     * they are pins like any other, which he may move or drop (Iris). The remote screen runs them,
+     * they are pins like any other, which he may move or drop. The remote screen runs them,
      * never the controller, so they are offered only for a dock pin, never in a scene, a macro step
      * or a row button's long press.
      */

@@ -39,7 +39,7 @@ import kotlinx.coroutines.launch
 import kotlin.math.min
 
 /**
- * How a family answers a press (Iris's interaction spec). Keys tighten to 0.92, OK to 0.94,
+ * How a family answers a press (the interaction spec). Keys tighten to 0.92, OK to 0.94,
  * tiles and cards to 0.97; rows and surfaces don't scale (a full-width row that shrinks looks
  * cheap, and the pad and rail draw their own answer).
  */

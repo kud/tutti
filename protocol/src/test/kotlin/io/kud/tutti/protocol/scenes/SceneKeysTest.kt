@@ -6,7 +6,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 /**
- * The scene keys added in Maya's top 10, item 7: bar input, 360 Spatial, Voice Zoom, the TV's sound
+ * The scene keys added in one batch: bar input, 360 Spatial, Voice Zoom, the TV's sound
  * output and the remote's target. Each one plans, matches, captures and survives storage; a scene
  * stored before them reads back exactly as it was written.
  */

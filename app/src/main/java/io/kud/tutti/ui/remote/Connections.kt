@@ -107,7 +107,7 @@ data class ConnDevice(
 )
 
 /**
- * Why a device that is set up may be off the network, said under its lines (Iris, 2026-10-26: dev.16
+ * Why a device that is set up may be off the network, said under its lines (2026-10-26: dev.16
  * read "connecting…" on both lines while the TV sat in deep standby; the bar's line still offered
  * "Set up" the same way). Never a setup prompt: the device is set up, it simply isn't answering.
  */
@@ -266,7 +266,7 @@ private fun tvNote(input: ConnInput, google: ConnLine): ConnNote? = when {
 /**
  * IP control. Set up and not answering is the TV being out of reach, never a setup problem: it
  * reads "out of reach", and offers "Turn on" only when the Google TV line doesn't already, so one
- * TV carries one Turn on button (Iris, 2026-10-26).
+ * TV carries one Turn on button (2026-10-26).
  */
 private fun sonyIp(input: ConnInput, wakeShown: Boolean): ConnLine = when {
     input.ipRenew -> ConnLine(ConnLink.SONY_IP, ConnWords.CODE_TO_RENEW, ConnAction.SET_UP_IP)
@@ -294,7 +294,7 @@ private fun sonyIp(input: ConnInput, wakeShown: Boolean): ConnLine = when {
  * The bar's network line. A bar found at another address wins: that offer is a real step. Otherwise
  * a set-up bar not answering is out of reach, never a setup problem, and offers nothing: tutti has
  * no way to wake a bar that is off the network (no Wake-on-LAN for it), and the connection already
- * retries on its own (Iris, 2026-10-26).
+ * retries on its own (2026-10-26).
  */
 private fun barNetwork(input: ConnInput): ConnLine = when {
     input.lanMissing -> ConnLine(ConnLink.NETWORK, ConnWords.NEEDS_PERMISSION, lanAction(input))
@@ -348,7 +348,7 @@ private fun bluetooth(input: ConnInput, id: String, address: String?, controllab
 data class ConnFocus(val deviceId: String, val link: ConnLink)
 
 /**
- * The line the device pill's trouble points at (Erwann, 2026-10-25, Iris's top 10, item 6): a tap
+ * The line the device pill's trouble points at (Erwann, 2026-10-25): a tap
  * on a pill that says something is wrong lands on that line, its one next step ready, rather than
  * on Settings in general. Only the TV and the bar, the devices the pill speaks for. Worst first:
  * a fault with a step, any fault, a step not done yet (IP control, no TV), then a link on its way.

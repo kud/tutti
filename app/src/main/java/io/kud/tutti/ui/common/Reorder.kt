@@ -34,7 +34,7 @@ import androidx.compose.ui.zIndex
  * centre is nearest to where it was dropped. Nothing moves until the finger lifts, so a slip
  * changes nothing. Dragging is the quick path; [reorderActions] gives TalkBack the same moves.
  *
- * The lift (Iris's interaction spec): the item rises to 1.06 with a shadow and the slot it left
+ * The lift (the interaction spec): the item rises to 1.06 with a shadow and the slot it left
  * shows as a dashed outline; a `tick` for every slot it crosses, `select` when a drop reorders.
  * Reduced motion drops the scale only: the item still follows the finger, since that is the
  * manipulation itself, not decoration.

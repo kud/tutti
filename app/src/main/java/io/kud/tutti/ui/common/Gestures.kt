@@ -43,7 +43,7 @@ data class GestureEntry(
 )
 
 /**
- * The single source of truth for hidden gestures (Iris, 2026-10-25, discoverability rule 2): a
+ * The single source of truth for hidden gestures (2026-10-25, discoverability rule 2): a
  * gesture that is not in [all] does not exist. The "Gestes" sheet lists it, hints name it by [id],
  * and docs/design.md points here. Adding a long press, a two-finger gesture or a hold anywhere in
  * the app means adding its entry here, in values/ and values-fr/strings_gestures.xml.

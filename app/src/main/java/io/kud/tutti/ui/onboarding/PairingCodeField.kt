@@ -54,7 +54,7 @@ import io.kud.tutti.protocol.atv.PairingCode
  * always sits at the end, so backspace takes the last character. The current cell wears a thicker
  * border and a caret, never colour alone. TalkBack reads "Pairing code, 3 of 6 entered".
  *
- * Motion (Iris's spec, step 3 and 4): each typed character pops 1.1 → 1 with a tick; [locked]
+ * Motion (the spec, step 3 and 4): each typed character pops 1.1 → 1 with a tick; [locked]
  * (the code is on its way) takes the cells to 70 % and stops input; a new [mismatch] count shakes
  * the row with the shared refusal shake (6 dp, [RefusalShake]) and its reject. Reduced motion drops the pop.
  */

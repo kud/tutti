@@ -97,7 +97,7 @@ fun TvBluetoothDialog(targets: TargetController, hid: HidLink, onDismiss: () -> 
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(stringResource(R.string.bt_backup_explain), style = MaterialTheme.typography.bodyMedium)
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }) {
-                    // Paired or connected wears the filled check, not paired yet the empty ring (Iris, 2026-10-27).
+                    // Paired or connected wears the filled check, not paired yet the empty ring (2026-10-27).
                     val mark = when {
                         connected || linked != null -> true
                         action == null || hidState.support == HidSupport.UNSUPPORTED -> null

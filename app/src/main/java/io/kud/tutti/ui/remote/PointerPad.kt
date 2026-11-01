@@ -64,7 +64,7 @@ import io.kud.tutti.protocol.hid.MouseStep
 import io.kud.tutti.protocol.hid.TouchpadMotion
 import io.kud.tutti.ui.common.rememberHaptics
 
-/** The scroll strip's width and the click buttons' height: 48 dp targets (Iris, 2026-10-25). */
+/** The scroll strip's width and the click buttons' height: 48 dp targets (2026-10-25). */
 val SCROLL_STRIP = 48.dp
 val CLICK_ROW = 48.dp
 
@@ -269,7 +269,7 @@ fun PointerPad(
 }
 
 /**
- * The scroll strip (Iris, 2026-10-25): 48 dp wide beside the pad, with a visible track and a ↕ glyph,
+ * The scroll strip (2026-10-25): 48 dp wide beside the pad, with a visible track and a ↕ glyph,
  * so a scroll is aimed at, never stumbled into. Drag to scroll, content follows the finger. TalkBack:
  * "Scroll", with Scroll up and Scroll down as actions.
  */
@@ -345,7 +345,7 @@ fun ScrollStrip(down: Boolean, onScroll: (List<MouseStep>) -> Unit, modifier: Mo
     }
 }
 
-/** Left, Middle and Right (Iris, 2026-10-25): three equal buttons, each 48 dp tall with its name in words. */
+/** Left, Middle and Right (2026-10-25): three equal buttons, each 48 dp tall with its name in words. */
 @Composable
 fun ClickRow(down: Boolean, onClick: (Int) -> Unit, modifier: Modifier = Modifier) {
     Row(modifier.fillMaxWidth().height(CLICK_ROW), horizontalArrangement = Arrangement.spacedBy(8.dp)) {

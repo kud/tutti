@@ -9,7 +9,7 @@ enum class TimedLink(val label: String) {
 }
 
 /**
- * Time to ready, per link (Maya's top 10, item 8): from the start of a connect attempt to the link
+ * Time to ready, per link: from the start of a connect attempt to the link
  * being usable (Remote v2 ready after its configure exchange, REST's discovery answered, the bar's
  * socket open, Cast's first status read after device auth). Only the attempt that got there counts;
  * a failed one is replaced by the next [started]. Durations only, never a host: safe in a report.

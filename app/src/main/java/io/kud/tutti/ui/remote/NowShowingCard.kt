@@ -49,7 +49,7 @@ import io.kud.tutti.ui.common.barValueLabel
 import io.kud.tutti.ui.motion.Motion
 
 /**
- * What the TV is showing, in the room between the scene pills and the pad (Iris's option A,
+ * What the TV is showing, in the room between the scene pills and the pad (option A,
  * chosen by Erwann, 2026-10-24): an icon, the name large and a small detail line. [fit] comes from
  * [placePad]: full (104 to 140 dp, the icon and name growing with it), one 56 dp line, or hidden.
  * Every state is told by its icon and its words, never colour alone, and it is never empty: an
@@ -233,7 +233,7 @@ private fun Full(
             )
             Text(words.title, style = title, maxLines = 1, overflow = TextOverflow.Ellipsis)
             if (cast != null) {
-                // Iris: the Cast title takes the detail line's place, the channel always under it
+                // The Cast title takes the detail line's place, the channel always under it
                 // (Erwann, 2026-10-27); at 104 dp the title gives up its second line for it.
                 CastLine(cast, roomy = grow >= 0.5f)
             } else words.detail?.let {

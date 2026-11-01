@@ -15,7 +15,7 @@ class BrandFace(@DrawableRes val drawable: Int, val fill: Int, val glyph: Int?, 
 /** The app's own 512 px Play Store icon, full bleed; [ground] is its edge colour, behind the corners. */
 private fun playIcon(@DrawableRes drawable: Int, ground: Long) = BrandFace(drawable, ground.toInt(), null, 1f, crop = true)
 
-/** A Simple Icons mark on its own brand hex, in white or near-black, whichever reads (Iris: 56%). */
+/** A Simple Icons mark on its own brand hex, in white or near-black, whichever reads (56%). */
 private fun mark(@DrawableRes drawable: Int, hex: Long): BrandFace? {
     val fill = hex.toInt()
     val glyph = BrandColours.glyphOn(fill) ?: return null
@@ -91,7 +91,7 @@ fun brandFace(packageName: String?, name: String? = null): BrandFace? {
 
 /**
  * A system app with no free mark wears a monochrome Material symbol for what it is, on the letter
- * tile's own ground, instead of a letter (Iris, 2026-10-27). Keyed by package only: a title is too
+ * tile's own ground, instead of a letter (2026-10-27). Keyed by package only: a title is too
  * loose to say what an app does. Never a brand; the tile's label still names it.
  */
 @DrawableRes

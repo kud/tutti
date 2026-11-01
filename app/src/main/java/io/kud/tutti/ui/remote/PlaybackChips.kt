@@ -37,7 +37,7 @@ import io.kud.tutti.ui.common.keyIcon
 import io.kud.tutti.ui.common.keyLabel
 
 /*
- * The playback sheet's compact chips (Iris, 2026-10-27): Captions and Audio track, which open a
+ * The playback sheet's compact chips (2026-10-27): Captions and Audio track, which open a
  * picker on the TV. 40 dp tall, the word always shown. Voice and Night left the sheet on
  * 2026-10-28 (Erwann: « Pourquoi on a encore des settings de son ici ? »): sound lives in the
  * Sound sheet, which is their only home.

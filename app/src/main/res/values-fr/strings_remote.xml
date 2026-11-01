@@ -99,7 +99,7 @@
     <string name="power_sheet_turn_off">Éteindre</string>
     <string name="power_sheet_turn_on_both">Allumer les deux</string>
     <string name="power_sheet_turn_off_both">Éteindre les deux</string>
-    <!-- Cible de la télécommande (Iris, 2026-10-25) -->
+    <!-- Cible de la télécommande (2026-10-25) -->
     <string name="target_chip_label">La télécommande contrôle %1$s</string>
     <string name="target_sheet_open">Choisir ce que vous contrôlez</string>
     <string name="target_sheet_title">Contrôler</string>

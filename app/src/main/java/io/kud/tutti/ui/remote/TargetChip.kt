@@ -56,7 +56,7 @@ internal fun linkWords(link: RemoteLink): String = stringResource(
 )
 
 /**
- * Where the remote's keys go (Iris, 2026-10-25): the target's glyph and its name in words, a quiet
+ * Where the remote's keys go (2026-10-25): the target's glyph and its name in words, a quiet
  * outlined chip beside the system chip. A tap opens [TargetSheet]. Shown only when there is a
  * choice ([targetChipShown]); the caller doesn't place it otherwise.
  *
@@ -168,7 +168,7 @@ private fun TargetSheetRow(row: TargetRow, onShowOnTv: () -> Unit = {}, onClick:
 }
 
 /**
- * The quiet link indicator (Iris, 2026-10-25): glyph and the word "Bluetooth", only while keys go
+ * The quiet link indicator (2026-10-25): glyph and the word "Bluetooth", only while keys go
  * over Bluetooth ([linkIndicatorShown]). Not a button and not a status colour; TalkBack reads
  * "Keys go over Bluetooth".
  */

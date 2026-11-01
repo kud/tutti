@@ -86,7 +86,7 @@ object InputRules {
     }
 
     /**
-     * The keyboard comes to him (Iris's benchmark, idea 6): a new TV field ([shows] past
+     * The keyboard comes to him (benchmark idea 6): a new TV field ([shows] past
      * [seenShows]) while tutti is in front but off the remote, where the view would open by itself,
      * is offered once as a quiet message with "Type". The same field is never offered twice.
      */

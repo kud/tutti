@@ -6,8 +6,8 @@ package io.kud.tutti.protocol.apps
  * launcher is a place you pass through, not an app you go back to: Netflix, Home, YouTube leaves
  * Netflix as the previous app. A null report (no package yet, a dropped link) changes nothing.
  * Going back is an ordinary launch, so once it lands the two swap and a second long press returns.
- * [recent] keeps the last [KEPT] apps, newest first, for the Apps sheet's "Recent" row (Iris,
- * 2026-10-25, benchmark item 1): Google TV has no app switcher of its own. Pure.
+ * [recent] keeps the last [KEPT] apps, newest first, for the Apps sheet's "Recent" row
+ * (2026-10-25, benchmark item 1): Google TV has no app switcher of its own. Pure.
  */
 data class AppHistory(
     val current: String? = null,

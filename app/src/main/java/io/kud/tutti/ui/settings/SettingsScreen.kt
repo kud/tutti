@@ -98,7 +98,7 @@ fun linkLabel(link: Link): String = stringResource(
 )
 
 /**
- * Settings' top level, arranged like Android's (Iris's proposal, approved by Erwann on 2026-10-26,
+ * Settings' top level, arranged like Android's (the proposal, approved by Erwann on 2026-10-26,
  * docs/proposals/settings-structure.md): one row per [SettingsCategory], each with its icon, its
  * name and one live line saying where it stands in words, opening its own screen. Every group
  * there is a [SettingsGroup] and every line a [SettingsRow], so the rhythm is the same on every screen.
@@ -399,7 +399,7 @@ private fun DevicesPage(state: TuttiUiState, controller: TuttiController, onPair
         IpControlDialog(state, controller, onDismiss = { ipDialog = false }, startWithCode = !state.pskSet && state.ipCode == IpCodeStatus.RENEW)
     }
     forget?.let { device ->
-        // Named, so the dialog says which device goes (Iris, 2026-10-25).
+        // Named, so the dialog says which device goes (2026-10-25).
         val name = if (device == Forget.TV) state.devices.tv?.name else state.devices.bar?.name
         AlertDialog(
             onDismissRequest = { forget = null },
@@ -651,11 +651,11 @@ private fun AppsShownDialog(state: TuttiUiState, onShown: (String, Boolean) -> U
 }
 
 /**
- * Vibration and key sounds (Iris's spec, Erwann's decisions of 2026-10-23). tutti follows Android
+ * Vibration and key sounds (the spec, Erwann's decisions of 2026-10-23). tutti follows Android
  * and never overrides it: when the system's touch vibration or touch sounds are off, the row keeps
  * tutti's own switch but says it is inactive (warning glyph and words, never colour alone) and
  * carries the way to Android's settings, read again each time the screen resumes. The level is a
- * menu row rather than a segmented button, whose second label wrapped (Iris, 2026-10-23).
+ * menu row rather than a segmented button, whose second label wrapped (2026-10-23).
  */
 @Composable
 private fun FeedbackRows(prefs: AppPrefs, onVibration: (VibrationLevel) -> Unit, onKeySounds: (Boolean) -> Unit) {

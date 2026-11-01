@@ -4,7 +4,7 @@ import io.kud.tutti.R
 import io.kud.tutti.platform.data.SecondaryButton
 
 /**
- * What a round key's long press does while he hasn't chosen one of his own (Iris's gesture
+ * What a round key's long press does while he hasn't chosen one of his own (gesture
  * audit, 2026-10-25, item 4): Back goes back to the previous app, Home opens the Apps sheet, recent
  * apps first, and Input, whose tap opens tutti's own input chooser, sends the TV's Input key, its
  * own input menu (Erwann, 2026-10-26). Play has no default yet: its first long press still opens

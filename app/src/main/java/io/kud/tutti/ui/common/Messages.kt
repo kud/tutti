@@ -51,7 +51,7 @@ import kotlinx.coroutines.delay
 
 /*
  * tutti's one transient message: what a system toast or a default snackbar used to say, drawn in
- * the app's own theme (Iris, 2026-10-24). A tonal card, never the inverse colours: dark-first means
+ * the app's own theme (2026-10-24). A tonal card, never the inverse colours: dark-first means
  * no light bar flashing over a dark remote. The kind is told by its glyph (and, for a problem, by
  * TalkBack's "Problem" before the words), never by colour alone. One message at a time; a new one
  * replaces the old.

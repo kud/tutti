@@ -216,7 +216,7 @@ fun TuttiApp(
                     if (event.detail != null) {
                         problems.report(resources.getString(R.string.scene_failed_steps), event.detail)
                     } else if (event.undoable) {
-                        // One step back in one gesture (Iris's gesture audit): the message carries Undo,
+                        // One step back in one gesture (the gesture audit): the message carries Undo,
                         // and the pill's menu keeps it until the undo goes stale.
                         val name = controller.state.value.scenes.firstOrNull { it.scene.id == event.sceneId }?.scene?.name
                         if (name != null) {
@@ -358,7 +358,7 @@ fun TuttiApp(
         val reducedMotion = LocalReducedMotion.current
         val slide = with(LocalDensity.current) { SCREEN_SLIDE.roundToPx() }
         // Sideways, a camera cutout sits at one side: every screen keeps clear of it rather than the app
-        // locking portrait (Iris, 2026-10-25), so auto-rotate never hides a control. Upright, the status
+        // locking portrait (2026-10-25), so auto-rotate never hides a control. Upright, the status
         // bar already covers it and this pads nothing.
         Box(
             Modifier
@@ -471,7 +471,7 @@ fun TuttiApp(
     }
 }
 
-/** How far a screen travels as it comes or goes (Iris's motion spec: 24 dp with a crossfade). */
+/** How far a screen travels as it comes or goes (the motion spec: 24 dp with a crossfade). */
 private val SCREEN_SLIDE: Dp = 24.dp
 
 /**

@@ -72,7 +72,7 @@ private const val INPUT_POLL_MS = 4_000L
 private enum class AddStep { WHAT, OS, PAIR, INPUT, NAME, DONE }
 
 /**
- * « Ajouter un appareil » (Iris, 2026-10-25, from Erwann's « Comment j'ajoute un appareil ? »).
+ * « Ajouter un appareil » (2026-10-25, from Erwann's « Comment j'ajoute un appareil ? »).
  * Asks what first: a computer always; the TV or the bar only when missing, through their existing setup.
  * A computer then says its system (Erwann, 2026-10-25: « n'importe quel type d'ordi »), which sets
  * the pairing words and the default layout, and goes pair → input → name → done, each step saying

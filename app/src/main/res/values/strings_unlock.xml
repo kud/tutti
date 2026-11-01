@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- What tutti can do: the setup checklist (Iris, 2026-10-24). Sony menu names as on the TV. -->
+    <!-- What tutti can do: the setup checklist (2026-10-24). Sony menu names as on the TV. -->
     <string name="unlock_entry">What tutti can do</string>
     <string name="unlock_entry_progress">%1$d of %2$d set up · next: %3$s</string>
     <string name="unlock_entry_all">All set up</string>

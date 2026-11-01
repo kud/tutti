@@ -1,7 +1,7 @@
 package io.kud.tutti.protocol.scenes
 
 /**
- * "Undo the last scene" (Iris's gesture audit, 2026-10-25): the values a scene was about to change,
+ * "Undo the last scene" (the gesture audit, 2026-10-25): the values a scene was about to change,
  * as they stood just before it ran, and the scene that was active then. One level only: applying
  * another scene replaces it, undoing spends it.
  *

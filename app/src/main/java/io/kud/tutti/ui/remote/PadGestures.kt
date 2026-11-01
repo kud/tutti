@@ -7,7 +7,7 @@ import kotlin.math.max
 import kotlin.math.min
 
 /**
- * The touchpad's fling (Iris's gesture audit, 2026-10-25, item 1): a fast swipe keeps stepping
+ * The touchpad's fling (the gesture audit, 2026-10-25, item 1): a fast swipe keeps stepping
  * after the finger lifts and slows down, for long lists and on-screen keyboards. App-side only:
  * each step is a plain short D-pad key, as a swipe's are, so nothing new goes to the TV and a lost
  * packet costs one step, never a runaway scroll.
@@ -103,7 +103,7 @@ internal class TwoFingerTrack(private val slop: Float, private val volumeStep: F
  * The keys a skip sends. MEDIA_SKIP_FORWARD / BACKWARD (272 / 273) were taken for the 10 s jumps
  * of Google TV players, but the platform `MediaSession` ignores them by default and Media3's
  * default maps them to next / previous item (2026-11-01, see `SeekStep`); an app that handles the
- * key in its own activity may still jump. FAST_FORWARD / REWIND are Iris's fallback for a player
+ * key in its own activity may still jump. FAST_FORWARD / REWIND are the fallback for a player
  * that ignores them. The TV never says what a key did, so the fallback can't be chosen at run time: if the
  * check on the BRAVIA shows the skip keys do nothing in the apps Erwann uses, flip [SKIP_KEYS_FALLBACK].
  */

@@ -309,7 +309,7 @@ fun VolumeRail(
             // fill's edge, onSurface above and the fill's ink below, so a number the edge crosses
             // stays whole and legible.
             if (connected) {
-                // The number is a door (Iris's gesture audit): a tap opens the volume sheet. A 48 dp
+                // The number is a door (the gesture audit): a tap opens the volume sheet. A 48 dp
                 // target round it, its own button to TalkBack, and under it the card's quiet chevron
                 // pointing up, where the sheet rises from, says it opens (Erwann, 2026-10-25: the
                 // underline read as a web link, « pas sûr du souligné »). A shape, never colour alone.

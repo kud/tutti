@@ -10,7 +10,7 @@ import io.kud.tutti.MainActivity
 import io.kud.tutti.platform.shortcuts.ACTION_KEYBOARD
 
 /**
- * The Keyboard tile (Iris's benchmark, idea 6, background half): opens tutti on the remote with its
+ * The Keyboard tile (benchmark idea 6, background half): opens tutti on the remote with its
  * keyboard view, the launcher shortcut's own path ([ACTION_KEYBOARD]). It reads nothing and holds
  * nothing: with tutti in the background no session is kept alive to hear that the TV opened a
  * field (no foreground service, design.md § Notification), so the tile is the way in, not a signal.

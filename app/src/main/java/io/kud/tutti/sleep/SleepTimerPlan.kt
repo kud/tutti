@@ -3,7 +3,7 @@ package io.kud.tutti.sleep
 import io.kud.tutti.protocol.sleep.SleepFade
 
 /**
- * A running gentle switch-off timer (Iris's top 10, item 5; docs/architecture.md, "Gentle
+ * A running gentle switch-off timer (docs/architecture.md, "Gentle
  * switch-off timer"). [exact] is false when the phone refused exact alarms, so the UI says it may
  * switch off a few minutes late. [startVolume] is the bar's level when the fade began, null before.
  */

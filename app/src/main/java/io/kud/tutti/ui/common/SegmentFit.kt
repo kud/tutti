@@ -1,7 +1,7 @@
 package io.kud.tutti.ui.common
 
 /**
- * When a short list of choices shows as segments instead of a menu (Iris, 2026-10-26, after
+ * When a short list of choices shows as segments instead of a menu (2026-10-26, after
  * Erwann's « Pour des options comme ça on peut mettre un segment nan ? »): two to [MAX_OPTIONS]
  * options, and every label fits its segment in at most [MAX_LINES] lines without a word broken,
  * measured in the language, width and font size on screen. Anything else keeps the menu, so a

@@ -42,7 +42,7 @@ data class TvInputChip(val uri: String, val name: String, val current: Boolean, 
 data class TvInputsRow(val inputs: List<TvInputChip>, val reason: String?)
 
 /**
- * The TV's inputs in the Apps sheet (benchmark idea, Iris, 2026-10-25; moved there from the Power
+ * The TV's inputs in the Apps sheet (benchmark idea, 2026-10-25; moved there from the Power
  * sheet the same day: an input is what's on the TV, like an app), or null to hide them. They come from `getCurrentExternalInputsStatus`, so only IP control lists them: without
  * it, or before the TV answered, there is no row rather than a guessed "HDMI 1…4". Each is named
  * as the TV names it ([spoken]): the label the TV holds for it, which is the plugged-in device's

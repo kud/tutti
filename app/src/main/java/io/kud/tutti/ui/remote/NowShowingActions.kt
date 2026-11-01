@@ -30,7 +30,7 @@ fun cardOpensPlayback(showing: CardShowing?): Boolean = showing is CardShowing.S
 enum class CardTap { PLAYBACK, CONTROL_COMPUTER, NONE }
 
 /**
- * The card's tap (Iris, 2026-10-25). While the TV shows the HDMI input marked as a computer's
+ * The card's tap (2026-10-25). While the TV shows the HDMI input marked as a computer's
  * ([onComputerInput]), the tap becomes « Contrôler <nom> » and points the remote at it: media keys
  * sent to a computer over HDMI-CEC are guesswork, while the remote's own keys reach it over Bluetooth.
  * Anything else the TV shows opens playback, as [cardOpensPlayback] says.

@@ -48,7 +48,7 @@ private class Raster(val image: ImageBitmap, val crop: Boolean, val fill: Int?, 
  *    adaptive layers full bleed;
  * 2. the TV's own launcher art ([iconPath]): a square icon cropped edge to edge, a banner fitted to
  *    the width on its corners' shared colour or, when they disagree, over a blurred copy of itself
- *    ([BrandColours.TvLook.Backdrop]; Iris, 2026-10-26), unless the app has a brand face below;
+ *    ([BrandColours.TvLook.Backdrop]; 2026-10-26), unless the app has a brand face below;
  * 3. the brand's official logo on its brand colour, or the app's own Play Store icon cropped edge to
  *    edge ([brandFace]);
  * 4. a system app's kind as a Material symbol ([systemSymbol]);
@@ -109,7 +109,7 @@ fun AppIcon(
         val behind = face?.backdrop
         if (behind != null) {
             // Blurred by bilinear stretching of an 8 px copy, then dimmed a little toward the tile's
-            // own colour so the fitted banner reads as the subject; no edge or shadow on it (Iris).
+            // own colour so the fitted banner reads as the subject; no edge or shadow on it.
             Image(behind, contentDescription = null, contentScale = ContentScale.FillBounds, filterQuality = FilterQuality.Low, modifier = Modifier.fillMaxSize())
             Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = BACKDROP_DIM)))
         }
@@ -127,7 +127,7 @@ fun AppIcon(
                 colorFilter = brand.glyph?.let { ColorFilter.tint(Color(it)) },
                 modifier = Modifier.fillMaxSize(if (brand.crop) 1f else minOf(brand.scale, 1f)),
             )
-            // A system app's kind, in the letter's own colour on the letter's ground (Iris, 2026-10-27).
+            // A system app's kind, in the letter's own colour on the letter's ground (2026-10-27).
             symbol != null -> Icon(
                 painterResource(symbol),
                 contentDescription = null,
@@ -144,7 +144,7 @@ fun AppIcon(
     }
 }
 
-/** How far a banner's blurred backdrop leans toward the tile's colour (Iris, 2026-10-26: 15 to 20%). */
+/** How far a banner's blurred backdrop leans toward the tile's colour (2026-10-26: 15 to 20%). */
 private const val BACKDROP_DIM = 0.18f
 
 /** A system symbol's share of the tile: a touch under the letter's visual weight (45% type). */

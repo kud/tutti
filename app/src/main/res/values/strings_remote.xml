@@ -104,7 +104,7 @@
     <string name="power_sheet_turn_off">Turn off</string>
     <string name="power_sheet_turn_on_both">Turn both on</string>
     <string name="power_sheet_turn_off_both">Turn both off</string>
-    <!-- Remote target: where the keys go (Iris, 2026-10-25) -->
+    <!-- Remote target: where the keys go (2026-10-25) -->
     <string name="target_chip_label">Remote controls %1$s</string>
     <string name="target_sheet_open">Choose what to control</string>
     <string name="target_sheet_title">Control</string>

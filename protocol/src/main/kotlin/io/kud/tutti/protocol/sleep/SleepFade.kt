@@ -3,7 +3,7 @@ package io.kud.tutti.protocol.sleep
 import kotlin.math.roundToInt
 
 /**
- * The gentle switch-off timer tutti owns (Iris's top 10, item 5), as plain timing: no clock, no
+ * The gentle switch-off timer tutti owns, as plain timing: no clock, no
  * Android. The app passes `now` in wall-clock milliseconds and acts on what comes back.
  *
  * Shape: nothing happens until [FADE_MS] before the end; then the volume steps down once every

@@ -541,7 +541,7 @@ private fun StepRow(
 }
 
 /**
- * A key step's "Press" / "Hold" pair (Iris, 2026-10-24): quiet, read as radio buttons, Press by
+ * A key step's "Press" / "Hold" pair (2026-10-24): quiet, read as radio buttons, Press by
  * default. The picker only ever picks a press; holding is chosen here, per step.
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -585,7 +585,7 @@ private fun LettersChoice(description: String, selected: Boolean, onClick: () ->
             .size(48.dp)
             .clip(CircleShape)
             .background(if (selected) colors.secondaryContainer else colors.surfaceContainerHighest)
-            // Chosen is a ring as well as a fill, never the fill alone (Iris, 2026-10-30).
+            // Chosen is a ring as well as a fill, never the fill alone (2026-10-30).
             .then(if (selected) Modifier.border(2.dp, colors.onSurface, CircleShape) else Modifier)
             .selectable(selected = selected, role = Role.RadioButton, onClick = onClick)
             .semantics { contentDescription = description },
@@ -632,7 +632,7 @@ private fun GlyphChoice(icon: Int, description: String, selected: Boolean, outli
             .size(48.dp)
             .clip(CircleShape)
             .background(if (selected) colors.secondaryContainer else colors.surfaceContainerHighest)
-            // Chosen is a ring as well as a fill, never the fill alone (Iris, 2026-10-30).
+            // Chosen is a ring as well as a fill, never the fill alone (2026-10-30).
             .then(if (selected) Modifier.border(2.dp, colors.onSurface, CircleShape) else Modifier)
             .then(if (outlined && !selected) Modifier.border(1.dp, colors.outline, CircleShape) else Modifier)
             .selectable(selected = selected, role = Role.RadioButton, onClick = onClick)

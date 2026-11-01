@@ -6,7 +6,7 @@ import kotlin.math.min
 import kotlin.math.pow
 
 /**
- * Pure colour rules behind the coloured app faces (Iris, 2026-10-25), kept free of Android so
+ * Pure colour rules behind the coloured app faces (2026-10-25), kept free of Android so
  * they are tested on the JVM. Colours are packed ARGB ints.
  */
 object BrandColours {
@@ -63,7 +63,7 @@ object BrandColours {
         /**
          * A banner whose corners disagree (a gradient or a photo, as most Android TV banners are):
          * fitted to the width over a blurred copy of itself cropped to the tile, so neither a seam
-         * nor a cropped wordmark shows (Iris, 2026-10-26).
+         * nor a cropped wordmark shows (2026-10-26).
          */
         data object Backdrop : TvLook
     }
@@ -80,7 +80,7 @@ object BrandColours {
 
     /**
      * The flat colour a banner can be letterboxed with: its corners' shared colour, or null when
-     * they disagree (a gradient or photo behind the wordmark would show a seam). Iris, 2026-10-25.
+     * they disagree (a gradient or photo behind the wordmark would show a seam). 2026-10-25.
      */
     fun bannerFill(corners: IntArray): Int? {
         if (corners.isEmpty()) return null

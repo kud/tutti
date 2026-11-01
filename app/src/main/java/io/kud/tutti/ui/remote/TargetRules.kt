@@ -7,7 +7,7 @@ import io.kud.tutti.protocol.hid.RemoteLink
 enum class TargetKind { TV, COMPUTER }
 
 /**
- * One row of the target sheet: a device present now (Iris, 2026-10-25). [link] is the link its
+ * One row of the target sheet: a device present now (2026-10-25). [link] is the link its
  * keys use right now, said in words on the row; [current] wears the tick.
  */
 data class TargetRow(
@@ -21,7 +21,7 @@ data class TargetRow(
 )
 
 /**
- * "Computer on the TV" in one gesture (Iris's top 10, item 10): offered for a computer with a known
+ * "Computer on the TV" in one gesture: offered for a computer with a known
  * TV input when that input isn't on screen, or the TV is off. Switching needs IP control
  * (setPlayContent), so without it the row offers nothing rather than a button that can't work.
  */
@@ -38,7 +38,7 @@ fun targetChipShown(rows: List<TargetRow>): Boolean = rows.size > 1 && rows.any 
 fun currentTarget(rows: List<TargetRow>): TargetRow? = rows.firstOrNull { it.current } ?: rows.firstOrNull { it.kind == TargetKind.TV }
 
 /**
- * TalkBack hears a target change only when it is real (Iris, 2026-10-25): a new target that holds
+ * TalkBack hears a target change only when it is real (2026-10-25): a new target that holds
  * for [TARGET_SETTLE_MS], never a blip of the TV's input, never the first target on opening.
  */
 fun targetAnnounced(lastAnnounced: String?, settled: String?): Boolean =
@@ -49,7 +49,7 @@ const val TARGET_SETTLE_MS = 800L
 /**
  * The pad's modes for a target, in the order the corner switch cycles them. A Bluetooth target
  * (the computer, or the TV with its LAN down) gets the gyro pointer as a third mode; it is always in
- * the cycle there, disabled with its reason when it can't work, never hidden (Iris, 2026-10-25).
+ * the cycle there, disabled with its reason when it can't work, never hidden (2026-10-25).
  */
 fun padModes(bluetooth: Boolean): List<PadMode> =
     if (bluetooth) listOf(PadMode.TOUCHPAD, PadMode.DPAD, PadMode.GYRO) else listOf(PadMode.TOUCHPAD, PadMode.DPAD)

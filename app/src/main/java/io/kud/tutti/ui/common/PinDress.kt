@@ -18,7 +18,7 @@ import androidx.compose.ui.unit.sp
 import io.kud.tutti.platform.data.DockLabels
 
 /**
- * How one pin is dressed for the dock's [DockLabels] (Iris, 2026-10-29). The tile itself never
+ * How one pin is dressed for the dock's [DockLabels] (2026-10-29). The tile itself never
  * changes, 64 dp tall at the width six across give it, so switching never moves the pad or the
  * thumb's targets; only what sits inside does.
  *

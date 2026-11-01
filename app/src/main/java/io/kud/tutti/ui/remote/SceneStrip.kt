@@ -67,7 +67,7 @@ fun contentOn(color: Color): Color = if (color.luminance() > 0.45f) Color.Black 
 fun tonalOf(seed: Color): Color = seed.copy(alpha = 0.24f).compositeOver(MaterialTheme.colorScheme.surfaceContainer)
 
 /**
- * The strip of scene pills. A tap applies; a long press opens the pill's menu (Iris's gesture
+ * The strip of scene pills. A tap applies; a long press opens the pill's menu (gesture
  * audit, 2026-10-25), the most useful first: "Undo the last scene" on the pill of the scene that
  * can still be undone ([undoSceneId]), then "Apply", "Edit scene" and "Pin to the dock" last.
  * Each row is also a TalkBack action on the pill.

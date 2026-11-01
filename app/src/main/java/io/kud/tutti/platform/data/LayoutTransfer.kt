@@ -11,7 +11,7 @@ import io.kud.tutti.protocol.scenes.Scene
  * Between the stored layout ([RemoteLayout], [DockConfig]) and the file ([LayoutFile], in `:protocol`),
  * both ways (Erwann, 2026-10-31: « Juste l'export et import de la disposition »). What goes in: the
  * dock's twelve places and spare tray, the row keys' long presses, the hand, the pins' dress and the
- * scene strip's switch. Scenes stay on the phone (Iris, 2026-10-31): a pin that runs one names it, and
+ * scene strip's switch. Scenes stay on the phone (2026-10-31): a pin that runs one names it, and
  * the import finds the scene of that name here or skips the pin, saying so. Only the layout and the
  * dock reach this code, so a device, a host or a secret has no way into the file.
  */
@@ -28,7 +28,7 @@ object LayoutTransfer {
         fun pin(slot: DockSlot): FilePin? {
             if (!slot.isSet) return null
             val tap = slot.primary?.let { toFile(it, names) ?: return null.also { leftOut++ } }
-            // A remote key's long press is the row's own ([DockConfig.longPress]), never the pin's (Iris).
+            // A remote key's long press is the row's own ([DockConfig.longPress]), never the pin's.
             val hold = slot.secondary?.takeIf { tap !is FileAction.Remote }?.let { toFile(it, names) ?: return null.also { leftOut++ } }
             return FilePin(tap, hold, slot.label?.take(MAX_LABEL), slot.icon, slot.letters).takeIf { it.isSet }
         }

@@ -11,7 +11,7 @@ import io.kud.tutti.protocol.scenes.SceneValue.Text
  */
 object StarterScenes {
     /**
-     * The scene offered when a computer is added with its TV input (Iris's top 10, item 10): wake the
+     * The scene offered when a computer is added with its TV input: wake the
      * TV and switch to that input. [name] is already in the phone's language ("Mac on the TV");
      * one per computer, so adding it twice replaces it rather than stacking copies.
      */

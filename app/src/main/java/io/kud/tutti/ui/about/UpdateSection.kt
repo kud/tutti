@@ -77,7 +77,7 @@ internal fun UpdateRow() {
                 style = MaterialTheme.typography.bodyLarge,
             )
             // Two lines kept for the updater's sentence, whatever it says, so "Checking…" turning
-            // into "Couldn't reach GitHub…" never moves the rows under it (Iris, 2026-10-30).
+            // into "Couldn't reach GitHub…" never moves the rows under it (2026-10-30).
             Text(
                 summary(state),
                 style = MaterialTheme.typography.bodyMedium,
@@ -91,7 +91,7 @@ internal fun UpdateRow() {
 }
 
 /**
- * Everything the rest of the app knows of the updater, in one place (Iris, 2026-10-28): the GitHub
+ * Everything the rest of the app knows of the updater, in one place (2026-10-28): the GitHub
  * updater is meant to be temporary (final releases will likely go to F-Droid), so a build without it
  * needs only these three to return nothing. [newer] is a newer build, set aside or not; [notice] is
  * true until "Later".

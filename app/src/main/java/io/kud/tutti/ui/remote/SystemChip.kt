@@ -227,7 +227,7 @@ private enum class DotState { NONE, ONLINE, CONNECTING, PARTIAL, DOWN }
  * Online is a filled dot, connecting an open ring that turns once every 900 ms (with
  * "Connecting…"), one device down a half-filled dot (with the second line), all down a slashed
  * ring (with "Nothing reachable"). Under reduced motion ([turning] off) the open ring holds still:
- * its shape and the words already say it (Iris's splash notes, 2026-10-24).
+ * its shape and the words already say it (the splash notes, 2026-10-24).
  */
 @Composable
 private fun StatusDot(state: DotState, color: Color, modifier: Modifier = Modifier, turning: Boolean = true) {
@@ -274,7 +274,7 @@ private fun StatusDot(state: DotState, color: Color, modifier: Modifier = Modifi
 
 private const val NUDGE_LAYER = 0.16f
 
-/** One turn of the connecting ring (Iris's splash notes). */
+/** One turn of the connecting ring (the splash notes). */
 private const val CONNECTING_TURN_MS = 900
 
 /** The pulse out of the dot when the connection lands. */

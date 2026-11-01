@@ -80,7 +80,7 @@ fun Modifier.belowStatusBar(topPx: Int): Modifier = layout { measurable, constra
  * the two never add up: left to its defaults, the Apps sheet put its handle under the clock on
  * Erwann's phone (2026-10-23).
  *
- * The handle answers a drag (Iris's interaction spec): it widens 32 → 48 dp and goes to full ink
+ * The handle answers a drag (the interaction spec): it widens 32 → 48 dp and goes to full ink
  * while a finger has moved the sheet. There is no top-stop bump: the sheet opens already at its
  * highest, so no drag can reach it.
  */

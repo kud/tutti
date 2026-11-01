@@ -13,7 +13,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** The TV hub's rows, waiting parts, live lines and per-screen unavailable counts (Iris, 2026-10-26). */
+/** The TV hub's rows, waiting parts, live lines and per-screen unavailable counts (2026-10-26). */
 class TvHubTest {
 
     private fun range(target: String, value: String = "0", available: Boolean = true) =

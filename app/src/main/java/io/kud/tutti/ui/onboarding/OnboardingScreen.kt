@@ -112,7 +112,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 
 /**
- * The intro (Iris's motion spec, "Intro, écran par écran"): Welcome, then four numbered steps,
+ * The intro (the motion spec, "Intro, écran par écran"): Welcome, then four numbered steps,
  * TV (search), Code, Bar, Ready. IP control is not a step: Ready offers the code shown on the TV.
  * The flow follows the controller's pairing state; the step bar and the screen slide 24 dp with a
  * crossfade on each change (a [Motion.SHORT] fade with reduced motion). Welcome shows only on a
@@ -915,7 +915,7 @@ private fun DeviceRow(icon: Int, name: String, status: String, ok: Boolean) {
         Icon(painterResource(icon), contentDescription = null, tint = colors.onSurface)
         Spacer(Modifier.width(12.dp))
         Text(name, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
-        // The shared state marks (Iris, 2026-10-27): a filled check when ready, an empty ring when not.
+        // The shared state marks (2026-10-27): a filled check when ready, an empty ring when not.
         StateMark(ok)
         Spacer(Modifier.width(4.dp))
         Text(status, style = MaterialTheme.typography.bodySmall, color = if (ok) colors.onSurface else colors.onSurfaceVariant)

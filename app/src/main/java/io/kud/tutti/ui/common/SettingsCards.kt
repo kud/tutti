@@ -40,7 +40,7 @@ import io.kud.tutti.R
 import io.kud.tutti.ui.motion.Motion
 
 /**
- * The settings language (Iris's Lawnchair-style mock, 2026-10-23): a titled group is one rounded
+ * The settings language (the Lawnchair-style mock, 2026-10-23): a titled group is one rounded
  * card, its rows stacked 2 dp apart so the background reads as the divider. Every row has the
  * same anatomy: an optional icon in a tonal disc, a title, one detail line, an optional footer,
  * and one trailing control.
@@ -142,7 +142,7 @@ fun SettingsRow(
 }
 
 /**
- * A binary or link state told by shape (Iris, 2026-10-27; design.md, Visual › State): a filled
+ * A binary or link state told by shape (2026-10-27; design.md, Visual › State): a filled
  * check circle for connected / on / paired, an empty ring for nothing connected / off. The same two
  * glyphs as [io.kud.tutti.ui.remote.ConnMark]'s OK and TODO, so a state reads alike everywhere. The
  * words always sit beside it; it is decorative to TalkBack, which reads them.
@@ -165,7 +165,7 @@ fun OpensChevron() {
 
 /**
  * A row that comes and goes with another setting (the vibration level under Vibration): it grows
- * and fades so the card doesn't jump; under reduced motion it only fades (Iris, 2026-10-23).
+ * and fades so the card doesn't jump; under reduced motion it only fades (2026-10-23).
  */
 @Composable
 fun ColumnScope.RevealRow(visible: Boolean, content: @Composable () -> Unit) {

@@ -213,7 +213,7 @@
     <string name="bar_value_wireless">Wi-Fi</string>
     <string name="bar_value_connected">Connected</string>
     <string name="bar_value_not_connected">Not connected</string>
-    <!-- TV settings, round 3 (Iris, 2026-10-26): the XR80's leftovers, the loading state. -->
+    <!-- TV settings, round 3 (2026-10-26): the XR80's leftovers, the loading state. -->
     <string name="tv_target_sensor_auto_adjustment">Light sensor auto adjustment</string>
     <string name="tv_target_content_type">Content type</string>
     <string name="tv_part_offset">%1$s offset</string>
@@ -225,7 +225,7 @@
     <string name="tv_waiting">Waiting for the TV…</string>
     <string name="tv_waiting_picture">Brightness, colour and the rest</string>
     <string name="tv_waiting_power">Power saving and wake from the network</string>
-    <!-- TV settings as a hub (Iris, 2026-10-26): Picture, Sound, Inputs, Power, About this TV, each with a live line. -->
+    <!-- TV settings as a hub (2026-10-26): Picture, Sound, Inputs, Power, About this TV, each with a live line. -->
     <string name="tv_hub_sound">Sound</string>
     <string name="tv_about">About this TV</string>
     <string name="tv_advanced_picture">Advanced picture</string>
@@ -242,7 +242,7 @@
         <item quantity="one">%1$d setting</item>
         <item quantity="other">%1$d settings</item>
     </plurals>
-    <!-- Settings as categories (Iris, 2026-10-26, step 2): the top level's names and live lines. -->
+    <!-- Settings as categories (2026-10-26, step 2): the top level's names and live lines. -->
     <string name="settings_remote_dock">Remote &amp; dock</string>
     <string name="settings_display_feedback">Display &amp; feedback</string>
     <string name="settings_display">Display</string>

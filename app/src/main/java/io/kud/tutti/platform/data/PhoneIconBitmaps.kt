@@ -17,7 +17,7 @@ import io.kud.tutti.protocol.apps.PhoneIcons
  * about; the installed list is never read, and nothing leaves the phone. Call off the main thread.
  *
  * An adaptive icon is drawn full bleed: background then foreground, cropped to the 72/108 safe
- * zone so it fills the tile and the tile's own corner owns the edge (Iris, 2026-10-25). A missing
+ * zone so it fills the tile and the tile's own corner owns the edge (2026-10-25). A missing
  * background leaves the bitmap transparent, so the foreground sits on the tile, never on a hole.
  * A legacy icon is drawn whole into the square, like the TV's art.
  */

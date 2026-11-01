@@ -28,7 +28,7 @@ enum class KeyOutcome {
 }
 
 /**
- * Calm when it doesn't matter, honest when it does (Iris, 2026-10-24, from Erwann's "si les
+ * Calm when it doesn't matter, honest when it does (2026-10-24, from Erwann's "si les
  * touches ne marchent pas à ce moment-là, peut-être que c'est mieux").
  *
  * A link that drops after being up goes through the remote loop as UNREACHABLE, a 1 s backoff,
@@ -71,7 +71,7 @@ object TvLinkRule {
     )
 
     /**
-     * Implicit wake (Erwann, 2026-10-25, delegated to Maya): Home and Play/Pause pressed while the
+     * Implicit wake (Erwann, 2026-10-25): Home and Play/Pause pressed while the
      * TV is known asleep wake it, then go once it is on, the way any physical remote wakes the
      * screen. Only these two, because they mean "I want the TV": Home is where the TV starts, and
      * Play/Pause on a sleeping TV can only mean "carry on watching". Arrows, OK, Back, digits and
@@ -138,7 +138,7 @@ object TvLinkRule {
 
     /**
      * Whether an app tapped by hand wakes the TV before it opens (Erwann, 2026-11-01: « allumer
-     * la TV quand on appuie sur Netflix », delegated to Maya). Unlike a key ([wakesTv]), an app
+     * la TV quand on appuie sur Netflix »). Unlike a key ([wakesTv]), an app
      * means "this, on the TV", the way the TV's own Netflix button powers it straight into
      * Netflix. So it wakes a TV known in standby, and also one out of reach past the calm rule:
      * that is where a TV in deep standby sits, and a wake that fails says why (Remote start)

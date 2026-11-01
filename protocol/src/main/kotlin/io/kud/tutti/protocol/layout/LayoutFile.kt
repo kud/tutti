@@ -19,7 +19,7 @@ import kotlinx.serialization.json.put
  * Nothing else: no scene, no device, no secret, no identifier of hardware or of the home. The file is
  * a contract of its own, apart from how `:app` stores its prefs, so either can change without the other.
  *
- * Scenes stay out (Iris, 2026-10-31); a pin that runs one names the scene ([FileAction.Scene]) and is
+ * Scenes stay out (2026-10-31); a pin that runs one names the scene ([FileAction.Scene]) and is
  * matched by name on import, or skipped with a reason.
  */
 data class LayoutFile(

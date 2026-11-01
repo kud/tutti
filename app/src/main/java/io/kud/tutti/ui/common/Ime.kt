@@ -22,7 +22,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 
 /*
- * The keyboard rule (Iris, 2026-10-28, after Erwann's « Certains screens sont coupés car on doit
+ * The keyboard rule (2026-10-28, after Erwann's « Certains screens sont coupés car on doit
  * scroller alors qu'on a la place »):
  *
  * 1. One owner per inset. A Scaffold's padding is consumed before `imePadding()`

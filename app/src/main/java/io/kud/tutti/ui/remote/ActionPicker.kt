@@ -226,7 +226,7 @@ fun ActionPickerContent(
                             selected = filter == category,
                             onClick = { filter = if (filter == category) null else category },
                             label = { Text(stringResource(category.label)) },
-                            // A filter on is told by the tick, never by the container alone (Iris, 2026-10-30).
+                            // A filter on is told by the tick, never by the container alone (2026-10-30).
                             leadingIcon = if (filter == category) {
                                 { Icon(painterResource(R.drawable.ic_check), contentDescription = null, modifier = Modifier.size(FilterChipDefaults.IconSize)) }
                             } else {

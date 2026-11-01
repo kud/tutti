@@ -85,7 +85,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 
 /*
- * The launch intro, in three beats (Iris's splash notes). The system splash shows the lockup
+ * The launch intro, in three beats (the splash notes). The system splash shows the lockup
  * still, the launcher mark over the wordmark (res/drawable/splash_icon.xml): it is only the bridge,
  * since the system plays animated icons in its own process. Once the app has drawn its first frame,
  * this overlay draws the very same lockup at the very same place, removes the system splash under
@@ -96,7 +96,7 @@ import kotlinx.coroutines.withTimeoutOrNull
  * on a dark splash a soft halo breathes in behind it, while the intro decides; both leave as the
  * choreography starts.
  *
- * "The OK becomes the pad" (Iris, 2026-10-23), richer (variant A of her second pass, plus B's
+ * "The OK becomes the pad" (2026-10-23), richer (variant A of the second pass, plus B's
  * shimmering ring; Erwann, 2026-10-24): a sheen, the OK warms and slides onto the live D-pad's OK
  * while a ring runs out and becomes the pad's surface, the disc on it; a click and a bloom on landing, the chevrons pop, a
  * last sheen signs the OK, then the backdrop opens from the pad outwards. The light is the theme's,
@@ -384,7 +384,7 @@ internal abstract class OkLanding(warm: Boolean) : IntroChoreography {
 }
 
 /**
- * A, "classy, richer" (Iris's second pass, chosen by Erwann 2026-10-24), with B's shimmering ring,
+ * A, "classy, richer" (the second pass, chosen by Erwann 2026-10-24), with B's shimmering ring,
  * toned down to the theme's colours. Cold start, 800 ms:
  * - 0-240 a soft sheen crosses the mark; the OK warms and swells (x1.18) with a halo and rim in the theme's accent.
  * - 160-300 the body and the line step back; 160-470 the OK slides onto the pad's OK ([Motion.snappy]).
@@ -924,7 +924,7 @@ fun LaunchMark(modifier: Modifier = Modifier) {
     }
 }
 
-/** Which intro a launch gets (Iris's splash notes). */
+/** Which intro a launch gets (the splash notes). */
 enum class IntroKind {
     /** A fresh process: the full intro. */
     COLD,

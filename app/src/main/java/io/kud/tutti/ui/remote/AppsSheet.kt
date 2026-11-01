@@ -100,7 +100,7 @@ fun AppsSheet(
  * tap reaches the controller, which never launches the same app twice and lets a newer app win.
  * [recents] (packages, newest first, never the app in front) lead the grid under "Recent", the
  * living room's app switcher that Google TV lacks; long-press Home opens this sheet for them.
- * The TV's [inputs] follow, one row of chips (Iris, 2026-10-25): an input is what's on the TV,
+ * The TV's [inputs] follow, one row of chips (2026-10-25): an input is what's on the TV,
  * like an app, so it is chosen here rather than behind Power's long press.
  */
 @OptIn(ExperimentalFoundationApi::class)
@@ -362,7 +362,7 @@ private fun AppTile(
         )
         if (variant != null) {
             // Two apps the TV names alike (two "Plex"): the package tells them apart, in words, never
-            // by the icon or its colour alone (Iris, 2026-10-27). Full readability: it is information.
+            // by the icon or its colour alone (2026-10-27). Full readability: it is information.
             Text(
                 variant,
                 style = MaterialTheme.typography.labelSmall,

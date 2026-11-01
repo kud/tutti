@@ -78,7 +78,7 @@ import kotlin.math.roundToInt
  * returns: nothing here is hard-coded, because the method set is unverified on the XR80. While
  * REST is not ONLINE every TV screen explains how to turn IP control on instead of showing dead rows.
  *
- * Settings › TV is a hub (Iris, 2026-10-26, approved by Erwann): Picture, Sound, Inputs, Power and
+ * Settings › TV is a hub (Erwann, 2026-10-26): Picture, Sound, Inputs, Power and
  * About this TV, each a row with one live line in words that opens its own screen ([TvSettingsPageScreen]).
  * The load itself starts in TuttiApp, on the way into the hub.
  */
@@ -168,9 +168,9 @@ private fun TvFrame(
                 return@Column
             }
             // A first load says in words what it waits for; each part still on its way holds its place
-            // with a waiting row, and what is already known shows as it is (Iris, 2026-10-26). A
+            // with a waiting row, and what is already known shows as it is (2026-10-26). A
             // re-check over settings already shown adds nothing here, so the rows never move: its only
-            // mark is in the top bar ([RecheckMark]; Iris, 2026-10-27).
+            // mark is in the top bar ([RecheckMark]; 2026-10-27).
             if (cue == LoadCue.FIRST) LoadingNote()
             content()
         }
@@ -356,7 +356,7 @@ private fun InputsPage(state: TuttiUiState, controller: TuttiController) {
         SettingsGroup(null) {
             for (input in state.tv.inputs) {
                 val current = input.uri == state.tv.input
-                // State by shape and words (Iris, 2026-10-27): a filled check for connected or
+                // State by shape and words (2026-10-27): a filled check for connected or
                 // current, an empty ring for an empty port. The current input is information, not
                 // a disabled control: full contrast, nothing to tap.
                 SettingsRow(
@@ -431,7 +431,7 @@ private fun AboutPage(state: TuttiUiState) {
         SettingsGroup(null) { WaitingRow(stringResource(R.string.tv_device_model)) }
     } else if (rows.isNotEmpty()) {
         SettingsGroup(null) {
-            // Read-only information (Iris, 2026-10-27): full contrast, no ripple, nothing to tap.
+            // Read-only information (2026-10-27): full contrast, no ripple, nothing to tap.
             rows.forEach { (title, value) -> SettingsRow(title = title, detail = value) }
         }
     } else if (settings.loaded && !settings.loading) {
@@ -528,7 +528,7 @@ private fun LoadingNote() {
 }
 
 /**
- * A re-check over settings already on screen (Iris, 2026-10-27, after Erwann's « pas très fan du
+ * A re-check over settings already on screen (2026-10-27, after Erwann's « pas très fan du
  * loading » on dev.27): what is shown is valid, so nothing covers, dims or pushes it. Under
  * [TvHub.RECHECK_QUIET_MS] nothing shows at all; past it, a small spinner where the top bar's
  * actions sit (the refresh glyph, still, under reduced motion), faded in and out by opacity alone,

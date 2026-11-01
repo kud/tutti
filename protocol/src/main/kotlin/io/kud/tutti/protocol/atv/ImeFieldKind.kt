@@ -4,7 +4,7 @@ package io.kud.tutti.protocol.atv
  * What kind of field the TV opened, read from [ImeProbe.int5] *as if* it were Android's
  * `EditorInfo.inputType` (class in the low four bits, variation in the next eight). That reading
  * is inferred, not documented: the diagnostic reports it beside the raw number so a report from
- * the XR80 can confirm or refute it (Maya's top 10, item 10, groundwork). Masking a password
+ * the XR80 can confirm or refute it (groundwork). Masking a password
  * field waits on that proof. Never derived from, nor shown with, the field's value.
  */
 object ImeFieldKind {

@@ -2452,7 +2452,7 @@ class TuttiController @Inject constructor(
 
     /**
      * The layout and the dock replaced whole: an imported file, or the Undo after one, which puts
-     * back exactly what was there, spare tray included (Iris, 2026-10-31).
+     * back exactly what was there, spare tray included (2026-10-31).
      */
     fun replaceLayout(layout: RemoteLayout, dock: DockConfig) {
         scope.launch {
@@ -2834,7 +2834,7 @@ class TuttiController @Inject constructor(
             fun land(answers: TvSettingsAnswers, settings: TvSettingsState) =
                 TvSettingsSweep.merge(settings, answers, recheck, outputSettable, savingSettable)
             // Each part lands as soon as the TV answers it, so the screen fills top down instead of
-            // all at once after the slowest call (Iris, 2026-10-26).
+            // all at once after the slowest call (2026-10-26).
             var answers = TvSettingsAnswers(
                 picture = TvAnswer.ask(caps.supports(BraviaService.VIDEO, "getPictureQualitySettings")) { client.pictureSettings() },
                 scene = TvAnswer.ask(caps.supports(BraviaService.VIDEO_SCREEN, "getSceneSetting")) { client.sceneSetting() },
@@ -2945,7 +2945,7 @@ class TuttiController @Inject constructor(
     }
 
     /**
-     * Screen off, sound on (Iris's top 10, item 4): the TV's power saving `pictureOff`, or `off` to
+     * Screen off, sound on: the TV's power saving `pictureOff`, or `off` to
      * light it again. Sony's help guide says any remote key but volume and mute brings the picture
      * back; unverified on the XR80 and over tutti's own keys, so tutti always offers the way back.
      */

@@ -125,7 +125,7 @@ data class TvSettingsState(
     val system: SystemInfo? = null,
     /**
      * The parts of a load still on their way: each lands on screen as soon as the TV answers it,
-     * and the screen holds its place with a waiting row until then (Iris, 2026-10-26).
+     * and the screen holds its place with a waiting row until then (2026-10-26).
      */
     val waiting: Set<TvSettingsPart> = emptySet(),
 )

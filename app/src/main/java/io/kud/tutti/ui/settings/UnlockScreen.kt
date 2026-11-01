@@ -113,7 +113,7 @@ private fun groupTitle(device: UnlockDevice): Int = when (device) {
 }
 
 /**
- * What tutti can do (Iris, 2026-10-24): one checklist per device. Every step shows its status
+ * What tutti can do (2026-10-24): one checklist per device. Every step shows its status
  * (glyph and word) and what it unlocks; one opens at a time, on the step asked for ([focus], from
  * a nudge) or the next to do, with the exact menu path on the TV or in BRAVIA Connect and a
  * button straight into tutti's own field for it.

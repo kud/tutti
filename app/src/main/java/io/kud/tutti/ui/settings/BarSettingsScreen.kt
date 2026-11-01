@@ -175,7 +175,7 @@ private fun Choice(state: TuttiUiState, controller: TuttiController, feature: Th
 /** Read-only, shown raw (e.g. the undocumented Bluetooth mode vocabulary). */
 @Composable
 private fun Info(state: TuttiUiState, feature: TheatreFeature) {
-    // Read-only information (Iris, 2026-10-27): full contrast, nothing to tap. When the bar can't
+    // Read-only information (2026-10-27): full contrast, nothing to tap. When the bar can't
     // say, the reason leads with the warning glyph, as on every row the bar makes unavailable.
     val reason = barReason(state, feature)
     SettingsRow(

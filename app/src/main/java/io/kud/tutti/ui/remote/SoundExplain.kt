@@ -29,7 +29,7 @@ import io.kud.tutti.ui.common.TuttiSheet
 import io.kud.tutti.ui.common.featureLabel
 
 /**
- * A labelled group of the Son sheet, each with one "?" that explains it (Iris, 2026-10-24, from
+ * A labelled group of the Son sheet, each with one "?" that explains it (2026-10-24, from
  * Erwann: "un moyen d'être explicatif sur chacune des options"). One help per section, never one
  * per tile: the sheet stays calm, and the answer is one tap away.
  */

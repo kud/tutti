@@ -19,7 +19,7 @@ import io.kud.tutti.protocol.theatre.TheatreState
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
-/** Settings' top level: the categories in their order and each row's live line (Iris, 2026-10-26, step 2). */
+/** Settings' top level: the categories in their order and each row's live line (2026-10-26, step 2). */
 class SettingsMenuTest {
     private val tv = io.kud.tutti.platform.data.TvDevice(host = "192.168.0.10", name = "Living TV")
     private val bar = BarDevice(host = "192.168.0.11", name = "Bar")

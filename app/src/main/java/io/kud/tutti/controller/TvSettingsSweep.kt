@@ -48,7 +48,7 @@ data class TvSettingsAnswers(
  * Folds a sweep's answers into what is showing. A first load shows a failed part as empty, as it
  * always has. A re-check (the state was already [TvSettingsState.loaded]) keeps the previous value
  * of any part whose call failed, so a timeout on a quiet re-check never wipes rows that were on
- * screen (TvHub.loadCue keeps re-checks quiet: Iris, 2026-10-26). A part the TV does not list is
+ * screen (TvHub.loadCue keeps re-checks quiet, 2026-10-26). A part the TV does not list is
  * empty either way, and a part not asked yet keeps what is showing.
  */
 object TvSettingsSweep {

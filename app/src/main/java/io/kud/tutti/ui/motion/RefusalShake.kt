@@ -18,7 +18,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
 /**
- * The one refusal shake (Iris, 2026-10-25): it goes with the reject haptic, never with the bump.
+ * The one refusal shake (2026-10-25): it goes with the reject haptic, never with the bump.
  * Play it only when a command that was sent came back refused (the bar's ERR, a wrong code, a
  * retry that failed), on the control that was pressed. A control already in its down dress was
  * refused at the tap, and its dashed edge said so first: that is a bump, and no shake.

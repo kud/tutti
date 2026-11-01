@@ -22,5 +22,5 @@ keystore.properties
 *.p12
 *.pem
 
-# Local agent worktrees
+# Local worktrees
 .claude/

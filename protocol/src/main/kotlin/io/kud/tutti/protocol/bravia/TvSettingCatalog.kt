@@ -2,7 +2,7 @@ package io.kud.tutti.protocol.bravia
 
 /**
  * Where each picture target the TV reports belongs, in the order Sony's own Picture menu gives it
- * (Iris, 2026-10-26): the screen groups and orders by this instead of the TV's alphabetical list.
+ * (2026-10-26): the screen groups and orders by this instead of the TV's alphabetical list.
  * On a phone the handful people reach for leads ([everyday]) and the rest has its own screen,
  * Advanced picture ([advanced]), Sony's order inside (Erwann, 2026-10-26: "Put the expert settings behind Advanced").
  * Only targets the TV actually lists are ever shown; a target here that the XR80 never sends costs

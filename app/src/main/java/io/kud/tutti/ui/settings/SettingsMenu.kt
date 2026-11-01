@@ -6,7 +6,7 @@ import io.kud.tutti.platform.data.ThemeMode
 import io.kud.tutti.platform.data.VibrationLevel
 import io.kud.tutti.protocol.theatre.TheatreFeature
 
-/** Settings' top level, one row each, in this order (Iris, 2026-10-26, docs/proposals/settings-structure.md). */
+/** Settings' top level, one row each, in this order (2026-10-26, docs/proposals/settings-structure.md). */
 enum class SettingsCategory { UNLOCK, DEVICES, TV, SOUNDBAR, REMOTE, DISPLAY, ADVANCED, ABOUT }
 
 /**

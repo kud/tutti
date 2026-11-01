@@ -25,7 +25,7 @@
     <string name="pairing_step_sending">Envoi…</string>
     <string name="bar_added">Barre connectée</string>
     <string name="bar_add_unreachable">Barre injoignable : vérifiez son adresse et que le Contrôle externe est activé.</string>
-    <!-- Intro (spec de mouvement, Iris) -->
+    <!-- Intro (spec de mouvement) -->
     <string name="intro_welcome_title">Votre salon,\nune seule télécommande.</string>
     <string name="intro_welcome_body">BRAVIA 8 et Bar 9 réunis. Tout reste sur votre Wi‑Fi : aucun compte.</string>
     <string name="intro_start">Commencer</string>

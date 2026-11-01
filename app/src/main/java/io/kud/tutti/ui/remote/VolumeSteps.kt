@@ -37,7 +37,7 @@ internal object VolumeSteps {
     }
 
     /**
-     * What one move feels like (Iris, 2026-10-25): the wall at 0 or [wall] is the controller's
+     * What one move feels like (2026-10-25): the wall at 0 or [wall] is the controller's
      * bump, a landmark crossed inside the range is a detent, anything else the ordinary tick. An
      * unknown [from] is a plain tick: there is nothing to have crossed yet.
      */

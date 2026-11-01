@@ -103,8 +103,8 @@ object VolumeRules {
     }
 
     /**
-     * The levels a volume move is felt crossing, with a firmer tick than a step's (Iris,
-     * 2026-10-25): the saved levels, the guard's line while the guard is on (unlocked or not: it
+     * The levels a volume move is felt crossing, with a firmer tick than a step's
+     * (2026-10-25): the saved levels, the guard's line while the guard is on (unlocked or not: it
      * still marks where loud starts) and tonight's cap. Only 1..99, since 0 and 100 are walls.
      */
     fun landmarks(presets: List<Int?>, guard: VolumeGuardState, tonight: Int?): List<Int> =

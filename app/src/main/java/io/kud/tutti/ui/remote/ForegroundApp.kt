@@ -124,7 +124,7 @@ sealed interface CardShowing {
  * Standby first (the power answer outlives the app's package), then Reconnecting or Offline while
  * the TV's link isn't up, then what [nowShowing] finds, else Home. [tvLink] is the shown link
  * (`Links.tvShown`), so a blip stays on the last app. The link wins over a channel or input that
- * REST still reports: the keys are what the card vouches for (Iris, 2026-10-24). Null without a
+ * REST still reports: the keys are what the card vouches for (2026-10-24). Null without a
  * TV configured: then there is nothing to show and the card stands aside.
  */
 fun cardShowing(

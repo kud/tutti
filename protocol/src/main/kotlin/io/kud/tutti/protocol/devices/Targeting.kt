@@ -18,7 +18,7 @@ data class TargetChoice(val manual: String? = null, val inputAtChoice: String? =
 enum class KeyAvailability {
     AVAILABLE,
 
-    /** No computer meaning (Iris, 2026-10-25: rewind, subtitles, digits, channels, colours…). */
+    /** No computer meaning (2026-10-25: rewind, subtitles, digits, channels, colours…). */
     NOT_ON_COMPUTER,
 
     /** The TV over Bluetooth only (its LAN is down): power, inputs, settings can't go that way. */
@@ -70,7 +70,7 @@ object Targeting {
     }
 
     /**
-     * Keys that keep their Google TV meaning while a computer is the target (Iris, 2026-10-25):
+     * Keys that keep their Google TV meaning while a computer is the target (2026-10-25):
      * Home, Apps, Settings, inputs, Power. They leave the computer's input on purpose and the target
      * follows. Volume is the room's (the bar, else the TV), never a computer's.
      */
@@ -80,7 +80,7 @@ object Targeting {
         V2Key.VOLUME_UP, V2Key.VOLUME_DOWN, V2Key.VOLUME_MUTE,
     )
 
-    /** Digits have a HID usage but no remote meaning on a computer (Iris, 2026-10-25). */
+    /** Digits have a HID usage but no remote meaning on a computer (2026-10-25). */
     private val NOT_FOR_COMPUTER: Set<Int> = (V2Key.NUM_0..V2Key.NUM_9).toSet()
 
     /** The computer shown on [input], if one is marked for it. */

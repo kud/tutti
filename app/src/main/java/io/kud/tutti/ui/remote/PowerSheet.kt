@@ -78,7 +78,7 @@ fun sleepTimerRow(sleepCode: String?, restOnline: Boolean, tvPowered: Boolean?, 
 }
 
 /**
- * "Screen off, sound on" in the Power sheet (Iris's top 10, item 4). [off] is true only when the TV
+ * "Screen off, sound on" in the Power sheet. [off] is true only when the TV
  * reports its power saving as `pictureOff`; unknown reads as lit, so the row offers to darken it,
  * and the way back is always one tap here or on a pin. Rides IP control like the sleep timer.
  */
@@ -153,7 +153,7 @@ fun PowerSheet(
                     PowerRow(icon, name, action) { onChoose(choice) }
                 }
                 // The sleep timer stays open after a tap: each press moves the TV to its next step,
-                // and the TV's screen shows which (Iris's gesture audit, item 6).
+                // and the TV's screen shows which (the gesture audit, item 6).
                 // Screen off stays open too: the next tap brings the picture back. A long press pins it.
                 if (screen != null) {
                     val wantOff = !screen.off
@@ -181,7 +181,7 @@ fun PowerSheet(
 }
 
 /**
- * The gentle switch-off timer (Iris's top 10, item 5): a row of durations, or, while one runs, its
+ * The gentle switch-off timer: a row of durations, or, while one runs, its
  * end time and time left, a tap cancelling it. Without exact alarms it says, in words, that it may
  * switch off a few minutes late, and offers the system page that allows exact timing.
  */
@@ -277,7 +277,7 @@ internal fun PowerRow(
             )
             .then(
                 // A row that only heads what follows (Gentle off's title over its durations) is
-                // information, not a disabled button: no click semantics (Iris, 2026-10-27). A down
+                // information, not a disabled button: no click semantics (2026-10-27). A down
                 // row keeps its disabled button, since it is a control that is unavailable.
                 if (enabled || down) {
                     Modifier.combinedClickable(

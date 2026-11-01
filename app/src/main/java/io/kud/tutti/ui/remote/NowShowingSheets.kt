@@ -159,7 +159,7 @@ internal fun PlaybackSheet(
             ) {
                 downReason?.let { ReasonLine(it) }
                 // How far rewind and fast forward go is the app's choice: TalkBack hears it on
-                // those two keys and as the jog wheel's state (Iris, 2026-10-27).
+                // those two keys and as the jog wheel's state (2026-10-27).
                 val appDecides = stringResource(R.string.playback_note)
                 Row(
                     Modifier.fillMaxWidth(),
@@ -469,7 +469,7 @@ private fun PlaybackKey(
     val label = keyLabel(code)
     val down = downReason != null
     // The main key wears OK's dress (secondaryContainer), the pad's own centre: bright primary means "on" only, and
-    // play/pause claims no state (Iris, 2026-10-30).
+    // play/pause claims no state (2026-10-30).
     val fill = if (main) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh
     val ink = when {
         down -> MaterialTheme.colorScheme.onSurfaceVariant

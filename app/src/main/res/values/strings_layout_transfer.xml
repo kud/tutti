@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Settings › Remote & dock: the layout as a file (Iris, 2026-10-31). -->
+    <!-- Settings › Remote & dock: the layout as a file (2026-10-31). -->
     <string name="settings_layout_file">Layout file</string>
     <string name="layout_export">Export layout</string>
     <string name="layout_export_detail">Your dock, long presses and hand, as a file</string>

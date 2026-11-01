@@ -8,7 +8,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** Where Settings' rows and the ways in from the remote land (Iris, 2026-10-26, step 2). */
+/** Where Settings' rows and the ways in from the remote land (2026-10-26, step 2). */
 class SettingsRoutesTest {
     @Test
     fun `each row opens its own screen`() {

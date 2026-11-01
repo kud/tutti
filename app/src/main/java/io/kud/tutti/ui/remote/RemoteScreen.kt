@@ -154,7 +154,7 @@ fun RemoteScreen(
     }
     // The "?" in the top bar: every hidden gesture (discoverability rule 2).
     var gesturesSheet by remember { mutableStateOf(false) }
-    // Iris's gesture audit (2026-10-25): the volume sheet (the rail's number), a scene pinned from its menu.
+    // The gesture audit (2026-10-25): the volume sheet (the rail's number), a scene pinned from its menu.
     var volumeSheet by remember { mutableStateOf(false) }
     var pinningScene by remember { mutableStateOf<String?>(null) }
     // The now-showing card's sheets (Erwann, 2026-10-25), each holding what the card showed when
@@ -266,7 +266,7 @@ fun RemoteScreen(
     fun keyMeaning(code: Int): String? = if (onComputer && !keyDown(code)) computerMeanings(code) else null
 
     // The pad on a Bluetooth target: trackpad, D-pad or gyro, remembered per target id for the
-    // session; the TV on its LAN keeps the stored mode (Iris, 2026-10-25).
+    // session; the TV on its LAN keeps the stored mode (2026-10-25).
     val padTarget = targets.target?.id.orEmpty()
     val padModesByTarget = remember { mutableStateMapOf<String, PadMode>() }
     val padBefore = remember { mutableStateMapOf<String, PadMode>() }
@@ -559,7 +559,7 @@ fun RemoteScreen(
                             contentDescription = stringResource(if (state.waking) R.string.power_waking else R.string.action_power),
                             onClick = { controller.power() },
                             // TV only, soundbar only or both (Erwann, 2026-10-24), and the TV's sleep timer:
-                            // with a TV set up, alone or with the bar (Iris's gesture audit, 2026-10-25).
+                            // with a TV set up, alone or with the bar (the gesture audit, 2026-10-25).
                             onLongClick = { powerSheet = true }.takeIf { state.devices.tv != null },
                             onLongClickLabel = stringResource(if (state.devices.bar != null) R.string.power_long_label else R.string.power_long_label_tv),
                             feedback = FeedbackEvent.SELECT,
@@ -784,7 +784,7 @@ fun RemoteScreen(
                         when (pinToggle(slot.primary, state.bar, state.devices.bar != null)) {
                             PinToggle.Unreachable, PinToggle.NoBar -> haptics.bump()
                             else -> when (val action = slot.primary) {
-                                // Apps and Keys are pins now (Iris, 2026-10-28): they open their sheet here.
+                                // Apps and Keys are pins now (2026-10-28): they open their sheet here.
                                 DockAction.OpenApps -> sheet2 = RemoteSheet.APPS
                                 DockAction.OpenKeys -> sheet2 = RemoteSheet.KEYS
                                 // A pinned key follows the target like the remote's own keys.

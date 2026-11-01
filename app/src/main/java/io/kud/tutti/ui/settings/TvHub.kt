@@ -14,8 +14,8 @@ enum class TvPage { PICTURE, ADVANCED_PICTURE, SOUND, INPUTS, POWER, ABOUT }
 enum class LoadCue { NONE, FIRST, RECHECK }
 
 /**
- * What the TV hub and its screens show, kept apart from Compose so it can be tested (Iris,
- * 2026-10-26, docs/proposals/settings-structure.md): which parts have a row, which are still on
+ * What the TV hub and its screens show, kept apart from Compose so it can be tested
+ * (2026-10-26, docs/proposals/settings-structure.md): which parts have a row, which are still on
  * their way, each row's live line as values, and how many settings each screen hides as unavailable.
  */
 internal object TvHub {
@@ -24,7 +24,7 @@ internal object TvHub {
     val parts: List<TvPage> = listOf(TvPage.PICTURE, TvPage.SOUND, TvPage.INPUTS, TvPage.POWER, TvPage.ABOUT)
 
     /**
-     * How a load shows on the TV screens (Iris, 2026-10-27, after Erwann's « pas très fan du loading »
+     * How a load shows on the TV screens (2026-10-27, after Erwann's « pas très fan du loading »
      * on a re-check): a first load says in words what it waits for ([LoadCue.FIRST]); a re-check over
      * settings already shown is quiet ([LoadCue.RECHECK]): no bar, no sentence, nothing that moves the
      * rows, only a small mark in the top bar once it has run [RECHECK_QUIET_MS].

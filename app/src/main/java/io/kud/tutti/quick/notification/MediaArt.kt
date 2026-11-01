@@ -4,7 +4,7 @@ import io.kud.tutti.ui.common.BrandColours
 import kotlin.math.roundToInt
 
 /**
- * The media session's artwork, as plain rules (Iris, 2026-10-26). Android draws
+ * The media session's artwork, as plain rules (2026-10-26). Android draws
  * METADATA_KEY_ART large: as the expanded player's background and, on some lock screens, as the
  * whole wallpaper. A 192 px icon stretched to the screen read as a blurred, pixelated mark, so the
  * art is its own picture: tutti's warm near-black ground, one soft glow in the app's colour, and

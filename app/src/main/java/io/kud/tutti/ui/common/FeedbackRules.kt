@@ -3,7 +3,7 @@ package io.kud.tutti.ui.common
 import io.kud.tutti.platform.data.VibrationLevel
 
 /**
- * What happened, in the words of Iris's interaction spec (2026-10-23). One event always feels the
+ * What happened, in the words of the interaction spec (2026-10-23). One event always feels the
  * same wherever it happens: call sites name the event, never a haptic constant.
  */
 enum class FeedbackEvent {

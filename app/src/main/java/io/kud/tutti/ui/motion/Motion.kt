@@ -11,7 +11,7 @@ import androidx.compose.runtime.Composable
 import io.kud.tutti.ui.common.LocalReducedMotion
 
 /**
- * One motion vocabulary for the whole app (Iris's motion spec): acknowledge, wait, succeed, fail.
+ * One motion vocabulary for the whole app (the motion spec): acknowledge, wait, succeed, fail.
  * Durations are the tokens; springs and easings are the only curves. With reduced motion every
  * movement becomes a [Motion.SHORT] fade; haptics stay, since they carry the state.
  */
@@ -37,7 +37,7 @@ object Motion {
     /** Once per screen at most: the TV found, the final tick. Damping 0.6, stiffness 400. */
     fun <T> bouncy(): SpringSpec<T> = spring(dampingRatio = 0.6f, stiffness = 400f)
 
-    /** A press landing: critically damped, no overshoot, about 60 ms (Iris's interaction spec). */
+    /** A press landing: critically damped, no overshoot, about 60 ms (the interaction spec). */
     fun <T> pressIn(): SpringSpec<T> = spring(dampingRatio = 1f, stiffness = Spring.StiffnessHigh)
 
     /** The pressed layer landing, in step with [pressIn]. */
