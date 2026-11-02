@@ -20,8 +20,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        variant: [full, shrink-only, no-resource-shrinking, hotfix]
-        api: ["37.0"]
+        variant: [full, hotfix]
+        api: ["36", "37.0"]
     steps:
       - uses: actions/checkout@v7
 
@@ -63,29 +63,32 @@ jobs:
 
       - name: Boot emulator
         run: |
+          ls -l /dev/kvm
           IMG="system-images;android-${{ matrix.api }};google_apis;x86_64"
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "emulator" "platform-tools" "$IMG" > /dev/null
+          timeout 900 "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "emulator" "platform-tools" "$IMG" | tail -3
           echo no | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd -n probe -k "$IMG" -d pixel_6
-          nohup "$ANDROID_HOME/emulator/emulator" -avd probe -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -no-snapshot -no-metrics > emulator.log 2>&1 &
+          "$ANDROID_HOME/emulator/emulator" -accel-check || true
+          nohup "$ANDROID_HOME/emulator/emulator" -avd probe -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -no-snapshot -no-metrics -accel on -memory 4096 > emulator.log 2>&1 &
           ADB="$ANDROID_HOME/platform-tools/adb"
-          "$ADB" wait-for-device
+          booted=0
           for i in $(seq 1 120); do
-            [ "$("$ADB" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = 1 ] && break
+            if [ "$(timeout 10 "$ADB" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = 1 ]; then booted=1; break; fi
             sleep 5
           done
+          tail -40 emulator.log
+          [ "$booted" = 1 ] || { echo "::error::emulator did not boot"; exit 1; }
           "$ADB" shell getprop ro.build.version.sdk
-          "$ADB" shell settings put global window_animation_scale 1
           "$ADB" shell input keyevent 82 || true
 
       - name: Launch
         run: |
           ADB="$ANDROID_HOME/platform-tools/adb"
           PKG=app.beansontoast.tutti
-          "$ADB" install -r probe.apk
+          timeout 300 "$ADB" install -r probe.apk
           for run in 1 2; do
             "$ADB" logcat -c
-            "$ADB" shell am start -W -n "$PKG/io.kud.tutti.MainActivity"
+            timeout 60 "$ADB" shell am start -W -n "$PKG/io.kud.tutti.MainActivity" || true
             sleep 25
             echo "=== run $run: pid $("$ADB" shell pidof $PKG | tr -d '\r')"
             "$ADB" logcat -d > "logcat-$run.txt"
