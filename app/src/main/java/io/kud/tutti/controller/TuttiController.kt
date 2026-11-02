@@ -399,6 +399,13 @@ class TuttiController @Inject constructor(
     private var overrideJob: Job? = null
     @Volatile private var codeAnswer: CompletableDeferred<String?>? = null
 
+    /**
+     * The TV's foreground app and the one before it, from the remote v2's reports. Declared before
+     * `init`: its collector runs on Dispatchers.Default and could read the field before the
+     * constructor reached it, and the NPE then ended that collector for the process's life.
+     */
+    private val appHistory = MutableStateFlow(AppHistory())
+
     init {
         scope.launch {
             pskSet.value = secure.tvPsk() != null
@@ -1276,9 +1283,6 @@ class TuttiController @Inject constructor(
             if (mine == heldKey.get()) sendTvKey(keyCode, long = false)
         }
     }
-
-    /** The TV's foreground app and the one before it, from the remote v2's reports. */
-    private val appHistory = MutableStateFlow(AppHistory())
 
     /** The apps seen before the one in front, newest first, for the Apps sheet's "Recent" row. */
     val recentApps: StateFlow<List<String>> = appHistory.map { it.others() }.distinctUntilChanged()
