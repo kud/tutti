@@ -64,10 +64,14 @@ jobs:
       - name: Boot emulator
         run: |
           ls -l /dev/kvm
+          export ANDROID_AVD_HOME="$HOME/.android/avd"
+          mkdir -p "$ANDROID_AVD_HOME"
+          echo "ANDROID_AVD_HOME=$ANDROID_AVD_HOME" >> "$GITHUB_ENV"
           IMG="system-images;android-${{ matrix.api }};google_apis;x86_64"
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
           timeout 900 "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "emulator" "platform-tools" "$IMG" | tail -3
-          echo no | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd -n probe -k "$IMG" -d pixel_6
+          echo no | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd -n probe -k "$IMG" -d pixel_6 -p "$ANDROID_AVD_HOME/probe.avd"
+          ls "$ANDROID_AVD_HOME"
           "$ANDROID_HOME/emulator/emulator" -accel-check || true
           nohup "$ANDROID_HOME/emulator/emulator" -avd probe -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -no-snapshot -no-metrics -accel on -memory 4096 > emulator.log 2>&1 &
           ADB="$ANDROID_HOME/platform-tools/adb"
