@@ -5,13 +5,11 @@
     <string name="sync_line_on">Activée</string>
     <string name="sync_line_paused">En pause</string>
     <string name="sync_line_problem">Fichier de synchro injoignable · touchez pour vérifier</string>
-    <string name="sync_intro_title">Vos réglages sur chaque téléphone</string>
-    <string name="sync_intro">tutti garde vos réglages dans un seul fichier, sur Google Drive ou l’app de stockage de votre choix. C’est cette app qui envoie le fichier ; tutti ne se connecte jamais à Internet pour cela.</string>
+    <string name="sync_intro">Vos réglages sur chaque téléphone. tutti les garde dans un seul fichier, dans un dossier Google Drive ou l’app de stockage de votre choix. C’est cette app qui envoie le fichier ; tutti ne se connecte jamais à Internet pour cela.</string>
     <string name="sync_create">Créer un fichier de synchro</string>
     <string name="sync_create_detail">Sur votre premier téléphone : les réglages de ce téléphone le remplissent</string>
     <string name="sync_use_existing">Utiliser un fichier existant</string>
     <string name="sync_use_existing_detail">Sur votre deuxième téléphone, utilisez le fichier existant : ses réglages arrivent ici</string>
-    <string name="sync_switch_detail">Passer à un autre fichier de synchro : ses réglages arrivent ici</string>
     <string name="sync_auto">Synchroniser automatiquement</string>
     <string name="sync_auto_detail">Après un changement, et à l’ouverture ou à la fermeture de tutti</string>
     <string name="sync_now">Synchroniser maintenant</string>
@@ -19,7 +17,7 @@
     <string name="sync_stop">Arrêter la synchro</string>
     <string name="sync_stop_detail">Le fichier reste où il est</string>
     <string name="sync_stop_title">Arrêter la synchro ?</string>
-    <string name="sync_stop_body">Le fichier reste sur Drive, et ce téléphone garde ses réglages. Vous pourrez réutiliser le fichier plus tard.</string>
+    <string name="sync_stop_body">Le fichier reste où il est, et ce téléphone garde ses réglages. Vous pourrez réutiliser le fichier plus tard.</string>
     <string name="sync_last">Dernière synchro %1$s</string>
     <string name="sync_never">Pas encore synchronisé</string>
     <string name="sync_done">Réglages synchronisés.</string>
@@ -34,4 +32,10 @@
     <string name="sync_local_list">Les appareils et leurs adresses, l’appairage de la TV et de la barre, la connexion Sony, les ordinateurs, la configuration, le mode développeur, les astuces déjà vues, le plafond de volume de ce soir. Appairez chaque téléphone avec la TV séparément.</string>
     <string name="sync_how">Quand deux téléphones changent la même chose</string>
     <string name="sync_how_detail">Le dernier changement l’emporte, partie par partie : la disposition, les scènes, les profils d’apps et les préférences voyagent chacun en entier.</string>
+    <string name="sync_place_title">Où synchroniser</string>
+    <string name="sync_folder">Choisir un dossier</string>
+    <string name="sync_folder_detail">Sur chaque téléphone, choisissez le même dossier. tutti y utilise le fichier de synchro, ou le crée.</string>
+    <string name="sync_change">Choisir un autre emplacement</string>
+    <string name="sync_change_detail">Un dossier ou un fichier de synchro : ses réglages arrivent ici</string>
+    <string name="sync_problem_waiting">En attente de la fin de l’envoi par votre app de stockage. tutti réessaie à la prochaine synchro.</string>
 </resources>

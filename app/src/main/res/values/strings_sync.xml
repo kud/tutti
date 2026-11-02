@@ -1,18 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Settings › Sync: settings kept in one file on Drive (docs/adr/0001-settings-sync.md). -->
+    <!-- Settings › Sync: settings kept in one file, in a folder or picked alone (docs/adr/0001-settings-sync.md). -->
     <string name="sync_title">Sync</string>
     <string name="sync_line_off">Off</string>
     <string name="sync_line_on">On</string>
     <string name="sync_line_paused">Paused</string>
     <string name="sync_line_problem">Can’t reach the sync file · tap to check</string>
-    <string name="sync_intro_title">Your settings on every phone</string>
-    <string name="sync_intro">tutti keeps your settings in one file, in Google Drive or any storage app you choose. That app does the uploading; tutti never goes online for this.</string>
+    <string name="sync_intro">Your settings on every phone. tutti keeps them in one file, in a Google Drive folder or any storage app you choose. That app does the uploading; tutti never goes online for this.</string>
     <string name="sync_create">Create a sync file</string>
     <string name="sync_create_detail">On your first phone: this phone’s settings fill it</string>
     <string name="sync_use_existing">Use an existing sync file</string>
     <string name="sync_use_existing_detail">On your second phone, use the existing file: its settings come in</string>
-    <string name="sync_switch_detail">Switch to another sync file: its settings come in</string>
     <string name="sync_auto">Sync automatically</string>
     <string name="sync_auto_detail">After a change, and when tutti opens or closes</string>
     <string name="sync_now">Sync now</string>
@@ -20,7 +18,7 @@
     <string name="sync_stop">Stop syncing</string>
     <string name="sync_stop_detail">The file stays where it is</string>
     <string name="sync_stop_title">Stop syncing?</string>
-    <string name="sync_stop_body">The file stays on Drive, and this phone keeps its settings. You can use the file again later.</string>
+    <string name="sync_stop_body">The file stays where it is, and this phone keeps its settings. You can use the file again later.</string>
     <string name="sync_last">Last synced %1$s</string>
     <string name="sync_never">Not synced yet</string>
     <string name="sync_done">Settings synced.</string>
@@ -35,4 +33,10 @@
     <string name="sync_local_list">Devices and their addresses, TV and bar pairings, the Sony sign-in, computers, setup, developer mode, one-time tips, tonight’s volume cap. Pair each phone with the TV on its own.</string>
     <string name="sync_how">When two phones change the same thing</string>
     <string name="sync_how_detail">The latest change wins, one part at a time: the layout, scenes, app profiles and preferences each travel whole.</string>
+    <string name="sync_place_title">Where to sync</string>
+    <string name="sync_folder">Choose a folder</string>
+    <string name="sync_folder_detail">On every phone, pick the same folder. tutti uses the sync file in it, or creates it.</string>
+    <string name="sync_change">Choose another place</string>
+    <string name="sync_change_detail">A folder or a sync file: its settings come in</string>
+    <string name="sync_problem_waiting">Waiting for your storage app to finish uploading. tutti tries again on the next sync.</string>
 </resources>

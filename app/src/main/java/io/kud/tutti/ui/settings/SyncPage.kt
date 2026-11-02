@@ -4,6 +4,9 @@ import android.content.Context
 import android.text.format.DateUtils
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
@@ -18,6 +21,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dagger.hilt.EntryPoint
@@ -62,10 +66,10 @@ internal fun syncLine(): String {
     val state = rememberSyncState()
     return when {
         !state.hasFile -> stringResource(R.string.sync_line_off)
-        state.problem != null -> stringResource(R.string.sync_line_problem)
+        state.problem != null && state.problem != SyncProblem.WAITING -> stringResource(R.string.sync_line_problem)
         else -> listOfNotNull(
             stringResource(if (state.auto) R.string.sync_line_on else R.string.sync_line_paused),
-            state.fileName,
+            placeName(state),
             state.lastSyncedAt?.let(::ago),
         ).joinToString(" · ")
     }
@@ -75,10 +79,10 @@ private fun ago(at: Long): String =
     DateUtils.getRelativeTimeSpanString(at, System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS).toString()
 
 /**
- * Settings › Sync (docs/adr/0001-settings-sync.md): one file, picked once through the system's
- * picker, kept merged with this phone's settings. Google Drive offers single files to other apps,
- * not folders, so the choice is a file: a new one on the first phone, the same one on the next.
- * What travels and what stays is written out, never left to guess.
+ * Settings › Sync (docs/adr/0001-settings-sync.md): one "Sync" switch while nothing is chosen;
+ * turning it on asks once where, in one dialog: a folder first (tutti finds or creates the file in
+ * it), else an existing sync file or a new one. What travels and what stays is written out, never
+ * left to guess.
  */
 @Composable
 internal fun SyncPage() {
@@ -87,6 +91,7 @@ internal fun SyncPage() {
     val scope = rememberCoroutineScope()
     val messages = LocalMessages.current
     var confirmStop by remember { mutableStateOf(false) }
+    var choosePlace by remember { mutableStateOf(false) }
     val synced = stringResource(R.string.sync_done)
     val failed = stringResource(R.string.sync_failed)
 
@@ -100,28 +105,22 @@ internal fun SyncPage() {
     val open = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null && sync != null) scope.launch { chosen(sync.choose(uri, created = false)) }
     }
-    val pickExisting = { open.launch(arrayOf(SyncFile.MIME, "text/*", "application/octet-stream")) }
+    val folder = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { tree ->
+        if (tree != null && sync != null) scope.launch { chosen(sync.chooseFolder(tree)) }
+    }
 
     SettingsGroup(null, Modifier.padding(top = 8.dp)) {
         if (!state.hasFile) {
-            SettingsRow(title = stringResource(R.string.sync_intro_title), detail = stringResource(R.string.sync_intro), icon = R.drawable.ic_refresh)
-            LinkRow(
-                title = stringResource(R.string.sync_create),
-                detail = stringResource(R.string.sync_create_detail),
-                enabled = sync != null,
-                onClick = { create.launch(SyncFile.NAME) },
-                icon = R.drawable.ic_download,
-            )
-            LinkRow(
-                title = stringResource(R.string.sync_use_existing),
-                detail = stringResource(R.string.sync_use_existing_detail),
-                enabled = sync != null,
-                onClick = pickExisting,
-                icon = R.drawable.ic_folder,
+            SwitchRow(
+                label = stringResource(R.string.sync_title),
+                supporting = stringResource(R.string.sync_intro),
+                checked = false,
+                onCheckedChange = { on -> if (on && sync != null) choosePlace = true },
+                icon = R.drawable.ic_refresh,
             )
         } else {
             SettingsRow(
-                title = state.fileName ?: SyncFile.NAME,
+                title = placeName(state),
                 detail = statusLine(state),
                 icon = R.drawable.ic_refresh,
             )
@@ -140,10 +139,10 @@ internal fun SyncPage() {
                 icon = R.drawable.ic_refresh,
             )
             LinkRow(
-                title = stringResource(R.string.sync_use_existing),
-                detail = stringResource(R.string.sync_switch_detail),
+                title = stringResource(R.string.sync_change),
+                detail = stringResource(R.string.sync_change_detail),
                 enabled = sync != null,
-                onClick = pickExisting,
+                onClick = { choosePlace = true },
                 icon = R.drawable.ic_folder,
             )
             LinkRow(
@@ -161,6 +160,23 @@ internal fun SyncPage() {
         SettingsRow(title = stringResource(R.string.sync_how), detail = stringResource(R.string.sync_how_detail))
     }
 
+    if (choosePlace) {
+        SyncPlaceDialog(
+            onFolder = {
+                choosePlace = false
+                folder.launch(null)
+            },
+            onExisting = {
+                choosePlace = false
+                open.launch(arrayOf(SyncFile.MIME, "text/*", "application/octet-stream"))
+            },
+            onCreate = {
+                choosePlace = false
+                create.launch(SyncFile.NAME)
+            },
+            onCancel = { choosePlace = false },
+        )
+    }
     if (confirmStop) {
         AlertDialog(
             onDismissRequest = { confirmStop = false },
@@ -177,12 +193,56 @@ internal fun SyncPage() {
     }
 }
 
+/** The place in words: "Drive folder › tutti-sync.json", or the file alone. */
+private fun placeName(state: SyncState): String {
+    val file = state.fileName ?: SyncFile.NAME
+    return state.folderName?.let { "$it › $file" } ?: file
+}
+
+/**
+ * Where to sync, asked once when Sync turns on. Android has no picker that both opens a file and
+ * creates one, and Drive allows two files with one name without saying so, so the choice is the
+ * person's. The folder leads: it finds or creates the file by itself, and the same folder on every
+ * phone is all there is to remember. Picking an existing file comes before creating one, so a
+ * second file where one exists takes a deliberate tap. Each choice is a title and a sentence.
+ */
+@Composable
+private fun SyncPlaceDialog(onFolder: () -> Unit, onExisting: () -> Unit, onCreate: () -> Unit, onCancel: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onCancel,
+        title = { Text(stringResource(R.string.sync_place_title)) },
+        text = {
+            Column {
+                PlaceOption(stringResource(R.string.sync_folder), stringResource(R.string.sync_folder_detail), onFolder)
+                PlaceOption(stringResource(R.string.sync_use_existing), stringResource(R.string.sync_use_existing_detail), onExisting)
+                PlaceOption(stringResource(R.string.sync_create), stringResource(R.string.sync_create_detail), onCreate)
+            }
+        },
+        confirmButton = {},
+        dismissButton = { TextButton(onClick = onCancel) { Text(stringResource(R.string.layout_cancel)) } },
+    )
+}
+
+@Composable
+private fun PlaceOption(title: String, detail: String, onClick: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(vertical = 12.dp),
+    ) {
+        Text(title, style = MaterialTheme.typography.titleMedium)
+        Text(detail, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
 /** Where sync stands, in words: the problem first, with what to do, else the last good sync. */
 @Composable
 private fun statusLine(state: SyncState): String = when (state.problem) {
     SyncProblem.UNREACHABLE -> stringResource(R.string.sync_problem_unreachable)
     SyncProblem.NEWER -> stringResource(R.string.sync_problem_newer)
     SyncProblem.NOT_OURS -> stringResource(R.string.sync_problem_not_ours)
+    SyncProblem.WAITING -> stringResource(R.string.sync_problem_waiting)
     null -> listOfNotNull(
         stringResource(if (state.auto) R.string.sync_line_on else R.string.sync_line_paused),
         state.lastSyncedAt?.let { stringResource(R.string.sync_last, ago(it)) } ?: stringResource(R.string.sync_never),
