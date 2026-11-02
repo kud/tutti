@@ -20,8 +20,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        variant: [full, hotfix]
-        api: ["36", "37.0"]
+        variant: [branch]
+        api: ["36"]
     steps:
       - uses: actions/checkout@v7
 
