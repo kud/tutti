@@ -1,0 +1,108 @@
+name: R8 launch probe
+
+# Temporary: launches release builds on an emulator to find v0.2.0's launch crash.
+on:
+  push:
+    branches: [r8-launch-crash]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: r8-probe-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  probe:
+    name: ${{ matrix.variant }} on API ${{ matrix.api }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [full, shrink-only, no-resource-shrinking, hotfix]
+        api: ["37.0"]
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v6.4.0
+
+      - name: Configure R8 (${{ matrix.variant }})
+        run: |
+          case "${{ matrix.variant }}" in
+            full) sed -i '/^-dontshrink$/d; /^-dontoptimize$/d' app/proguard-rules.pro
+                  sed -i 's/isShrinkResources = false/isShrinkResources = true/' app/build.gradle.kts ;;
+            shrink-only) sed -i '/^-dontshrink$/d' app/proguard-rules.pro
+                  sed -i 's/isShrinkResources = false/isShrinkResources = true/' app/build.gradle.kts ;;
+            no-resource-shrinking) sed -i '/^-dontshrink$/d; /^-dontoptimize$/d' app/proguard-rules.pro
+                  sed -i 's/isShrinkResources = true/isShrinkResources = false/' app/build.gradle.kts ;;
+            hotfix) : ;;
+          esac
+          grep -n "^-dont" app/proguard-rules.pro || true
+          grep -n "isShrinkResources\|isMinifyEnabled" app/build.gradle.kts
+
+      - name: Release APK
+        run: ./gradlew --stacktrace :app:assembleGithubRelease
+
+      - name: Sign with the public debug key
+        run: |
+          BT="$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)"
+          "$BT/zipalign" -f 4 app/build/outputs/apk/github/release/app-github-release-unsigned.apk probe-aligned.apk
+          "$BT/apksigner" sign --ks app/debug.keystore --ks-pass pass:android --ks-key-alias androiddebugkey --key-pass pass:android --out probe.apk probe-aligned.apk
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Boot emulator
+        run: |
+          IMG="system-images;android-${{ matrix.api }};google_apis;x86_64"
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "emulator" "platform-tools" "$IMG" > /dev/null
+          echo no | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd -n probe -k "$IMG" -d pixel_6
+          nohup "$ANDROID_HOME/emulator/emulator" -avd probe -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -no-snapshot -no-metrics > emulator.log 2>&1 &
+          ADB="$ANDROID_HOME/platform-tools/adb"
+          "$ADB" wait-for-device
+          for i in $(seq 1 120); do
+            [ "$("$ADB" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = 1 ] && break
+            sleep 5
+          done
+          "$ADB" shell getprop ro.build.version.sdk
+          "$ADB" shell settings put global window_animation_scale 1
+          "$ADB" shell input keyevent 82 || true
+
+      - name: Launch
+        run: |
+          ADB="$ANDROID_HOME/platform-tools/adb"
+          PKG=app.beansontoast.tutti
+          "$ADB" install -r probe.apk
+          for run in 1 2; do
+            "$ADB" logcat -c
+            "$ADB" shell am start -W -n "$PKG/io.kud.tutti.MainActivity"
+            sleep 25
+            echo "=== run $run: pid $("$ADB" shell pidof $PKG | tr -d '\r')"
+            "$ADB" logcat -d > "logcat-$run.txt"
+            echo "--- crash buffer"
+            "$ADB" logcat -d -b crash | tee "crash-$run.txt"
+            echo "--- AndroidRuntime / tutti / ActivityManager"
+            grep -E "AndroidRuntime|FATAL|tutti|ActivityTaskManager: (Displayed|Force)|am_crash|Process $PKG|DEBUG   :" "logcat-$run.txt" | tail -200
+            "$ADB" shell am force-stop $PKG
+          done
+
+      - name: Retrace
+        if: always()
+        run: |
+          R8=$(find ~/.gradle/caches -name 'builder-9*.jar' | head -1)
+          MAP=app/build/outputs/mapping/githubRelease/mapping.txt
+          for f in crash-1.txt crash-2.txt; do
+            [ -s "$f" ] || continue
+            echo "=== retraced $f"
+            java -cp "$R8" com.android.tools.r8.retrace.Retrace "$MAP" "$f" || true
+          done
