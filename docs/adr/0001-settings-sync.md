@@ -1,15 +1,31 @@
-# ADR 0001: Sync settings through one file on Google Drive
+# ADR 0001: Sync settings through one file, in a folder first
 
-- Status: accepted (2026-11-02)
+- Status: accepted (2026-11-02); amended the same day: a folder first, the single file as the fallback
 - Context: Erwann, 2026-11-02: « Je ne vois pas la partie synchronisation des settings, etc. sur Google Drive, comme on avait indiqué ». Until then tutti had only the manual Layout file (Settings › Remote & dock), which carries the layout alone and never syncs.
 
 ## Decision
 
-tutti keeps its settings in **one file**, `tutti-sync.json`, that the person picks once through Android's own file picker (Storage Access Framework): **Create a sync file** on the first phone (`ACTION_CREATE_DOCUMENT`), **Use an existing sync file** on the next one or after a reinstall (`ACTION_OPEN_DOCUMENT`). tutti takes a persistable read/write grant on that document and merges with it after a change (debounced 2 s), when the app comes to the front, and when it leaves. The storage app (Google Drive, or any DocumentsProvider) uploads it. tutti adds no network code, no Google API, no account, so the `github` and `fdroid` flavours both have it unchanged.
+tutti keeps its settings in **one file**, `tutti-sync.json`, in a place the person picks once through Android's own pickers (Storage Access Framework). Turning Sync on asks where, in one dialog, folder first:
 
-### Why a file, not a folder
+1. **Choose a folder** (`ACTION_OPEN_DOCUMENT_TREE`), "On every phone, pick the same folder". tutti takes a persistable read/write grant on the tree, lists it and looks for `tutti-sync.json`: an exact, case-sensitive name among files, folders and " (1)" copies skipped, the most recently modified when several match. A folder already holding the file is joined like an existing file (every group stamped 0, so the file's settings come in); an empty folder gets a new file, which this phone's settings fill. A listing that fails is never read as "no file", since that would create a second one: the choice fails and any previous place carries on.
+2. **Use an existing sync file** (`ACTION_OPEN_DOCUMENT`): its settings come in.
+3. **Create a sync file** (`ACTION_CREATE_DOCUMENT`): this phone's settings fill it.
 
-Brume and pastille ask for a folder (`ACTION_OPEN_DOCUMENT_TREE`). Google Drive's DocumentsProvider does not take part in that picker: its roots don't declare `Root.FLAG_SUPPORTS_IS_CHILD`, which the system picker requires before it lists a root for folder picking, so Drive is absent or greyed out there. It does offer single documents to `ACTION_CREATE_DOCUMENT` / `ACTION_OPEN_DOCUMENT`, with persistable grants. Drive being the storage Erwann named, a single document is the path that works with it; it works with every other provider too. Writes open the document in `"wt"` and fall back to `"w"` for a provider that refuses truncation.
+The settings remember which kind of place it is (`folder` and `file` in the `settings_sync` shared preferences). The storage app (Google Drive, or any DocumentsProvider) uploads the file. tutti adds no network code, no Google API, no account, so the `github` and `fdroid` flavours both have it unchanged.
+
+### Why a folder first, and a file as the fallback
+
+The first version asked for a single file only, on the strength of 2019–21 reports that Google Drive's DocumentsProvider stays out of the folder picker. That is wrong today: Drive lists its folders in `ACTION_OPEN_DOCUMENT_TREE`, seen on Erwann's phone on 2026-10-29 in pastille, and on 2026-11-02 he asked for tutti to work the same way (« on peut faire comme Pastille, ça marche bien »). A folder is the easier thing to get right on two phones: pick the same folder on each and tutti finds or creates the file, with no "create here, open there" to remember. Android has no picker that both opens and creates a file, and Drive allows two files with one name without saying so, which is why the file paths ask the person which one they mean. They stay for storage apps that offer no folders, listed after the folder, existing before new, so a second file where one exists takes a deliberate tap.
+
+### Writing, and Drive's stale reads
+
+- Every sync reads before it writes. The merged file is written only when its fingerprint (the file without `writtenBy`) differs from what the file holds; a sync with nothing new writes nothing, so Drive isn't asked to upload the same settings again. When the file still hashes to what this phone last read or wrote and the local settings match what they last agreed on, nothing is merged either.
+- Writes open the document in `"wt"`, then `"rwt"` for a provider that refuses it. Plain `"w"` doesn't truncate on some Android versions, so a shorter file could keep the tail of a longer one; it is never used. The file is then read back, again after 0.5, 1.5 and 3 s while it differs; only a match records the content as agreed.
+- Stale-read guard: before a write, the SHA-256 of what the file held is committed (`replaced_hash`, with `commit()` so a killed process still has it), along with the hash of what it should now hold (`seen_hash`). A later read returning exactly the replaced bytes is the provider's cache (Drive mid-upload), not another phone's change: it is neither merged nor written over, and the page says it is waiting for the storage app (`SyncProblem.WAITING`). The next sync reads again; once the file shows what was written, the guard clears.
+
+### When
+
+Every process start (`TuttiApplication`, which catches a change whose debounce the last process didn't outlive), the app coming to the front (`MainActivity.onStart`), every change to a synced value (debounced 2 s), and leaving the app (`onStop`, at once). Nothing is scheduled in the background.
 
 ### Format and merge
 
@@ -29,4 +45,5 @@ It stays as it was: a manual export to share or keep a copy of the layout. Sync 
 ## Consequences
 
 - Upgrades: no stored format changes. Sync state lives in its own shared preferences; a phone that never opens Sync behaves as before.
-- Unverified on a device: Drive's real round trip between two phones, how quickly Drive uploads after a write, whether Drive's `"wt"` is honoured, and Drive serving a cached copy until it refreshes. The first check is two phones on one file.
+- Unverified on a device: Drive's real round trip between two phones in one folder, how quickly Drive uploads after a write and surfaces the other phone's, whether Drive's `"wt"` is honoured, how long its cache serves the old bytes, and whether its folder listing reports `COLUMN_LAST_MODIFIED`. The first check is two phones picking the same Drive folder.
+- A file deleted from the folder after it was found is not looked up again by name: sync reports it unreachable, and choosing the folder again finds or creates it.
