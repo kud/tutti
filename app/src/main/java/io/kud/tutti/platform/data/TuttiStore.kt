@@ -117,6 +117,22 @@ class TuttiStore @Inject constructor(
     suspend fun updateProfiles(transform: (List<AppProfile>) -> List<AppProfile>) =
         update(PROFILES, ListSerializer(AppProfile.serializer()), SceneJson, emptyList(), transform)
 
+    /** The four values settings sync carries, raw as stored ([SyncGroups]); nothing else is read. */
+    internal val syncRaw: Flow<SyncGroups.Raw> = store.data.map(::rawOf).distinctUntilChanged()
+
+    /** Takes synced groups in, in one edit. Only `prefs`, `dock`, `scenes` and `profiles` are written. */
+    internal suspend fun applySynced(incoming: Map<String, kotlinx.serialization.json.JsonElement>) {
+        store.edit { prefs ->
+            val next = SyncGroups.apply(rawOf(prefs), incoming)
+            next.prefs?.let { prefs[PREFS] = it }
+            next.dock?.let { prefs[DOCK] = it }
+            next.scenes?.let { prefs[SCENES] = it }
+            next.profiles?.let { prefs[PROFILES] = it }
+        }
+    }
+
+    private fun rawOf(prefs: Preferences) = SyncGroups.Raw(prefs[PREFS], prefs[DOCK], prefs[SCENES], prefs[PROFILES])
+
     private fun <T> field(
         key: Preferences.Key<String>,
         serializer: KSerializer<T>,

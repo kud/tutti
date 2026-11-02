@@ -7,7 +7,7 @@ import io.kud.tutti.platform.data.VibrationLevel
 import io.kud.tutti.protocol.theatre.TheatreFeature
 
 /** Settings' top level, one row each, in this order (2026-10-26, docs/proposals/settings-structure.md). */
-enum class SettingsCategory { UNLOCK, DEVICES, TV, SOUNDBAR, REMOTE, DISPLAY, ADVANCED, ABOUT }
+enum class SettingsCategory { UNLOCK, DEVICES, TV, SOUNDBAR, REMOTE, DISPLAY, SYNC, ADVANCED, ABOUT }
 
 /**
  * What Settings' top level shows, kept apart from Compose so it can be tested: which categories
@@ -19,7 +19,7 @@ internal object SettingsMenu {
      * The categories whose screen is a page of Settings itself. The others open a screen that was
      * already there: What tutti can do, the TV hub, the soundbar's settings, About.
      */
-    val pages: Set<SettingsCategory> = setOf(SettingsCategory.DEVICES, SettingsCategory.REMOTE, SettingsCategory.DISPLAY, SettingsCategory.ADVANCED)
+    val pages: Set<SettingsCategory> = setOf(SettingsCategory.DEVICES, SettingsCategory.REMOTE, SettingsCategory.DISPLAY, SettingsCategory.SYNC, SettingsCategory.ADVANCED)
 
     /** Devices' live line: every device by name, a TV that has to be paired again first. */
     data class DevicesLine(val names: List<String>, val trouble: Trouble? = null)

@@ -16,7 +16,7 @@ internal object SettingsRoutes {
         SettingsCategory.TV -> Screen.TvSettings
         SettingsCategory.SOUNDBAR -> Screen.BarSettings
         SettingsCategory.ABOUT -> Screen.About
-        SettingsCategory.DEVICES, SettingsCategory.REMOTE, SettingsCategory.DISPLAY, SettingsCategory.ADVANCED -> Screen.SettingsPage(category)
+        SettingsCategory.DEVICES, SettingsCategory.REMOTE, SettingsCategory.DISPLAY, SettingsCategory.SYNC, SettingsCategory.ADVANCED -> Screen.SettingsPage(category)
     }
 
     /** Settings, then [category]'s own screen on top of it. */

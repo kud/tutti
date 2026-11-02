@@ -30,7 +30,7 @@ class SettingsMenuTest {
         assertEquals(
             listOf(
                 SettingsCategory.UNLOCK, SettingsCategory.DEVICES, SettingsCategory.TV, SettingsCategory.SOUNDBAR,
-                SettingsCategory.REMOTE, SettingsCategory.DISPLAY, SettingsCategory.ADVANCED, SettingsCategory.ABOUT,
+                SettingsCategory.REMOTE, SettingsCategory.DISPLAY, SettingsCategory.SYNC, SettingsCategory.ADVANCED, SettingsCategory.ABOUT,
             ),
             SettingsCategory.entries,
         )
@@ -101,7 +101,7 @@ class SettingsMenuTest {
     @Test
     fun `only devices, remote, display and advanced are pages of settings itself`() {
         assertEquals(
-            setOf(SettingsCategory.DEVICES, SettingsCategory.REMOTE, SettingsCategory.DISPLAY, SettingsCategory.ADVANCED),
+            setOf(SettingsCategory.DEVICES, SettingsCategory.REMOTE, SettingsCategory.DISPLAY, SettingsCategory.SYNC, SettingsCategory.ADVANCED),
             SettingsMenu.pages,
         )
     }

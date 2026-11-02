@@ -72,6 +72,8 @@ class MainActivity : ComponentActivity() {
 
     @Inject lateinit var store: TuttiStore
 
+    @Inject lateinit var sync: io.kud.tutti.platform.sync.SettingsSync
+
     @Inject lateinit var secure: SecureStore
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -172,11 +174,15 @@ class MainActivity : ComponentActivity() {
         // NEARBY_DEVICES group carrying it) arrives while there is no launcher callback to see it.
         controller.onLanPermissionGranted()
         target.appForeground(true)
+        // Settings sync: watch for changes once, and merge with the file as the app comes to the front.
+        sync.start()
+        sync.request()
     }
 
     override fun onStop() {
         // The HID role is never held in the background.
         target.appForeground(false)
+        sync.flush()
         controller.release()
         super.onStop()
     }

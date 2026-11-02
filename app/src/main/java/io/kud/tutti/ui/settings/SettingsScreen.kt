@@ -148,6 +148,7 @@ fun SettingsPageScreen(
             SettingsCategory.DEVICES -> DevicesPage(state, controller, onPair, onAddBar, hid)
             SettingsCategory.REMOTE -> RemotePage(state, controller, onEditLayout)
             SettingsCategory.DISPLAY -> DisplayPage(state, controller)
+            SettingsCategory.SYNC -> SyncPage()
             SettingsCategory.ADVANCED -> AdvancedPage(state, controller, onOpenDiagnostic, onOpenTechnical)
             // Their screens were there before Settings had categories (SettingsRoutes.category).
             SettingsCategory.UNLOCK, SettingsCategory.TV, SettingsCategory.SOUNDBAR, SettingsCategory.ABOUT -> Unit
@@ -186,6 +187,7 @@ private fun categoryTitle(category: SettingsCategory): String = stringResource(
         SettingsCategory.SOUNDBAR -> R.string.settings_bar
         SettingsCategory.REMOTE -> R.string.settings_remote_dock
         SettingsCategory.DISPLAY -> R.string.settings_display_feedback
+        SettingsCategory.SYNC -> R.string.sync_title
         SettingsCategory.ADVANCED -> R.string.settings_advanced
         SettingsCategory.ABOUT -> R.string.about_entry
     },
@@ -199,6 +201,7 @@ private fun categoryIcon(category: SettingsCategory): Int = when (category) {
     SettingsCategory.SOUNDBAR -> R.drawable.ic_speaker
     SettingsCategory.REMOTE -> R.drawable.ic_dpad
     SettingsCategory.DISPLAY -> R.drawable.ic_contrast
+    SettingsCategory.SYNC -> R.drawable.ic_refresh
     SettingsCategory.ADVANCED -> R.drawable.ic_code
     SettingsCategory.ABOUT -> R.drawable.ic_info
 }
@@ -260,6 +263,7 @@ private fun categoryLine(category: SettingsCategory, state: TuttiUiState, comput
             stringResource(R.string.settings_line_key_sounds).takeIf { line.keySounds },
         ).joinToString(" · ")
     }
+    SettingsCategory.SYNC -> syncLine()
     SettingsCategory.ADVANCED -> stringResource(if (state.prefs.developerMode) R.string.settings_line_developer_on else R.string.settings_line_developer_off)
     SettingsCategory.ABOUT -> aboutLine()
 }
