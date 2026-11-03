@@ -109,6 +109,12 @@ android {
         }
     }
 
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
+        // Robolectric's native graphics (the showcase renders) outgrow the 512 MB default.
+        unitTests.all { it.maxHeapSize = "2g" }
+    }
+
     lint {
         abortOnError = true
         checkReleaseBuilds = false
@@ -195,4 +201,5 @@ dependencies {
     testImplementation(libs.junit)
     testImplementation(testFixtures(project(":protocol")))
     testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.robolectric)
 }
