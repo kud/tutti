@@ -1,1 +1,0 @@
-Première version sur F-Droid. La télécommande, le clavier en direct, la voix, la barre de son, les scènes, le widget, les tuiles de réglages rapides et la minuterie d’extinction, le tout sur le réseau local.

@@ -18,17 +18,17 @@ AntiFeatures:
     fr-FR: Les boutons d’applis affichent des logos et icônes d’applis tierces (certains tirés de Google Play) pour reconnaître l’appli ouverte ; ils ne sont pas sous licence libre.
 
 Builds:
-  - versionName: 0.2.0
-    versionCode: 200099
-    commit: v0.2.0
+  - versionName: 0.2.3
+    versionCode: 200399
+    commit: f7810401daecb2a6c3f4e095b338f3dd5b62c3a7
     subdir: app
     gradle:
       - fdroid
     gradleprops:
-      - tutti.versionName=0.2.0
-      - tutti.versionCode=200099
+      - tutti.versionName=0.2.3
+      - tutti.versionCode=200399
 
 AutoUpdateMode: None
 UpdateCheckMode: Tags ^v[0-9]+\.[0-9]+\.[0-9]+$
-CurrentVersion: 0.2.0
-CurrentVersionCode: 200099
+CurrentVersion: 0.2.3
+CurrentVersionCode: 200399

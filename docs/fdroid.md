@@ -34,18 +34,34 @@ All free: AndroidX and Compose (Apache-2.0, Google Maven, which F-Droid accepts)
 
 ## Before submitting
 
-Blockers, in order:
-
-1. **A final release.** F-Droid tracks final tags (`v0.2.0`, not `-dev.N`); none exists yet, and a final release waits for Erwann's word. The recipe drafts `v0.2.0` → versionCode `200099` by the CI formula.
-2. **Version detection.** The versionCode lives in CI, not in the source, so F-Droid's checkupdates cannot read it from a tag; the recipe sets `AutoUpdateMode: None`, and each release needs a hand-added `Builds` entry. To automate it, the version would have to live in the source (a committed `version.properties`, CI tagging from it): a change to the release flow, to decide separately.
-3. **AGP 9.5, Gradle 9.8.2, compileSdk 37.** Check that F-Droid's build server has them (unverified here; it fetches SDK platforms on demand).
-4. **Screenshots.** `fastlane/metadata/android/*/images/phoneScreenshots/` is empty: there is no render harness on invented fixtures yet, and real screenshots would show real devices and apps. Add them from a fixture-driven render, never a phone capture.
-5. **Categories.** Check `Connectivity` / `Multimedia` against fdroiddata's current category list.
+1. **The release.** F-Droid tracks final tags, never `-dev.N`. The recipe builds `v0.2.3` (commit `f781040`), versionCode `200399` by the CI formula (`(MAJOR × 1 000 000 + MINOR × 1 000 + PATCH) × 100 + 99`, `.github/workflows/android.yml`). It pins the full commit hash rather than the tag, so a moved tag can't change what F-Droid builds. The store changelog for it is `fastlane/metadata/android/*/changelogs/200399.txt`.
+2. **Version detection.** The versionCode lives in CI, not in the source, so F-Droid's checkupdates cannot read it from a tag; the recipe sets `AutoUpdateMode: None`, and each release needs a hand-added `Builds` entry (and a `changelogs/<versionCode>.txt`). To automate it, the version would have to live in the source (a committed `version.properties`, CI tagging from it): a change to the release flow, to decide separately.
+3. **AGP 9.5, Gradle 9.8.2, compileSdk 37.** Check that F-Droid's build server has them (unverified here; it fetches SDK platforms on demand). `fdroid build` below answers it.
+4. **Screenshots.** `fastlane/metadata/android/*/images/phoneScreenshots/` is still empty: they come from a render on invented fixtures (in progress), never a phone capture. F-Droid accepts an app without them, and picks them up from this repo on the next build once they land.
+5. **Categories.** Check `Connectivity` / `Multimedia` against fdroiddata's current category list (`fdroid lint` flags an unknown one).
 
 Later, once a release key exists: reproducible builds with the developer's signature (`Binaries:` pointing at the GitHub asset and `AllowedAPKSigningKeys`), as pastille does. That needs the fdroid flavour's release APK attached under a name the updater never takes (`tutti-<version>-fdroid.apk`), and only after every install in use is new enough to skip it.
 
 ## Submitting (Erwann's to send)
 
-1. Fork `fdroid/fdroiddata` on GitLab, copy `docs/fdroid/app.beansontoast.tutti.yml` to `metadata/app.beansontoast.tutti.yml`, with the final tag's versionName, versionCode and commit.
-2. Locally: `fdroid readmeta`, `fdroid rewritemeta app.beansontoast.tutti`, `fdroid lint app.beansontoast.tutti`, then `fdroid build -v -l app.beansontoast.tutti`.
-3. Open the merge request with the "App inclusion" template. The store text comes from `fastlane/metadata/android/` in this repo.
+From your GitLab account, with Docker or a Debian/Ubuntu machine for `fdroidserver`:
+
+1. **Fork** [`fdroid/fdroiddata`](https://gitlab.com/fdroid/fdroiddata) into your namespace, then clone the fork and branch:
+   ```sh
+   git clone git@gitlab.com:<you>/fdroiddata.git && cd fdroiddata
+   git checkout -b app.beansontoast.tutti
+   ```
+2. **Add the recipe:** copy this repo's `docs/fdroid/app.beansontoast.tutti.yml` to `metadata/app.beansontoast.tutti.yml`. It already carries v0.2.3's versionName, versionCode and commit.
+3. **Check and build it locally**, with fdroidserver (`pip install fdroidserver`, or the Docker image `registry.gitlab.com/fdroid/fdroidserver:buildserver`, which carries the Android SDK too):
+   ```sh
+   fdroid readmeta
+   fdroid rewritemeta app.beansontoast.tutti   # normalises the file; keep what it changes
+   fdroid lint app.beansontoast.tutti
+   fdroid build -v -l app.beansontoast.tutti
+   ```
+   The build ends with an unsigned `app.beansontoast.tutti_200399.apk` under `tmp/`. A failure on AGP, Gradle or the SDK is point 3 above.
+4. **Commit and push** to the fork: `git add metadata/app.beansontoast.tutti.yml && git commit -m "New app: tutti" && git push -u origin app.beansontoast.tutti`.
+5. **Open the merge request** against `fdroid/fdroiddata` `master` with the "App inclusion" template. Tick its checklist (your app, MIT, no non-free dependencies) and point to the NonFreeAssets anti-feature and the BRAVIA Connect hand-off above, so the reviewer doesn't have to find them. The store text, changelog and screenshots come from `fastlane/metadata/android/` in this repo: nothing to copy.
+6. **Answer the reviewer** in the merge request. Once merged, the app appears after F-Droid's next index build (usually a few days); then the F-Droid badge goes in the README.
+
+Each later release: a new `Builds` entry (versionName, versionCode by the formula, full commit hash), `CurrentVersion` and `CurrentVersionCode` bumped, a `changelogs/<versionCode>.txt` in both languages here, and a merge request to fdroiddata with just that change.

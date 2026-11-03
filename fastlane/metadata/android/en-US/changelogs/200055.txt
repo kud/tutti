@@ -1,1 +1,0 @@
-First F-Droid build. The remote, live keyboard, voice, soundbar controls, scenes, widget, Quick Settings tiles and switch-off timer, all over the local network.
