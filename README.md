@@ -27,6 +27,13 @@ It speaks Sony's and Google TV's own local protocols, so it **won't work with ot
 
 Setup, room calibration and speaker placement stay in BRAVIA Connect, and tutti opens it when you need it.
 
+<p align="center">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/1.png" width="270" alt="The remote: scenes, the pad with the volume rail, and the dock">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/3.png" width="270" alt="The soundbar's sound sheet: input, effects, DRC and IMAX">
+</p>
+
+Screenshots are rendered from invented fixtures, never captured from a phone: `TUTTI_SHOWCASE=<dir> ./gradlew --offline :app:testGithubDebugUnitTest --tests '*Showcase*'` (see `ShowcaseRenders`).
+
 ## 🌟 Features
 
 - 🕹️ **Google TV–grade remote** — touchpad or D-pad, with a strip under the pad to switch between them
