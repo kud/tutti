@@ -35,7 +35,7 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - uses: gradle/actions/setup-gradle@v6.4.0
+      - uses: gradle/actions/setup-gradle@v6.4.1
 
       # Both builds are tested, linted and assembled: `github` (with the updater, the one published
       # here) and `fdroid` (no updater, built by F-Droid from source; never attached to a release,
@@ -138,7 +138,7 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - uses: gradle/actions/setup-gradle@v6.4.0
+      - uses: gradle/actions/setup-gradle@v6.4.1
 
       - name: Assemble release
         if: env.SIGNED == 'true'
