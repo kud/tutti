@@ -3,7 +3,7 @@
 [versions]
 agp = "9.5.0"                  # AGP 9.x line; Gradle 9.8.2 wrapper
 kotlin = "2.4.21"              # (tag) v2.4.21
-ksp = "2.3.12"                 # (tag) KSP2, Kotlin-version independent
+ksp = "2.3.13"                 # (tag) KSP2, Kotlin-version independent
 hilt = "2.60.1"                # (tag) Hilt's plugin needs AGP 9; the AGP 8 pin at 2.58 went with the AGP 9 upgrade
 wire = "7.1.2"                 # (tag) requires Gradle 8.2+
 coroutines = "1.11.0"          # (tag)
