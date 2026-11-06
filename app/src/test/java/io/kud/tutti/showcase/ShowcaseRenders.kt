@@ -51,6 +51,7 @@ import io.kud.tutti.ui.remote.SoundSheet
 import io.kud.tutti.ui.scenes.ScenesScreen
 import io.kud.tutti.ui.settings.SettingsCategory
 import io.kud.tutti.ui.settings.SettingsPageScreen
+import io.kud.tutti.ui.settings.SettingsScreen
 import io.kud.tutti.ui.theme.TuttiTheme
 import org.junit.Assume.assumeTrue
 import org.junit.Test
@@ -99,6 +100,12 @@ class ShowcaseRenders {
     @Test fun sync() = shoot("6-sync") { c, _, _ ->
         SettingsPageScreen(SettingsCategory.SYNC, Fixture.home, c, onBack = {}, onOpenDiagnostic = {}, onEditLayout = {}, onPair = {}, onAddBar = {}, onOpenTechnical = {})
     }
+
+    @Test fun settings() = shoot("7-settings") { _, _, _ -> SettingsScreen(Fixture.settled, onBack = {}, onOpen = {}) }
+
+    @Test fun settingsNeedsAction() = shoot("8-settings-needs-action") { _, _, _ -> SettingsScreen(Fixture.ipLost, onBack = {}, onOpen = {}) }
+
+    @Test fun remoteNoBar() = shoot("9-remote-no-bar") { c, t, _ -> RemoteScreen(Fixture.noBar, c, t, onOpenScenes = {}, onOpenSettings = {}, onEditScene = {}) }
 
     /** A sheet's content on its own, under the status bar, as it reads once pulled up. */
     @Composable
@@ -218,6 +225,15 @@ private object Fixture {
         powered = true,
         apps = apps,
     )
+
+    /** IP control set up with a key, so Settings reads a room with everything in place. */
+    val settled = home.copy(pskSet = true)
+
+    /** IP control lost its pairing: the TV's tile asks first. */
+    val ipLost = settled.copy(links = home.links.copy(rest = Link.NEEDS_PAIRING))
+
+    /** A TV and no soundbar: the remote with no Sound sheet. */
+    val noBar = home.copy(devices = Devices(TvDevice(host = "192.168.1.40")), links = home.links.copy(bar = Link.ABSENT), bar = TheatreState())
 
     /** The TV's own search field, labelled in the phone's language as the TV would. */
     fun typing(locale: String) = home.copy(
