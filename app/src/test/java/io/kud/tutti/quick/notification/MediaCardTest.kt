@@ -230,4 +230,40 @@ class MediaCardTest {
         assertEquals(300, postDelay(now = 1_100, lastPost = 1_000, interval = 400))
         assertEquals(0, postDelay(now = 2_000, lastPost = 1_000, interval = 400))
     }
+
+    // region content artwork
+
+    @Test
+    fun `the session's artwork is cast's picture when it names one, else the drawn art`() {
+        val thumb = "https://i.ytimg.com/vi/SAMPLEID01/hqdefault.jpg"
+        fun playing(image: String?) = io.kud.tutti.protocol.cast.CastNowPlaying(
+            "An invented film", null, io.kud.tutti.protocol.cast.CastPlayerState.PLAYING, 12.0, 600.0, 1.0, readAtMillis = 0, imageUrl = image,
+        )
+        val state = QuickState(tvName = "BRAVIA 8")
+        assertEquals(thumb, cardFor(state.copy(cast = playing(thumb))).artworkUrl)
+        assertNull(cardFor(state.copy(cast = playing(null))).artworkUrl)
+        assertNull(cardFor(state).artworkUrl)
+        assertNull(cardFor(state.copy(cast = playing("https://images.example.org/poster.jpg"))).artworkUrl)
+    }
+
+    @Test
+    fun `a 4-by-3 thumbnail loses its bars, a wide one stays whole`() {
+        // hqdefault: 480x360 holding a 480x270 picture between black bars.
+        assertArrayEquals(intArrayOf(0, 45, 480, 270), MediaArt.contentCrop(480, 360))
+        assertArrayEquals(intArrayOf(0, 0, 1280, 720), MediaArt.contentCrop(1280, 720))
+        // Wider than 16:9 (a cinema still): nothing to take off.
+        assertArrayEquals(intArrayOf(0, 0, 1000, 400), MediaArt.contentCrop(1000, 400))
+        // A square album cover: the middle band, like the remote's tile.
+        assertArrayEquals(intArrayOf(0, 119, 544, 306), MediaArt.contentCrop(544, 544))
+        assertArrayEquals(intArrayOf(0, 0, 0, 0), MediaArt.contentCrop(0, 0))
+    }
+
+    @Test
+    fun `the content picture is keyed apart from the drawn art`() {
+        val url = "https://i.ytimg.com/vi/SAMPLEID01/hqdefault.jpg"
+        assertTrue(MediaArt.contentKey(512, url) != MediaArt.key(512, null, null, 0))
+        assertTrue(MediaArt.contentKey(512, url) != MediaArt.contentKey(768, url))
+    }
+
+    // endregion
 }

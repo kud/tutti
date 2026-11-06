@@ -323,5 +323,13 @@ private fun OpensChevron() {
 
 private val CARD_CORNER = 24.dp
 
+/**
+ * The content artwork a now-showing tile leads with, or null for the app's icon or banner, then
+ * the state's glyph ([CardIcon]). Only while Cast speaks for the screen ([castFits]): never over the
+ * bar alone, standby or a lost link, where a held Cast item would picture the wrong thing.
+ */
+internal fun leadArtwork(showing: CardShowing, cast: io.kud.tutti.protocol.cast.CastNowPlaying?): String? =
+    io.kud.tutti.protocol.cast.CastArtwork.of(cast?.takeIf { castFits(showing) })
+
 /** Cast speaks for the TV's own screen only: an app, a channel or the home screen, never the bar alone, standby or a lost link. */
 internal fun castFits(showing: CardShowing): Boolean = showing is CardShowing.Showing || showing == CardShowing.Home

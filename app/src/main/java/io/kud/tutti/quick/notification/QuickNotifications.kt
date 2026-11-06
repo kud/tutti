@@ -25,6 +25,7 @@ import androidx.core.graphics.drawable.toBitmap
 import io.kud.tutti.MainActivity
 import io.kud.tutti.R
 import io.kud.tutti.platform.data.IconBitmaps
+import io.kud.tutti.platform.net.CastArtworkLoader
 import io.kud.tutti.protocol.atv.V2Key
 import io.kud.tutti.quick.QuickControls
 import io.kud.tutti.quick.QuickPreferences
@@ -109,12 +110,25 @@ object QuickNotifications {
                         return@collectLatest
                     }
                     val current = live ?: Live(newSession(context)).also { live = it }
-                    val (icon, art) = withContext(Dispatchers.IO) { largeIcon(context, card) to artwork.artFor(card) }
+                    // The content's picture when it is already in memory; a first fetch never holds
+                    // the card back: it goes out with the drawn art and the picture follows below.
+                    val url = card.artworkUrl
+                    val content = url?.let { CastArtworkLoader.cached(it) }
+                    val (icon, art) = withContext(Dispatchers.IO) { largeIcon(context, card) to artwork.artFor(card, content) }
                     // The session moves at once (the volume keys read it); the post waits its turn.
                     updateSession(context, current, card, icon, art)
                     delay(postDelay(SystemClock.elapsedRealtime(), lastPost, POST_INTERVAL_MS))
                     post(context, build(context, card, icon, current.session.sessionToken))
                     lastPost = SystemClock.elapsedRealtime()
+                    if (url != null && content == null) {
+                        // Off the main thread inside the loader; a failure keeps the drawn art. Only the
+                        // session carries the artwork, so nothing is re-posted.
+                        val side = MediaArt.sidePx(context.resources.displayMetrics.density)
+                        CastArtworkLoader.load(url, side)?.let { loaded ->
+                            val picture = withContext(Dispatchers.IO) { artwork.artFor(card, loaded) }
+                            updateSession(context, current, card, icon, picture)
+                        }
+                    }
                 }
         } finally {
             live?.session?.release()

@@ -37,6 +37,14 @@ object CastArtwork {
             host in HOSTS
     }
 
+    /**
+     * The picture of what is playing, for any tile that leads with one (Erwann, 2026-11-06: the
+     * content's own artwork wins over the app's icon or banner, which stays the fallback). Cast is
+     * the only plane tutti receives that names one: Remote v2 sends a package and REST a channel or
+     * input, neither with an image. Re-checked here so a caller can't widen what the reducer kept.
+     */
+    fun of(playing: CastNowPlaying?): String? = playing?.imageUrl?.takeIf { isAllowed(it) }
+
     /** The first allowed `images[].url` of a media `metadata` object, or null. */
     fun pick(metadata: JsonObject?): String? {
         val images = metadata?.get("images") as? JsonArray ?: return null

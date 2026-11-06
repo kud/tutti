@@ -32,6 +32,16 @@ class CastArtworkTest {
         ).forEach { assertFalse(CastArtwork.isAllowed(it), "$it") }
     }
 
+    @Test fun `the picture of what plays is cast's allowed image, else none`() {
+        fun playing(image: String?) = CastNowPlaying("An invented film", null, CastPlayerState.PLAYING, 1.0, 10.0, 1.0, 0, imageUrl = image)
+        assertEquals("https://i.ytimg.com/vi/SAMPLEID01/hqdefault.jpg", CastArtwork.of(playing("https://i.ytimg.com/vi/SAMPLEID01/hqdefault.jpg")))
+        assertNull(CastArtwork.of(null))
+        assertNull(CastArtwork.of(playing(null)))
+        // Built by hand past the reducer: still never a host off the list, nor cleartext.
+        assertNull(CastArtwork.of(playing("http://i.ytimg.com/vi/SAMPLEID01/hqdefault.jpg")))
+        assertNull(CastArtwork.of(playing("https://192.168.1.20/art.jpg")))
+    }
+
     @Test fun `the first allowed image is picked, the rest ignored`() {
         val metadata = json(
             """{"title":"Sample Title","images":[

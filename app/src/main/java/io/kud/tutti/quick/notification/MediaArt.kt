@@ -116,6 +116,20 @@ object MediaArt {
     fun key(side: Int, packageName: String?, iconPath: String?, iconModified: Long): String =
         "$side|${packageName.orEmpty()}|${iconPath.orEmpty()}|$iconModified"
 
+    /** The content artwork's key: a new picture only when the URL or the size changes. */
+    fun contentKey(side: Int, url: String): String = "content|$side|$url"
+
+    /**
+     * The part of a [width] x [height] picture the session gets: the middle 16:9 band, as the
+     * remote's tile crops it (YouTube's `hqdefault` is 4:3 with black bars, which this drops), or
+     * the whole picture when it is already that wide or wider. Left, top, width, height.
+     */
+    fun contentCrop(width: Int, height: Int): IntArray {
+        if (width <= 0 || height <= 0) return intArrayOf(0, 0, width.coerceAtLeast(0), height.coerceAtLeast(0))
+        val band = (width * 9f / 16f).roundToInt().coerceIn(1, height)
+        return intArrayOf(0, (height - band) / 2, width, band)
+    }
+
     internal fun opaque(argb: Int): Int = argb or (0xFF shl 24)
 
     /** [over] laid on [base] at [alpha], per channel, opaque. */

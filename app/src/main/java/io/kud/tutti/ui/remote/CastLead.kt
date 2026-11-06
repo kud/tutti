@@ -28,8 +28,9 @@ import io.kud.tutti.ui.common.LocalReducedMotion
 import io.kud.tutti.ui.motion.Motion
 
 /**
- * The card's leading tile (Erwann, 2026-10-28: « Moi je suis chaud d'afficher la thumbnail »): the
- * app's icon, which gives way to Cast's artwork once it has loaded, at the icon's height, 16:9,
+ * The card's leading tile (Erwann, 2026-10-28: « Moi je suis chaud d'afficher la thumbnail »; and
+ * 2026-11-06: the content's own picture wins whenever one exists): the app's icon, which gives way
+ * to the content artwork ([leadArtwork]) once it has loaded, at the icon's height, 16:9,
  * cropped (YouTube's `hqdefault` is 4:3 with bars, which the crop drops), with the icon's corners.
  * Until then, and whenever there is none or it fails, the icon stays as it was, so nothing ever
  * shows an empty frame. The tile widens on the card's spring while the two cross-fade by opacity;
@@ -37,7 +38,7 @@ import io.kud.tutti.ui.motion.Motion
  */
 @Composable
 internal fun CastLead(showing: CardShowing, size: Dp, appIcons: Map<String, String>, cast: CastNowPlaying?) {
-    val url = cast?.imageUrl
+    val url = leadArtwork(showing, cast)
     val wide = size * 16f / 9f
     val widthPx = with(LocalDensity.current) { wide.roundToPx() }
     val art by produceState(url?.let { CastArtworkLoader.cached(it) }, url, widthPx) {
