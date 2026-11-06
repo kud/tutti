@@ -143,4 +143,13 @@ class NowShowingActionsTest {
         assertFalse(inAppSearchKey(CardShowing.Showing(NowShowing.Input("HDMI 2"))))
         assertEquals(V2Key.ASSIST, GLOBAL_SEARCH_KEY)
     }
+
+    @Test
+    fun `no search chip over nuvio, the whole-tv one elsewhere`() {
+        val nuvio = CardShowing.Showing(NowShowing.App("Nuvio", "com.nuvio.tv"))
+        assertFalse(inAppSearchKey(nuvio))
+        assertFalse(globalSearchOffered(nuvio))
+        assertTrue(globalSearchOffered(CardShowing.Showing(app)))
+        assertTrue(globalSearchOffered(CardShowing.Showing(NowShowing.Input("HDMI 2"))))
+    }
 }

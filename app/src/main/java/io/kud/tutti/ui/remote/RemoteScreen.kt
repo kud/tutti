@@ -1037,7 +1037,7 @@ fun RemoteScreen(
                             playbackFor = null
                         }
                     }
-                    GlobalSearchChip(reason, sendAndClose)
+                    if (globalSearchOffered(showing)) GlobalSearchChip(reason, sendAndClose)
                 }
             },
         )

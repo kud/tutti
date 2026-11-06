@@ -163,8 +163,22 @@ fun playbackShortcuts(showing: CardShowing): List<io.kud.tutti.protocol.apps.App
  */
 fun inAppSearchKey(showing: CardShowing): Boolean {
     val app = (showing as? CardShowing.Showing)?.now as? NowShowing.App ?: return false
+    if (app.packageName in NO_SEARCH_PACKAGES) return false
     return io.kud.tutti.protocol.apps.AppShortcut.SEARCH !in
         io.kud.tutti.protocol.apps.AppShortcuts.forPackage(app.packageName)
+}
+
+/**
+ * Apps in front of which neither search chip does anything on the BRAVIA, so neither is offered.
+ * Nuvio (Erwann, 2026-11-06: « Search et Search TV, il marche pas »): its player and screens
+ * handle no Search key, and the TV opened nothing for the Assistant key either.
+ */
+private val NO_SEARCH_PACKAGES: Set<String> = setOf("com.nuvio.tv", "com.nuvio.app")
+
+/** Whether the whole-TV search chip is offered over [showing]: everywhere but [NO_SEARCH_PACKAGES]. */
+fun globalSearchOffered(showing: CardShowing): Boolean {
+    val app = (showing as? CardShowing.Showing)?.now as? NowShowing.App ?: return true
+    return app.packageName !in NO_SEARCH_PACKAGES
 }
 
 /**
