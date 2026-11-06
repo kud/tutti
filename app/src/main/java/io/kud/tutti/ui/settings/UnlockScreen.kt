@@ -312,11 +312,3 @@ private fun Quiet(@StringRes label: Int, onClick: () -> Unit) {
     TextButton(onClick = onClick) { Text(stringResource(label)) }
 }
 
-/** The Settings row's live line: progress in words ("3 of 4 set up · next: Remote start"). */
-@Composable
-fun unlockLine(state: TuttiUiState): String {
-    val summary = unlockSummary(unlocks(state))
-    return summary.next?.let {
-        stringResource(R.string.unlock_entry_progress, summary.done, summary.total, stringResource(unlockTitle(it)))
-    } ?: stringResource(R.string.unlock_entry_all)
-}

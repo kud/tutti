@@ -76,6 +76,7 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.kud.tutti.R
+import io.kud.tutti.platform.data.Devices
 import io.kud.tutti.ui.common.rememberGestureHint
 import io.kud.tutti.ui.common.GestureHintBubble
 import io.kud.tutti.ui.common.holdForMenu
@@ -117,8 +118,7 @@ fun soundSummary(state: TuttiUiState): String {
 /**
  * The "Son" sheet: large toggles (sound field, voice, night, DRC, auto volume, IMAX,
  * 360 Spatial), bass and rear sliders, Voice Zoom 3 only if the bar answered the probe,
- * and the BRAVIA Connect deep link for calibration. With no bar added yet, "Add the soundbar"
- * leads straight to the onboarding's bar step ([onAddBar]), never back through the TV's.
+ * and the BRAVIA Connect deep link for calibration. Shown only with a bar ([soundSheetShown]).
  */
 @Composable
 fun SoundSheet(
@@ -126,7 +126,6 @@ fun SoundSheet(
     controller: TuttiController,
     modifier: Modifier = Modifier,
     peeking: Boolean = false,
-    onAddBar: () -> Unit = {},
 ) {
     val haptics = rememberHaptics()
     // Folded, the sheet shows its title line and nothing else: the peek also covers the gesture bar's
@@ -182,15 +181,6 @@ fun SoundSheet(
                 .graphicsLayer { alpha = rest }
                 .then(if (peeking) Modifier.clearAndSetSemantics {} else Modifier),
         ) {
-            if (state.devices.bar == null) {
-                // The way in for a bar added after the TV (Erwann, 2026-10-24): the bar step alone.
-                Spacer(Modifier.height(8.dp))
-                FilledTonalButton(onClick = onAddBar, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
-                    Icon(painterResource(R.drawable.ic_add), contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text(stringResource(R.string.sound_add_bar))
-                }
-            }
             Spacer(Modifier.height(4.dp))
             BarInputRow(
                 state,
@@ -271,6 +261,13 @@ val SOUND_SHEET_FEATURES = listOf(
 )
 
 data class SoundSheetLayout(val tiles: List<TheatreFeature>, val choices: List<TheatreFeature>, val levels: List<TheatreFeature>)
+
+/**
+ * Whether the remote carries the Sound sheet at all (Erwann, 2026-11-06): only with a bar set up.
+ * With none, the sheet and its peek are gone and the remote takes the space back; adding a bar
+ * lives in Settings › Devices and on Settings' soundbar tile. With a bar nothing changes.
+ */
+fun soundSheetShown(devices: Devices): Boolean = devices.bar != null
 
 /**
  * The rule (Erwann, 2026-10-24: "on a pas mal d'options qui ont plus que on/off"): only an on/off

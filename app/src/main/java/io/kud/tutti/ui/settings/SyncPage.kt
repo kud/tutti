@@ -1,7 +1,6 @@
 package io.kud.tutti.ui.settings
 
 import android.content.Context
-import android.text.format.DateUtils
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
@@ -57,26 +56,11 @@ private fun rememberSettingsSync(): SettingsSync? {
 }
 
 @Composable
-private fun rememberSyncState(): SyncState =
+internal fun rememberSyncState(): SyncState =
     rememberSettingsSync()?.state?.collectAsStateWithLifecycle()?.value ?: SyncState()
 
-/** Sync's live line under Settings: "Off", "On · tutti-sync.json · 2 min ago", or what to do. */
 @Composable
-internal fun syncLine(): String {
-    val state = rememberSyncState()
-    return when {
-        !state.hasFile -> stringResource(R.string.sync_line_off)
-        state.problem != null && state.problem != SyncProblem.WAITING -> stringResource(R.string.sync_line_problem)
-        else -> listOfNotNull(
-            stringResource(if (state.auto) R.string.sync_line_on else R.string.sync_line_paused),
-            placeName(state),
-            state.lastSyncedAt?.let(::ago),
-        ).joinToString(" · ")
-    }
-}
-
-private fun ago(at: Long): String =
-    DateUtils.getRelativeTimeSpanString(at, System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS).toString()
+private fun ago(at: Long): String = ageWords(syncAge(at, System.currentTimeMillis()))
 
 /**
  * Settings › Sync (docs/adr/0001-settings-sync.md): one "Sync" switch while nothing is chosen;

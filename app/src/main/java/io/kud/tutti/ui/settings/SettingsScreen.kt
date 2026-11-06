@@ -98,28 +98,41 @@ fun linkLabel(link: Link): String = stringResource(
 )
 
 /**
- * Settings' top level, arranged like Android's (the proposal, approved by Erwann on 2026-10-26,
- * docs/proposals/settings-structure.md): one row per [SettingsCategory], each with its icon, its
- * name and one live line saying where it stands in words, opening its own screen. Every group
- * there is a [SettingsGroup] and every line a [SettingsRow], so the rhythm is the same on every screen.
+ * Settings' top level (the proposal, approved by Erwann on 2026-10-26, docs/proposals/settings-structure.md,
+ * reshaped 2026-11-06): the room's status tiles first ([dashboard]), anything that needs him in front
+ * with its one action; then one row per [SettingsCategory], each with its icon, its name and a line
+ * saying what the section holds, which never changes with the state. Every group there is a
+ * [SettingsGroup] and every line a [SettingsRow], so the rhythm is the same on every screen.
  */
 @Composable
 fun SettingsScreen(
     state: TuttiUiState,
     onBack: () -> Unit,
     onOpen: (SettingsCategory) -> Unit,
+    onTile: (DashTile) -> Unit = {},
+    onDashAction: (DashAction) -> Unit = {},
 ) {
     val targets = rememberTargets()
-    val computers = targets?.state?.collectAsStateWithLifecycle()?.value?.list?.computers?.map { it.name }.orEmpty()
+    val targetState = targets?.state?.collectAsStateWithLifecycle()?.value ?: io.kud.tutti.controller.TargetState()
+    val sync = rememberSyncState()
+    val tiles = dashboard(
+        DashInput(
+            connections = io.kud.tutti.ui.remote.connections(io.kud.tutti.ui.remote.connInput(state, targetState)),
+            sync = sync,
+            unlocks = unlockSummary(unlocks(state)),
+            now = System.currentTimeMillis(),
+        ),
+    )
     SettingsFrame(stringResource(R.string.settings_title), onBack) {
+        Dashboard(tiles, onTile = onTile, onAction = onDashAction, modifier = Modifier.padding(top = 8.dp))
         SettingsGroup(null, Modifier.padding(top = 8.dp)) {
             for (category in SettingsCategory.entries) {
                 SettingsRow(
                     title = categoryTitle(category),
                     icon = categoryIcon(category),
-                    detail = categoryLine(category, state, computers),
-                    detailMaxLines = 1,
-                    // The TV's settings need a TV; the row says so in its line.
+                    detail = categoryDescription(category),
+                    detailMaxLines = 2,
+                    // The TV's settings need a TV; its tile above says there is none.
                     enabled = category != SettingsCategory.TV || state.devices.tv != null,
                     onClick = { onOpen(category) },
                     trailing = { OpensChevron() },
@@ -206,66 +219,24 @@ private fun categoryIcon(category: SettingsCategory): Int = when (category) {
     SettingsCategory.ABOUT -> R.drawable.ic_info
 }
 
-/** A category's live line: where it stands, in words, on one line ("Standard · Power saving: Off"). */
+/** What a category holds, in a line that never changes with the state (Erwann, 2026-11-06). */
 @Composable
-private fun categoryLine(category: SettingsCategory, state: TuttiUiState, computers: List<String>): String = when (category) {
-    SettingsCategory.UNLOCK -> unlockLine(state)
-    SettingsCategory.DEVICES -> SettingsMenu.devicesLine(state, computers).let { line ->
-        (listOfNotNull(line.trouble?.let { stringResource(R.string.settings_line_trouble, it.name, linkLabel(it.link)) }) + line.names)
-            .joinToString(" · ")
-            .ifEmpty { stringResource(R.string.settings_line_no_devices) }
-    }
-    SettingsCategory.TV -> when (val line = SettingsMenu.tvLine(state)) {
-        SettingsMenu.TvLine.NoTv -> stringResource(R.string.settings_line_no_tv)
-        is SettingsMenu.TvLine.IpControl -> stringResource(R.string.settings_tv_settings_needs, linkLabel(line.link))
-        is SettingsMenu.TvLine.Settled -> listOfNotNull(
-            line.pictureMode?.let { tvValueName(it, state.tv.settings.picture.firstOrNull { s -> s.target == "pictureMode" }) },
-            line.powerSaving?.let { stringResource(R.string.tv_hub_power_saving, powerSavingModes().toMap()[it] ?: TvSettingCatalog.readable(it)) },
-        ).joinToString(" · ").ifEmpty { stringResource(R.string.settings_line_tv_parts) }
-    }
-    SettingsCategory.SOUNDBAR -> when (val line = SettingsMenu.barLine(state)) {
-        SettingsMenu.BarLine.NoBar -> stringResource(R.string.settings_line_no_bar)
-        is SettingsMenu.BarLine.Offline -> stringResource(R.string.devices_bar_status, linkLabel(line.link))
-        is SettingsMenu.BarLine.Online -> listOfNotNull(
-            state.devices.bar?.name?.takeIf { it.isNotBlank() },
-            line.input?.let { barInputName(it, barValueLabel(TheatreFeature.INPUT, it), state.prefs.barInputNames) },
-            pluralStringResource(R.plurals.settings_line_hidden_inputs, line.hidden, line.hidden).takeIf { line.hidden > 0 },
-        ).joinToString(" · ")
-    }
-    SettingsCategory.REMOTE -> SettingsMenu.remoteLine(state).let { line ->
-        listOf(
-            if (line.pins == 0) stringResource(R.string.settings_line_no_pins) else pluralStringResource(R.plurals.settings_line_pins, line.pins, line.pins),
-            if (line.longPresses == 0) {
-                stringResource(R.string.settings_line_no_long_press)
-            } else {
-                pluralStringResource(R.plurals.settings_line_long_presses, line.longPresses, line.longPresses)
-            },
-        ).joinToString(" · ")
-    }
-    SettingsCategory.DISPLAY -> SettingsMenu.displayLine(state).let { line ->
-        listOfNotNull(
-            stringResource(
-                when (line.theme) {
-                    ThemeMode.SYSTEM -> R.string.settings_line_theme_system
-                    ThemeMode.LIGHT -> R.string.settings_line_theme_light
-                    ThemeMode.DARK -> R.string.settings_line_theme_dark
-                },
-            ),
-            stringResource(R.string.settings_line_true_black).takeIf { line.trueBlack },
-            stringResource(R.string.settings_line_dark_room).takeIf { line.darkRoom },
-            stringResource(
-                when (line.vibration) {
-                    VibrationLevel.ALL -> R.string.settings_line_vibration_on
-                    VibrationLevel.ESSENTIALS -> R.string.settings_line_vibration_essentials
-                    VibrationLevel.OFF -> R.string.settings_line_vibration_off
-                },
-            ),
-            stringResource(R.string.settings_line_key_sounds).takeIf { line.keySounds },
-        ).joinToString(" · ")
-    }
-    SettingsCategory.SYNC -> syncLine()
-    SettingsCategory.ADVANCED -> stringResource(if (state.prefs.developerMode) R.string.settings_line_developer_on else R.string.settings_line_developer_off)
+private fun categoryDescription(category: SettingsCategory): String = when (category) {
+    // A newer build waiting is the one exception, said where it is installed (docs/design.md, "Updates").
     SettingsCategory.ABOUT -> aboutLine()
+    else -> stringResource(
+        when (category) {
+            SettingsCategory.UNLOCK -> R.string.settings_desc_unlock
+            SettingsCategory.DEVICES -> R.string.settings_desc_devices
+            SettingsCategory.TV -> R.string.settings_desc_tv
+            SettingsCategory.SOUNDBAR -> R.string.settings_desc_bar
+            SettingsCategory.REMOTE -> R.string.settings_desc_remote
+            SettingsCategory.DISPLAY -> R.string.settings_desc_display
+            SettingsCategory.SYNC -> R.string.settings_desc_sync
+            SettingsCategory.ADVANCED -> R.string.settings_desc_advanced
+            SettingsCategory.ABOUT -> R.string.about_entry_detail
+        },
+    )
 }
 
 /** About's line names a newer build while one waits, set aside or not (docs/design.md, "Updates"). */

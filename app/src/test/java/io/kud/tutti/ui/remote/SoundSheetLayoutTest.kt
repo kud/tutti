@@ -38,3 +38,17 @@ class SoundSheetLayoutTest {
         assertTrue(TheatreFeature.VOICE_ZOOM in with.tiles && TheatreFeature.VOICE_ZOOM_LEVEL in with.levels)
     }
 }
+
+/** No bar, no Sound sheet: the remote takes the space back (Erwann, 2026-11-06). */
+class SoundSheetShownTest {
+    private val tv = io.kud.tutti.platform.data.TvDevice(host = "192.168.0.10")
+    private val bar = io.kud.tutti.platform.data.BarDevice(host = "192.168.0.11")
+
+    @Test
+    fun `the sheet shows only with a bar`() {
+        assertTrue(soundSheetShown(io.kud.tutti.platform.data.Devices(tv, bar)))
+        assertTrue(soundSheetShown(io.kud.tutti.platform.data.Devices(bar = bar)))
+        org.junit.Assert.assertFalse(soundSheetShown(io.kud.tutti.platform.data.Devices(tv = tv)))
+        org.junit.Assert.assertFalse(soundSheetShown(io.kud.tutti.platform.data.Devices()))
+    }
+}

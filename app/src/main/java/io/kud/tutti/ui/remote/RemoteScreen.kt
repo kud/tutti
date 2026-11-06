@@ -44,6 +44,7 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.BottomSheetScaffold
 import androidx.compose.material3.SheetValue
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -127,7 +128,6 @@ fun RemoteScreen(
     onOpenScenes: () -> Unit,
     onOpenSettings: () -> Unit,
     onEditScene: (String) -> Unit,
-    onAddBar: () -> Unit = {},
     /** A Connections step that leaves the remote (pairing, a setup step, Settings › Devices). */
     onConnectionStep: (ConnAction) -> Unit = { onOpenSettings() },
     editing: Boolean = false,
@@ -439,14 +439,20 @@ fun RemoteScreen(
     // The Sound sheet open, or the phone keyboard's field, covers the remote as a modal sheet does.
     io.kud.tutti.ui.common.CoversRemote(active = inputOpen || sheet.bottomSheetState.currentValue == SheetValue.Expanded)
     val navigationInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    // No bar, no Sound sheet (Erwann, 2026-11-06): no peek, no swipe, and one left open folds away.
+    val soundShown = soundSheetShown(state.devices)
+    LaunchedEffect(soundShown) {
+        if (!soundShown && sheet.bottomSheetState.currentValue == SheetValue.Expanded) sheet.bottomSheetState.partialExpand()
+    }
     BottomSheetScaffold(
         scaffoldState = sheet,
-        sheetPeekHeight = if (inputOpen || editing) 0.dp else SHEET_PEEK + navigationInset,
-        sheetSwipeEnabled = !editing && !inputOpen,
+        sheetPeekHeight = if (inputOpen || editing || !soundShown) 0.dp else SHEET_PEEK + navigationInset,
+        sheetSwipeEnabled = !editing && !inputOpen && soundShown,
+        sheetDragHandle = if (soundShown) ({ BottomSheetDefaults.DragHandle() }) else null,
         sheetContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
         containerColor = MaterialTheme.colorScheme.background,
         sheetContent = {
-            SoundSheet(state, controller, peeking = sheet.bottomSheetState.targetValue != SheetValue.Expanded, onAddBar = onAddBar)
+            if (soundShown) SoundSheet(state, controller, peeking = sheet.bottomSheetState.targetValue != SheetValue.Expanded)
         },
     ) { padding ->
         if (editing) {

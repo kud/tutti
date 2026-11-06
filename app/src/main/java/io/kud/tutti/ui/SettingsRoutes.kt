@@ -1,6 +1,8 @@
 package io.kud.tutti.ui
 
 import io.kud.tutti.ui.remote.ConnAction
+import io.kud.tutti.ui.settings.DashAction
+import io.kud.tutti.ui.settings.DashTile
 import io.kud.tutti.ui.settings.SettingsCategory
 import io.kud.tutti.ui.settings.Unlock
 
@@ -36,5 +38,29 @@ internal object SettingsRoutes {
         // Never routed here: the LAN ask and its system page are the remote's own handling.
         ConnAction.LAN_REQUEST, ConnAction.LAN_OPEN_SETTINGS,
         -> into(SettingsCategory.DEVICES)
+    }
+
+    /**
+     * Where a status tile's tap lands, over Settings: the section it speaks for, or, for a device not
+     * set up yet, its setup (a bar alone once there is a TV; with no TV, Devices' "Add a device").
+     */
+    fun tile(tile: DashTile, hasTv: Boolean, hasBar: Boolean): Screen = when (tile) {
+        DashTile.TV -> if (hasTv) Screen.TvSettings else Screen.Onboarding(cancellable = true)
+        DashTile.SOUNDBAR -> when {
+            hasBar -> Screen.BarSettings
+            hasTv -> Screen.Onboarding(barOnly = true, cancellable = true)
+            else -> Screen.SettingsPage(SettingsCategory.DEVICES)
+        }
+        DashTile.SYNC -> Screen.SettingsPage(SettingsCategory.SYNC)
+        DashTile.UNLOCKS -> Screen.Unlock()
+    }
+
+    /** A tile's button, over Settings: the same steps Connexions takes for the same words. */
+    fun dashAction(action: DashAction): Screen = when (action) {
+        DashAction.PAIR_TV -> Screen.Onboarding(cancellable = true)
+        DashAction.SET_UP_IP -> Screen.Unlock(Unlock.IP_CONTROL)
+        DashAction.ADD_BAR -> Screen.Onboarding(barOnly = true, cancellable = true)
+        DashAction.OPEN_DEVICES -> Screen.SettingsPage(SettingsCategory.DEVICES)
+        DashAction.CHECK_SYNC -> Screen.SettingsPage(SettingsCategory.SYNC)
     }
 }

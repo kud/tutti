@@ -4,7 +4,7 @@
     <string name="sync_line_off">Désactivée</string>
     <string name="sync_line_on">Activée</string>
     <string name="sync_line_paused">En pause</string>
-    <string name="sync_line_problem">Fichier de synchro injoignable · touchez pour vérifier</string>
+    <string name="sync_line_problem">Fichier de synchro injoignable</string>
     <string name="sync_intro">Vos réglages sur chaque téléphone. tutti les garde dans un seul fichier, dans un dossier Google Drive ou l’app de stockage de votre choix. C’est cette app qui envoie le fichier ; tutti ne se connecte jamais à Internet pour cela.</string>
     <string name="sync_create">Créer un fichier de synchro</string>
     <string name="sync_create_detail">Sur votre premier téléphone : les réglages de ce téléphone le remplissent</string>

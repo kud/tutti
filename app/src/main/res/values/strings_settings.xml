@@ -16,7 +16,6 @@
     <string name="settings_setup_again">Run setup again</string>
     <string name="settings_setup_again_detail">Pair the TV, then add the soundbar</string>
     <string name="settings_tv">TV</string>
-    <string name="settings_tv_settings_needs">IP control: %1$s</string>
     <string name="settings_bar">Soundbar</string>
     <string name="settings_shortcuts">Shortcuts</string>
     <string name="settings_long_press">Long press on %1$s</string>
@@ -247,34 +246,31 @@
     <string name="settings_display_feedback">Display &amp; feedback</string>
     <string name="settings_display">Display</string>
     <string name="settings_quick_access">Quick access</string>
-    <string name="settings_line_no_devices">No device yet</string>
-    <string name="settings_line_trouble">%1$s %2$s</string>
-    <string name="settings_line_no_tv">No TV set up yet</string>
-    <string name="settings_line_tv_parts">Picture, sound, inputs, power</string>
-    <string name="settings_line_no_bar">No soundbar set up yet</string>
-    <plurals name="settings_line_hidden_inputs">
-        <item quantity="one">%1$d hidden input</item>
-        <item quantity="other">%1$d hidden inputs</item>
+    <string name="settings_desc_unlock">Setup steps and what each one unlocks</string>
+    <string name="settings_desc_devices">TV, soundbar and computers: add, pair again or forget</string>
+    <string name="settings_desc_tv">Picture, sound and the TV’s own settings</string>
+    <string name="settings_desc_bar">The bar’s settings, hidden inputs and calibration</string>
+    <string name="settings_desc_remote">Dock pins, long presses and the remote’s layout</string>
+    <string name="settings_desc_display">Theme, dark room, vibration and key sounds</string>
+    <string name="settings_desc_sync">The same layout and settings on every phone</string>
+    <string name="settings_desc_advanced">Developer mode, diagnostics and technical details</string>
+    <string name="dash_unlocks">Features</string>
+    <string name="dash_progress">%1$d of %2$d set up</string>
+    <string name="dash_next">Next: %1$s</string>
+    <string name="dash_link_words">%1$s: %2$s</string>
+    <string name="dash_sync_waiting">Waiting for the storage app</string>
+    <string name="dash_action_check">Check</string>
+    <string name="sync_age_now">just now</string>
+    <plurals name="sync_age_minutes">
+        <item quantity="one">%d min ago</item>
+        <item quantity="other">%d min ago</item>
     </plurals>
-    <string name="settings_line_no_pins">No pins</string>
-    <plurals name="settings_line_pins">
-        <item quantity="one">%1$d pin</item>
-        <item quantity="other">%1$d pins</item>
+    <plurals name="sync_age_hours">
+        <item quantity="one">%d h ago</item>
+        <item quantity="other">%d h ago</item>
     </plurals>
-    <string name="settings_line_no_long_press">no long press set</string>
-    <plurals name="settings_line_long_presses">
-        <item quantity="one">%1$d long press set</item>
-        <item quantity="other">%1$d long presses set</item>
+    <plurals name="sync_age_days">
+        <item quantity="one">%d day ago</item>
+        <item quantity="other">%d days ago</item>
     </plurals>
-    <string name="settings_line_theme_system">System theme</string>
-    <string name="settings_line_theme_light">Light theme</string>
-    <string name="settings_line_theme_dark">Dark theme</string>
-    <string name="settings_line_true_black">true black</string>
-    <string name="settings_line_dark_room">dark room on</string>
-    <string name="settings_line_vibration_on">vibration on</string>
-    <string name="settings_line_vibration_essentials">vibration for essentials</string>
-    <string name="settings_line_vibration_off">vibration off</string>
-    <string name="settings_line_key_sounds">key sounds on</string>
-    <string name="settings_line_developer_off">Developer mode off</string>
-    <string name="settings_line_developer_on">Developer mode on · diagnostic, technical details</string>
 </resources>

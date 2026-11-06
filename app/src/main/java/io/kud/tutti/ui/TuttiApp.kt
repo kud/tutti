@@ -67,6 +67,7 @@ import io.kud.tutti.ui.settings.DiagnosticScreen
 import io.kud.tutti.ui.settings.SettingsCategory
 import io.kud.tutti.ui.settings.SettingsMenu
 import io.kud.tutti.ui.settings.SettingsPageScreen
+import io.kud.tutti.ui.settings.DashAction
 import io.kud.tutti.ui.settings.SettingsScreen
 import io.kud.tutti.ui.settings.TechnicalScreen
 import io.kud.tutti.ui.settings.TvPage
@@ -379,7 +380,6 @@ fun TuttiApp(
                             onOpenScenes = { push(Screen.Scenes) },
                             onOpenSettings = { push(Screen.Settings) },
                             onEditScene = { push(Screen.SceneEditor(it)) },
-                            onAddBar = { push(Screen.Onboarding(barOnly = true, cancellable = true)) },
                             onConnectionStep = { step ->
                                 // IP control's home is its checklist step: the TV's menu path and tutti's
                                 // own field for the key; a computer's pairing is its row in Settings › Devices.
@@ -408,6 +408,11 @@ fun TuttiApp(
                             state = state,
                             onBack = ::pop,
                             onOpen = { push(SettingsRoutes.category(it)) },
+                            onTile = { push(SettingsRoutes.tile(it, hasTv = state.devices.tv != null, hasBar = state.devices.bar != null)) },
+                            onDashAction = { action ->
+                                if (action == DashAction.PAIR_TV) controller.resetPairing()
+                                push(SettingsRoutes.dashAction(action))
+                            },
                         )
                         is Screen.SettingsPage -> SettingsPageScreen(
                             category = screen.category,

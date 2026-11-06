@@ -5,7 +5,7 @@
     <string name="sync_line_off">Off</string>
     <string name="sync_line_on">On</string>
     <string name="sync_line_paused">Paused</string>
-    <string name="sync_line_problem">Can’t reach the sync file · tap to check</string>
+    <string name="sync_line_problem">Can’t reach the sync file</string>
     <string name="sync_intro">Your settings on every phone. tutti keeps them in one file, in a Google Drive folder or any storage app you choose. That app does the uploading; tutti never goes online for this.</string>
     <string name="sync_create">Create a sync file</string>
     <string name="sync_create_detail">On your first phone: this phone’s settings fill it</string>

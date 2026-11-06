@@ -67,7 +67,7 @@ private fun linkName(link: ConnLink): String = stringResource(
 )
 
 @Composable
-private fun stateWords(words: ConnWords): String = stringResource(
+internal fun stateWords(words: ConnWords): String = stringResource(
     when (words) {
         ConnWords.CONNECTED -> R.string.conn_connected
         ConnWords.CONNECTING -> R.string.conn_connecting
