@@ -2,6 +2,8 @@ package io.kud.tutti.ui.settings
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
@@ -29,10 +31,14 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.Hyphens
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.kud.tutti.R
 import io.kud.tutti.ui.remote.ConnLink
+import io.kud.tutti.ui.common.NeedsYouSurface
 import io.kud.tutti.ui.common.StatusAction
+import io.kud.tutti.ui.common.StatusGlyphSize
+import io.kud.tutti.ui.common.actionBeside
 import io.kud.tutti.ui.common.StatusGap
 import io.kud.tutti.ui.common.StatusGlyph
 import io.kud.tutti.ui.common.StatusWords
@@ -78,13 +84,21 @@ private fun Tile(item: DashItem, onTile: (DashTile) -> Unit, onAction: (DashActi
         onClick = { onTile(item.tile) },
         modifier = modifier.heightIn(min = 72.dp),
         shape = TileShape,
-        color = if (needs) colors.surfaceContainerHighest else colors.surfaceContainer,
+        color = if (needs) NeedsYouSurface() else colors.surfaceContainer,
         border = if (needs) BorderStroke(1.5.dp, colors.outline) else null,
     ) {
         // Half a phone is too narrow for "Synchronisation" beside an icon (Erwann, 2026-11-06: no
         // cut tile names), so a half tile wears its icon on top and gives the name its whole width;
         // a name that still can't fit, at a large font size, breaks with a hyphen, never an ellipsis.
-        Row(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = if (needs) Alignment.CenterVertically else Alignment.Top) {
+        // The action beside the words while they fit in two lines there, else under them (design.md › Status).
+        val action = item.action.takeIf { needs }
+        val label = action?.let { actionLabel(it) }
+        val words = tileWords(item.words)
+        // Only a tile with an action measures itself: the half tiles sit in an intrinsic-height row,
+        // which a BoxWithConstraints can't answer.
+        WithActionRoom(label != null, Modifier.padding(horizontal = 14.dp, vertical = 12.dp)) { width ->
+        val beside = label != null && width != null && actionBeside(item.mark, words, label, width - if (wide) 36.dp else 0.dp)
+        Row(verticalAlignment = if (needs && (beside || label == null)) Alignment.CenterVertically else Alignment.Top) {
             if (wide) {
                 Icon(painterResource(tileIcon(item.tile)), contentDescription = null, modifier = Modifier.size(24.dp))
                 Spacer(Modifier.width(12.dp))
@@ -106,22 +120,32 @@ private fun Tile(item: DashItem, onTile: (DashTile) -> Unit, onAction: (DashActi
                     Spacer(Modifier.width(StatusGap))
                     StatusWords(
                         item.mark,
-                        tileWords(item.words),
+                        words,
                         capability = (item.words as? DashWords.Progress)?.next?.let { stringResource(R.string.dash_next, stringResource(unlockTitle(it))) },
                         wordsLines = if (needs) 3 else 2,
                     )
                 }
+                if (action != null && label != null && !beside) {
+                    Spacer(Modifier.height(8.dp))
+                    StatusAction(label, onClick = { onAction(action) }, modifier = Modifier.padding(start = StatusGlyphSize + StatusGap))
+                }
             }
-            val action = item.action
-            if (needs && action != null) {
+            if (action != null && label != null && beside) {
                 Spacer(Modifier.width(12.dp))
-                StatusAction(actionLabel(action), onClick = { onAction(action) })
+                StatusAction(label, onClick = { onAction(action) })
             }
+        }
         }
     }
 }
 
 private val TileShape = RoundedCornerShape(16.dp)
+
+/** Gives [content] its width only when [measure] is set; otherwise lays it out plainly (null). */
+@Composable
+private fun WithActionRoom(measure: Boolean, modifier: Modifier, content: @Composable (Dp?) -> Unit) {
+    if (measure) BoxWithConstraints(modifier) { content(maxWidth) } else Box(modifier) { content(null) }
+}
 
 private fun tileIcon(tile: DashTile): Int = when (tile) {
     DashTile.TV -> R.drawable.ic_tv

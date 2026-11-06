@@ -40,7 +40,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.kud.tutti.R
 import io.kud.tutti.protocol.devices.DeviceKind
-import io.kud.tutti.ui.common.StatusAction
 import io.kud.tutti.ui.common.StatusLine
 import io.kud.tutti.ui.common.TuttiSheet
 
@@ -234,6 +233,7 @@ fun LinkLine(kind: DeviceKind, line: ConnLine, focused: Boolean = false, start: 
         capability = gives(kind, line.link),
         said = stringResource(R.string.conn_line_said, linkName(line.link), stateWords(line.words), gives(kind, line.link)),
         modifier = Modifier.bringIntoViewRequester(bring).padding(start = start, end = 12.dp),
-        action = line.action?.takeIf { onAction != null }?.let { action -> { StatusAction(actionLabel(action), onClick = { onAction?.invoke(action) }) } },
+        actionLabel = line.action?.takeIf { onAction != null }?.let { actionLabel(it) },
+        onAction = line.action?.let { action -> onAction?.let { { it(action) } } },
     )
 }
