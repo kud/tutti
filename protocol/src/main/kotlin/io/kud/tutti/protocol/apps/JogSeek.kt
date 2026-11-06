@@ -10,7 +10,8 @@ import kotlin.math.sign
  * forward or rewind, which YouTube and most players turn into 2x, 3x scrubbing.
  *
  * - [forward] / [back]: the keys of one jump. D-pad Right / Left during playback is Android TV's
- *   own rule for "+N / −N seconds" (developer.android.com/training/tv/playback/controls). The skip
+ *   own rule for "+N / −N seconds" (developer.android.com/training/tv/playback/controls). Fast
+ *   forward and rewind only for an app whose source shows them as a fixed jump (Nuvio). The skip
  *   keys (272 / 273) are not used: the platform `MediaSession` ignores them by default, and
  *   Media3's default turns them into next / previous item, a jump to another video.
  * - [seconds]: the app's jump per key when known, else null and the readout counts jumps.
@@ -35,13 +36,29 @@ data class SeekStep(
  * with "about"; any other app gets the same keys and a count of jumps. None is marked
  * [SeekStep.revealFirst] yet: flip it for an app once the BRAVIA shows its first press only
  * brings the bar up.
+ *
+ * Nuvio is the one app whose step is read from its own source (NuvioMedia/NuvioTV,
+ * `PlayerScreen.kt` and `PlayerScrubRates.kt`, the same in 1.0.0 and on main in 2026-11): fast
+ * forward and rewind are a fixed `STEP_SHORT_MS` (10 s) jump per press, never a speed, whether
+ * the player's controls show or not. Its D-pad Left / Right seeks only while the controls are
+ * hidden and moves focus otherwise, so the wheel sends the media keys there. The step grows only
+ * with a held key's repeat count, which a one-shot Remote v2 press never has.
  */
 object SeekSteps {
     private val tenSeconds = SeekStep(seconds = 10)
+    private val nuvio = SeekStep(
+        forward = V2Key.MEDIA_FAST_FORWARD,
+        back = V2Key.MEDIA_REWIND,
+        seconds = 10,
+        documented = true,
+    )
     private val known = mapOf(
         "com.google.android.youtube.tv" to tenSeconds,
         "com.netflix.ninja" to tenSeconds,
         "com.amazon.amazonvideo.livingroom" to tenSeconds,
+        // Nuvio's GitHub build and its Play Store flavour.
+        "com.nuvio.tv" to nuvio,
+        "com.nuvio.app" to nuvio,
     )
 
     val DEFAULT = SeekStep()
