@@ -22,7 +22,7 @@ class JogSeekTest {
     }
 
     @Test
-    fun `the wheel never sends a speed key`() {
+    fun `the wheel never sends a speed key where it is one`() {
         for (pkg in listOf("com.google.android.youtube.tv", "com.netflix.ninja", "com.amazon.amazonvideo.livingroom", "x.y", null)) {
             val step = SeekSteps.forPackage(pkg)
             for (key in listOf(step.key(1), step.key(-1))) {
@@ -36,7 +36,24 @@ class JogSeekTest {
     }
 
     @Test
-    fun `known apps read seconds, others count jumps, and none claims a documented step`() {
+    fun `nuvio jumps by its fixed fast forward and rewind step, read from its source`() {
+        for (pkg in listOf("com.nuvio.tv", "com.nuvio.app")) {
+            val step = SeekSteps.forPackage(pkg)
+            assertEquals(V2Key.MEDIA_FAST_FORWARD, step.key(1), pkg)
+            assertEquals(V2Key.MEDIA_REWIND, step.key(-1), pkg)
+            assertEquals(10, step.seconds, pkg)
+            assertTrue(step.documented, pkg)
+            // Its media keys seek whether the controls show or not: no press is spent on them.
+            assertFalse(step.revealFirst, pkg)
+        }
+        val seek = JogSeek(SeekSteps.forPackage("com.nuvio.tv"))
+        repeat(2) { seek.turn(-1, 0) }
+        assertEquals(List(2) { V2Key.MEDIA_REWIND }, seek.drain(0, 1_000).map { it.second })
+        assertEquals(JogReadout(jumps = -2, seconds = -20, approximate = false, revealed = false), seek.readout(1_000))
+    }
+
+    @Test
+    fun `known apps read seconds, others count jumps, and only nuvio claims a documented step`() {
         assertEquals(10, SeekSteps.forPackage("com.google.android.youtube.tv").seconds)
         assertEquals(10, SeekSteps.forPackage("com.netflix.ninja").seconds)
         assertNull(SeekSteps.forPackage("org.example.player").seconds)
