@@ -1021,18 +1021,23 @@ fun RemoteScreen(
             onDismiss = { playbackFor = null },
             cast = castNowPlaying,
             onScrub = { code -> sendKey(code) },
-            appShortcuts = playbackShortcuts(liveCard?.takeIf(::cardOpensPlayback) ?: opened)?.let { shortcuts ->
-                {
-                    val reason = controlLinkReason(state.controlLink(Owner.TV), Owner.TV, state)
-                    PlaybackChipRow(Modifier.fillMaxWidth()) {
-                        for (shortcut in shortcuts) {
-                            ShortcutChip(shortcut, reason) {
-                                haptics.click()
-                                controller.openAppLink(it.link)
-                                playbackFor = null
-                            }
+            appShortcuts = {
+                val showing = liveCard?.takeIf(::cardOpensPlayback) ?: opened
+                val reason = controlLinkReason(state.controlLink(Owner.TV), Owner.TV, state)
+                val sendAndClose: (Int) -> Unit = { code ->
+                    haptics.click()
+                    sheetKey(code) { playbackFor = null }
+                }
+                PlaybackChipRow(Modifier.fillMaxWidth()) {
+                    if (inAppSearchKey(showing)) InAppSearchChip(reason, sendAndClose)
+                    for (shortcut in playbackShortcuts(showing).orEmpty()) {
+                        ShortcutChip(shortcut, reason) {
+                            haptics.click()
+                            controller.openAppLink(it.link)
+                            playbackFor = null
                         }
                     }
+                    GlobalSearchChip(reason, sendAndClose)
                 }
             },
         )

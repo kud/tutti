@@ -154,3 +154,21 @@ fun playbackShortcuts(showing: CardShowing): List<io.kud.tutti.protocol.apps.App
     val app = (showing as? CardShowing.Showing)?.now as? NowShowing.App ?: return null
     return io.kud.tutti.protocol.apps.AppShortcuts.forPackage(app.packageName).ifEmpty { null }
 }
+
+/**
+ * Whether the playback sheet offers "search in this app" as the Search key (Erwann, 2026-11-06:
+ * « que je puisse aller à la recherche directement »): any app in front without its own search
+ * link. Android hands KEYCODE_SEARCH to the app first; one that has no search lets the system
+ * open Google TV's own, so the press is never wasted. Unverified per app on the BRAVIA.
+ */
+fun inAppSearchKey(showing: CardShowing): Boolean {
+    val app = (showing as? CardShowing.Showing)?.now as? NowShowing.App ?: return false
+    return io.kud.tutti.protocol.apps.AppShortcut.SEARCH !in
+        io.kud.tutti.protocol.apps.AppShortcuts.forPackage(app.packageName)
+}
+
+/**
+ * The sheet's whole-TV search, the Assistant key (219): Google TV's search over whatever is on
+ * screen, typed with tutti's keyboard or spoken; Back returns to the app. Offered whatever the TV shows.
+ */
+const val GLOBAL_SEARCH_KEY: Int = V2Key.ASSIST

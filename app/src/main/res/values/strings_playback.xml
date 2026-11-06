@@ -37,6 +37,8 @@
         <item quantity="one">%1$d skip back</item>
         <item quantity="other">%1$d skips back</item>
     </plurals>
+    <string name="shortcut_search_tv">Search the TV</string>
+    <string name="shortcut_search">Search</string>
     <string name="shortcut_subscriptions">Subscriptions</string>
     <string name="shortcut_history">History</string>
     <string name="shortcut_library">Library</string>
