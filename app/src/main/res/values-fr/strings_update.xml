@@ -9,7 +9,7 @@
     <string name="update_download_install">Télécharger et installer</string>
     <string name="update_downloading">Téléchargement…</string>
     <string name="update_downloading_percent">Téléchargement : %1$d %%</string>
-    <string name="update_installing">Android va vous demander de confirmer. L’app se fermera ensuite pour se mettre à jour.</string>
+    <string name="update_installing">Android va vous demander de confirmer. L’app se fermera ensuite pour se mettre à jour, et une notification vous y ramènera.</string>
     <string name="update_permission_title">Android a besoin de votre accord pour installer des mises à jour depuis cette app.</string>
     <string name="update_permission_detail">Ouvrez le réglage, activez « Autoriser cette source », puis revenez ici. Android ne le demande qu’une fois.</string>
     <string name="update_permission_open">Ouvrir le réglage</string>
@@ -30,4 +30,9 @@
     <!-- Stable or test builds (2026-11-06). -->
     <string name="update_channel_test">Recevoir les versions de test</string>
     <string name="update_channel_test_detail">Plus récentes, moins éprouvées. Les désactiver ne revient pas en arrière : Android n’installe pas une version plus ancienne, l’app attend la prochaine version finale.</string>
+    <!-- Après une mise à jour lancée par l’app (docs/design.md, "Updates"). -->
+    <string name="update_done_title">%1$s a été mis à jour</string>
+    <string name="update_done_text">Version %1$s. Touchez pour ouvrir la télécommande.</string>
+    <string name="update_done_channel">Mises à jour</string>
+    <string name="update_done_channel_description">Une notification discrète après une mise à jour, pour rouvrir la télécommande.</string>
 </resources>

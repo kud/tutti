@@ -206,7 +206,10 @@ class Updater @Inject constructor(@ApplicationContext private val context: Conte
             return
         }
         _state.value = UpdateState.Installing(update)
+        // Read back by UpdatedReceiver in the new process, so only this install is announced.
+        UpdatedNotice.expect(context, update.version.toString())
         runCatching { commit(file) }.onFailure {
+            UpdatedNotice.forget(context)
             _state.value = UpdateState.Failed(UpdateProblem.INSTALL, update, it.message)
         }
     }
@@ -218,6 +221,7 @@ class Updater @Inject constructor(@ApplicationContext private val context: Conte
     /** The install session ended without installing (cancelled or refused): say so, keep the file to retry. */
     internal fun onInstallFinished(status: Int, message: String?) {
         val update = (state.value as? UpdateState.Installing)?.update
+        if (status != PackageInstaller.STATUS_SUCCESS) UpdatedNotice.forget(context)
         _state.value = when (status) {
             PackageInstaller.STATUS_SUCCESS -> UpdateState.UpToDate
             PackageInstaller.STATUS_FAILURE_ABORTED ->

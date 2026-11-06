@@ -165,7 +165,7 @@ abstract class DistributionCheck : DefaultTask() {
     }
 
     private companion object {
-        val UPDATER_MARKS = listOf("android.permission.REQUEST_INSTALL_PACKAGES", "platform.update.UpdateInstallReceiver")
+        val UPDATER_MARKS = listOf("android.permission.REQUEST_INSTALL_PACKAGES", "platform.update.UpdateInstallReceiver", "platform.update.UpdatedReceiver")
     }
 }
 
