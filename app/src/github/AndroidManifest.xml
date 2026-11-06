@@ -10,5 +10,14 @@
         <receiver
             android:name=".platform.update.UpdateInstallReceiver"
             android:exported="false" />
+        <!-- After an update the updater started: "tutti was updated", one tap back (platform/update).
+             Not exported: MY_PACKAGE_REPLACED comes from the system, which reaches it anyway. -->
+        <receiver
+            android:name=".platform.update.UpdatedReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>

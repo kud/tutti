@@ -10,7 +10,7 @@
     <string name="update_download_install">Download and install</string>
     <string name="update_downloading">Downloading…</string>
     <string name="update_downloading_percent">Downloading: %1$d%%</string>
-    <string name="update_installing">Android will ask you to confirm. The app then closes to update.</string>
+    <string name="update_installing">Android will ask you to confirm. The app then closes to update, and a notification brings you back.</string>
     <string name="update_permission_title">Android needs your permission to install updates from this app.</string>
     <string name="update_permission_detail">Open the setting, turn on “Allow from this source”, then come back here. Android asks only once.</string>
     <string name="update_permission_open">Open the setting</string>
@@ -32,4 +32,9 @@
     <!-- Stable or test builds (2026-11-06). -->
     <string name="update_channel_test">Get test builds</string>
     <string name="update_channel_test_detail">Newer, less tested. Turning it off doesn’t go back: Android won’t install an older build, so this one stays until the next final release.</string>
+    <!-- After an update the updater started (docs/design.md, "Updates"). -->
+    <string name="update_done_title">%1$s was updated</string>
+    <string name="update_done_text">Version %1$s. Tap to open the remote.</string>
+    <string name="update_done_channel">Updates</string>
+    <string name="update_done_channel_description">One quiet notification after an update, to open the remote again.</string>
 </resources>

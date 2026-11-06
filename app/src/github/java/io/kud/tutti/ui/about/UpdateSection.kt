@@ -133,6 +133,8 @@ fun UpdateCheckEffect(onRemote: () -> Boolean, editing: () -> Boolean, onInstall
     val messages = LocalMessages.current
     val scope = rememberCoroutineScope()
     androidx.lifecycle.compose.LifecycleStartEffect(updater) {
+        // Back in front: "tutti was updated" has done its job.
+        io.kud.tutti.platform.update.UpdatedNotice.cancel(context)
         val job = scope.launch {
             kotlinx.coroutines.delay(3_000)
             val update = updater.checkIfDue() ?: return@launch
