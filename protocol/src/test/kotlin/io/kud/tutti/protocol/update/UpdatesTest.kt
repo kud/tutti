@@ -213,7 +213,7 @@ class UpdatesTest {
         assertEquals(v("0.2.4"), ReleaseFeed.pickUpdate(v("0.2.3"), mixed, Flavour.RELEASE, UpdateChannel.STABLE)?.version)
         // A dev build switched to stable gets the next final above it, never an older one.
         assertEquals(v("0.2.4"), ReleaseFeed.pickUpdate(v("0.2.4-dev.5"), mixed, Flavour.RELEASE, UpdateChannel.STABLE)?.version)
-        assertNull(ReleaseFeed.pickUpdate(v("0.2.4-dev.12"), mixed.drop(1), Flavour.RELEASE, UpdateChannel.STABLE), "no downgrade to 0.2.3")
+        assertNull(ReleaseFeed.pickUpdate(v("0.2.5-dev.1"), mixed, Flavour.RELEASE, UpdateChannel.STABLE), "no downgrade to 0.2.4")
         assertNull(ReleaseFeed.pickUpdate(v("0.2.4"), mixed, Flavour.RELEASE, UpdateChannel.STABLE), "only a dev build is newer")
     }
 
