@@ -1,6 +1,7 @@
 package io.kud.tutti.ui.common
 
 import androidx.annotation.DrawableRes
+import androidx.annotation.VisibleForTesting
 import io.kud.tutti.R
 import io.kud.tutti.protocol.atv.AppCatalog
 
@@ -64,17 +65,58 @@ private val faces: Map<String, BrandFace?> = mapOf(
     "tf1" to playIcon(R.drawable.play_tf1plus, 0xFF1937FF),
     "m6" to playIcon(R.drawable.play_m6plus, 0xFF000000),
     "arte" to playIcon(R.drawable.play_arte, 0xFFFC4700),
+    // Play Store icons for TV apps outside the catalog (2026-11-06), keyed in [tvOnly] below.
+    "channel5" to playIcon(R.drawable.play_channel5, 0xFF1F467D),
+    "bbciplayer" to playIcon(R.drawable.play_bbciplayer, 0xFF000000),
+    "bbcsounds" to playIcon(R.drawable.play_bbcsounds, 0xFF340100),
+    "calman" to playIcon(R.drawable.play_calman, 0xFF4B646B),
+    "amazonmusic" to playIcon(R.drawable.play_amazonmusic, 0xFF44EAF2),
+    "tubi" to playIcon(R.drawable.play_tubi, 0xFF8001D8),
+    "plutotv" to playIcon(R.drawable.play_plutotv, 0xFFFFF200),
+    "rakutentv" to playIcon(R.drawable.play_rakutentv, 0xFFBF0000),
+    "sonypicturescore" to playIcon(R.drawable.play_sonypicturescore, 0xFFFFFFFF),
+    "dazn" to playIcon(R.drawable.play_dazn, 0xFF080E12),
+    "now" to playIcon(R.drawable.play_now, 0xFF054A4F),
+    "uktv" to playIcon(R.drawable.play_uktv, 0xFF111832),
+    "discoveryplus" to playIcon(R.drawable.play_discoveryplus, 0xFF050F3F),
+    "redbulltv" to playIcon(R.drawable.play_redbulltv, 0xFF00162B),
+    "skynews" to playIcon(R.drawable.play_skynews, 0xFFFFFFFF),
+    "zdf" to playIcon(R.drawable.play_zdf, 0xFF131B22),
+    "ard" to playIcon(R.drawable.play_ard, 0xFF003480),
 )
 
 /**
- * TV packages outside [AppCatalog] that carry a brand above, as the TV's diagnostic reported them
- * (2026-10-27). The BRAVIA's UK broadcaster tiles are Sony's own launcher wrappers, not the
- * broadcasters' packages, so they are keyed here rather than in the catalog.
+ * TV packages outside [AppCatalog] that carry a brand above. The first three are as the TV's
+ * diagnostic reported them (2026-10-27): the BRAVIA's Channel 4 and ITVX tiles are Sony's own
+ * launcher wrappers, not the broadcasters' packages. The rest (2026-11-06) are each app's Android TV
+ * package, its Google Play listing (gl=GB) showing "TV" among its devices. Keyed here rather than in
+ * the catalog so an app the TV doesn't carry never joins the Apps grid, and a wrapper never shows
+ * twice. Package only, never a title; a Sony wrapper not listed here keeps its letter.
  */
-private val tvOnly: Map<String, String> = mapOf(
+@VisibleForTesting
+internal val tvOnly: Map<String, String> = mapOf(
     "com.sony.dtv.all4launcher" to "channel4",
     "com.sony.dtv.itvlauncher" to "itvx",
     "org.localsend.localsend_app" to "localsend",
+    "com.channel4.ondemand" to "channel4",
+    "air.ITVMobilePlayer" to "itvx",
+    "com.channel5.my5" to "channel5",
+    "bbc.iplayer.android" to "bbciplayer",
+    "uk.co.bbc.sounds" to "bbcsounds",
+    "com.sony.dtv.calibrationmonitor" to "calman",
+    "com.amazon.music.tv" to "amazonmusic",
+    "com.tubitv" to "tubi",
+    "tv.pluto.android" to "plutotv",
+    "tv.wuaki.apptv" to "rakutentv",
+    "com.sonypicturescore" to "sonypicturescore",
+    "com.dazn" to "dazn",
+    "com.bskyb.nowtv.beta" to "now",
+    "uk.co.uktv.dave" to "uktv",
+    "com.discovery.dplay" to "discoveryplus",
+    "com.nousguide.android.rbtv" to "redbulltv",
+    "com.sky.news.androidtv" to "skynews",
+    "com.zdf.android.mediathek" to "zdf",
+    "de.swr.avp.ard.tv" to "ard",
 )
 
 /**
@@ -97,7 +139,6 @@ fun brandFace(packageName: String?, name: String? = null): BrandFace? {
 @DrawableRes
 fun systemSymbol(packageName: String?): Int? = when (packageName) {
     "com.sony.dtv.notificationcenter" -> R.drawable.ic_notifications
-    "com.sony.dtv.calibrationmonitor" -> R.drawable.ic_tune
     "com.sony.dtv.smarthelp" -> R.drawable.ic_help
     "com.sony.dtv.ecodashboard" -> R.drawable.ic_bolt
     "com.vewd.core.browser" -> R.drawable.ic_language
