@@ -1,5 +1,6 @@
 package io.kud.tutti.ui.remote
 
+import io.kud.tutti.ui.common.Status
 import io.kud.tutti.controller.Link
 import io.kud.tutti.controller.TvShown
 import io.kud.tutti.platform.bluetooth.HidPhase
@@ -54,7 +55,7 @@ class ConnectionsTest {
         // Same word as the TV's lines, and no button: tutti can't wake a bar that is off the network.
         assertEquals(listOf(ConnLine(ConnLink.NETWORK, ConnWords.UNREACHABLE)), bar.lines)
         assertEquals(ConnWords.UNREACHABLE, line(room.copy(tvShown = TvShown(Link.UNREACHABLE)), "tv", ConnLink.GOOGLE_TV).words)
-        assertEquals(ConnMark.PROBLEM, bar.lines.single().words.mark)
+        assertEquals(Status.NEEDS_YOU, bar.lines.single().words.mark)
         assertEquals(ConnNote.BAR_OFF_NETWORK, bar.note)
         assertEquals(ConnFocus("bar", ConnLink.NETWORK), problemLine(connections(off)))
         // Network / Bluetooth standby known on: standby isn't the likely cause.
@@ -170,7 +171,7 @@ class ConnectionsTest {
     @Test
     fun anotherAppHoldingBluetoothIsAProblemWithNoStep() {
         val busy = line(room.copy(hidPhase = HidPhase.BUSY), "work", ConnLink.BLUETOOTH)
-        assertEquals(ConnMark.PROBLEM, busy.words.mark)
+        assertEquals(Status.NEEDS_YOU, busy.words.mark)
         assertNull(busy.action)
     }
 

@@ -1,5 +1,9 @@
 package io.kud.tutti.ui.settings
 
+import io.kud.tutti.protocol.devices.DeviceKind
+import io.kud.tutti.ui.remote.LinkLine
+import io.kud.tutti.ui.remote.connInput
+import io.kud.tutti.ui.remote.connections
 import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.kud.tutti.platform.bluetooth.HidLink
@@ -262,6 +266,9 @@ private fun DevicesPage(state: TuttiUiState, controller: TuttiController, onPair
 
     val tv = state.devices.tv
     val bar = state.devices.bar
+    // Each link's status in the shared language, the very lines « Connexions » shows (design.md › Status).
+    val links = target?.let { t -> connections(connInput(state, t)) }
+    fun linesOf(kind: DeviceKind) = links?.firstOrNull { it.kind == kind }?.lines
     SettingsGroup(null, Modifier.padding(top = 8.dp)) {
         if (tv != null) {
             val ipRenew = !state.pskSet && state.ipCode == IpCodeStatus.RENEW
@@ -269,12 +276,13 @@ private fun DevicesPage(state: TuttiUiState, controller: TuttiController, onPair
                 title = tv.name,
                 icon = R.drawable.ic_tv,
                 // Links in words (Erwann, 2026-10-25): "Google TV connected · IP control not set up".
-                detail = listOfNotNull(
+                detail = if (linesOf(DeviceKind.TV) != null) null else listOfNotNull(
                     stringResource(R.string.devices_tv_status, linkLabel(state.links.tv), linkLabel(state.links.rest)),
                     stringResource(R.string.devices_bt_paired).takeIf { target?.list?.tv?.bluetooth != null },
                     stringResource(R.string.ipc_row_renew).takeIf { ipRenew },
                 ).joinToString(" · "),
                 footer = {
+                    linesOf(DeviceKind.TV)?.forEach { LinkLine(DeviceKind.TV, it, start = 0.dp, onAction = null) }
                     DeviceActions {
                         TextButton(onClick = onPair) { Text(stringResource(R.string.settings_pair_again)) }
                         // The code on the TV first, the PSK inside (Erwann, 2026-10-25).
@@ -297,8 +305,9 @@ private fun DevicesPage(state: TuttiUiState, controller: TuttiController, onPair
             SettingsRow(
                 title = bar.name,
                 icon = R.drawable.ic_speaker,
-                detail = stringResource(R.string.devices_bar_status, linkLabel(state.links.bar)),
+                detail = stringResource(R.string.devices_bar_status, linkLabel(state.links.bar)).takeIf { linesOf(DeviceKind.SOUNDBAR) == null },
                 footer = {
+                    linesOf(DeviceKind.SOUNDBAR)?.forEach { LinkLine(DeviceKind.SOUNDBAR, it, start = 0.dp, onAction = null) }
                     DeviceActions {
                         TextButton(onClick = { forget = Forget.BAR }) { Text(stringResource(R.string.settings_forget)) }
                     }

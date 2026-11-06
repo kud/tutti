@@ -1,5 +1,6 @@
 package io.kud.tutti.ui.remote
 
+import io.kud.tutti.ui.common.Status
 import io.kud.tutti.controller.IpCodeStatus
 import io.kud.tutti.controller.Link
 import io.kud.tutti.controller.TargetState
@@ -18,7 +19,7 @@ import io.kud.tutti.protocol.theatre.TheatreFeature
  */
 enum class ConnLink { GOOGLE_TV, SONY_IP, NETWORK, BLUETOOTH }
 
-/** A link's state in words. Each maps to one glyph ([ConnMark]), never to a colour alone. */
+/** A link's state in words. Each maps to one of tutti's six statuses ([Status], design.md › Status), never to a colour alone. */
 enum class ConnWords {
     CONNECTED,
     CONNECTING,
@@ -49,17 +50,15 @@ enum class ConnWords {
     MOVED,
     ;
 
-    val mark: ConnMark get() = when (this) {
-        CONNECTED -> ConnMark.OK
-        CONNECTING, RECONNECTING -> ConnMark.WORKING
-        STANDBY -> ConnMark.ASLEEP
-        READY, NOT_SET_UP, NOT_PAIRED, NOT_ADDED -> ConnMark.TODO
-        UNREACHABLE, KEY_REFUSED, CODE_TO_RENEW, NEEDS_PAIRING, BLUETOOTH_OFF, NEEDS_PERMISSION, BUSY, MOVED -> ConnMark.PROBLEM
+    val mark: Status get() = when (this) {
+        CONNECTED -> Status.OK
+        CONNECTING, RECONNECTING -> Status.WORKING
+        STANDBY -> Status.STANDBY
+        READY, NOT_SET_UP, NOT_PAIRED, NOT_ADDED -> Status.NOT_YET
+        UNREACHABLE, KEY_REFUSED, CODE_TO_RENEW, NEEDS_PAIRING, BLUETOOTH_OFF, NEEDS_PERMISSION, BUSY, MOVED -> Status.NEEDS_YOU
     }
 }
 
-/** The glyph beside a link: ✓ connected, ↻ on its way, ☾ standby, ○ not yet, ⚠ needs a look. */
-enum class ConnMark { OK, WORKING, ASLEEP, TODO, PROBLEM }
 
 /** The one next step a link that doesn't work offers. */
 enum class ConnAction {
@@ -358,8 +357,8 @@ fun problemLine(devices: List<ConnDevice>): ConnFocus? {
     val room = devices.filter { it.kind != DeviceKind.COMPUTER }
     fun pick(match: (ConnDevice, ConnLine) -> Boolean): ConnFocus? =
         room.firstNotNullOfOrNull { d -> d.lines.firstOrNull { match(d, it) }?.let { ConnFocus(d.id, it.link) } }
-    return pick { _, l -> l.words.mark == ConnMark.PROBLEM && l.action != null }
-        ?: pick { _, l -> l.words.mark == ConnMark.PROBLEM }
+    return pick { _, l -> l.words.mark == Status.NEEDS_YOU && l.action != null }
+        ?: pick { _, l -> l.words.mark == Status.NEEDS_YOU }
         ?: pick { d, l -> l.words == ConnWords.NOT_SET_UP || (l.words == ConnWords.NOT_ADDED && d.kind == DeviceKind.TV) }
-        ?: pick { _, l -> l.words.mark == ConnMark.WORKING }
+        ?: pick { _, l -> l.words.mark == Status.WORKING }
 }

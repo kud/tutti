@@ -3,7 +3,6 @@
     <!-- The Connections sheet, from the device pill (Erwann, 2026-10-25). -->
     <string name="conn_title">Connections</string>
     <string name="conn_target">The remote controls %1$s</string>
-    <string name="conn_targeted_tag">Keys go here</string>
     <string name="conn_device_targeted">%1$s, the remote\'s keys go here</string>
     <string name="conn_device_tv">TV</string>
     <string name="conn_device_bar">Soundbar</string>

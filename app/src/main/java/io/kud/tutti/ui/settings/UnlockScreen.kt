@@ -50,18 +50,17 @@ import io.kud.tutti.controller.Link
 import io.kud.tutti.controller.TuttiController
 import io.kud.tutti.controller.TuttiUiState
 import io.kud.tutti.ui.common.SettingsGroup
+import io.kud.tutti.ui.common.Status
+import io.kud.tutti.ui.common.StatusGlyph
 import io.kud.tutti.ui.onboarding.IpControlDialog
 
-/** The glyph and word for each status: the state reads in shape and words, never colour alone. */
-@DrawableRes
-fun statusIcon(status: UnlockStatus): Int = when (status) {
-    UnlockStatus.DONE -> R.drawable.ic_check_circle
-    UnlockStatus.TODO -> R.drawable.ic_circle_outline
-    UnlockStatus.ATTENTION -> R.drawable.ic_warning
-    UnlockStatus.CHECKING -> R.drawable.ic_refresh
-    UnlockStatus.BLOCKED -> R.drawable.ic_lock
-    UnlockStatus.UNKNOWN -> R.drawable.ic_help
-    UnlockStatus.COMING -> R.drawable.ic_timer
+/** Each step's status in tutti's one status language (design.md › Status); its word stays its own. */
+val UnlockStatus.status: Status get() = when (this) {
+    UnlockStatus.DONE -> Status.OK
+    UnlockStatus.TODO -> Status.NOT_YET
+    UnlockStatus.ATTENTION -> Status.NEEDS_YOU
+    UnlockStatus.CHECKING -> Status.WORKING
+    UnlockStatus.BLOCKED, UnlockStatus.UNKNOWN, UnlockStatus.COMING -> Status.UNAVAILABLE
 }
 
 @StringRes
@@ -214,27 +213,10 @@ private fun StepRow(item: UnlockItem, expanded: Boolean, onToggle: () -> Unit, b
     }
 }
 
-/**
- * A done step gets the filled disc in the primary container with a tick; everything else the
- * quiet tonal disc. The glyph's shape carries the meaning, the fill only adds emphasis.
- */
+/** The step's status glyph, centred in the 40 dp slot the row's words are aligned to. */
 @Composable
 private fun StatusDisc(status: UnlockStatus) {
-    val done = status == UnlockStatus.DONE
-    Box(
-        Modifier
-            .size(40.dp)
-            .clip(CircleShape)
-            .background(if (done) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainerHighest),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            painterResource(statusIcon(status)),
-            contentDescription = null,
-            tint = if (done) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(22.dp),
-        )
-    }
+    Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) { StatusGlyph(status.status) }
 }
 
 @Composable

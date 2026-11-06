@@ -1,5 +1,6 @@
 package io.kud.tutti.ui.settings
 
+import io.kud.tutti.ui.common.Status
 import io.kud.tutti.protocol.devices.DeviceKind
 import io.kud.tutti.platform.sync.SyncProblem
 import io.kud.tutti.platform.sync.SyncState
@@ -7,7 +8,6 @@ import io.kud.tutti.ui.remote.ConnAction
 import io.kud.tutti.ui.remote.ConnDevice
 import io.kud.tutti.ui.remote.ConnLine
 import io.kud.tutti.ui.remote.ConnLink
-import io.kud.tutti.ui.remote.ConnMark
 import io.kud.tutti.ui.remote.ConnWords
 
 /**
@@ -59,7 +59,7 @@ enum class DashAction { PAIR_TV, SET_UP_IP, ADD_BAR, OPEN_DEVICES, CHECK_SYNC }
 data class DashItem(
     val tile: DashTile,
     /** The glyph beside the words: the same marks as Connexions, never colour alone. */
-    val mark: ConnMark,
+    val mark: Status,
     val words: DashWords,
     val action: DashAction? = null,
     /** Something only he can fix: the tile goes first, full width, with [action] as its button. */
@@ -101,7 +101,7 @@ private fun tvTile(connections: List<ConnDevice>): DashItem {
     val tv = connections.firstOrNull { it.kind == DeviceKind.TV }
     if (tv == null || tv.name == null) {
         // No TV, no remote: the one tile that asks to be set up before anything else.
-        return DashItem(DashTile.TV, ConnMark.TODO, DashWords.Device(ConnWords.NOT_ADDED, null), DashAction.PAIR_TV, needsYou = true)
+        return DashItem(DashTile.TV, Status.NOT_YET, DashWords.Device(ConnWords.NOT_ADDED, null), DashAction.PAIR_TV, needsYou = true)
     }
     val google = tv.lines.first { it.link == ConnLink.GOOGLE_TV }
     // The Google TV link is the remote itself; IP control speaks only when it needs him. A TV on
@@ -123,7 +123,7 @@ private fun barTile(connections: List<ConnDevice>): DashItem {
         // A bar is optional: "not added" is a calm offer, never a problem. With no TV, Devices
         // holds "Add a device", the whole flow.
         val add = if (connections.any { it.kind == DeviceKind.TV && it.name != null }) DashAction.ADD_BAR else DashAction.OPEN_DEVICES
-        return DashItem(DashTile.SOUNDBAR, ConnMark.TODO, DashWords.Device(ConnWords.NOT_ADDED, null), add)
+        return DashItem(DashTile.SOUNDBAR, Status.NOT_YET, DashWords.Device(ConnWords.NOT_ADDED, null), add)
     }
     val line = bar.lines.first()
     return DashItem(
@@ -136,12 +136,12 @@ private fun barTile(connections: List<ConnDevice>): DashItem {
 }
 
 private fun syncTile(sync: SyncState, now: Long): DashItem = when {
-    !sync.hasFile -> DashItem(DashTile.SYNC, ConnMark.TODO, DashWords.Sync(SyncWords.OFF, null))
-    sync.problem == SyncProblem.WAITING -> DashItem(DashTile.SYNC, ConnMark.WORKING, DashWords.Sync(SyncWords.WAITING, null))
-    sync.problem != null -> DashItem(DashTile.SYNC, ConnMark.PROBLEM, DashWords.Sync(SyncWords.PROBLEM, null), DashAction.CHECK_SYNC, needsYou = true)
+    !sync.hasFile -> DashItem(DashTile.SYNC, Status.NOT_YET, DashWords.Sync(SyncWords.OFF, null))
+    sync.problem == SyncProblem.WAITING -> DashItem(DashTile.SYNC, Status.WORKING, DashWords.Sync(SyncWords.WAITING, null))
+    sync.problem != null -> DashItem(DashTile.SYNC, Status.NEEDS_YOU, DashWords.Sync(SyncWords.PROBLEM, null), DashAction.CHECK_SYNC, needsYou = true)
     else -> DashItem(
         tile = DashTile.SYNC,
-        mark = if (sync.auto) ConnMark.OK else ConnMark.ASLEEP,
+        mark = if (sync.auto) Status.OK else Status.STANDBY,
         words = DashWords.Sync(if (sync.auto) SyncWords.ON else SyncWords.PAUSED, sync.lastSyncedAt?.let { syncAge(it, now) }),
     )
 }
@@ -151,4 +151,4 @@ private fun syncTile(sync: SyncState, now: Long): DashItem = when {
  * already, and one problem is said in one place.
  */
 private fun unlocksTile(summary: UnlockSummary): DashItem =
-    DashItem(DashTile.UNLOCKS, if (summary.next == null) ConnMark.OK else ConnMark.TODO, DashWords.Progress(summary.done, summary.total, summary.next))
+    DashItem(DashTile.UNLOCKS, if (summary.next == null) Status.OK else Status.NOT_YET, DashWords.Progress(summary.done, summary.total, summary.next))
