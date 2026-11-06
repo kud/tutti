@@ -142,19 +142,13 @@ fun SettingsRow(
 }
 
 /**
- * A binary or link state told by shape (2026-10-27; design.md, Visual › State): a filled
- * check circle for connected / on / paired, an empty ring for nothing connected / off. The same two
- * glyphs as [io.kud.tutti.ui.remote.ConnMark]'s OK and TODO, so a state reads alike everywhere. The
- * words always sit beside it; it is decorative to TalkBack, which reads them.
+ * A binary or link state told by shape (design.md › Status): [Status.OK] for connected / on /
+ * paired, [Status.NOT_YET] for nothing connected / off. The words always sit beside it; it is
+ * decorative to TalkBack, which reads them.
  */
 @Composable
 fun StateMark(on: Boolean, modifier: Modifier = Modifier) {
-    Icon(
-        painterResource(if (on) R.drawable.ic_check_circle else R.drawable.ic_circle_outline),
-        contentDescription = null,
-        tint = if (on) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = modifier.size(16.dp),
-    )
+    StatusGlyph(if (on) Status.OK else Status.NOT_YET, modifier)
 }
 
 /** A trailing chevron for a row that opens another screen. */

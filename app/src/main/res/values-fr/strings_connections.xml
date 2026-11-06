@@ -2,7 +2,6 @@
 <resources>
     <string name="conn_title">Connexions</string>
     <string name="conn_target">La télécommande pilote %1$s</string>
-    <string name="conn_targeted_tag">Les touches vont ici</string>
     <string name="conn_device_targeted">%1$s, les touches de la télécommande vont ici</string>
     <string name="conn_device_tv">TV</string>
     <string name="conn_device_bar">Barre de son</string>

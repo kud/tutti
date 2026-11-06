@@ -1,12 +1,12 @@
 package io.kud.tutti.ui.settings
 
+import io.kud.tutti.ui.common.Status
 import io.kud.tutti.controller.Link
 import io.kud.tutti.controller.TvShown
 import io.kud.tutti.platform.sync.SyncProblem
 import io.kud.tutti.platform.sync.SyncState
 import io.kud.tutti.ui.remote.ConnInput
 import io.kud.tutti.ui.remote.ConnLink
-import io.kud.tutti.ui.remote.ConnMark
 import io.kud.tutti.ui.remote.ConnWords
 import io.kud.tutti.ui.remote.connections
 import org.junit.Assert.assertEquals
@@ -39,7 +39,7 @@ class SettingsDashboardTest {
         assertEquals(listOf(DashTile.TV, DashTile.SOUNDBAR, DashTile.SYNC, DashTile.UNLOCKS), items.map { it.tile })
         assertTrue(items.none { it.needsYou })
         assertEquals(DashWords.Device(ConnWords.CONNECTED, null), items.of(DashTile.TV).words)
-        assertEquals(ConnMark.OK, items.of(DashTile.SOUNDBAR).mark)
+        assertEquals(Status.OK, items.of(DashTile.SOUNDBAR).mark)
     }
 
     @Test
@@ -50,7 +50,7 @@ class SettingsDashboardTest {
         assertTrue(tv.needsYou)
         assertEquals(DashWords.Device(ConnWords.NEEDS_PAIRING, ConnLink.SONY_IP), tv.words)
         assertEquals(DashAction.PAIR_TV, tv.action)
-        assertEquals(ConnMark.PROBLEM, tv.mark)
+        assertEquals(Status.NEEDS_YOU, tv.mark)
     }
 
     @Test
@@ -98,7 +98,7 @@ class SettingsDashboardTest {
     fun `a bar out of reach says so without asking anything`() {
         val bar = tiles(room.copy(bar = Link.UNREACHABLE)).of(DashTile.SOUNDBAR)
         assertFalse(bar.needsYou)
-        assertEquals(ConnMark.PROBLEM, bar.mark)
+        assertEquals(Status.NEEDS_YOU, bar.mark)
         assertEquals(DashWords.Device(ConnWords.UNREACHABLE, null), bar.words)
     }
 
@@ -117,7 +117,7 @@ class SettingsDashboardTest {
         assertEquals(SyncWords.PAUSED, (tiles(sync = on.copy(auto = false)).of(DashTile.SYNC).words as DashWords.Sync).words)
         val waiting = tiles(sync = on.copy(problem = SyncProblem.WAITING)).of(DashTile.SYNC)
         assertFalse(waiting.needsYou)
-        assertEquals(ConnMark.WORKING, waiting.mark)
+        assertEquals(Status.WORKING, waiting.mark)
         val broken = tiles(sync = on.copy(problem = SyncProblem.UNREACHABLE))
         assertEquals(DashTile.SYNC, broken.first().tile)
         assertEquals(DashAction.CHECK_SYNC, broken.first().action)
@@ -134,8 +134,8 @@ class SettingsDashboardTest {
         val item = tiles(unlocks = UnlockSummary(1, 4, Unlock.IP_CONTROL)).of(DashTile.UNLOCKS)
         assertFalse(item.needsYou)
         assertEquals(DashWords.Progress(1, 4, Unlock.IP_CONTROL), item.words)
-        assertEquals(ConnMark.TODO, item.mark)
-        assertEquals(ConnMark.OK, tiles().of(DashTile.UNLOCKS).mark)
+        assertEquals(Status.NOT_YET, item.mark)
+        assertEquals(Status.OK, tiles().of(DashTile.UNLOCKS).mark)
     }
 
     @Test

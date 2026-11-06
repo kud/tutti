@@ -1,5 +1,6 @@
 package io.kud.tutti.ui.remote
 
+import io.kud.tutti.ui.common.Status
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -35,19 +36,13 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.kud.tutti.R
 import io.kud.tutti.protocol.devices.DeviceKind
+import io.kud.tutti.ui.common.StatusAction
+import io.kud.tutti.ui.common.StatusLine
 import io.kud.tutti.ui.common.TuttiSheet
-
-@DrawableRes
-internal fun ConnMark.glyph(): Int = when (this) {
-    ConnMark.OK -> R.drawable.ic_check_circle
-    ConnMark.WORKING -> R.drawable.ic_refresh
-    ConnMark.ASLEEP -> R.drawable.ic_bedtime
-    ConnMark.TODO -> R.drawable.ic_circle_outline
-    ConnMark.PROBLEM -> R.drawable.ic_warning
-}
 
 @DrawableRes
 private fun DeviceKind.glyph(): Int = when (this) {
@@ -117,7 +112,7 @@ private fun actionLabel(action: ConnAction): String = stringResource(
 /**
  * The « Connexions » sheet, from the device pill (Erwann, 2026-10-25). Which device the remote is
  * aiming at first, then each device with each link on its own line: the state's glyph and its
- * words, what the link gives, and its one next step as a 48 dp text button. TalkBack reads a line
+ * words, what the link gives, and its one next step, in the shared status language (`Status.kt`). TalkBack reads a line
  * as one sentence ("Google TV, connected: keys, keyboard, apps"), the button after it. Settings
  * stays one row away at the bottom.
  */
@@ -202,17 +197,10 @@ private fun DeviceBlock(device: ConnDevice, focus: ConnFocus?, onAction: (ConnAc
     ) {
         Icon(painterResource(device.kind.glyph()), null, Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onSurface)
         Text(name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-        // Where the keys go: a tick and the word, never colour alone.
-        if (device.targeted) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                Icon(painterResource(R.drawable.ic_check), null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurface)
-                Text(stringResource(R.string.conn_targeted_tag), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        }
     }
-    for (line in device.lines) LinkLine(device.kind, line, focus == ConnFocus(device.id, line.link), onAction)
+    for (line in device.lines) LinkLine(device.kind, line, focused = focus == ConnFocus(device.id, line.link), onAction = onAction)
     device.note?.let { note ->
-        // Aligned with the lines' words (52 + 12 + 18 + 10 dp), read after them by TalkBack.
+        // Aligned with the lines' words (52 + 12 + 18 + 10 dp, `StatusLine`), read after them by TalkBack.
         Text(
             stringResource(
                 when (note) {
@@ -229,53 +217,23 @@ private fun DeviceBlock(device: ConnDevice, focus: ConnFocus?, onAction: (ConnAc
     }
 }
 
+/**
+ * One link's status, the same line in « Connexions » and in Settings › Devices, so the two never
+ * word a state differently. Devices passes no [onAction]: its row keeps its own management buttons.
+ */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun LinkLine(kind: DeviceKind, line: ConnLine, focused: Boolean, onAction: (ConnAction) -> Unit) {
-    // The pill's trouble: this line comes into view on a tonal band, its step at the thumb. The
-    // glyph and words already say what is wrong; the band only says "this one".
+fun LinkLine(kind: DeviceKind, line: ConnLine, focused: Boolean = false, start: Dp = 52.dp, onAction: ((ConnAction) -> Unit)?) {
+    // The pill's trouble: this line comes into view, its step at the thumb. Its emphasis is the
+    // status's own (design.md › Status): only a line that needs him is set apart.
     val bring = remember { BringIntoViewRequester() }
     if (focused) LaunchedEffect(Unit) { bring.bringIntoView() }
-    val title = stringResource(R.string.conn_line, linkName(line.link), stateWords(line.words))
-    val what = gives(kind, line.link)
-    val said = stringResource(R.string.conn_line_said, linkName(line.link), stateWords(line.words), what)
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .heightIn(min = 56.dp)
-            .bringIntoViewRequester(bring)
-            .padding(start = 52.dp, end = 4.dp)
-            .then(
-                if (focused) {
-                    Modifier.background(MaterialTheme.colorScheme.surfaceContainerHighest, RoundedCornerShape(12.dp))
-                } else {
-                    Modifier
-                },
-            )
-            .padding(start = 12.dp, end = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Row(
-            Modifier
-                .weight(1f)
-                .padding(vertical = 6.dp)
-                .semantics(mergeDescendants = true) { contentDescription = said },
-            verticalAlignment = Alignment.Top,
-        ) {
-            Icon(
-                painterResource(line.words.mark.glyph()),
-                null,
-                Modifier.padding(top = 2.dp).size(18.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Spacer(Modifier.width(10.dp))
-            Column {
-                Text(title, style = MaterialTheme.typography.bodyLarge)
-                Text(what, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        }
-        line.action?.let { action ->
-            TextButton(onClick = { onAction(action) }, modifier = Modifier.heightIn(min = 48.dp)) { Text(actionLabel(action)) }
-        }
-    }
+    StatusLine(
+        status = line.words.mark,
+        words = stringResource(R.string.conn_line, linkName(line.link), stateWords(line.words)),
+        capability = gives(kind, line.link),
+        said = stringResource(R.string.conn_line_said, linkName(line.link), stateWords(line.words), gives(kind, line.link)),
+        modifier = Modifier.bringIntoViewRequester(bring).padding(start = start, end = 12.dp),
+        action = line.action?.takeIf { onAction != null }?.let { action -> { StatusAction(actionLabel(action), onClick = { onAction?.invoke(action) }) } },
+    )
 }

@@ -1,5 +1,6 @@
 package io.kud.tutti.ui.settings
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
@@ -31,7 +32,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.kud.tutti.R
 import io.kud.tutti.ui.remote.ConnLink
-import io.kud.tutti.ui.remote.glyph
+import io.kud.tutti.ui.common.StatusAction
+import io.kud.tutti.ui.common.StatusGap
+import io.kud.tutti.ui.common.StatusGlyph
+import io.kud.tutti.ui.common.StatusWords
 import io.kud.tutti.ui.remote.stateWords
 
 /**
@@ -66,14 +70,16 @@ internal fun dashRows(items: List<DashItem>): List<List<DashItem>> =
 
 @Composable
 private fun Tile(item: DashItem, onTile: (DashTile) -> Unit, onAction: (DashAction) -> Unit, modifier: Modifier, wide: Boolean) {
+    // One status language (design.md › Status): the glyph and words of [Status], and only a tile
+    // that needs him wears the emphasis, a raised surface inside an outline, with its one action.
     val needs = item.needsYou
     val colors = MaterialTheme.colorScheme
     Surface(
         onClick = { onTile(item.tile) },
         modifier = modifier.heightIn(min = 72.dp),
-        shape = RoundedCornerShape(16.dp),
-        color = if (needs) colors.secondaryContainer else colors.surfaceContainer,
-        contentColor = if (needs) colors.onSecondaryContainer else colors.onSurface,
+        shape = TileShape,
+        color = if (needs) colors.surfaceContainerHighest else colors.surfaceContainer,
+        border = if (needs) BorderStroke(1.5.dp, colors.outline) else null,
     ) {
         // Half a phone is too narrow for "Synchronisation" beside an icon (Erwann, 2026-11-06: no
         // cut tile names), so a half tile wears its icon on top and gives the name its whole width;
@@ -96,40 +102,26 @@ private fun Tile(item: DashItem, onTile: (DashTile) -> Unit, onAction: (DashActi
                 )
                 Spacer(Modifier.height(4.dp))
                 Row(verticalAlignment = Alignment.Top) {
-                    Icon(
-                        painterResource(item.mark.glyph()),
-                        contentDescription = null,
-                        modifier = Modifier.padding(top = 2.dp).size(16.dp),
-                        tint = if (needs) colors.onSecondaryContainer else colors.onSurfaceVariant,
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Text(
+                    StatusGlyph(item.mark, Modifier.padding(top = 3.dp))
+                    Spacer(Modifier.width(StatusGap))
+                    StatusWords(
+                        item.mark,
                         tileWords(item.words),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = if (needs) colors.onSecondaryContainer else colors.onSurfaceVariant,
-                        maxLines = if (needs) 3 else 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                (item.words as? DashWords.Progress)?.next?.let { next ->
-                    Text(
-                        stringResource(R.string.dash_next, stringResource(unlockTitle(next))),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = colors.onSurfaceVariant,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(start = 22.dp, top = 2.dp),
+                        capability = (item.words as? DashWords.Progress)?.next?.let { stringResource(R.string.dash_next, stringResource(unlockTitle(it))) },
+                        wordsLines = if (needs) 3 else 2,
                     )
                 }
             }
             val action = item.action
             if (needs && action != null) {
                 Spacer(Modifier.width(12.dp))
-                Button(onClick = { onAction(action) }, modifier = Modifier.heightIn(min = 48.dp)) { Text(actionLabel(action)) }
+                StatusAction(actionLabel(action), onClick = { onAction(action) })
             }
         }
     }
 }
+
+private val TileShape = RoundedCornerShape(16.dp)
 
 private fun tileIcon(tile: DashTile): Int = when (tile) {
     DashTile.TV -> R.drawable.ic_tv
