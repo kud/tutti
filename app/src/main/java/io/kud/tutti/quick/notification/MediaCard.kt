@@ -2,6 +2,7 @@ package io.kud.tutti.quick.notification
 
 import android.media.session.PlaybackState
 import io.kud.tutti.protocol.atv.V2Key
+import io.kud.tutti.protocol.cast.CastArtwork
 import io.kud.tutti.protocol.cast.CastNowPlaying
 import io.kud.tutti.protocol.cast.CastPlayerState
 import io.kud.tutti.quick.AudioLevel
@@ -137,6 +138,13 @@ data class MediaCard(
     val playback: QuickPlayback? = null,
 ) {
     val muted: Boolean get() = level?.muted == true
+
+    /**
+     * The picture of what is playing, when Cast names one: the session's artwork then shows it
+     * rather than the app's icon (Erwann, 2026-11-06), as the remote's card does. Null keeps the
+     * drawn art ([MediaArtwork]). Viewing data like the title: never logged.
+     */
+    val artworkUrl: String? get() = CastArtwork.of(cast)
 }
 
 fun cardFor(state: QuickState, locked: Boolean = true): MediaCard = MediaCard(

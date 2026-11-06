@@ -20,10 +20,12 @@ import io.kud.tutti.ui.common.brandFace
 import java.io.File
 
 /**
- * Draws [MediaArt]'s artwork for a card, on device, from what tutti already holds: the same app's
- * icon on this phone, else the TV's cached icon, else the brand's logo, else tutti's own mark.
- * Nothing is fetched. One picture is kept and redrawn only when the app or its icon changes
- * ([MediaArt.key]), never on a volume tick. Call off the main thread.
+ * The session's artwork for a card: the content's own picture when Cast named one and it has loaded
+ * ([MediaCard.artworkUrl], fetched by the caller through `CastArtworkLoader`), else [MediaArt]'s
+ * drawn art from what tutti already holds: the same app's icon on this phone, else the TV's cached
+ * icon, else the brand's logo, else tutti's own mark. Nothing is fetched here. One picture is kept
+ * and redrawn only when the picture, the app or its icon changes ([MediaArt.key],
+ * [MediaArt.contentKey]), never on a volume tick. Call off the main thread.
  */
 internal class MediaArtwork(private val context: Context) {
     private var drawnKey: String? = null
@@ -31,8 +33,18 @@ internal class MediaArtwork(private val context: Context) {
 
     // collectLatest can start the next card while a cancelled draw still runs: one draw at a time.
     @Synchronized
-    fun artFor(card: MediaCard): Bitmap {
+    fun artFor(card: MediaCard, content: Bitmap? = null): Bitmap {
         val side = MediaArt.sidePx(context.resources.displayMetrics.density)
+        val url = card.artworkUrl
+        if (content != null && url != null) {
+            val key = MediaArt.contentKey(side, url)
+            drawn?.takeIf { drawnKey == key }?.let { return it }
+            runCatching { contentArt(side, content) }.getOrNull()?.let { art ->
+                drawn = art
+                drawnKey = key
+                return art
+            }
+        }
         val modified = card.appIconPath?.let { File(it).lastModified() } ?: 0L
         val key = MediaArt.key(side, card.appPackage, card.appIconPath, modified)
         drawn?.takeIf { drawnKey == key }?.let { return it }
@@ -93,6 +105,18 @@ internal class MediaArtwork(private val context: Context) {
             }
         }
         return art
+    }
+
+    /**
+     * What is playing, as the session's artwork: its middle 16:9 band ([MediaArt.contentCrop]) at
+     * most [side] wide, handed as it is, since the player crops wide and draws its own scrim for the
+     * title, like any media app's.
+     */
+    private fun contentArt(side: Int, content: Bitmap): Bitmap {
+        val (left, top, width, height) = MediaArt.contentCrop(content.width, content.height)
+        val scale = minOf(1f, side.toFloat() / width)
+        val matrix = Matrix().apply { setScale(scale, scale) }
+        return Bitmap.createBitmap(content, left, top, width, height, matrix, true)
     }
 
     /** The icon cropped into its rounded tile, filtered so it stays smooth at its new size. */
