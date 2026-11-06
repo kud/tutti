@@ -4,15 +4,16 @@ import io.kud.tutti.ui.common.BrandColours
 import kotlin.math.roundToInt
 
 /**
- * The media session's artwork, as plain rules (2026-10-26). Android draws
+ * The media session's artwork, as plain rules (2026-10-26, icon dropped 2026-11-06). Android draws
  * METADATA_KEY_ART large: as the expanded player's background and, on some lock screens, as the
- * whole wallpaper. A 192 px icon stretched to the screen read as a blurred, pixelated mark, so the
- * art is its own picture: tutti's warm near-black ground, one soft glow in the app's colour, and
- * the app's icon crisp at a modest size in the middle. No text: the lock clock and the player's
- * title sit over it. Decoration only; nothing is told by colour.
+ * whole wallpaper. The framework keeps session bitmaps at 320 dp, so a lock screen that crops the
+ * square to fill the screen (OxygenOS) scales it about 2.8 times: any mark drawn in it comes out
+ * soft. The art is therefore only a ground and a light: tutti's warm near-black, one soft glow in
+ * the app's colour, which stays smooth at any scale. The app's icon is the session's small icon
+ * (METADATA_KEY_DISPLAY_ICON), drawn by the system at its own size. No text: the lock clock and
+ * the player's title sit over it. Decoration only; nothing is told by colour.
  *
- * Square, because the player crops it wide and the lock screen crops it tall; everything that
- * matters sits in the middle, where both crops keep it.
+ * Square, because the player crops it wide and the lock screen crops it tall.
  */
 object MediaArt {
     /** The launcher icon's ground (`ic_launcher_background`), the app's dark-first surface. */
@@ -38,17 +39,8 @@ object MediaArt {
     /** The glow's reach, as a share of the side, measured from the centre. */
     const val GLOW_RADIUS = 0.62f
 
-    /** An app's square icon, as a share of the side (about a third of a phone's width when a lock screen crops it full screen). */
-    const val SQUARE_TILE = 0.16f
-
-    /** A banner's width, as a share of the side; its height follows, at most [SQUARE_TILE]. */
-    const val BANNER_TILE = 0.28f
-
-    /** The tile's corner, as a share of its shorter side: the launcher's own rounding. */
-    const val TILE_CORNER = 0.22f
-
-    /** tutti's own mark: the adaptive foreground drawn into a box this share of the side. */
-    const val MARK_BOX = 0.4f
+    /** The icon is read only for its colour: a small decode is plenty. */
+    const val ACCENT_SAMPLE_PX = 64
 
     fun sidePx(density: Float): Int = (FRAMEWORK_DP * density).roundToInt().coerceIn(MIN_PX, MAX_PX)
 
@@ -93,26 +85,7 @@ object MediaArt {
     fun accentFor(brandFill: Int?, iconMean: Int?): Int? =
         brandFill?.takeIf { opaque(it) != BrandColours.WHITE } ?: iconMean
 
-    /** The icon's tile, in pixels, centred: a square icon as a square, a banner at its own shape. */
-    data class Tile(val width: Int, val height: Int, val corner: Float)
-
-    fun tile(side: Int, iconWidth: Int, iconHeight: Int): Tile {
-        val square = (side * SQUARE_TILE).roundToInt()
-        if (iconWidth <= 0 || iconHeight <= 0 || BrandColours.isSquareish(iconWidth, iconHeight)) {
-            return Tile(square, square, square * TILE_CORNER)
-        }
-        var w = side * BANNER_TILE
-        var h = w * iconHeight / iconWidth
-        if (h > square) {
-            w *= square / h
-            h = square.toFloat()
-        }
-        val tw = w.roundToInt()
-        val th = h.roundToInt()
-        return Tile(tw, th, minOf(tw, th) * TILE_CORNER)
-    }
-
-    /** Which picture the art was drawn from: the art is redrawn only when this changes, never per tick. */
+    /** Which icon the glow's colour came from: the art is redrawn only when this changes, never per tick. */
     fun key(side: Int, packageName: String?, iconPath: String?, iconModified: Long): String =
         "$side|${packageName.orEmpty()}|${iconPath.orEmpty()}|$iconModified"
 

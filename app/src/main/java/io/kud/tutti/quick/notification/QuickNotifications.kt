@@ -186,8 +186,9 @@ object QuickNotifications {
                 .putString(MediaMetadata.METADATA_KEY_TITLE, title(context, card))
                 .putString(MediaMetadata.METADATA_KEY_ARTIST, subtitle(context, card))
                 .putBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON, icon)
-                // The media player (and some lock screens, full screen) draws the artwork large: its own
-                // picture, drawn at the size the system keeps, never the small icon stretched (MediaArt).
+                // The media player (and some lock screens, full screen) draws the artwork large: the
+                // content's picture, else a ground and glow that stay smooth however far it is scaled
+                // (MediaArt), never an icon stretched; the icon is the small one above.
                 .putBitmap(MediaMetadata.METADATA_KEY_ART, art)
                 .apply { card.playback?.durationMs?.let { putLong(MediaMetadata.METADATA_KEY_DURATION, it) } }
                 .build(),

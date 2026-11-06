@@ -2,18 +2,12 @@ package io.kud.tutti.quick.notification
 
 import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.BitmapShader
 import android.graphics.Canvas
 import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.RadialGradient
-import android.graphics.RectF
 import android.graphics.Shader
-import android.graphics.drawable.Drawable
-import androidx.core.content.ContextCompat
 import androidx.core.graphics.createBitmap
-import androidx.core.graphics.withClip
-import io.kud.tutti.R
 import io.kud.tutti.platform.data.IconBitmaps
 import io.kud.tutti.platform.data.PhoneIconBitmaps
 import io.kud.tutti.ui.common.brandFace
@@ -22,8 +16,10 @@ import java.io.File
 /**
  * The session's artwork for a card: the content's own picture when Cast named one and it has loaded
  * ([MediaCard.artworkUrl], fetched by the caller through `CastArtworkLoader`), else [MediaArt]'s
- * drawn art from what tutti already holds: the same app's icon on this phone, else the TV's cached
- * icon, else the brand's logo, else tutti's own mark. Nothing is fetched here. One picture is kept
+ * ground and glow, the glow in the app's colour from what tutti already holds: the brand's fill,
+ * else the mean of the same app's icon on this phone or the TV's cached icon, else tutti's amber.
+ * No icon is drawn into it (a lock screen magnifies the art too far for one to stay sharp); the
+ * icon is the session's small icon. Nothing is fetched here. One picture is kept
  * and redrawn only when the picture, the app or its icon changes ([MediaArt.key],
  * [MediaArt.contentKey]), never on a volume tick. Call off the main thread.
  */
@@ -55,17 +51,19 @@ internal class MediaArtwork(private val context: Context) {
     }
 
     private fun draw(side: Int, card: MediaCard?): Bitmap {
-        val tilePx = (side * MediaArt.SQUARE_TILE).toInt()
         val pkg = card?.appPackage
-        val phone = pkg?.let { runCatching { PhoneIconBitmaps.load(context, it, tilePx) }.getOrNull() }
-        val tv = if (phone == null) card?.appIconPath?.let { runCatching { IconBitmaps.load(it, tilePx) }.getOrNull() } else null
-        val icon = phone ?: tv
-        val brand = if (icon == null) brandFace(pkg) else null
-
-        val accent = when {
-            icon != null -> MediaArt.accentFor(brandFace(pkg)?.fill, MediaArt.accentOf(pixelsOf(IconBitmaps.backdrop(icon))))
-            brand != null -> MediaArt.accentFor(brand.fill, null) ?: brand.glyph
-            else -> null
+        val brand = brandFace(pkg)
+        val fill = brand?.fill?.let { MediaArt.accentFor(it, null) }
+        val accent = fill ?: run {
+            val px = MediaArt.ACCENT_SAMPLE_PX
+            val phone = pkg?.let { runCatching { PhoneIconBitmaps.load(context, it, px) }.getOrNull() }
+            val tv = if (phone == null) card?.appIconPath?.let { runCatching { IconBitmaps.load(it, px) }.getOrNull() } else null
+            val icon = phone ?: tv
+            when {
+                icon != null -> MediaArt.accentOf(pixelsOf(IconBitmaps.backdrop(icon)))
+                brand != null -> brand.glyph
+                else -> null
+            }
         }
         val palette = MediaArt.palette(accent)
 
@@ -84,26 +82,6 @@ internal class MediaArtwork(private val context: Context) {
             )
         }
         canvas.drawRect(0f, 0f, side.toFloat(), side.toFloat(), glow)
-
-        when {
-            icon != null -> drawTile(canvas, side, icon)
-            brand != null -> {
-                val t = MediaArt.tile(side, 1, 1)
-                val rect = centred(side, t.width, t.height)
-                canvas.drawRoundRect(rect, t.corner, t.corner, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = brand.fill })
-                ContextCompat.getDrawable(context, brand.drawable)?.mutate()?.let { logo ->
-                    brand.glyph?.let { logo.setTint(it) }
-                    val share = if (brand.crop) 1f else minOf(brand.scale, 1f)
-                    canvas.withClip(rect) { drawFitted(this, logo, rect, share) }
-                }
-            }
-            else -> ContextCompat.getDrawable(context, R.drawable.ic_launcher_foreground)?.let { mark ->
-                val box = (side * MediaArt.MARK_BOX).toInt()
-                val left = (side - box) / 2
-                mark.setBounds(left, left, left + box, left + box)
-                mark.draw(canvas)
-            }
-        }
         return art
     }
 
@@ -117,43 +95,6 @@ internal class MediaArtwork(private val context: Context) {
         val scale = minOf(1f, side.toFloat() / width)
         val matrix = Matrix().apply { setScale(scale, scale) }
         return Bitmap.createBitmap(content, left, top, width, height, matrix, true)
-    }
-
-    /** The icon cropped into its rounded tile, filtered so it stays smooth at its new size. */
-    private fun drawTile(canvas: Canvas, side: Int, icon: Bitmap) {
-        val t = MediaArt.tile(side, icon.width, icon.height)
-        val rect = centred(side, t.width, t.height)
-        val scale = maxOf(rect.width() / icon.width, rect.height() / icon.height)
-        val matrix = Matrix().apply {
-            setScale(scale, scale)
-            postTranslate(rect.centerX() - icon.width * scale / 2f, rect.centerY() - icon.height * scale / 2f)
-        }
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG).apply {
-            shader = BitmapShader(icon, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP).apply { setLocalMatrix(matrix) }
-        }
-        canvas.drawRoundRect(rect, t.corner, t.corner, paint)
-    }
-
-    /** A logo at [share] of the rect's longer side, keeping its own shape, centred. */
-    private fun drawFitted(canvas: Canvas, logo: Drawable, rect: RectF, share: Float) {
-        val iw = logo.intrinsicWidth.takeIf { it > 0 } ?: 1
-        val ih = logo.intrinsicHeight.takeIf { it > 0 } ?: 1
-        val fit = minOf(rect.width() / iw, rect.height() / ih) * share
-        val w = iw * fit
-        val h = ih * fit
-        logo.setBounds(
-            (rect.centerX() - w / 2).toInt(),
-            (rect.centerY() - h / 2).toInt(),
-            (rect.centerX() + w / 2).toInt(),
-            (rect.centerY() + h / 2).toInt(),
-        )
-        logo.draw(canvas)
-    }
-
-    private fun centred(side: Int, width: Int, height: Int): RectF {
-        val left = (side - width) / 2f
-        val top = (side - height) / 2f
-        return RectF(left, top, left + width, top + height)
     }
 
     private fun pixelsOf(bitmap: Bitmap): IntArray =

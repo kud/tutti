@@ -55,21 +55,6 @@ class MediaArtTest {
         assertNull(MediaArt.accentFor(null, null))
     }
 
-    @Test fun `a square icon is a square tile, a banner keeps its shape within it`() {
-        val square = MediaArt.tile(1000, 512, 512)
-        assertEquals(160, square.width)
-        assertEquals(160, square.height)
-        val banner = MediaArt.tile(1000, 320, 180)
-        assertEquals(280, banner.width)
-        assertEquals(158, banner.height)
-        // A tall-ish banner is capped at the square's height.
-        val wide = MediaArt.tile(1000, 400, 300)
-        assertEquals(160, wide.height)
-        assertTrue(wide.width <= 280)
-        // Nothing decoded: the square.
-        assertEquals(160, MediaArt.tile(1000, 0, 0).width)
-    }
-
     @Test fun `the art is redrawn only when the app or its icon changes`() {
         val a = MediaArt.key(840, "com.netflix.ninja", "/icons/a.png", 1L)
         assertEquals(a, MediaArt.key(840, "com.netflix.ninja", "/icons/a.png", 1L))
