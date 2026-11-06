@@ -250,12 +250,12 @@
     <string name="settings_display">Affichage</string>
     <string name="settings_quick_access">Accès rapide</string>
     <string name="settings_desc_unlock">Les étapes de réglage et ce que chacune débloque</string>
-    <string name="settings_desc_devices">TV, barre de son et ordinateurs : ajouter, réassocier, oublier</string>
+    <string name="settings_desc_devices">TV, barre et ordinateurs : ajouter, associer, oublier</string>
     <string name="settings_desc_tv">Image, son et réglages propres à la TV</string>
     <string name="settings_desc_bar">Réglages de la barre, entrées masquées et calibrage</string>
-    <string name="settings_desc_remote">Épingles du dock, appuis longs et disposition de la télécommande</string>
-    <string name="settings_desc_display">Thème, pièce sombre, vibrations et sons des touches</string>
-    <string name="settings_desc_sync">La même disposition et les mêmes réglages sur chaque téléphone</string>
+    <string name="settings_desc_remote">Épingles du dock, appuis longs et disposition</string>
+    <string name="settings_desc_display">Thème, pièce sombre, vibrations et sons</string>
+    <string name="settings_desc_sync">Même disposition et réglages sur chaque téléphone</string>
     <string name="settings_desc_advanced">Mode développeur, diagnostics et détails techniques</string>
     <string name="dash_unlocks">Fonctions</string>
     <string name="dash_progress">%1$d sur %2$d en place</string>
