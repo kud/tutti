@@ -62,15 +62,15 @@ class UpdatesTest {
             Release("v0.2.0-dev.24", prerelease = true, draft = false, assets = listOf(debugAsset("v0.2.0-dev.24"))),
             Release("v0.1.0", prerelease = false, draft = false, assets = releaseAssets("v0.1.0")),
         )
-        val update = assertNotNull(ReleaseFeed.pickUpdate(v("0.2.0-dev.25"), releases, Flavour.DEBUG))
+        val update = assertNotNull(ReleaseFeed.pickUpdate(v("0.2.0-dev.25"), releases, Flavour.DEBUG, UpdateChannel.TEST))
         assertEquals(v("0.2.0-dev.26"), update.version)
         assertEquals("tutti-0.2.0-dev.26-debug.apk", update.asset.name)
         assertContentEquals(ByteArray(32) { 0xab.toByte() }, update.sha256)
 
-        assertNull(ReleaseFeed.pickUpdate(v("0.2.0-dev.26"), releases, Flavour.DEBUG), "same version is not an update")
+        assertNull(ReleaseFeed.pickUpdate(v("0.2.0-dev.26"), releases, Flavour.DEBUG, UpdateChannel.TEST), "same version is not an update")
         // A release build never takes a debug APK, and never the mapping.
-        assertNull(ReleaseFeed.pickUpdate(v("0.1.0"), releases, Flavour.RELEASE))
-        assertEquals("tutti-0.1.0.apk", ReleaseFeed.pickUpdate(v("0.0.9"), releases, Flavour.RELEASE)?.asset?.name)
+        assertNull(ReleaseFeed.pickUpdate(v("0.1.0"), releases, Flavour.RELEASE, UpdateChannel.TEST))
+        assertEquals("tutti-0.1.0.apk", ReleaseFeed.pickUpdate(v("0.0.9"), releases, Flavour.RELEASE, UpdateChannel.TEST)?.asset?.name)
     }
 
     @Test
@@ -79,7 +79,7 @@ class UpdatesTest {
             Release("v0.2.0", prerelease = false, draft = false, assets = releaseAssets("v0.2.0")),
             Release("v0.2.0-dev.30", prerelease = true, draft = false, assets = listOf(debugAsset("v0.2.0-dev.30"))),
         )
-        assertEquals(v("0.2.0-dev.30"), ReleaseFeed.pickUpdate(v("0.2.0-dev.25"), releases, Flavour.DEBUG)?.version)
+        assertEquals(v("0.2.0-dev.30"), ReleaseFeed.pickUpdate(v("0.2.0-dev.25"), releases, Flavour.DEBUG, UpdateChannel.TEST)?.version)
     }
 
     @Test
@@ -111,7 +111,7 @@ class UpdatesTest {
         assertEquals(1, releases.size)
         assertEquals("v0.2.0-dev.25", releases[0].tag)
         assertEquals(48773620, releases[0].assets[0].size)
-        assertEquals(v("0.2.0-dev.25"), ReleaseFeed.pickUpdate(v("0.2.0-dev.24"), releases, Flavour.DEBUG)?.version)
+        assertEquals(v("0.2.0-dev.25"), ReleaseFeed.pickUpdate(v("0.2.0-dev.24"), releases, Flavour.DEBUG, UpdateChannel.TEST)?.version)
 
         assertEquals(emptyList(), ReleaseFeed.parse("[]"))
         assertNull(ReleaseFeed.parse("""{"message":"API rate limit exceeded"}"""))
@@ -171,10 +171,9 @@ class UpdatesTest {
     }
 
     @Test
-    fun devBuildsCheckHourlyAndReleasesDaily() {
-        assertEquals(CheckSchedule.HOUR_MS, CheckSchedule.intervalFor(v("0.2.0-dev.26")))
-        assertEquals(CheckSchedule.HOUR_MS, CheckSchedule.intervalFor(v("0.0.0-dev")))
-        assertEquals(CheckSchedule.DAY_MS, CheckSchedule.intervalFor(v("0.2.0")))
+    fun theTestChannelChecksHourlyAndStableDaily() {
+        assertEquals(CheckSchedule.HOUR_MS, CheckSchedule.intervalFor(UpdateChannel.TEST))
+        assertEquals(CheckSchedule.DAY_MS, CheckSchedule.intervalFor(UpdateChannel.STABLE))
         val now = 10 * CheckSchedule.DAY_MS
         val hour = CheckSchedule.HOUR_MS
         assertFalse(CheckSchedule.isDue(now - hour + 1, now, hour))
@@ -185,13 +184,13 @@ class UpdatesTest {
     @Test
     fun cueNoticesANewerBuildUntilSetAside() {
         val installed = v("0.2.0-dev.26")
-        assertEquals(UpdateCue.NONE, UpdateCue.of(installed, null, null))
-        assertEquals(UpdateCue.NONE, UpdateCue.of(installed, v("0.2.0-dev.26"), null), "already installed")
-        assertEquals(UpdateCue.NONE, UpdateCue.of(v("0.2.0-dev.27"), v("0.2.0-dev.27"), v("0.2.0-dev.27")), "installed since")
-        assertEquals(UpdateCue.NOTICE, UpdateCue.of(installed, v("0.2.0-dev.27"), null))
-        assertEquals(UpdateCue.QUIET, UpdateCue.of(installed, v("0.2.0-dev.27"), v("0.2.0-dev.27")), "Later")
-        assertEquals(UpdateCue.NOTICE, UpdateCue.of(installed, v("0.2.0-dev.28"), v("0.2.0-dev.27")), "a newer one notices again")
-        assertEquals(UpdateCue.NOTICE, UpdateCue.of(installed, v("0.2.0"), v("0.2.0-dev.27")), "the final release too")
+        assertEquals(UpdateCue.NONE, UpdateCue.of(installed, null, null, UpdateChannel.TEST))
+        assertEquals(UpdateCue.NONE, UpdateCue.of(installed, v("0.2.0-dev.26"), null, UpdateChannel.TEST), "already installed")
+        assertEquals(UpdateCue.NONE, UpdateCue.of(v("0.2.0-dev.27"), v("0.2.0-dev.27"), v("0.2.0-dev.27"), UpdateChannel.TEST), "installed since")
+        assertEquals(UpdateCue.NOTICE, UpdateCue.of(installed, v("0.2.0-dev.27"), null, UpdateChannel.TEST))
+        assertEquals(UpdateCue.QUIET, UpdateCue.of(installed, v("0.2.0-dev.27"), v("0.2.0-dev.27"), UpdateChannel.TEST), "Later")
+        assertEquals(UpdateCue.NOTICE, UpdateCue.of(installed, v("0.2.0-dev.28"), v("0.2.0-dev.27"), UpdateChannel.TEST), "a newer one notices again")
+        assertEquals(UpdateCue.NOTICE, UpdateCue.of(installed, v("0.2.0"), v("0.2.0-dev.27"), UpdateChannel.TEST), "the final release too")
     }
 
     @Test
@@ -199,5 +198,47 @@ class UpdatesTest {
         assertTrue(UpdateCue.announces(v("0.2.0-dev.27"), null))
         assertFalse(UpdateCue.announces(v("0.2.0-dev.27"), v("0.2.0-dev.27")))
         assertTrue(UpdateCue.announces(v("0.2.0-dev.28"), v("0.2.0-dev.27")))
+    }
+
+    private val mixed = listOf(
+        Release("v0.2.5-dev.3", prerelease = true, draft = false, assets = releaseAssets("v0.2.5-dev.3")),
+        Release("v0.2.4", prerelease = false, draft = false, assets = releaseAssets("v0.2.4")),
+        Release("v0.2.4-dev.9", prerelease = true, draft = false, assets = releaseAssets("v0.2.4-dev.9")),
+        Release("v0.2.3", prerelease = false, draft = false, assets = releaseAssets("v0.2.3")),
+    )
+
+    @Test
+    fun stableSkipsPreReleasesAndTestTakesThem() {
+        assertEquals(v("0.2.5-dev.3"), ReleaseFeed.pickUpdate(v("0.2.3"), mixed, Flavour.RELEASE, UpdateChannel.TEST)?.version)
+        assertEquals(v("0.2.4"), ReleaseFeed.pickUpdate(v("0.2.3"), mixed, Flavour.RELEASE, UpdateChannel.STABLE)?.version)
+        // A dev build switched to stable gets the next final above it, never an older one.
+        assertEquals(v("0.2.4"), ReleaseFeed.pickUpdate(v("0.2.4-dev.5"), mixed, Flavour.RELEASE, UpdateChannel.STABLE)?.version)
+        assertNull(ReleaseFeed.pickUpdate(v("0.2.5-dev.1"), mixed, Flavour.RELEASE, UpdateChannel.STABLE), "no downgrade to 0.2.4")
+        assertNull(ReleaseFeed.pickUpdate(v("0.2.4"), mixed, Flavour.RELEASE, UpdateChannel.STABLE), "only a dev build is newer")
+    }
+
+    @Test
+    fun stableNeedsBothAFinalTagAndNoPreReleaseFlag() {
+        val flaggedFinal = listOf(Release("v0.3.0", prerelease = true, draft = false, assets = releaseAssets("v0.3.0")))
+        val unflaggedDev = listOf(Release("v0.3.0-dev.1", prerelease = false, draft = false, assets = releaseAssets("v0.3.0-dev.1")))
+        for (releases in listOf(flaggedFinal, unflaggedDev)) {
+            assertNull(ReleaseFeed.pickUpdate(v("0.2.4"), releases, Flavour.RELEASE, UpdateChannel.STABLE), releases[0].tag)
+            assertNotNull(ReleaseFeed.pickUpdate(v("0.2.4"), releases, Flavour.RELEASE, UpdateChannel.TEST), releases[0].tag)
+        }
+    }
+
+    @Test
+    fun theChannelDefaultsToTheKindOfBuildInstalled() {
+        assertEquals(UpdateChannel.TEST, UpdateChannel.defaultFor(v("0.2.4-dev.7")))
+        assertEquals(UpdateChannel.TEST, UpdateChannel.defaultFor(v("0.0.0-dev")))
+        assertEquals(UpdateChannel.STABLE, UpdateChannel.defaultFor(v("0.2.4")))
+    }
+
+    @Test
+    fun aFoundDevBuildStopsCueingOnStable() {
+        val installed = v("0.2.4-dev.7")
+        assertEquals(UpdateCue.NOTICE, UpdateCue.of(installed, v("0.2.4-dev.8"), null, UpdateChannel.TEST))
+        assertEquals(UpdateCue.NONE, UpdateCue.of(installed, v("0.2.4-dev.8"), null, UpdateChannel.STABLE))
+        assertEquals(UpdateCue.NOTICE, UpdateCue.of(installed, v("0.2.4"), null, UpdateChannel.STABLE), "a final still does")
     }
 }
