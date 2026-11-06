@@ -109,6 +109,20 @@ internal fun ShortcutChip(shortcut: AppShortcut, downReason: String?, onOpen: (A
     ActionChip(shortcutIcon(shortcut), stringResource(shortcutLabel(shortcut)), downReason) { onOpen(shortcut) }
 }
 
+/** Search inside the app in front, by the Search key ([inAppSearchKey]). */
+@Composable
+internal fun InAppSearchChip(downReason: String?, onKey: (Int) -> Unit) {
+    ActionChip(R.drawable.ic_search, stringResource(R.string.shortcut_search), downReason) {
+        onKey(io.kud.tutti.protocol.atv.V2Key.SEARCH)
+    }
+}
+
+/** Google TV's own search over whatever is on screen ([GLOBAL_SEARCH_KEY]). */
+@Composable
+internal fun GlobalSearchChip(downReason: String?, onKey: (Int) -> Unit) {
+    ActionChip(R.drawable.ic_mic, stringResource(R.string.shortcut_search_tv), downReason) { onKey(GLOBAL_SEARCH_KEY) }
+}
+
 @DrawableRes
 private fun shortcutIcon(shortcut: AppShortcut): Int = when (shortcut) {
     AppShortcut.SEARCH -> R.drawable.ic_search

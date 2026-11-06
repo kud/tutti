@@ -135,4 +135,12 @@ class NowShowingActionsTest {
         val paused = playing.copy(state = CastPlayerState.PAUSED)
         assertTrue(playbackStrip(paused, at + 600_000) is PlaybackStrip.Timeline)
     }
+
+    @Test
+    fun `search in the app by key, unless the app has its own search link`() {
+        assertTrue(inAppSearchKey(CardShowing.Showing(app)))
+        assertFalse(inAppSearchKey(CardShowing.Showing(NowShowing.App("YouTube", "com.google.android.youtube.tv"))))
+        assertFalse(inAppSearchKey(CardShowing.Showing(NowShowing.Input("HDMI 2"))))
+        assertEquals(V2Key.ASSIST, GLOBAL_SEARCH_KEY)
+    }
 }

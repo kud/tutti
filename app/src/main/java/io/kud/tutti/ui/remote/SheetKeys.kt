@@ -17,6 +17,9 @@ val TV_MENU_KEYS: Set<Int> = setOf(
     V2Key.INFO,
     V2Key.TV_INPUT,
     V2Key.SETTINGS,
+    // A search screen, typed with the keyboard or driven with the pad (2026-11-06).
+    V2Key.SEARCH,
+    V2Key.ASSIST,
 )
 
 /** Whether pressing [code] in a sheet closes it: only a key that opens a TV-side menu does. */

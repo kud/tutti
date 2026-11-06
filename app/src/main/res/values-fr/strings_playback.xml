@@ -36,6 +36,7 @@
         <item quantity="many">%1$d sauts en arrière</item>
         <item quantity="other">%1$d sauts en arrière</item>
     </plurals>
+    <string name="shortcut_search_tv">Rechercher sur la TV</string>
     <string name="shortcut_search">Rechercher</string>
     <string name="shortcut_subscriptions">Abonnements</string>
     <string name="shortcut_history">Historique</string>
