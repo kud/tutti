@@ -254,6 +254,10 @@ fun TuttiApp(
                     )
                     if (messages.current?.text != text) messages.show(text)
                 }
+                TuttiEvent.HeldKeysDropped -> {
+                    // Dropped silently, but the words promising the press go with it (Iris, 2026-11-06).
+                    if (messages.current?.text == resources.getString(R.string.key_held)) messages.dismiss()
+                }
                 is TuttiEvent.AppsScreen -> {
                     // The tap's own click already played. Opened shows on the TV and needs no words;
                     // anything else says what the remote link could, and could not, see.
