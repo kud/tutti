@@ -27,6 +27,13 @@ import java.io.IOException
  * The TV pings about every 5 s; the app should treat ~10 s of silence as a dead link
  * (socket read timeout in its [TlsConnector]) and reconnect.
  *
+ * A read timeout cannot see a phone that slept: it runs on the clock that stops in deep sleep,
+ * so a socket the TV closed meanwhile still reads as ready on waking, and a key written into it
+ * reported success and went nowhere (Erwann, 2026-11-06: « la connexion se fait pas pendant
+ * quelques secondes »). [clock] counts sleep (the app passes `SystemClock.elapsedRealtime`):
+ * a session that has heard nothing for [STALE_MS] is dropped before a key goes into it
+ * ([send]), and when the app comes back ([dropIfStale]).
+ *
  * A TLS failure right after connecting usually means the TV forgot the pairing:
  * surface "Associer à nouveau" rather than retrying forever.
  */
@@ -34,6 +41,8 @@ class AtvRemote(
     private val connector: TlsConnector,
     private val scope: CoroutineScope,
     deviceInfo: ClientDeviceInfo = ClientDeviceInfo(),
+    /** Milliseconds on a clock that keeps counting while the phone sleeps. */
+    private val clock: () -> Long = { System.nanoTime() / 1_000_000 },
 ) {
     private val session = RemoteSession(deviceInfo)
     private val mutableState = MutableStateFlow(RemoteState())
@@ -64,14 +73,19 @@ class AtvRemote(
     @Volatile var failure: Throwable? = null
         private set
 
+    /** When the current session last heard from the TV, on [clock]. */
+    @Volatile private var heardAt = 0L
+
     suspend fun connect(host: String, identity: ClientIdentity, serverPin: CertificatePin) {
         disconnect()
         val conn = connector.connect(host, PORT, identity, serverPin)
+        heardAt = clock()
         connection = conn
         readJob = scope.launch {
             val decoder = FrameDecoder()
             try {
                 conn.incoming.collect { chunk ->
+                    heardAt = clock()
                     for (frame in decoder.feed(chunk)) {
                         val message = try {
                             RemoteMessage.ADAPTER.decode(frame)
@@ -105,6 +119,19 @@ class AtvRemote(
                 }
             }
         }
+    }
+
+    /**
+     * True when a session is open but the TV, which pings every few seconds, has said nothing for
+     * [STALE_MS]: after a sleep it has almost certainly closed its end.
+     */
+    fun isStale(): Boolean = connection != null && clock() - heardAt >= STALE_MS
+
+    /** Drops a stale session ([isStale]) so the caller's loop reconnects now. True when it did. */
+    fun dropIfStale(): Boolean {
+        if (!isStale()) return false
+        disconnect()
+        return true
     }
 
     fun disconnect() {
@@ -232,6 +259,9 @@ class AtvRemote(
     private suspend fun send(message: RemoteMessage): Boolean {
         val conn = connection ?: return false
         if (!mutableState.value.ready) return false
+        // A write into a socket the TV closed while the phone slept "succeeds": refuse it, so the
+        // caller's blip handling shows it, and drop the session so it comes back at once.
+        if (dropIfStale()) return false
         return try {
             write(conn, message)
             true
@@ -249,6 +279,13 @@ class AtvRemote(
 
     companion object {
         const val PORT = 6466
+
+        /**
+         * Silence that marks a session dead: two of the TV's ~5 s pings missed, with margin. Only
+         * checked at a key or on coming back, never by a timer, since nothing on the wire proves
+         * the pings hold in every TV state.
+         */
+        const val STALE_MS = 12_000L
         private const val VOICE_TICK_MS = 250L
     }
 }

@@ -49,6 +49,7 @@ import io.kud.tutti.protocol.apps.LaunchQueue
 import io.kud.tutti.protocol.apps.LaunchStep
 import io.kud.tutti.protocol.apps.LaunchResult
 import io.kud.tutti.protocol.apps.LaunchRoute
+import io.kud.tutti.protocol.net.ReconnectPace
 import io.kud.tutti.protocol.net.Redact
 import io.kud.tutti.protocol.bravia.TvApp
 import java.io.File
@@ -178,7 +179,8 @@ class TuttiController @Inject constructor(
     val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default + loggingHandler { Log.e(TAG, it) })
 
     private val theatre = TheatreClient(tcp, scope)
-    private val atv = AtvRemote(tls, scope, ClientDeviceInfo(model = "tutti", packageName = context.packageName))
+    // elapsedRealtime counts deep sleep: a session left over from before the screen went off is judged on it.
+    private val atv = AtvRemote(tls, scope, ClientDeviceInfo(model = "tutti", packageName = context.packageName), SystemClock::elapsedRealtime)
 
     @Volatile private var psk: String? = null
 
@@ -500,11 +502,34 @@ class TuttiController @Inject constructor(
         runCatching {
             val connectivity = context.getSystemService(ConnectivityManager::class.java)
             connectivity?.registerDefaultNetworkCallback(object : ConnectivityManager.NetworkCallback() {
+                // The first onAvailable is the network we start on: only a change after it drops links.
+                @Volatile private var current: Network? = null
+
                 override fun onAvailable(network: Network) {
+                    val before = current
+                    current = network
+                    if (before != null && before != network) dropLinks("the phone moved to another network")
                     wake.tryEmit(Unit)
+                }
+
+                override fun onLost(network: Network) {
+                    if (current != network) return
+                    current = null
+                    dropLinks("the phone lost its network")
                 }
             })
         }
+    }
+
+    /**
+     * A socket opened on a network the phone has left is dead, but its read only says so after
+     * its timeout (20 s for the TV, 75 s for the bar). Drop both now; their loops reconnect on
+     * the network the phone has, at once ([ReconnectPace]) or when [wake] ends their backoff.
+     */
+    private fun dropLinks(why: String) {
+        Log.i(TAG, "links dropped: $why")
+        atv.disconnect()
+        theatre.disconnect()
     }
 
     // region lifecycle
@@ -535,6 +560,9 @@ class TuttiController @Inject constructor(
             }
             epoch
         }
+        // Back from the background or a sleep: a remote session that heard nothing from the TV
+        // meanwhile is dead even if it reads ready. Reconnect now, before the first key.
+        if (atv.dropIfStale()) Log.i(TAG, "tv remote: stale session dropped on return")
         wake.tryEmit(Unit)
         return current
     }
@@ -728,6 +756,8 @@ class TuttiController @Inject constructor(
         var wait = MIN_BACKOFF_MS
         var handshakeFailures = 0
         var unreachable = 0
+        // How long the last session stayed up, for ReconnectPace; null after a failed attempt.
+        var lasted: Long? = null
         try {
             while (scope.isActive) {
                 // Once the TV has refused our certificate twice, it keeps reading "pair again" between tries.
@@ -789,9 +819,12 @@ class TuttiController @Inject constructor(
                     lanMissing.value = false
                     links.update { it.copy(tv = Link.ONLINE) }
                     linkNotes.update { it.copy(tv = null) }
+                    val upAt = SystemClock.elapsedRealtime()
                     atv.state.first { !it.ready }
+                    lasted = SystemClock.elapsedRealtime() - upAt
                     linkNotes.update { it.copy(tv = failureDetail("tv remote: session", outcome = "connected, then the link dropped")) }
                 } else {
+                    lasted = null
                     unreachable++
                 }
                 atv.disconnect()
@@ -802,8 +835,11 @@ class TuttiController @Inject constructor(
                     tvBrowsedAt = now
                     lookForTv(device, identity, pin)
                 }
-                backoff(wait)
-                wait = (wait * 2).coerceAtMost(MAX_BACKOFF_MS)
+                val pause = ReconnectPace.pause(lasted, wait)
+                if (pause > 0) {
+                    backoff(pause)
+                    wait = (wait * 2).coerceAtMost(MAX_BACKOFF_MS)
+                }
             }
         } finally {
             atv.disconnect()
