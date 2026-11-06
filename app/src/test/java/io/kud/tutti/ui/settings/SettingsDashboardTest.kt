@@ -146,4 +146,16 @@ class SettingsDashboardTest {
         assertEquals(SyncAge.Hours(2), syncAge(now - 2 * 3_600_000, now))
         assertEquals(SyncAge.Days(3), syncAge(now - 3 * 86_400_000L, now))
     }
+
+    @Test
+    fun `rows pair the calm tiles and let an odd one out span the width`() {
+        val calm = tiles().let(::dashRows)
+        assertEquals(listOf(2, 2), calm.map { it.size })
+
+        val one = dashRows(tiles(room.copy(rest = Link.NEEDS_PAIRING)))
+        assertEquals(listOf(listOf(DashTile.TV), listOf(DashTile.SOUNDBAR, DashTile.SYNC), listOf(DashTile.UNLOCKS)), one.map { row -> row.map { it.tile } })
+
+        val two = dashRows(tiles(room.copy(rest = Link.NEEDS_PAIRING), sync = SyncState(hasFile = true, problem = SyncProblem.UNREACHABLE)))
+        assertEquals(listOf(1, 1, 2), two.map { it.size })
+    }
 }

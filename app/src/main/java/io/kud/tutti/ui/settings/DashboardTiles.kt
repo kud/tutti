@@ -26,6 +26,7 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.Hyphens
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.kud.tutti.R
@@ -36,26 +37,35 @@ import io.kud.tutti.ui.remote.stateWords
 /**
  * The status tiles above Settings' list ([dashboard]): a tile that needs him spans the width, first,
  * with its one action as a button; the others sit two by two in a fixed order (TV, soundbar, sync,
- * what tutti can do), so the eye learns where each one lives. Every state is a glyph and words,
- * never a colour alone (Erwann is colourblind); a tile's tap opens its section.
+ * what tutti can do), so the eye learns where each one lives, and an odd one out spans the width
+ * rather than sitting alone in half of it ([dashRows]). Every state is a glyph and words, never a
+ * colour alone (Erwann is colourblind); a tile's tap opens its section.
  */
 @Composable
 internal fun Dashboard(items: List<DashItem>, onTile: (DashTile) -> Unit, onAction: (DashAction) -> Unit, modifier: Modifier = Modifier) {
     Column(modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        for (item in items.filter { it.needsYou }) {
-            Tile(item, onTile, onAction, Modifier.fillMaxWidth())
-        }
-        for (pair in items.filterNot { it.needsYou }.chunked(2)) {
-            Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                for (item in pair) Tile(item, onTile, onAction, Modifier.weight(1f).fillMaxHeight())
-                if (pair.size == 1) Spacer(Modifier.weight(1f))
+        for (row in dashRows(items)) {
+            if (row.size == 1) {
+                Tile(row.single(), onTile, onAction, Modifier.fillMaxWidth(), wide = true)
+            } else {
+                Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    for (item in row) Tile(item, onTile, onAction, Modifier.weight(1f).fillMaxHeight(), wide = false)
+                }
             }
         }
     }
 }
 
+/**
+ * The tiles in rows: each one that needs him alone, then the rest in pairs, the last spanning the
+ * width when they don't pair up (Erwann, 2026-11-06: with a problem tile on top, "Features" sat
+ * alone in half the width, its words squeezed onto four lines).
+ */
+internal fun dashRows(items: List<DashItem>): List<List<DashItem>> =
+    items.filter { it.needsYou }.map { listOf(it) } + items.filterNot { it.needsYou }.chunked(2)
+
 @Composable
-private fun Tile(item: DashItem, onTile: (DashTile) -> Unit, onAction: (DashAction) -> Unit, modifier: Modifier) {
+private fun Tile(item: DashItem, onTile: (DashTile) -> Unit, onAction: (DashAction) -> Unit, modifier: Modifier, wide: Boolean) {
     val needs = item.needsYou
     val colors = MaterialTheme.colorScheme
     Surface(
@@ -65,11 +75,25 @@ private fun Tile(item: DashItem, onTile: (DashTile) -> Unit, onAction: (DashActi
         color = if (needs) colors.secondaryContainer else colors.surfaceContainer,
         contentColor = if (needs) colors.onSecondaryContainer else colors.onSurface,
     ) {
+        // Half a phone is too narrow for "Synchronisation" beside an icon (Erwann, 2026-11-06: no
+        // cut tile names), so a half tile wears its icon on top and gives the name its whole width;
+        // a name that still can't fit, at a large font size, breaks with a hyphen, never an ellipsis.
         Row(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = if (needs) Alignment.CenterVertically else Alignment.Top) {
-            Icon(painterResource(tileIcon(item.tile)), contentDescription = null, modifier = Modifier.size(24.dp))
-            Spacer(Modifier.width(12.dp))
+            if (wide) {
+                Icon(painterResource(tileIcon(item.tile)), contentDescription = null, modifier = Modifier.size(24.dp))
+                Spacer(Modifier.width(12.dp))
+            }
             Column(Modifier.weight(1f)) {
-                Text(tileName(item.tile), style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.semantics { heading() })
+                if (!wide) {
+                    Icon(painterResource(tileIcon(item.tile)), contentDescription = null, modifier = Modifier.size(24.dp))
+                    Spacer(Modifier.height(8.dp))
+                }
+                Text(
+                    tileName(item.tile),
+                    style = MaterialTheme.typography.titleSmall.copy(hyphens = Hyphens.Auto),
+                    maxLines = 2,
+                    modifier = Modifier.semantics { heading() },
+                )
                 Spacer(Modifier.height(4.dp))
                 Row(verticalAlignment = Alignment.Top) {
                     Icon(
