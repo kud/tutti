@@ -41,7 +41,9 @@ import io.kud.tutti.platform.update.UpdateProblem
 import io.kud.tutti.platform.update.UpdateState
 import io.kud.tutti.platform.update.Updater
 import io.kud.tutti.protocol.update.AppVersion
+import io.kud.tutti.protocol.update.UpdateChannel
 import io.kud.tutti.protocol.update.UpdateCue
+import io.kud.tutti.ui.common.SwitchRow
 import io.kud.tutti.ui.common.LocalMessages
 import io.kud.tutti.ui.common.TuttiSheet
 import kotlinx.coroutines.launch
@@ -87,6 +89,22 @@ internal fun UpdateRow() {
         }
     }
 
+    // Stable or test builds (2026-11-06): turning it off never goes back, Android won't downgrade.
+    val channel by updater.channel.collectAsStateWithLifecycle()
+    SwitchRow(
+        label = stringResource(R.string.update_channel_test),
+        checked = channel == UpdateChannel.TEST,
+        onCheckedChange = { on ->
+            updater.setChannel(if (on) UpdateChannel.TEST else UpdateChannel.STABLE)
+            // Ask again on the new channel, unless a download or install is under way.
+            val now = updater.state.value
+            if (now is UpdateState.Idle || now is UpdateState.UpToDate || now is UpdateState.Failed || now is UpdateState.Available) {
+                scope.launch { updater.check() }
+            }
+        },
+        supporting = stringResource(R.string.update_channel_test_detail),
+    )
+
     if (open) UpdateSheet(updater, state, onDismiss = { open = false })
 }
 
@@ -101,7 +119,7 @@ fun rememberUpdateCue(): UpdateCueState {
 
 /**
  * The automatic check, while the app is in front: on opening and on coming back, at most once an
- * hour for a dev build and once a day for a final release ([io.kud.tutti.protocol.update.CheckSchedule]).
+ * hour on the test channel and once a day on stable ([io.kud.tutti.protocol.update.CheckSchedule]).
  * A build found for the first time says so once, with Install ([onInstall]); after that the ⋮'s dot
  * and row carry it, so nothing repeats. Never an install by itself. The message speaks only on the
  * plain remote ([onRemote] and not [editing], read when the check lands; [updateNoticeAllowed] with the open layers

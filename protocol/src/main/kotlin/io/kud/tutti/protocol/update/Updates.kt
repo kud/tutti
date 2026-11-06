@@ -51,6 +51,31 @@ data class ReleaseAsset(val name: String, val url: String, val digest: String?, 
 
 data class Release(val tag: String, val prerelease: Boolean, val draft: Boolean, val assets: List<ReleaseAsset>)
 
+/**
+ * Which releases the updater offers (Erwann, 2026-11-06: "si tu veux la version stable, tu n'auras
+ * pas la version dev"). [STABLE] takes final releases only; [TEST] takes the `-dev` pre-releases as
+ * well. Since the signing secrets exist both kinds ship the same release-signed APK, so one install
+ * can follow either. Leaving [TEST] never goes back: Android won't downgrade, so a dev build waits
+ * for the next final above it.
+ */
+enum class UpdateChannel {
+    STABLE, TEST;
+
+    /** Whether a build of [version] belongs here: [STABLE] refuses any `-dev` version. */
+    fun accepts(version: AppVersion): Boolean = this == TEST || version.dev == null
+
+    /**
+     * Whether [release] belongs here. [STABLE] refuses it if GitHub flags it a pre-release *or* its
+     * tag is a dev version: either alone means "not a final", and stable errs towards waiting.
+     */
+    fun accepts(release: Release, version: AppVersion): Boolean = this == TEST || (!release.prerelease && accepts(version))
+
+    companion object {
+        /** No choice made yet: a test build keeps getting test builds, a final release only finals. */
+        fun defaultFor(installed: AppVersion): UpdateChannel = if (installed.dev != null) TEST else STABLE
+    }
+}
+
 /** What the updater offers: a newer [version], its APK and the SHA-256 GitHub reported for it. */
 class Update(val version: AppVersion, val tag: String, val asset: ReleaseAsset, val sha256: ByteArray) {
     override fun toString(): String = "Update($version, ${asset.name})"
@@ -107,13 +132,16 @@ object ReleaseFeed {
         fits && isReleaseDownload(asset.url) && Sha256.parse(asset.digest) != null
     }
 
-    /** The newest release above [current] that has an APK for [flavour]; drafts never count. */
-    fun pickUpdate(current: AppVersion, releases: List<Release>, flavour: Flavour): Update? = releases
+    /**
+     * The newest release above [current] on [channel] that has an APK for [flavour]; drafts never
+     * count, and [UpdateChannel.STABLE] skips pre-releases.
+     */
+    fun pickUpdate(current: AppVersion, releases: List<Release>, flavour: Flavour, channel: UpdateChannel): Update? = releases
         .asSequence()
         .filter { !it.draft }
         .mapNotNull { release ->
             val version = AppVersion.parse(release.tag) ?: return@mapNotNull null
-            if (version <= current) return@mapNotNull null
+            if (version <= current || !channel.accepts(release, version)) return@mapNotNull null
             val asset = assetFor(release, flavour) ?: return@mapNotNull null
             Update(version, release.tag, asset, Sha256.parse(asset.digest)!!)
         }
@@ -176,11 +204,11 @@ object CheckSchedule {
     const val DAY_MS = 24 * HOUR_MS
 
     /**
-     * How often the automatic check may run for the [installed] build (2026-10-28): a dev
-     * build, which is replaced several times a day, at most once an hour; a final release at most
-     * once a day, as before.
+     * How often the automatic check may run on [channel]: test builds, which come several times a
+     * day, at most once an hour (2026-10-28); finals at most once a day. It follows the channel, not
+     * the installed build (2026-11-06), so a dev build switched to stable stops asking every hour.
      */
-    fun intervalFor(installed: AppVersion): Long = if (installed.dev != null) HOUR_MS else DAY_MS
+    fun intervalFor(channel: UpdateChannel): Long = if (channel == UpdateChannel.TEST) HOUR_MS else DAY_MS
 
     /** The automatic check runs at most once per [intervalMs]; a clock moved backwards counts as due. */
     fun isDue(lastCheckMs: Long?, nowMs: Long, intervalMs: Long = DAY_MS): Boolean =
@@ -197,8 +225,9 @@ enum class UpdateCue {
     NONE, QUIET, NOTICE;
 
     companion object {
-        fun of(installed: AppVersion, found: AppVersion?, setAside: AppVersion?): UpdateCue = when {
-            found == null || found <= installed -> NONE
+        /** A found build off [channel] (a dev build, once switched to stable) cues nothing. */
+        fun of(installed: AppVersion, found: AppVersion?, setAside: AppVersion?, channel: UpdateChannel): UpdateCue = when {
+            found == null || found <= installed || !channel.accepts(found) -> NONE
             setAside != null && found <= setAside -> QUIET
             else -> NOTICE
         }
