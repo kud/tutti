@@ -54,6 +54,10 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -133,7 +137,22 @@ fun Dock(
     val pager = rememberPagerState(initialPage = initialPage) { pages.size }
     // His dress for every pin, the remote's own keys included (PinDress).
     CompositionLocalProvider(LocalDockLabels provides state.prefs.layout.dockLabels) {
-    BoxWithConstraints(modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+    // A long press on the dock's empty space (around a short row, an empty place before a pin)
+    // opens the dock editor (Erwann, 2026-11-06: « rester appuyé longtemps sur une zone vide du
+    // dock permet de l'éditer »). Pins take their own presses first, so only empty space reaches
+    // this; nothing is drawn for it, keeping his "no + Add slots" (2026-10-25). TalkBack keeps the ⋮.
+    val haptic = LocalHapticFeedback.current
+    BoxWithConstraints(
+        modifier
+            .fillMaxWidth()
+            .pointerInput(onCustomise) {
+                detectTapGestures(onLongPress = {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    onCustomise()
+                })
+            }
+            .padding(horizontal = 16.dp),
+    ) {
         // Six equal tiles and five 6dp gaps: the width the doors and four pins shared before.
         // Fewer pins keep that width and the grid centres, rather than stretching (2026-10-25).
         val tile = (maxWidth - GAP * (DockConfig.ROW - 1)) / DockConfig.ROW
