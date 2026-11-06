@@ -2,8 +2,8 @@ package io.kud.tutti.ui.remote
 
 import io.kud.tutti.controller.Link
 import io.kud.tutti.controller.TuttiUiState
+import io.kud.tutti.protocol.apps.ForegroundName
 import io.kud.tutti.protocol.apps.KnownApp
-import io.kud.tutti.protocol.atv.AppCatalog
 import io.kud.tutti.protocol.bravia.ExternalInput
 import io.kud.tutti.protocol.bravia.PlayingContent
 import io.kud.tutti.protocol.bravia.PowerStatus
@@ -11,18 +11,18 @@ import io.kud.tutti.protocol.theatre.TheatreFeature
 
 /**
  * The app on the TV's screen, by name, for the system chip; null when there is nothing worth
- * saying. The remote v2 reports a package (`app_info.app_package`); only one the curated
- * catalogue knows becomes a name, so the home screen or an unknown app shows nothing rather than
- * a raw package id. The last package outlives the screen, so a TV out of reach or in standby
- * shows nothing too.
+ * saying. The remote v2 reports a package (`app_info.app_package`); one the TV listed or the
+ * curated catalogue knows becomes a name ([ForegroundName]), so the home screen or an unknown app
+ * shows nothing rather than a raw package id. The last package outlives the screen, so a TV out
+ * of reach or in standby shows nothing too.
  */
-fun foregroundAppName(currentApp: String?, tvLink: Link, tvPower: PowerStatus): String? {
+fun foregroundAppName(currentApp: String?, tvLink: Link, tvPower: PowerStatus, apps: List<KnownApp> = emptyList()): String? {
     if (tvLink != Link.ONLINE || tvPower == PowerStatus.STANDBY) return null
-    return currentApp?.let(AppCatalog::byPackage)?.name
+    return ForegroundName.of(currentApp, apps)
 }
 
 fun foregroundAppName(state: TuttiUiState): String? =
-    if (state.devices.tv == null) null else foregroundAppName(state.remote.currentApp, state.links.tvShown.link, state.tv.power)
+    if (state.devices.tv == null) null else foregroundAppName(state.remote.currentApp, state.links.tvShown.link, state.tv.power, state.apps)
 
 /** What the system chip's second line says is on the TV. */
 sealed interface NowShowing {
@@ -47,7 +47,8 @@ sealed interface NowShowing {
 
 /**
  * Tuner first, then an external input, both from getPlayingContentInfo (REST, PSK only); else the
- * app from the remote v2's package. The REST answer counts only while that link is up and the TV
+ * app from the remote v2's package, named by the TV's own list then the catalogue
+ * ([ForegroundName]), as the media notification names it. The REST answer counts only while that link is up and the TV
  * is not in standby, so a stale channel never outlives the connection.
  */
 fun nowShowing(
@@ -57,6 +58,7 @@ fun nowShowing(
     currentApp: String?,
     tvLink: Link,
     tvPower: PowerStatus,
+    apps: List<KnownApp> = emptyList(),
 ): NowShowing? {
     val live = playing?.takeIf { restLink == Link.ONLINE && tvPower != PowerStatus.STANDBY }
     if (live != null && live.isTuner) {
@@ -71,8 +73,8 @@ fun nowShowing(
         (label ?: live.title?.clean())?.let { return NowShowing.Input(it) }
     }
     if (tvLink != Link.ONLINE || tvPower == PowerStatus.STANDBY) return null
-    val app = currentApp?.let(AppCatalog::byPackage) ?: return null
-    return NowShowing.App(app.name, app.packageName)
+    val pkg = currentApp ?: return null
+    return ForegroundName.of(pkg, apps)?.let { NowShowing.App(it, pkg) }
 }
 
 fun nowShowing(state: TuttiUiState): NowShowing? =
@@ -80,7 +82,7 @@ fun nowShowing(state: TuttiUiState): NowShowing? =
         null
     } else {
         launchingApp(state.launches.optimistic, state.apps, state.links.tvShown.link, state.tv.power)
-            ?: nowShowing(state.tv.playing, state.tv.inputs, state.links.rest, state.remote.currentApp, state.links.tvShown.link, state.tv.power)
+            ?: nowShowing(state.tv.playing, state.tv.inputs, state.links.rest, state.remote.currentApp, state.links.tvShown.link, state.tv.power, state.apps)
     }
 
 /**
@@ -90,7 +92,7 @@ fun nowShowing(state: TuttiUiState): NowShowing? =
  */
 fun launchingApp(packageName: String?, apps: List<KnownApp>, tvLink: Link, tvPower: PowerStatus): NowShowing.App? {
     if (packageName == null || tvLink != Link.ONLINE || tvPower == PowerStatus.STANDBY) return null
-    val name = apps.firstOrNull { it.packageName == packageName }?.name ?: AppCatalog.byPackage(packageName)?.name ?: return null
+    val name = ForegroundName.of(packageName, apps) ?: return null
     return NowShowing.App(name, packageName)
 }
 
@@ -110,7 +112,7 @@ sealed interface CardShowing {
     /** The TV asleep; [barOn] when the bar still plays ("the bar stays on"). */
     data class Standby(val barOn: Boolean) : CardShowing
 
-    /** The TV awake with nothing the catalogue knows: the home screen, or an app we can't name. */
+    /** The TV awake with no app to name: the home screen, or an app neither the TV's list nor the catalogue knows. */
     data object Home : CardShowing
 
     /** A link that was up is being won back, past the blip ([io.kud.tutti.controller.TvLinkRule]). */

@@ -21,6 +21,26 @@ class ForegroundAppTest {
         assertNull(foregroundAppName(null, Link.ONLINE, PowerStatus.ACTIVE))
     }
 
+    @Test
+    fun `an app the tv listed shows by name and icon, not as the home screen`() {
+        val listed = listOf(KnownApp(packageName = "com.example.player", name = "Example Player"))
+        assertEquals("Example Player", foregroundAppName("com.example.player", Link.ONLINE, PowerStatus.ACTIVE, listed))
+        val now = nowShowing(null, emptyList(), Link.NEEDS_PAIRING, "com.example.player", Link.ONLINE, PowerStatus.ACTIVE, listed)
+        assertEquals(NowShowing.App("Example Player", "com.example.player"), now)
+        assertEquals(CardShowing.Showing(now!!), cardShowing(true, now, Link.ONLINE, PowerStatus.ACTIVE, barOn = true))
+        // Named, it opens the playback sheet and its long press the app's actions, like YouTube's.
+        assertEquals(CardTap.PLAYBACK, cardTap(CardShowing.Showing(now), onComputerInput = false))
+        assertEquals(now, cardActionsApp(CardShowing.Showing(now)))
+    }
+
+    @Test
+    fun `the launcher stays the home screen`() {
+        val listed = listOf(KnownApp(packageName = "com.google.android.apps.tv.launcherx", name = "Google TV Home"))
+        val now = nowShowing(null, emptyList(), Link.ONLINE, "com.google.android.apps.tv.launcherx", Link.ONLINE, PowerStatus.ACTIVE, listed)
+        assertNull(now)
+        assertEquals(CardShowing.Home, cardShowing(true, now, Link.ONLINE, PowerStatus.ACTIVE, barOn = true))
+    }
+
     private val tuner = PlayingContent(
         uri = "tv:dvbt?trip=1.1.1",
         source = "tv:dvbt",
