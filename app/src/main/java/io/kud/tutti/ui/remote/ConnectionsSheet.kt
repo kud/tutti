@@ -130,7 +130,18 @@ fun ConnectionsSheet(
     onOpenSettings: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    TuttiSheet(onDismissRequest = onDismiss) {
+    TuttiSheet(onDismissRequest = onDismiss) { ConnectionsContent(devices, focus, onAction, onOpenSettings) }
+}
+
+/** The sheet's content on its own, so the showcase can draw it without a modal window. */
+@Composable
+fun ConnectionsContent(
+    devices: List<ConnDevice>,
+    focus: ConnFocus?,
+    onAction: (ConnDevice, ConnAction) -> Unit,
+    onOpenSettings: () -> Unit,
+) {
+    Column {
         Text(
             stringResource(R.string.conn_title),
             style = MaterialTheme.typography.titleLarge,
