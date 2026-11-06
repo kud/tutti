@@ -48,14 +48,18 @@ class UnlocksTest {
     }
 
     @Test
-    fun `a changed REST certificate makes pairing the next step`() {
+    fun `a changed REST certificate is IP control's step, renewed by pairing the TV`() {
         val state = TuttiUiState(
             devices = Devices(tv = tv),
             links = Links(tv = Link.ONLINE, rest = Link.NEEDS_PAIRING),
             pskSet = true,
         )
-        assertEquals(UnlockStatus.ATTENTION, state.status(Unlock.PAIR_TV))
-        assertEquals(Unlock.PAIR_TV, unlockSummary(unlocks(state)).next)
+        // The remote works: its step stays done, and the summary never says "next: TV remote".
+        assertEquals(UnlockStatus.DONE, state.status(Unlock.PAIR_TV))
+        assertEquals(UnlockStatus.ATTENTION, state.status(Unlock.IP_CONTROL))
+        assertEquals(Unlock.IP_CONTROL, unlockSummary(unlocks(state)).next)
+        assertTrue(ipNeedsTvPairing(state))
+        assertFalse(ipNeedsTvPairing(state.copy(links = state.links.copy(rest = Link.UNAUTHORIZED))))
     }
 
     @Test

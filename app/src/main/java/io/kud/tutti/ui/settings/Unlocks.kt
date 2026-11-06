@@ -68,7 +68,10 @@ fun statusOf(step: Unlock, state: TuttiUiState): UnlockStatus {
     return when (step) {
         Unlock.PAIR_TV -> when {
             tv == null -> UnlockStatus.TODO
-            state.links.tv == Link.NEEDS_PAIRING || state.links.rest == Link.NEEDS_PAIRING -> UnlockStatus.ATTENTION
+            // Only the remote's own link: a changed IP control certificate is IP control's step,
+            // even though pairing the TV is what renews it ([ipNeedsTvPairing]); calling it "TV
+            // remote" sent him looking for a fault in a remote that worked (2026-11-06).
+            state.links.tv == Link.NEEDS_PAIRING -> UnlockStatus.ATTENTION
             else -> UnlockStatus.DONE
         }
         Unlock.IP_CONTROL -> when {
@@ -102,6 +105,13 @@ fun statusOf(step: Unlock, state: TuttiUiState): UnlockStatus {
         Unlock.SONY -> if (state.cloud is CloudPlaneState.Connected) UnlockStatus.DONE else UnlockStatus.COMING
     }
 }
+
+/**
+ * IP control is set up but the TV presented a new certificate (a firmware update, `PinMismatch`):
+ * only an explicit TV pairing may renew that trust, so IP control's step offers "Pair again" rather
+ * than a new code, as Connexions does.
+ */
+fun ipNeedsTvPairing(state: TuttiUiState): Boolean = state.ipControlSet && state.links.rest == Link.NEEDS_PAIRING
 
 /** Whether a switched-off TV can be woken: the MAC is learnt once IP control has answered. */
 fun canWakeFromOff(state: TuttiUiState): Boolean = state.devices.tv?.mac != null

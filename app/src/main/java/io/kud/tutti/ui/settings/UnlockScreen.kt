@@ -273,10 +273,13 @@ private fun StepBody(
                     UnlockStatus.ATTENTION -> Primary(R.string.unlock_pair_again, onPair)
                     else -> Unit
                 }
-                Unlock.IP_CONTROL -> when (status) {
+                Unlock.IP_CONTROL -> when {
+                    status == UnlockStatus.ATTENTION && ipNeedsTvPairing(state) -> Primary(R.string.unlock_pair_again, onPair)
+                    else -> when (status) {
                     UnlockStatus.TODO, UnlockStatus.ATTENTION -> Primary(R.string.unlock_ip_action) { onIp(true) }
                     UnlockStatus.DONE, UnlockStatus.CHECKING -> Quiet(R.string.unlock_ip_change) { onIp(false) }
                     else -> Unit
+                    }
                 }
                 Unlock.REMOTE_START -> if (state.ipControl && status != UnlockStatus.DONE) {
                     Quiet(R.string.unlock_start_recheck, controller::loadTvSettings)
