@@ -7,12 +7,17 @@ import android.view.ViewGroup
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.core.graphics.Insets
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -57,6 +62,9 @@ import io.kud.tutti.ui.settings.SettingsCategory
 import io.kud.tutti.ui.settings.SettingsPageScreen
 import io.kud.tutti.ui.settings.SettingsScreen
 import io.kud.tutti.ui.theme.TuttiTheme
+import java.io.File
+import java.io.IOException
+import java.time.Duration
 import org.junit.Assume.assumeTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -67,9 +75,6 @@ import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import org.robolectric.shadows.ShadowDisplay
-import java.io.File
-import java.io.IOException
-import java.time.Duration
 
 /**
  * The showcase screenshots (README, F-Droid listing, landing page), drawn from invented fixtures:
@@ -150,10 +155,17 @@ class ShowcaseRenders {
                 }
                 val activity = Robolectric.buildActivity(ComponentActivity::class.java).setup().get()
                 withSystemBars(activity)
-                activity.setContent { TuttiTheme(darkTheme = dark, dynamicColor = false) { screen(controller, target, locale) } }
+                var seen = "compose insets never read"
+                activity.setContent {
+                    val px = LocalDensity.current
+                    val status = WindowInsets.statusBars.getTop(px)
+                    val navigation = WindowInsets.navigationBars.getBottom(px)
+                    SideEffect { seen = "compose insets: status $status px, navigation $navigation px" }
+                    TuttiTheme(darkTheme = dark, dynamicColor = false) { screen(controller, target, locale) }
+                }
                 repeat(EIGHTHS) { shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(125)) }
                 val view = activity.window.decorView
-                File(dir!!, "window.txt").appendText("$name $locale ${if (dark) "dark" else "light"}: window ${view.width}x${view.height}, screen ${activity.resources.configuration.screenWidthDp}x${activity.resources.configuration.screenHeightDp} dp\n")
+                File(dir!!, "window.txt").appendText("$name $locale ${if (dark) "dark" else "light"}: window ${view.width}x${view.height}, screen ${activity.resources.configuration.screenWidthDp}x${activity.resources.configuration.screenHeightDp} dp, $seen\n")
                 val bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
                 view.draw(Canvas(bitmap))
                 check(bitmap.width == WIDTH_PX && bitmap.height == HEIGHT_PX) { "$name rendered at ${bitmap.width}x${bitmap.height}" }
