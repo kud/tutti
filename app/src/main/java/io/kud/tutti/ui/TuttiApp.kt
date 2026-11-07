@@ -106,6 +106,9 @@ sealed interface Screen {
 
     data object About : Screen
 
+    /** What's new in the release this build carries (About, the after-update message and notification). */
+    data object WhatsNew : Screen
+
     /** What tutti can do; [focus] opens one step (from a nudge). */
     data class Unlock(val focus: io.kud.tutti.ui.settings.Unlock? = null) : Screen
 
@@ -129,6 +132,7 @@ internal object ScreenKey {
         Screen.Diagnostic -> "diagnostic"
         is Screen.Onboarding -> "onboarding:${screen.barOnly}:${screen.cancellable}"
         Screen.About -> "about"
+        Screen.WhatsNew -> "whats-new"
         is Screen.Unlock -> "unlock:" + screen.focus?.name.orEmpty()
         Screen.Technical -> "technical"
     }
@@ -146,6 +150,7 @@ internal object ScreenKey {
         key == "diagnostic" -> Screen.Diagnostic
         key.startsWith("onboarding:") -> key.split(':').let { Screen.Onboarding(it.getOrNull(1) == "true", it.getOrNull(2) == "true") }
         key == "about" -> Screen.About
+        key == "whats-new" -> Screen.WhatsNew
         key.startsWith("unlock:") -> Screen.Unlock(io.kud.tutti.ui.settings.Unlock.entries.firstOrNull { it.name == key.removePrefix("unlock:") })
         key == "technical" -> Screen.Technical
         else -> null
@@ -171,6 +176,8 @@ fun TuttiApp(
     hid: HidLink,
     state: TuttiUiState,
     target: io.kud.tutti.controller.TargetController,
+    whatsNewAsked: Boolean = false,
+    onWhatsNewAsked: () -> Unit = {},
 ) {
     val stack = rememberSaveable(saver = StackSaver) { mutableStateListOf<Screen>(Screen.Remote) }
     // The remote's edit mode is a state of the remote screen, not a screen of its own.
@@ -338,6 +345,26 @@ fun TuttiApp(
     val editingNow by rememberUpdatedState(editingLayout)
     io.kud.tutti.ui.about.UpdateCheckEffect(onRemote = { onRemote }, editing = { editingNow }, onInstall = { updateSheet = true })
 
+    // What's new (docs/design.md, "What's new"): once after an update, a quiet message on the plain
+    // remote; the after-update notification's tap opens the page itself.
+    val openWhatsNew = {
+        io.kud.tutti.ui.about.installedNotes()?.let { io.kud.tutti.ui.about.WhatsNewMemory(context).markSeen(it.version) }
+        if (stack.last() != Screen.WhatsNew) push(Screen.WhatsNew)
+    }
+    io.kud.tutti.ui.about.WhatsNewHintEffect(
+        ready = state.loaded,
+        established = !state.devices.isEmpty || state.prefs.onboarded,
+        onRemote = { onRemote },
+        editing = { editingNow },
+        onOpen = openWhatsNew,
+    )
+    LaunchedEffect(whatsNewAsked, state.loaded) {
+        if (whatsNewAsked && state.loaded) {
+            onWhatsNewAsked()
+            openWhatsNew()
+        }
+    }
+
     LaunchedEffect(state.loaded) {
         if (state.loaded && state.devices.isEmpty && !state.prefs.onboarded && stack.none { it is Screen.Onboarding }) push(Screen.Onboarding())
     }
@@ -460,7 +487,8 @@ fun TuttiApp(
                             onDone = if (screen.barOnly) ::home else ::pop,
                             onCancel = if (screen.cancellable) ::pop else null,
                         )
-                        Screen.About -> AboutScreen(onBack = ::pop)
+                        Screen.About -> AboutScreen(onBack = ::pop, onWhatsNew = { push(Screen.WhatsNew) })
+                        Screen.WhatsNew -> io.kud.tutti.ui.about.WhatsNewScreen(onBack = ::pop)
                     }
                 }
             // The one-tap install, over whichever screen asked for it.

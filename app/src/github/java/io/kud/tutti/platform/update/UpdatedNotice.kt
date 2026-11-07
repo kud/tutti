@@ -16,6 +16,8 @@ import androidx.core.content.ContextCompat
 import io.kud.tutti.BuildConfig
 import io.kud.tutti.R
 import io.kud.tutti.protocol.update.AppVersion
+import io.kud.tutti.ui.about.ACTION_WHATS_NEW
+import io.kud.tutti.ui.about.installedNotes
 
 /**
  * "tutti was updated", once, after an install this app's updater started (docs/architecture.md,
@@ -77,16 +79,26 @@ internal object UpdatedNotice {
             },
         )
         val launch = context.packageManager.getLaunchIntentForPackage(context.packageName) ?: return
+        // With notes for this version, the line names its lead and the tap opens What's new over the
+        // remote (back lands on the remote); without, it says the version and opens the remote.
+        val notes = installedNotes()
+        if (notes != null) launch.setAction(ACTION_WHATS_NEW)
         val open = PendingIntent.getActivity(
             context,
             NOTIFICATION_ID,
             launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
+        val text = if (notes != null) {
+            context.getString(R.string.update_done_notes, BuildConfig.VERSION_NAME, context.getString(notes.headline))
+        } else {
+            context.getString(R.string.update_done_text, BuildConfig.VERSION_NAME)
+        }
         val notification = Notification.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_check_circle)
             .setContentTitle(context.getString(R.string.update_done_title, context.getString(R.string.app_name)))
-            .setContentText(context.getString(R.string.update_done_text, BuildConfig.VERSION_NAME))
+            .setContentText(text)
+            .setStyle(Notification.BigTextStyle().bigText(text))
             .setContentIntent(open)
             .setAutoCancel(true)
             .setCategory(Notification.CATEGORY_STATUS)
