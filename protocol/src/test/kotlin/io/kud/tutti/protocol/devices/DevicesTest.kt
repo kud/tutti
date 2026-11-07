@@ -147,7 +147,7 @@ class DevicesTest {
         assertEquals(emptyMap(), SecretKeys.copies(emptySet()))
         assertTrue(SecretKeys.all("tv").containsAll(listOf("tv_psk", "psk/tv", "pin/tv/rest", "pin/tv/rest-spki", "tv_rest_pin")))
         assertEquals(
-            listOf("psk/mac-a", "pin/mac-a/remote", "pin/mac-a/rest", "pin/mac-a/rest-spki", "ipcookie/mac-a"),
+            listOf("psk/mac-a", "pin/mac-a/remote", "pin/mac-a/remote-2", "pin/mac-a/rest", "pin/mac-a/rest-spki", "pin/mac-a/rest-spki-2", "ipcookie/mac-a"),
             SecretKeys.all("mac-a"),
         )
     }

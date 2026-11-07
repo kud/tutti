@@ -57,7 +57,7 @@ class SecureStore @Inject constructor(
      * install from before 0.3.1 has only the first key, read as it was.
      */
     suspend fun tvRemotePins(): List<CertificatePin> =
-        SecretKeys.pins({ read(it) }, SecretKeys.remotePin(TV), SecretKeys.remotePin2(TV)).map(::CertificatePin)
+        readPins(SecretKeys.remotePin(TV), SecretKeys.remotePin2(TV)).map(::CertificatePin)
 
     /**
      * Admits [pin] as the newest trusted Remote v2 certificate, keeping the one before as the
@@ -91,7 +91,7 @@ class SecureStore @Inject constructor(
 
     /** The trusted REST public keys, newest first, at most [MAX_PINS]. */
     suspend fun tvRestKeys(): List<PublicKeyPin> =
-        SecretKeys.pins({ read(it) }, SecretKeys.restPublicKeyPin(TV), SecretKeys.restPublicKeyPin2(TV)).map(::PublicKeyPin)
+        readPins(SecretKeys.restPublicKeyPin(TV), SecretKeys.restPublicKeyPin2(TV)).map(::PublicKeyPin)
 
     /**
      * Admits [pin] as the newest REST key, the one before staying trusted as the second; null
@@ -153,6 +153,12 @@ class SecureStore @Inject constructor(
     /** Copies the version-1 keys to the per-device ones, once; safe to run on every start. */
     suspend fun migrate() {
         store.edit { SecretMigration.apply(it) }
+    }
+
+    /** A plane's two pin keys, read first, then ordered by [SecretKeys.pins]. */
+    private suspend fun readPins(first: String, second: String): List<String> {
+        val values = mapOf(first to read(first), second to read(second))
+        return SecretKeys.pins({ values[it] }, first, second)
     }
 
     /** The per-device key, else its version-1 twin (until the copy has run). */
