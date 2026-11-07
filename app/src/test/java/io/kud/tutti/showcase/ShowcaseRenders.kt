@@ -2,7 +2,9 @@ package io.kud.tutti.showcase
 
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.view.ViewGroup
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -14,12 +16,10 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.BroadcastFrameClock
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Recomposer
 import androidx.compose.runtime.SideEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
@@ -70,6 +70,11 @@ import io.kud.tutti.ui.theme.TuttiTheme
 import java.io.File
 import java.io.IOException
 import java.time.Duration
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.android.asCoroutineDispatcher
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import org.junit.Assume.assumeTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -162,32 +167,38 @@ class ShowcaseRenders {
                 val redispatch = withSystemBars(activity)
                 var seen = "compose insets never read"
                 var compositions = 0
-                var generation by mutableIntStateOf(0)
-                activity.setContent {
-                    key(generation) {
-                        val px = LocalDensity.current
-                        val status = WindowInsets.statusBars.getTop(px)
-                        val navigation = WindowInsets.navigationBars.getBottom(px)
-                        SideEffect {
-                            compositions++
-                            seen = "compose insets: status $status px, navigation $navigation px"
-                        }
-                        TuttiTheme(darkTheme = dark, dynamicColor = false) { screen(controller, target, locale) }
-                    }
+                // Compose's own frame clock outlives the test that first made it: it stays bound to the
+                // first test's Choreographer, so from the second test on nothing recomposes after the
+                // first composition (no insets catching up, no entrance settling). Each shot gets a
+                // recomposer on a clock driven here, frame by frame, on the main looper.
+                val clock = BroadcastFrameClock()
+                val scope = CoroutineScope(Handler(Looper.getMainLooper()).asCoroutineDispatcher() + clock + Job())
+                val recomposer = Recomposer(scope.coroutineContext)
+                scope.launch { recomposer.runRecomposeAndApplyChanges() }
+                val frame = {
+                    Snapshot.sendApplyNotifications()
+                    shadowOf(Looper.getMainLooper()).idle()
+                    clock.sendFrame(SystemClock.uptimeMillis() * 1_000_000L)
+                    shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(FRAME_MS))
                 }
-                // The first composition reads the insets holder before it has the bars, and nothing
-                // makes those reads run again: layout-time padding catches up, composition-time reads
-                // (the sheet's peek) stay at 0. Once the ComposeView is attached, hand it the bars and
-                // compose the screen afresh so every read sees them.
-                repeat(2) { shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(16)) }
-                val before = "first pass $seen after $compositions composition(s)"
+                activity.setContent(recomposer) {
+                    val px = LocalDensity.current
+                    val status = WindowInsets.statusBars.getTop(px)
+                    val navigation = WindowInsets.navigationBars.getBottom(px)
+                    SideEffect {
+                        compositions++
+                        seen = "compose insets: status $status px, navigation $navigation px"
+                    }
+                    TuttiTheme(darkTheme = dark, dynamicColor = false) { screen(controller, target, locale) }
+                }
+                // The bars went out before the ComposeView existed: hand them over again now its
+                // insets holder listens, then let two seconds of frames recompose and settle.
+                frame()
                 redispatch()
-                generation++
-                Snapshot.sendApplyNotifications()
-                repeat(EIGHTHS) { shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(125)) }
+                repeat(SETTLE_MS / FRAME_MS.toInt()) { frame() }
                 val view = activity.window.decorView
                 val log = File(dir!!, "window.txt")
-                val line = "$name $locale ${if (dark) "dark" else "light"}: window ${view.width}x${view.height}, screen ${activity.resources.configuration.screenWidthDp}x${activity.resources.configuration.screenHeightDp} dp, $seen, $compositions composition(s); $before"
+                val line = "$name $locale ${if (dark) "dark" else "light"}: window ${view.width}x${view.height}, screen ${activity.resources.configuration.screenWidthDp}x${activity.resources.configuration.screenHeightDp} dp, $seen, $compositions composition(s)"
                 // Both flavours run this test into the same folder: one line per shot.
                 if (!log.exists() || line !in log.readLines()) log.appendText("$line\n")
                 val bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
@@ -197,6 +208,8 @@ class ShowcaseRenders {
                 file.parentFile!!.mkdirs()
                 file.outputStream().use { check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) { "$file not written" } }
                 activity.finish()
+                recomposer.cancel()
+                scope.cancel()
             }
         }
     }
@@ -255,8 +268,9 @@ class ShowcaseRenders {
     }
 
     private companion object {
-        /** Two seconds of frames: every entrance has settled. */
-        const val EIGHTHS = 16
+        /** Two seconds of 16 ms frames: every entrance has settled. */
+        const val SETTLE_MS = 2000
+        const val FRAME_MS = 16L
 
 
         /**
