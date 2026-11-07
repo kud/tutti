@@ -40,7 +40,10 @@ jobs:
       # Both builds are tested, linted and assembled: `github` (with the updater, the one published
       # here) and `fdroid` (no updater, built by F-Droid from source; never attached to a release,
       # since installs that predate the updater's `-fdroid.apk` rule would take it as theirs).
+      # A manual run also writes the render tests' PNGs (invented fixtures), to judge a visual change.
       - name: Test, lint and assemble
+        env:
+          TUTTI_RENDERS: ${{ github.event_name == 'workflow_dispatch' && format('{0}/renders', github.workspace) || '' }}
         run: ./gradlew --stacktrace :protocol:test :app:testGithubDebugUnitTest :app:testFdroidDebugUnitTest :app:lintGithubDebug :app:lintFdroidDebug :app:assembleGithubDebug :app:assembleFdroidDebug
 
       - name: No lint errors
@@ -55,6 +58,14 @@ jobs:
           name: debug-apk
           path: app/build/outputs/apk/github/debug/*.apk
           if-no-files-found: error
+
+      - name: Upload renders
+        if: always() && github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v7
+        with:
+          name: renders
+          path: renders/
+          if-no-files-found: ignore
 
       - name: Upload reports
         if: failure()
