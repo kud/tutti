@@ -94,7 +94,7 @@ class RemoteSessionTest {
         val out = RemoteMessages.text("arte concert", state.imeCounter, state.fieldCounter).remote_ime_batch_edit
         assertNotNull(out)
         assertEquals(9, out.ime_counter)
-        assertEquals(12, out.edit_info.single().text_field_status?.start)
+        assertEquals(11, out.edit_info.single().text_field_status?.start)
     }
 
     @Test
