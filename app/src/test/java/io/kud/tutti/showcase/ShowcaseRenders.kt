@@ -2,6 +2,9 @@ package io.kud.tutti.showcase
 
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.Path
+import android.graphics.RectF
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
@@ -26,6 +29,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.core.graphics.Insets
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import io.kud.tutti.R
 import io.kud.tutti.controller.Link
 import io.kud.tutti.controller.Links
 import io.kud.tutti.controller.SceneUi
@@ -36,11 +40,15 @@ import io.kud.tutti.controller.TvShown
 import io.kud.tutti.controller.TvState
 import io.kud.tutti.di.preferencesStore
 import io.kud.tutti.platform.bluetooth.HidLink
+import io.kud.tutti.platform.data.AppPrefs
 import io.kud.tutti.platform.data.BarDevice
 import io.kud.tutti.platform.data.Devices
 import io.kud.tutti.platform.data.DockAction
 import io.kud.tutti.platform.data.DockConfig
+import io.kud.tutti.platform.data.DockLabels
 import io.kud.tutti.platform.data.DockSlot
+import io.kud.tutti.platform.data.PadMode
+import io.kud.tutti.platform.data.RemoteLayout
 import io.kud.tutti.platform.data.TuttiStore
 import io.kud.tutti.platform.data.TvDevice
 import io.kud.tutti.platform.discovery.TvDiscovery
@@ -196,6 +204,8 @@ class ShowcaseRenders {
                 frame()
                 redispatch()
                 repeat(SETTLE_MS / FRAME_MS.toInt()) { frame() }
+                // App icons decode off the main thread: give that real time to land, then draw it.
+                repeat(ICON_WAITS) { Thread.sleep(ICON_WAIT_MS); frame() }
                 val view = activity.window.decorView
                 val log = File(dir!!, "window.txt")
                 val line = "$name $locale ${if (dark) "dark" else "light"}: window ${view.width}x${view.height}, screen ${activity.resources.configuration.screenWidthDp}x${activity.resources.configuration.screenHeightDp} dp, $seen, $compositions composition(s)"
@@ -271,6 +281,8 @@ class ShowcaseRenders {
         /** Two seconds of 16 ms frames: every entrance has settled. */
         const val SETTLE_MS = 2000
         const val FRAME_MS = 16L
+        const val ICON_WAITS = 10
+        const val ICON_WAIT_MS = 30L
 
 
         /**
@@ -284,7 +296,11 @@ class ShowcaseRenders {
     }
 }
 
-/** Invented: the addresses (private range) and the apps; the devices keep the app's default names. */
+/**
+ * Invented: the addresses (private range), the apps and their icons; the devices keep the app's
+ * default names. Set up as on Erwann's phone: the D-pad, an icons-only dock of two rows (the round
+ * row joined in, then his pins), and the starter scenes named in the phone's language.
+ */
 private object Fixture {
     private fun app(id: String, name: String) = KnownApp("app.invented.$id", name)
 
@@ -301,6 +317,65 @@ private object Fixture {
     )
 
     val recents = listOf("app.invented.lumen", "app.invented.tempo", "app.invented.reelclub")
+
+    /**
+     * Launcher art for the invented apps, standing where the TV's own icons are cached: a flat
+     * colour and one plain white shape each, drawn here, so no real brand appears.
+     */
+    private val icons: Map<String, String> by lazy {
+        val dir = File(RuntimeEnvironment.getApplication().cacheDir, "showcase-icons").apply { mkdirs() }
+        val ink = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFFFFFFF.toInt() }
+        val stroke = Paint(ink).apply { style = Paint.Style.STROKE; strokeWidth = 18f; strokeCap = Paint.Cap.ROUND }
+        val faces: Map<String, Pair<Long, (Canvas) -> Unit>> = mapOf(
+            "lumen" to (0xFFE59A2F to { c: Canvas -> c.drawCircle(96f, 96f, 40f, ink) }),
+            "reelclub" to (0xFFC0394B to { c: Canvas ->
+                c.drawPath(Path().apply { moveTo(74f, 56f); lineTo(140f, 96f); lineTo(74f, 136f); close() }, ink)
+            }),
+            "harbourfm" to (0xFF1E8582 to { c: Canvas ->
+                c.drawArc(RectF(46f, 46f, 146f, 146f), 200f, 140f, false, stroke)
+                c.drawArc(RectF(72f, 72f, 120f, 120f), 200f, 140f, false, stroke)
+                c.drawCircle(96f, 120f, 12f, ink)
+            }),
+            "pebble" to (0xFF3E9E5F to { c: Canvas -> c.drawOval(RectF(50f, 66f, 142f, 130f), ink) }),
+            "atlas" to (0xFF3F51A8 to { c: Canvas ->
+                for (y in listOf(66f, 96f, 126f)) c.drawLine(58f, y, if (y == 126f) 108f else 134f, y, stroke)
+            }),
+            "tempo" to (0xFFC2448A to { c: Canvas ->
+                for ((x, h) in listOf(66f to 30f, 96f to 52f, 126f to 40f)) c.drawLine(x, 96f - h / 2 - 8f, x, 96f + h / 2 + 8f, stroke)
+            }),
+            "cosy" to (0xFFD8683A to { c: Canvas -> c.drawArc(RectF(52f, 52f, 140f, 140f), 0f, 180f, true, ink) }),
+            "orbit" to (0xFF2C78CC to { c: Canvas ->
+                c.drawCircle(96f, 96f, 44f, Paint(stroke).apply { strokeWidth = 14f })
+                c.drawCircle(130f, 66f, 14f, ink)
+            }),
+            "lantern" to (0xFF2D3955 to { c: Canvas -> c.drawRoundRect(RectF(70f, 56f, 122f, 136f), 18f, 18f, Paint(ink).apply { color = 0xFFF2C14E.toInt() }) }),
+        )
+        faces.map { (id, face) ->
+            val bitmap = Bitmap.createBitmap(192, 192, Bitmap.Config.ARGB_8888)
+            Canvas(bitmap).apply { drawColor(face.first.toInt()); face.second(this) }
+            val file = File(dir, "$id.png")
+            file.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+            "app.invented.$id" to file.path
+        }.toMap()
+    }
+
+    /** The starters read in the phone's language, as `TuttiStore` shows a scene he never renamed. */
+    private val starterNames = mapOf(
+        "starter-cinema" to R.string.scene_starter_cinema,
+        "starter-serie" to R.string.scene_starter_serie,
+        "starter-nuit" to R.string.scene_starter_nuit,
+        "starter-musique" to R.string.scene_starter_musique,
+        "starter-sport" to R.string.scene_starter_sport,
+        "starter-jeu" to R.string.scene_starter_jeu,
+        "starter-info" to R.string.scene_starter_info,
+    )
+
+    private fun scenes() = StarterScenes.all.map { scene ->
+        val name = starterNames[scene.id]?.let { RuntimeEnvironment.getApplication().getString(it) } ?: scene.name
+        SceneUi(scene.copy(name = name))
+    }
+
+    private val layout = RemoteLayout(dockLabels = DockLabels.ICON)
 
     private val bar = TheatreState(
         connected = true,
@@ -321,33 +396,40 @@ private object Fixture {
         ),
     )
 
-    val home = TuttiUiState(
+    /** Read per shot: the scene names follow the locale the shot is drawn in. */
+    val home: TuttiUiState get() = TuttiUiState(
         loaded = true,
         devices = Devices(TvDevice(host = "192.168.1.40"), BarDevice(host = "192.168.1.41")),
+        prefs = AppPrefs(padMode = PadMode.DPAD, layout = layout),
         dock = DockConfig(
-            slots = DockConfig.DEFAULT_SLOTS + listOf(
+            slots = listOf(
+                DockSlot(DockAction.OpenApps),
+                DockSlot(DockAction.OpenKeys),
                 DockSlot(DockAction.LaunchApp("app.invented.lumen", "Lumen")),
+                DockSlot(DockAction.LaunchApp("app.invented.reelclub", "Reel Club")),
                 DockSlot(DockAction.LaunchApp("app.invented.tempo", "Tempo")),
+                DockSlot(DockAction.ToggleBar("audio.nightmode")),
             ),
-        ),
+        ).normalised(layout),
         links = Links(tv = Link.ONLINE, rest = Link.ONLINE, bar = Link.ONLINE, tvShown = TvShown(Link.ONLINE)),
         tv = TvState(power = PowerStatus.ACTIVE),
         remote = RemoteState(ready = true, powered = true, currentApp = "app.invented.lumen"),
         bar = bar,
-        scenes = StarterScenes.all.map { SceneUi(it) },
+        scenes = scenes(),
         volume = 18,
         powered = true,
         apps = apps,
+        appIcons = icons,
     )
 
     /** IP control set up with a key, so Settings reads a room with everything in place. */
-    val settled = home.copy(pskSet = true)
+    val settled: TuttiUiState get() = home.copy(pskSet = true)
 
     /** IP control lost its pairing: the TV's tile asks first. */
-    val ipLost = settled.copy(links = home.links.copy(rest = Link.NEEDS_PAIRING))
+    val ipLost: TuttiUiState get() = settled.copy(links = home.links.copy(rest = Link.NEEDS_PAIRING))
 
     /** A TV and no soundbar: the remote with no Sound sheet. */
-    val noBar = home.copy(devices = Devices(TvDevice(host = "192.168.1.40")), links = home.links.copy(bar = Link.ABSENT), bar = TheatreState())
+    val noBar: TuttiUiState get() = home.copy(devices = Devices(TvDevice(host = "192.168.1.40")), links = home.links.copy(bar = Link.ABSENT), bar = TheatreState())
 
     /** The TV's own search field, labelled in the phone's language as the TV would. */
     fun typing(locale: String) = home.copy(
