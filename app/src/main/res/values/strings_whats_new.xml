@@ -27,7 +27,7 @@
     <string name="whats_new_0_3_0_channel">Stable or test builds</string>
     <string name="whats_new_0_3_0_channel_detail">In About, choose whether to get test builds. With them off, tutti stays on final releases.</string>
     <string name="whats_new_0_3_0_link">The TV’s link, as it is</string>
-    <string name="whats_new_0_3_0_link_detail">The remote says connected only when it is, and shows a drop straight away. Controls the TV can’t take just now dim quietly.</string>
+    <string name="whats_new_0_3_0_link_detail">The remote says connected only when it is, and shows a drop straight away. Coming back to tutti, the link is kept for a few minutes, and a reconnect is one quiet fade, with what’s on the TV left in place.</string>
     <string name="whats_new_0_3_0_status">One way to say how things stand</string>
     <string name="whats_new_0_3_0_status_detail">Connections, Settings and setup use the same words and signs for each device’s state.</string>
     <string name="whats_new_0_3_0_back">Back to the remote after an update</string>

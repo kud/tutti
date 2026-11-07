@@ -26,7 +26,7 @@
     <string name="whats_new_0_3_0_channel">Version stable ou de test</string>
     <string name="whats_new_0_3_0_channel_detail">Dans À propos, choisissez de recevoir ou non les versions de test. Sans elles, tutti reste sur les versions finales.</string>
     <string name="whats_new_0_3_0_link">Le lien avec la TV, tel qu’il est</string>
-    <string name="whats_new_0_3_0_link_detail">La télécommande ne se dit connectée que lorsqu’elle l’est, et signale une coupure tout de suite. Les commandes que la TV ne peut pas recevoir pour l’instant s’estompent, discrètement.</string>
+    <string name="whats_new_0_3_0_link_detail">La télécommande ne se dit connectée que lorsqu’elle l’est, et signale une coupure tout de suite. Quand vous revenez sur tutti, le lien est gardé quelques minutes, et une reconnexion se fait en un seul fondu discret, sans effacer ce qui passe à la TV.</string>
     <string name="whats_new_0_3_0_status">Une seule façon de dire où en sont les choses</string>
     <string name="whats_new_0_3_0_status_detail">Connexions, Réglages et la configuration emploient les mêmes mots et les mêmes signes pour l’état de chaque appareil.</string>
     <string name="whats_new_0_3_0_back">Retour à la télécommande après une mise à jour</string>
