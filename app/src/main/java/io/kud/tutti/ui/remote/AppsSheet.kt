@@ -95,8 +95,8 @@ fun AppsSheet(
  * Tapping a tile launches optimistically (Erwann, 2026-10-25: "faut un click optimiste"): the
  * controller shows the app on the now-showing card at once and the sheet closes the moment the
  * launch goes out, without waiting for the TV to confirm; the card rolls back, with a quiet
- * message, if it didn't open. Tapped in a blip of the TV's link, the launch is held: the tile
- * keeps its ring and says it is waiting for the TV, and the sheet closes when it goes out. Every
+ * message, if it didn't open. Tapped with the TV's link down, the launch is refused and nothing
+ * goes later (Erwann, 2026-11-07); tapped while the TV sleeps, the tile says it is waking it. Every
  * tap reaches the controller, which never launches the same app twice and lets a newer app win.
  * [recents] (packages, newest first, never the app in front) lead the grid under "Recent", the
  * living room's app switcher that Google TV lacks; long-press Home opens this sheet for them.
@@ -220,7 +220,6 @@ fun AppsSheetContent(
                 app = app,
                 iconPath = state.appIcons[app.packageName],
                 pending = inFlight?.packageName == app.packageName,
-                held = inFlight?.packageName == app.packageName && inFlight.phase == LaunchPhase.QUEUED,
                 waking = inFlight?.packageName == app.packageName && inFlight.phase == LaunchPhase.WAKING,
                 failed = failure?.packageName == app.packageName,
                 pinLabel = pinLabel,
@@ -281,7 +280,6 @@ private fun AppTile(
     app: KnownApp,
     iconPath: String?,
     pending: Boolean,
-    held: Boolean,
     waking: Boolean,
     failed: Boolean,
     pinLabel: String,
@@ -296,7 +294,6 @@ private fun AppTile(
     val pendingLabel = stringResource(
         when {
             waking -> R.string.apps_launch_waking_tile
-            held -> R.string.apps_launch_waiting
             else -> R.string.apps_launch_pending
         },
     )
@@ -380,8 +377,8 @@ private fun AppTile(
                 maxLines = 2,
                 textAlign = TextAlign.Center,
             )
-        } else if (held || waking) {
-            // Held through a blip, or waiting on the TV's wake: say what it waits for, not only a ring.
+        } else if (waking) {
+            // Waiting on the TV's wake: say what it waits for, not only a ring.
             Text(
                 pendingLabel,
                 style = MaterialTheme.typography.labelSmall,

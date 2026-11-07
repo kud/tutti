@@ -35,7 +35,7 @@ class LaunchQueueTest {
         val done = LaunchQueue.settled(sent, 1, LaunchVerdict.FAILED, now = 9_000, detail = "launch org.example.player: failed")
         assertEquals(music, done.book.shown(reported = music))
         val failed = done.effects.filterIsInstance<LaunchEffect.Failed>().single().failure
-        assertEquals(LaunchFailure(player, expired = false, detail = "launch org.example.player: failed"), failed)
+        assertEquals(LaunchFailure(player, detail = "launch org.example.player: failed"), failed)
         assertEquals(failed, done.book.failure)
         assertTrue(LaunchEffect.Done(1, ok = false) in done.effects)
     }
@@ -56,36 +56,6 @@ class LaunchQueueTest {
         val again = LaunchQueue.tap(sent, player, LaunchLink.READY, now = 200)
         assertEquals(listOf<LaunchEffect>(LaunchEffect.Repeat(player)), again.effects)
         assertEquals(sent, again.book)
-        val held = LaunchQueue.tap(LaunchBook(), player, LaunchLink.ON_ITS_WAY, now = 0).book
-        assertEquals(listOf<LaunchEffect>(LaunchEffect.Repeat(player)), LaunchQueue.tap(held, player, LaunchLink.ON_ITS_WAY, now = 300).effects)
-    }
-
-    @Test
-    fun `a tap in a blip is held, then sent when the link is back`() {
-        val held = LaunchQueue.tap(LaunchBook(), player, LaunchLink.ON_ITS_WAY, now = 1_000)
-        assertEquals(listOf<LaunchEffect>(LaunchEffect.Held(1, player, 1_000 + LaunchQueue.HOLD_MS)), held.effects)
-        assertEquals(player, held.book.shown(reported = music))
-        val back = LaunchQueue.linkReady(held.book, 1, now = 2_500)
-        assertEquals(listOf<LaunchEffect>(LaunchEffect.Send(1, player)), back.effects)
-        assertEquals(LaunchPhase.SENDING, back.book.pending?.phase)
-        assertEquals(0, held.book.lastSentId)
-        assertEquals(1, back.book.lastSentId)
-        assertEquals(1, back.book.inFlightFor(player))
-        assertNull(back.book.inFlightFor(music))
-    }
-
-    @Test
-    fun `a held launch past its window is dropped, rolled back and said`() {
-        val held = LaunchQueue.tap(LaunchBook(), player, LaunchLink.ON_ITS_WAY, now = 0).book
-        assertEquals(held, LaunchQueue.tick(held, now = LaunchQueue.HOLD_MS - 1).book)
-        val gone = LaunchQueue.tick(held, now = LaunchQueue.HOLD_MS)
-        assertNull(gone.book.pending)
-        assertEquals(music, gone.book.shown(reported = music))
-        assertEquals(LaunchFailure(player, expired = true), gone.effects.filterIsInstance<LaunchEffect.Failed>().single().failure)
-        // The link coming back too late sends nothing either.
-        val late = LaunchQueue.linkReady(held, 1, now = LaunchQueue.HOLD_MS + 1)
-        assertTrue(late.effects.none { it is LaunchEffect.Send })
-        assertNull(late.book.pending)
     }
 
     @Test
@@ -97,15 +67,26 @@ class LaunchQueueTest {
     }
 
     @Test
+    fun `a tap refused while the link is down is never sent when it comes back`() {
+        // Erwann, 2026-11-07: connected and it works, or not connected and it does nothing.
+        val refused = LaunchQueue.tap(LaunchBook(), player, LaunchLink.DOWN, now = 0).book
+        assertNull(refused.pending)
+        assertNull(refused.optimistic)
+        // Nothing waits on the link: the wake path and time passing find nothing to send.
+        assertTrue(LaunchQueue.awake(refused).effects.isEmpty())
+        assertTrue(LaunchQueue.tick(refused, now = 60_000).effects.isEmpty())
+        assertEquals(0, refused.lastSentId)
+    }
+
+    @Test
     fun `the newest tap wins, and the launch it replaced settles as nothing`() {
-        val first = LaunchQueue.tap(LaunchBook(), player, LaunchLink.ON_ITS_WAY, now = 0).book
-        val second = LaunchQueue.tap(first, music, LaunchLink.ON_ITS_WAY, now = 500)
+        val first = LaunchQueue.tap(LaunchBook(), player, LaunchLink.READY, now = 0).book
+        val second = LaunchQueue.tap(first, music, LaunchLink.READY, now = 500)
         assertEquals(LaunchEffect.Superseded(1), second.effects.first())
-        assertIs<LaunchEffect.Held>(second.effects.last())
+        assertIs<LaunchEffect.Send>(second.effects.last())
         assertEquals(music, second.book.pending?.packageName)
         assertEquals(music, second.book.optimistic)
-        // The old launch's link-ready or result no longer touches the book.
-        assertEquals(second.book, LaunchQueue.linkReady(second.book, 1, now = 600).book)
+        // The old launch's result no longer touches the book.
         assertEquals(second.book, LaunchQueue.settled(second.book, 1, LaunchVerdict.FAILED, now = 700).book)
     }
 
@@ -117,7 +98,7 @@ class LaunchQueueTest {
 
     @Test
     fun `a new tap clears the last failure`() {
-        val failed = LaunchQueue.tick(LaunchQueue.tap(LaunchBook(), player, LaunchLink.ON_ITS_WAY, now = 0).book, now = LaunchQueue.HOLD_MS).book
+        val failed = LaunchQueue.settled(LaunchQueue.tap(LaunchBook(), player, LaunchLink.READY, now = 0).book, 1, LaunchVerdict.FAILED, now = 100).book
         assertEquals(player, failed.failure?.packageName)
         assertNull(LaunchQueue.tap(failed, music, LaunchLink.READY, now = 5_000).book.failure)
     }
@@ -151,7 +132,7 @@ class LaunchQueueTest {
     fun `a failed wake drops the launch and says the tv did not come on`() {
         val waking = LaunchQueue.tap(LaunchBook(), player, LaunchLink.ASLEEP, now = 0).book
         val failed = LaunchQueue.notWoken(waking)
-        val failure = LaunchFailure(player, expired = true, asleep = true)
+        val failure = LaunchFailure(player, asleep = true)
         assertEquals(listOf(LaunchEffect.Done(1, ok = false), LaunchEffect.Failed(failure)), failed.effects)
         assertNull(failed.book.pending)
         assertNull(failed.book.optimistic)
@@ -165,14 +146,14 @@ class LaunchQueueTest {
         val waking = LaunchQueue.tap(LaunchBook(), player, LaunchLink.ASLEEP, now = 0).book
         assertEquals(waking, LaunchQueue.tick(waking, now = LaunchQueue.WAKE_MS - 1).book)
         val expired = LaunchQueue.tick(waking, now = LaunchQueue.WAKE_MS)
-        assertEquals(LaunchFailure(player, expired = true, asleep = true), expired.book.failure)
+        assertEquals(LaunchFailure(player, asleep = true), expired.book.failure)
     }
 
     @Test
     fun `another app tapped while waking takes its place and never wakes twice`() {
         val first = LaunchQueue.tap(LaunchBook(), player, LaunchLink.ASLEEP, now = 0).book
         // The TV is still coming up: whatever the link reads, short of ready, the tap joins the wake.
-        for (link in listOf(LaunchLink.ASLEEP, LaunchLink.DOWN, LaunchLink.ON_ITS_WAY)) {
+        for (link in listOf(LaunchLink.ASLEEP, LaunchLink.DOWN)) {
             val second = LaunchQueue.tap(first, music, link, now = 3_000)
             assertEquals(
                 listOf(LaunchEffect.Superseded(1), LaunchEffect.Done(1, ok = false), LaunchEffect.Wake(2, music, until = LaunchQueue.WAKE_MS, start = false)),
@@ -205,11 +186,4 @@ class LaunchQueueTest {
         assertTrue(LaunchQueue.notWoken(sent.book).effects.isEmpty())
     }
 
-    @Test
-    fun `a blip's held launch is not a wake`() {
-        val held = LaunchQueue.tap(LaunchBook(), player, LaunchLink.ON_ITS_WAY, now = 0).book
-        assertTrue(LaunchQueue.awake(held).effects.isEmpty())
-        assertTrue(LaunchQueue.notWoken(held).effects.isEmpty())
-        assertEquals(LaunchFailure(player, expired = true, asleep = false), LaunchQueue.tick(held, now = LaunchQueue.HOLD_MS).book.failure)
-    }
 }

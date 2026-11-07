@@ -1297,26 +1297,29 @@ class TuttiController @Inject constructor(
 
     /**
      * Implicit wake ([TvLinkRule.wakesTv]): wakes the TV through [power]'s own path (remote power
-     * key, REST, Wake-on-LAN), then sends [keyCode] once the TV says it is on, within
-     * [WAKE_KEY_MS]. Newest wins with the other held keys. A wake that fails says so itself
-     * ([TuttiEvent.WakeFailed]); a TV that answered but never said it was on drops the key, said.
+     * key, REST, Wake-on-LAN), then sends [keyCode] once the TV says it is on and its remote link
+     * is ready, within [WAKE_KEY_MS]. This is a wake action the press asked for, the way a physical
+     * remote's Home wakes the screen, not a key held through a blip: those are gone (Erwann,
+     * 2026-11-07). A newer wake press wins. A wake that fails says so itself
+     * ([TuttiEvent.WakeFailed]); a TV that answered but never came on drops the key, said.
      */
     fun wakeThenKey(keyCode: Int) {
-        val mine = heldKey.incrementAndGet()
+        val mine = wakeKey.incrementAndGet()
         power(PowerTarget.TV, on = true)
         scope.launch {
             val on = withTimeoutOrNull(WAKE_KEY_MS) {
-                // On by the remote link's word, else REST's; the key itself waits out the link (sendTvKey).
-                combine(atv.state, tv) { remote, rest -> (remote.powered ?: (rest.power == PowerStatus.ACTIVE)) == true }.first { it }
+                // On by the remote link's word, else REST's, and the remote link up to carry the key.
+                combine(atv.state, tv) { remote, rest -> remote.ready && (remote.powered ?: (rest.power == PowerStatus.ACTIVE)) == true }.first { it }
             } != null
-            if (mine != heldKey.get()) return@launch
+            if (mine != wakeKey.get()) return@launch
             if (!on) {
-                if (atv.state.value.ready) mutableEvents.tryEmit(TuttiEvent.KeyNotSent(KeyOutcome.EXPIRED))
+                // Something answered, so no WakeFailed will say it: say the key never went.
+                if (atv.state.value.ready || tv.value.power == PowerStatus.ACTIVE) mutableEvents.tryEmit(TuttiEvent.KeyNotSent(KeyOutcome.EXPIRED))
                 return@launch
             }
             // The screen is still coming up: a Home sent in the same instant can be lost.
             delay(WAKE_KEY_SETTLE_MS)
-            if (mine == heldKey.get()) sendTvKey(keyCode, long = false)
+            if (mine == wakeKey.get()) sendTvKey(keyCode, long = false)
         }
     }
 
@@ -1326,7 +1329,7 @@ class TuttiController @Inject constructor(
 
     /**
      * Long-press Back: back to the app before the one in front, through the optimistic launch
-     * path ([launchApp], [LaunchQueue]), so a blip holds it like any tap. False when there is none yet.
+     * path ([launchApp], [LaunchQueue]), refused like any tap while the link is down. False when there is none yet.
      */
     fun launchPreviousApp(): Boolean {
         val target = appHistory.value.back() ?: return false
@@ -1379,7 +1382,7 @@ class TuttiController @Inject constructor(
             return
         }
         val current = links.value
-        mutableEvents.tryEmit(TuttiEvent.KeyNotSent(TvLinkRule.whileDown(keyCode, long = true, current.tv, current.tvShown)))
+        mutableEvents.tryEmit(TuttiEvent.KeyNotSent(TvLinkRule.whileDown(current.tv, current.tvShown)))
     }
 
     private suspend fun releaseNow() {
@@ -1391,26 +1394,19 @@ class TuttiController @Inject constructor(
         atv.releaseKey(held.keyCode)
     }
 
-    /** Bumped by every held key, so only the newest one waiting is sent. */
-    private val heldKey = java.util.concurrent.atomic.AtomicInteger()
+    /** Bumped by every [wakeThenKey], so only the newest key waiting on a wake is sent. */
+    private val wakeKey = java.util.concurrent.atomic.AtomicInteger()
 
     /**
-     * Sends a TV key, never dropping it silently: with the remote link down, [TvLinkRule.whileDown]
-     * holds a one-shot key for [TvLinkRule.HOLD_MS] or drops it, and either way says so
-     * ([TuttiEvent.KeyNotSent]). Before this, `AtvRemote.send` returned false and nothing listened.
+     * Sends a TV key now or not at all (Erwann, 2026-11-07: « soit c'est connecté et ça marche,
+     * soit c'est pas connecté et ça fait rien »). With the remote link down the key is dropped,
+     * never held for the link to come back, and [TvLinkRule.whileDown] says why
+     * ([TuttiEvent.KeyNotSent]).
      */
     private suspend fun sendTvKey(keyCode: Int, long: Boolean): Boolean {
-        val send: suspend () -> Boolean = { if (long) atv.longPress(keyCode) else atv.sendKey(keyCode) }
-        if (atv.state.value.ready && send()) return true
+        if (atv.state.value.ready && (if (long) atv.longPress(keyCode) else atv.sendKey(keyCode))) return true
         val current = links.value
-        val outcome = TvLinkRule.whileDown(keyCode, long, current.tv, current.tvShown)
-        mutableEvents.tryEmit(TuttiEvent.KeyNotSent(outcome))
-        if (outcome != KeyOutcome.HELD) return false
-        val mine = heldKey.incrementAndGet()
-        val back = withTimeoutOrNull(TvLinkRule.HOLD_MS) { atv.state.first { it.ready } } != null
-        if (mine != heldKey.get()) return false
-        if (back && send()) return true
-        mutableEvents.tryEmit(TuttiEvent.KeyNotSent(KeyOutcome.EXPIRED))
+        mutableEvents.tryEmit(TuttiEvent.KeyNotSent(TvLinkRule.whileDown(current.tv, current.tvShown)))
         return false
     }
 
@@ -1472,9 +1468,9 @@ class TuttiController @Inject constructor(
 
     /**
      * Opens an app, optimistically (Erwann, 2026-10-25: "faut un click optimiste"). The remote
-     * shows the app at once ([TuttiUiState.launches]); the launch goes out now when a route can,
-     * waits up to [LaunchQueue.HOLD_MS] for a link that is only blipping, or is refused with the
-     * words a key gets ([TvLinkRule.launchWhileDown]). A repeat tap of the app in flight sends
+     * shows the app at once ([TuttiUiState.launches]); the launch goes out now when a route can, or
+     * is refused with the words a key gets ([TvLinkRule.whileDown]), never held for the link
+     * (Erwann, 2026-11-07). A repeat tap of the app in flight sends
      * nothing; a different app replaces it. Runs in the controller's scope, so leaving the sheet
      * never cancels a launch half way. With [wake], a tap while the TV sleeps turns it on first
      * and opens the app once it is ([TvLinkRule.launchWakes], [wakeForLaunch]); only a hand on a
@@ -1513,7 +1509,7 @@ class TuttiController @Inject constructor(
     /** Callers awaiting a launch's end ([requestLaunch]), by launch id. */
     private val launchWaiters = java.util.concurrent.ConcurrentHashMap<Long, CompletableDeferred<Boolean>>()
 
-    /** The job sending or holding each launch, by id, so a newer tap can stop the one it replaced. */
+    /** The job sending each launch, by id, so a newer tap can stop the one it replaced. */
     private val launchJobs = java.util.concurrent.ConcurrentHashMap<Long, Job>()
 
     /** The one wake a launch waits on ([LaunchEffect.Wake]); a newer app tapped meanwhile waits on the same one. */
@@ -1538,16 +1534,6 @@ class TuttiController @Inject constructor(
                     launchJobs.remove(effect.id)
                     handleLaunch(launchStep { LaunchQueue.settled(it, effect.id, result.verdict, SystemClock.elapsedRealtime(), Redact.text(result.trace())) })
                 }
-                is LaunchEffect.Held -> {
-                    mutableEvents.tryEmit(TuttiEvent.AppLaunchHeld(appLabel(effect.packageName)))
-                    launchJobs[effect.id] = scope.launch {
-                        val wait = (effect.until - SystemClock.elapsedRealtime()).coerceAtLeast(0)
-                        val back = withTimeoutOrNull(wait) { atv.state.first { it.ready } } != null
-                        launchJobs.remove(effect.id)
-                        val now = SystemClock.elapsedRealtime()
-                        handleLaunch(launchStep { if (back) LaunchQueue.linkReady(it, effect.id, now) else LaunchQueue.tick(it, now) })
-                    }
-                }
                 is LaunchEffect.Wake -> {
                     mutableEvents.tryEmit(TuttiEvent.AppLaunchWaking(appLabel(effect.packageName)))
                     if (effect.start) {
@@ -1561,11 +1547,11 @@ class TuttiController @Inject constructor(
                     if (effect.ok) scheduleLaunchTick()
                 }
                 is LaunchEffect.Failed -> mutableEvents.tryEmit(
-                    TuttiEvent.AppNotOpened(appLabel(effect.failure.packageName), effect.failure.expired, effect.failure.detail, effect.failure.asleep),
+                    TuttiEvent.AppNotOpened(appLabel(effect.failure.packageName), effect.failure.detail, effect.failure.asleep),
                 )
                 is LaunchEffect.Refused -> {
                     val current = links.value
-                    mutableEvents.tryEmit(TuttiEvent.KeyNotSent(TvLinkRule.launchWhileDown(current.tv, current.tvShown)))
+                    mutableEvents.tryEmit(TuttiEvent.KeyNotSent(TvLinkRule.whileDown(current.tv, current.tvShown)))
                 }
                 is LaunchEffect.Repeat -> Unit
             }
@@ -1612,7 +1598,7 @@ class TuttiController @Inject constructor(
 
     /**
      * Whether a launch can go now: the remote link ready, or IP control up with a uri the TV
-     * listed. Else the shown link decides ([TvLinkRule.launchWhileDown]): held through a blip only.
+     * listed. Else it is refused ([TvLinkRule.whileDown]), never held for the link (Erwann, 2026-11-07).
      * With [wake], a TV asleep is woken first ([TvLinkRule.launchWakes]): one known in standby
      * even while its links answer, since an app sent to it opens on a dark screen or not at all.
      */
@@ -1627,9 +1613,7 @@ class TuttiController @Inject constructor(
             state.value.apps.any { it.packageName == packageName && it.tvUri != null }
         // setActiveApp needs the key: a refused one leaves launches to the remote link.
         if (bravia != null && links.value.rest == Link.ONLINE && !pskRefused && listed) return LaunchLink.READY
-        if (wakes) return LaunchLink.ASLEEP
-        val current = links.value
-        return if (TvLinkRule.launchWhileDown(current.tv, current.tvShown) == KeyOutcome.HELD) LaunchLink.ON_ITS_WAY else LaunchLink.DOWN
+        return if (wakes) LaunchLink.ASLEEP else LaunchLink.DOWN
     }
 
     private suspend fun restUriFor(packageName: String): String? =
@@ -1770,7 +1754,7 @@ class TuttiController @Inject constructor(
      * XR80 (dev.71), and neither did the intent links after it (2026-10-26), so [AppsScreenOpener]
      * tries first, with IP control on, the TV's own IRCC key for it when its list names one
      * ([AppsScreen.irccRoute]), then the Remote v2 routes. It watches the foreground app; [TuttiEvent.AppsScreen] says
-     * what it saw. With the link down it waits like a one-shot key ([TvLinkRule]) and says so.
+     * what it saw. With the link down it is dropped like any key ([TvLinkRule.whileDown]) and says so.
      */
     /** The apps-screen IRCC key a REST client's list gave, when TV settings had not loaded it ([openAllApps]). */
     @Volatile private var appsScreenIrcc: Pair<BraviaClient, AppsScreenRoute.Ircc?>? = null
@@ -1779,16 +1763,8 @@ class TuttiController @Inject constructor(
         scope.launch {
             if (!atv.state.value.ready) {
                 val current = links.value
-                val outcome = TvLinkRule.whileDown(V2Key.ALL_APPS, false, current.tv, current.tvShown)
-                mutableEvents.tryEmit(TuttiEvent.KeyNotSent(outcome))
-                if (outcome != KeyOutcome.HELD) return@launch
-                val mine = heldKey.incrementAndGet()
-                val back = withTimeoutOrNull(TvLinkRule.HOLD_MS) { atv.state.first { it.ready } } != null
-                if (mine != heldKey.get()) return@launch
-                if (!back) {
-                    mutableEvents.tryEmit(TuttiEvent.KeyNotSent(KeyOutcome.EXPIRED))
-                    return@launch
-                }
+                mutableEvents.tryEmit(TuttiEvent.KeyNotSent(TvLinkRule.whileDown(current.tv, current.tvShown)))
+                return@launch
             }
             val client = bravia
             val restOnline = client != null && links.value.rest == Link.ONLINE

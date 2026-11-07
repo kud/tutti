@@ -87,7 +87,6 @@ class MessageCopyTest {
             "layout_too_large",
             "layout_from_future",
             "layout_imported",
-            "key_held",
             "key_dropped_waiting",
             "key_dropped_down",
             "key_dropped_pairing",

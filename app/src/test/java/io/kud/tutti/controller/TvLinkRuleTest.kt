@@ -3,8 +3,11 @@ package io.kud.tutti.controller
 import io.kud.tutti.controller.TvLinkRule.BLIP_MS
 import io.kud.tutti.controller.TvLinkRule.GIVE_UP_MS
 import io.kud.tutti.protocol.atv.V2Key
+import java.io.File
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class TvLinkRuleTest {
@@ -54,41 +57,36 @@ class TvLinkRuleTest {
     }
 
     @Test
-    fun `one-shot keys wait, the d-pad and ok never do`() {
-        val blip = TvShown(Link.ONLINE)
-        listOf(V2Key.HOME, V2Key.BACK, V2Key.MEDIA_PLAY_PAUSE).forEach {
-            assertEquals(KeyOutcome.HELD, TvLinkRule.whileDown(it, long = false, raw = Link.UNREACHABLE, shown = blip))
+    fun `no key or launch is ever held, whatever the link reads`() {
+        // Erwann, 2026-11-07: « soit c'est connecté et ça marche, soit c'est pas connecté et ça fait rien ».
+        assertEquals(KeyOutcome.DROPPED_WAITING, TvLinkRule.whileDown(Link.UNREACHABLE, TvShown(Link.ONLINE)))
+        assertEquals(KeyOutcome.DROPPED_WAITING, TvLinkRule.whileDown(Link.CONNECTING, TvShown(Link.ONLINE)))
+        assertEquals(KeyOutcome.DROPPED_WAITING, TvLinkRule.whileDown(Link.CONNECTING, TvShown(Link.CONNECTING, reconnecting = true)))
+        assertEquals(KeyOutcome.DROPPED_WAITING, TvLinkRule.whileDown(Link.CONNECTING, TvShown(Link.CONNECTING)))
+    }
+
+    @Test
+    fun `a key pressed while down is never sent when the link comes back`() {
+        // The controller has no test harness; this reads its source, as DownDressTest does for the UI.
+        // sendTvKey either sends now or reports the drop: nothing in it waits on the link.
+        val file = sequenceOf(File("src/main/java/io/kud/tutti/controller/TuttiController.kt"), File("app/src/main/java/io/kud/tutti/controller/TuttiController.kt"))
+            .first { it.isFile }
+        val source = file.readText()
+        val start = source.indexOf("private suspend fun sendTvKey(")
+        assertTrue("sendTvKey not found", start >= 0)
+        val body = source.substring(start, source.indexOf("\n    }\n", start))
+        assertTrue("sendTvKey reports the drop", "KeyNotSent" in body)
+        for (wait in listOf("withTimeout", ".first", "delay(", "launch")) {
+            assertFalse("sendTvKey must not wait for the link ($wait)", wait in body)
         }
-        listOf(V2Key.DPAD_UP, V2Key.DPAD_LEFT, V2Key.DPAD_CENTER, V2Key.ENTER, V2Key.CHANNEL_UP, V2Key.NUM_1, V2Key.POWER).forEach {
-            assertEquals(KeyOutcome.DROPPED_WAITING, TvLinkRule.whileDown(it, long = false, raw = Link.CONNECTING, shown = blip))
-        }
-        assertEquals(KeyOutcome.DROPPED_WAITING, TvLinkRule.whileDown(V2Key.HOME, long = true, raw = Link.CONNECTING, shown = blip))
     }
 
     @Test
-    fun `nothing waits for a tv that is gone or forgot us`() {
-        val gone = TvShown(Link.UNREACHABLE)
-        assertEquals(KeyOutcome.DROPPED_DOWN, TvLinkRule.whileDown(V2Key.HOME, long = false, raw = Link.CONNECTING, shown = gone))
-        assertEquals(KeyOutcome.DROPPED_PAIRING, TvLinkRule.whileDown(V2Key.HOME, long = false, raw = Link.NEEDS_PAIRING, shown = TvShown(Link.NEEDS_PAIRING)))
-        assertEquals(KeyOutcome.DROPPED_DOWN, TvLinkRule.whileDown(V2Key.BACK, long = false, raw = Link.ABSENT, shown = TvShown(Link.ABSENT)))
-    }
-
-    @Test
-    fun `a reconnect still holds a one-shot key`() {
-        val back = TvShown(Link.CONNECTING, reconnecting = true)
-        assertEquals(KeyOutcome.HELD, TvLinkRule.whileDown(V2Key.BACK, long = false, raw = Link.CONNECTING, shown = back))
-        assertEquals(KeyOutcome.DROPPED_WAITING, TvLinkRule.whileDown(V2Key.DPAD_DOWN, long = false, raw = Link.CONNECTING, shown = back))
-    }
-
-    @Test
-    fun `a launch waits out a blip, and is refused once the remote shows the tv down`() {
-        assertEquals(KeyOutcome.HELD, TvLinkRule.launchWhileDown(Link.UNREACHABLE, TvShown(Link.ONLINE)))
-        assertEquals(KeyOutcome.HELD, TvLinkRule.launchWhileDown(Link.CONNECTING, TvShown(Link.ONLINE)))
-        assertEquals(KeyOutcome.DROPPED_WAITING, TvLinkRule.launchWhileDown(Link.CONNECTING, TvShown(Link.CONNECTING, reconnecting = true)))
-        assertEquals(KeyOutcome.DROPPED_WAITING, TvLinkRule.launchWhileDown(Link.CONNECTING, TvShown(Link.CONNECTING)))
-        assertEquals(KeyOutcome.DROPPED_DOWN, TvLinkRule.launchWhileDown(Link.UNREACHABLE, TvShown(Link.UNREACHABLE)))
-        assertEquals(KeyOutcome.DROPPED_DOWN, TvLinkRule.launchWhileDown(Link.ABSENT, TvShown(Link.ABSENT)))
-        assertEquals(KeyOutcome.DROPPED_PAIRING, TvLinkRule.launchWhileDown(Link.NEEDS_PAIRING, TvShown(Link.NEEDS_PAIRING)))
+    fun `a tv that is gone or forgot us says so`() {
+        assertEquals(KeyOutcome.DROPPED_DOWN, TvLinkRule.whileDown(Link.CONNECTING, TvShown(Link.UNREACHABLE)))
+        assertEquals(KeyOutcome.DROPPED_DOWN, TvLinkRule.whileDown(Link.UNREACHABLE, TvShown(Link.UNREACHABLE)))
+        assertEquals(KeyOutcome.DROPPED_DOWN, TvLinkRule.whileDown(Link.ABSENT, TvShown(Link.ABSENT)))
+        assertEquals(KeyOutcome.DROPPED_PAIRING, TvLinkRule.whileDown(Link.NEEDS_PAIRING, TvShown(Link.NEEDS_PAIRING)))
     }
 
     @Test

@@ -9,11 +9,12 @@ import io.kud.tutti.protocol.atv.V2Key
  */
 data class TvShown(val link: Link, val reconnecting: Boolean = false)
 
-/** What happened to a TV key pressed while the remote link was not up. */
+/**
+ * Why a TV key or app pressed while the remote link was not up was dropped. Nothing is ever held
+ * to go out later (Erwann, 2026-11-07: « soit c'est connecté et ça marche, soit c'est pas
+ * connecté et ça fait rien »).
+ */
 enum class KeyOutcome {
-    /** A one-shot key, held for up to [TvLinkRule.HOLD_MS] and sent the moment the link is back. */
-    HELD,
-
     /** Dropped, while the link is on its way (a blip, a reconnect, the first connect). */
     DROPPED_WAITING,
 
@@ -23,7 +24,7 @@ enum class KeyOutcome {
     /** Dropped: the TV forgot this phone. */
     DROPPED_PAIRING,
 
-    /** A held key whose link did not come back within [TvLinkRule.HOLD_MS]. */
+    /** A key waiting on a wake ([TuttiController.wakeThenKey]) whose TV never said it was on. */
     EXPIRED,
 }
 
@@ -42,33 +43,6 @@ enum class KeyOutcome {
 object TvLinkRule {
     const val BLIP_MS = 3_000L
     const val GIVE_UP_MS = 20_000L
-
-    /**
-     * How long a one-shot key waits for the link. A blip's reconnect lands within about 2 s of the
-     * drop, so a key pressed in it usually lands in under that. Any later and the person has
-     * already looked down or pressed again: a Home arriving five seconds on is a surprise, not help.
-     */
-    const val HOLD_MS = 2_000L
-
-    /**
-     * One-shot keys: where they go doesn't depend on where the focus is, and one landing late
-     * does what was asked. Held (newest wins, so two Backs in a blip send one). Everything else
-     * drops: D-pad and OK (a burst of arrows landing late, or OK on whatever got focus meanwhile),
-     * digits and channel steps (sequences), colour keys and skips (context), and power, which has
-     * its own wake path and must never toggle late.
-     */
-    val HOLDABLE: Set<Int> = setOf(
-        V2Key.HOME,
-        V2Key.BACK,
-        V2Key.MEDIA_PLAY_PAUSE,
-        V2Key.MEDIA_PLAY,
-        V2Key.MEDIA_PAUSE,
-        V2Key.MEDIA_STOP,
-        V2Key.GUIDE,
-        V2Key.SETTINGS,
-        V2Key.ALL_APPS,
-        V2Key.TV,
-    )
 
     /**
      * Implicit wake (Erwann, 2026-10-25): Home and Play/Pause pressed while the
@@ -123,27 +97,13 @@ object TvLinkRule {
     }
 
     /**
-     * An app launch tapped with no route able to go now (remote link not ready, no IP control
-     * route). While the remote still shows the link up, a blip, it is held and sent the moment the
-     * link is back ([io.kud.tutti.protocol.apps.LaunchQueue.HOLD_MS]); once it shows connecting or
-     * out of reach every TV control is down (Erwann, 2026-10-25), and a launch is refused like the
-     * rest, with the same words as a key.
-     */
-    fun launchWhileDown(raw: Link, shown: TvShown): KeyOutcome = when {
-        raw == Link.NEEDS_PAIRING -> KeyOutcome.DROPPED_PAIRING
-        shown.link == Link.ONLINE -> KeyOutcome.HELD
-        raw == Link.ABSENT || shown.link == Link.UNREACHABLE -> KeyOutcome.DROPPED_DOWN
-        else -> KeyOutcome.DROPPED_WAITING
-    }
-
-    /**
      * Whether an app tapped by hand wakes the TV before it opens (Erwann, 2026-11-01: « allumer
      * la TV quand on appuie sur Netflix »). Unlike a key ([wakesTv]), an app
      * means "this, on the TV", the way the TV's own Netflix button powers it straight into
      * Netflix. So it wakes a TV known in standby, and also one out of reach past the calm rule:
      * that is where a TV in deep standby sits, and a wake that fails says why (Remote start)
      * where the tap was only refused. Never with no TV or a lost pairing, and never while a link
-     * that was up is on its way back: a blip holds the launch, and a reconnect is not standby.
+     * that was up is on its way back: a reconnect is not standby, and the tap is refused.
      */
     fun launchWakes(hasTv: Boolean, tvPowered: Boolean?, raw: Link, shown: TvShown): Boolean = when {
         !hasTv || raw == Link.ABSENT || raw == Link.NEEDS_PAIRING || raw == Link.UNAUTHORIZED -> false
@@ -151,11 +111,13 @@ object TvLinkRule {
         else -> shown.link == Link.UNREACHABLE
     }
 
-    /** A key pressed while the remote link was not ready: hold it or drop it, and say which. */
-    fun whileDown(keyCode: Int, long: Boolean, raw: Link, shown: TvShown): KeyOutcome = when {
+    /**
+     * A key or an app launch pressed while no route could carry it: dropped, never held for the
+     * link to come back (Erwann, 2026-11-07), and this says why, in the same words for both.
+     */
+    fun whileDown(raw: Link, shown: TvShown): KeyOutcome = when {
         raw == Link.NEEDS_PAIRING -> KeyOutcome.DROPPED_PAIRING
         raw == Link.ABSENT || shown.link == Link.UNREACHABLE -> KeyOutcome.DROPPED_DOWN
-        !long && keyCode in HOLDABLE -> KeyOutcome.HELD
         else -> KeyOutcome.DROPPED_WAITING
     }
 }

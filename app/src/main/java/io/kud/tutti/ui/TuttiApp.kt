@@ -240,12 +240,11 @@ fun TuttiApp(
                 TuttiEvent.VolumeLimit -> haptics.bump()
                 is TuttiEvent.ActionFailed -> problems.report(resources.getString(if (event.keyRefused) R.string.error_key_refused else R.string.error_action_failed), event.detail)
                 is TuttiEvent.KeyNotSent -> {
-                    // The press's own click already played: a held key gets a soft bump, a dropped
-                    // one the reject. The words repeat only once the last ones have gone.
-                    if (event.outcome == KeyOutcome.HELD) haptics.bump() else haptics.reject()
+                    // The press's own click already played: a dropped key gets the reject, and nothing
+                    // goes later (Erwann, 2026-11-07). The words repeat only once the last ones have gone.
+                    haptics.reject()
                     val text = resources.getString(
                         when (event.outcome) {
-                            KeyOutcome.HELD -> R.string.key_held
                             KeyOutcome.DROPPED_WAITING -> R.string.key_dropped_waiting
                             KeyOutcome.DROPPED_DOWN -> R.string.key_dropped_down
                             KeyOutcome.DROPPED_PAIRING -> R.string.key_dropped_pairing
@@ -266,13 +265,8 @@ fun TuttiApp(
                     if (event.verdict == AppsScreenVerdict.FAILED || event.verdict == AppsScreenVerdict.NOT_SENT) haptics.reject()
                     if (text != null && messages.current?.text != text) messages.show(text)
                 }
-                is TuttiEvent.AppLaunchHeld -> {
-                    // The tap's own click already played: a soft bump, as for a held key.
-                    haptics.bump()
-                    messages.show(resources.getString(R.string.apps_launch_held, event.appName))
-                }
                 is TuttiEvent.AppLaunchWaking -> {
-                    // The tap's own click already played: a soft bump, as for a held launch.
+                    // The tap's own click already played: a soft bump, the wake is on its way.
                     haptics.bump()
                     messages.show(resources.getString(R.string.apps_launch_waking, event.appName))
                 }
@@ -281,7 +275,6 @@ fun TuttiApp(
                     haptics.reject()
                     val words = when {
                         event.asleep -> R.string.apps_launch_not_woken
-                        event.expired -> R.string.apps_launch_expired
                         else -> R.string.apps_launch_not_opened
                     }
                     val text = resources.getString(words, event.appName)
