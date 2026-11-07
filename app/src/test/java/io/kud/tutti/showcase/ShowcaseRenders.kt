@@ -1,6 +1,7 @@
 package io.kud.tutti.showcase
 
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Path
@@ -161,6 +162,7 @@ class ShowcaseRenders {
         assumeTrue("TUTTI_SHOWCASE not set", dir != null)
         dir!!.mkdirs()
         val (controller, target) = Graph.build()
+        Fixture.warm()
         for (locale in listOf("en", "fr")) {
             for (dark in listOf(false, true)) {
                 RuntimeEnvironment.setQualifiers("$locale-$SCREEN-${if (dark) "night" else "notnight"}-420dpi")
@@ -357,6 +359,16 @@ private object Fixture {
             file.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
             "app.invented.$id" to file.path
         }.toMap()
+    }
+
+    /**
+     * Writes the icons and decodes one here, on the test's main thread. `AppIcon` decodes on an IO
+     * thread, and the native graphics runtime looks its JNI classes up on first use: done first
+     * from a thread outside Robolectric's class loader, that lookup fails ("Class not found:
+     * java/nio/FloatBuffer") and aborts the test JVM.
+     */
+    fun warm() {
+        icons.values.forEach { checkNotNull(BitmapFactory.decodeFile(it)) { "$it does not decode" } }
     }
 
     /** The starters read in the phone's language, as `TuttiStore` shows a scene he never renamed. */
