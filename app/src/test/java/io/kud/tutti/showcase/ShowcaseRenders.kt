@@ -3,7 +3,6 @@ package io.kud.tutti.showcase
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.os.Looper
-import android.view.View
 import android.view.ViewGroup
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -67,6 +66,7 @@ import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
+import org.robolectric.shadows.ShadowDisplay
 import java.io.File
 import java.io.IOException
 import java.time.Duration
@@ -91,7 +91,7 @@ import java.time.Duration
  */
 /**
  * A Pixel 10 at its default display size: 1080x2424 px at 420 dpi. 411x923 dp is the nearest whole-dp
- * window Robolectric can be given; each shot is then measured and laid out at the exact pixels.
+ * window the qualifiers can give; the display is then set to the panel's exact pixels.
  */
 private const val SCREEN = "w411dp-h923dp"
 private const val WIDTH_PX = 1080
@@ -141,17 +141,19 @@ class ShowcaseRenders {
         for (locale in listOf("en", "fr")) {
             for (dark in listOf(false, true)) {
                 RuntimeEnvironment.setQualifiers("$locale-$SCREEN-${if (dark) "night" else "notnight"}-420dpi")
+                // Whole dp can't make 1080x2424 at 2.625 (411 dp is 1078.9 px): set the panel's pixels.
+                shadowOf(ShadowDisplay.getDefaultDisplay()).apply {
+                    setWidth(WIDTH_PX)
+                    setHeight(HEIGHT_PX)
+                    setRealWidth(WIDTH_PX)
+                    setRealHeight(HEIGHT_PX)
+                }
                 val activity = Robolectric.buildActivity(ComponentActivity::class.java).setup().get()
                 withSystemBars(activity)
                 activity.setContent { TuttiTheme(darkTheme = dark, dynamicColor = false) { screen(controller, target, locale) } }
                 repeat(EIGHTHS) { shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(125)) }
                 val view = activity.window.decorView
-                File(dir!!, "window.txt").appendText("$name $locale ${if (dark) "dark" else "light"}: window ${view.width}x${view.height}, drawn at ${WIDTH_PX}x$HEIGHT_PX\n")
-                view.measure(
-                    View.MeasureSpec.makeMeasureSpec(WIDTH_PX, View.MeasureSpec.EXACTLY),
-                    View.MeasureSpec.makeMeasureSpec(HEIGHT_PX, View.MeasureSpec.EXACTLY),
-                )
-                view.layout(0, 0, WIDTH_PX, HEIGHT_PX)
+                File(dir!!, "window.txt").appendText("$name $locale ${if (dark) "dark" else "light"}: window ${view.width}x${view.height}, screen ${activity.resources.configuration.screenWidthDp}x${activity.resources.configuration.screenHeightDp} dp\n")
                 val bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
                 view.draw(Canvas(bitmap))
                 check(bitmap.width == WIDTH_PX && bitmap.height == HEIGHT_PX) { "$name rendered at ${bitmap.width}x${bitmap.height}" }
