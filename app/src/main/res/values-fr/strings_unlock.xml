@@ -67,7 +67,7 @@
     <string name="technical_tv">TV</string>
     <string name="technical_bar">Barre de son</string>
     <string name="technical_app">tutti</string>
-    <string name="technical_identity_changes">Changements d’identité du téléviseur</string>
+    <string name="technical_identity_changes">Changements d’identité de la TV</string>
     <string name="technical_identity_none">Aucun enregistré</string>
     <string name="technical_identity_copy">Copier les changements d’identité</string>
     <string name="technical_identity_copy_detail">Libellés courts seulement, ni adresse ni clé</string>
