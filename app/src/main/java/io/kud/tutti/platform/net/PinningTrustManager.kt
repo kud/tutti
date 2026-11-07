@@ -27,11 +27,14 @@ internal class PinningTrustManager(
         val leaf = chain?.firstOrNull() ?: throw CertificateException("empty certificate chain")
         onPeerCertificate(leaf)
         val pin = expected ?: return
-        if (!pin.matches(leaf)) throw PinMismatchException()
+        if (!pin.matches(leaf)) throw PinMismatchException(leaf)
     }
 
     override fun getAcceptedIssuers(): Array<X509Certificate> = emptyArray()
 }
 
-/** The device presented a different pinned identity: pair again, never retry blindly. */
-class PinMismatchException : CertificateException("server identity does not match the recorded pin")
+/**
+ * The device presented an identity none of the pins trust. [seen] is that (public) certificate, kept
+ * for the diagnostics and the one-tap trust offer; it is never trusted from here.
+ */
+class PinMismatchException(val seen: X509Certificate? = null) : CertificateException("server identity does not match the recorded pin")

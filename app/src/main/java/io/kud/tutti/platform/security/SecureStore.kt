@@ -11,7 +11,12 @@ import io.kud.tutti.protocol.devices.Device
 import io.kud.tutti.protocol.devices.SecretKeys
 import io.kud.tutti.platform.shortcuts.ShortcutGuard
 import io.kud.tutti.protocol.net.CertificatePin
+import io.kud.tutti.protocol.net.MAX_PINS
+import io.kud.tutti.protocol.net.PinMismatchEvent
+import io.kud.tutti.protocol.net.PinMismatchLog
+import io.kud.tutti.protocol.net.PinSet
 import io.kud.tutti.protocol.net.PublicKeyPin
+import io.kud.tutti.protocol.net.TrustedPins
 import io.kud.tutti.protocol.net.ServerIdentityPin
 import kotlinx.coroutines.flow.first
 import javax.inject.Inject
@@ -44,24 +49,78 @@ class SecureStore @Inject constructor(
 
     suspend fun setTvIpCookie(cookie: AuthCookie?) = write(SecretKeys.ipCookie(TV), cookie?.encode())
 
-    /** Pin of the TV's remote-protocol certificate, recorded at pairing. */
-    suspend fun tvRemotePin(): CertificatePin? = read(SecretKeys.remotePin(TV))?.let(::CertificatePin)
+    /** Pin of the TV's remote-protocol certificate in use: the newest of [tvRemotePins]. */
+    suspend fun tvRemotePin(): CertificatePin? = tvRemotePins().firstOrNull()
 
-    suspend fun setTvRemotePin(pin: CertificatePin?) = write(SecretKeys.remotePin(TV), pin?.sha256Hex)
+    /**
+     * The trusted Remote v2 certificates, newest first, at most [MAX_PINS] ([TrustedPins]). An
+     * install from before 0.3.1 has only the first key, read as it was.
+     */
+    suspend fun tvRemotePins(): List<CertificatePin> =
+        SecretKeys.pins({ read(it) }, SecretKeys.remotePin(TV), SecretKeys.remotePin2(TV)).map(::CertificatePin)
+
+    /**
+     * Admits [pin] as the newest trusted Remote v2 certificate, keeping the one before as the
+     * second (pairing, or the one-tap trust behind [io.kud.tutti.protocol.net.TrustGate]); null
+     * forgets both. Also used to put an already trusted one first ([TrustedPins.follow]).
+     */
+    suspend fun setTvRemotePin(pin: CertificatePin?) {
+        if (pin == null) {
+            write(SecretKeys.remotePin(TV), null)
+            write(SecretKeys.remotePin2(TV), null)
+            return
+        }
+        val pins = TrustedPins.admit(tvRemotePins().map { it.sha256Hex }, pin.sha256Hex)
+        // The second first: a crash between the two writes leaves both trusted, never neither.
+        write(SecretKeys.remotePin2(TV), pins.getOrNull(1))
+        write(SecretKeys.remotePin(TV), pins[0])
+    }
 
     /**
      * REST HTTPS identity. New installs pin SubjectPublicKeyInfo; the old full-certificate digest
      * remains readable and is promoted after the next authenticated HTTPS success.
      */
-    suspend fun tvRestPin(): ServerIdentityPin? =
-        read(SecretKeys.restPublicKeyPin(TV))?.let(::PublicKeyPin)
-            ?: read(SecretKeys.restPin(TV))?.let(::CertificatePin)
+    suspend fun tvRestPin(): ServerIdentityPin? {
+        val keys = tvRestKeys()
+        return when {
+            keys.size > 1 -> PinSet(keys)
+            keys.size == 1 -> keys[0]
+            else -> read(SecretKeys.restPin(TV))?.let(::CertificatePin)
+        }
+    }
 
+    /** The trusted REST public keys, newest first, at most [MAX_PINS]. */
+    suspend fun tvRestKeys(): List<PublicKeyPin> =
+        SecretKeys.pins({ read(it) }, SecretKeys.restPublicKeyPin(TV), SecretKeys.restPublicKeyPin2(TV)).map(::PublicKeyPin)
+
+    /**
+     * Admits [pin] as the newest REST key, the one before staying trusted as the second; null
+     * (HTTP-only after an explicit pairing) removes every generation.
+     */
     suspend fun setTvRestPin(pin: PublicKeyPin?) {
-        write(SecretKeys.restPublicKeyPin(TV), pin?.sha256Hex)
-        // HTTP-only after an explicit pairing: remove both generations. A new SPKI pin deliberately
-        // leaves the old cert digest alone so an immediate downgrade still fails closed, not open.
-        if (pin == null) write(SecretKeys.restPin(TV), null)
+        if (pin == null) {
+            write(SecretKeys.restPublicKeyPin(TV), null)
+            write(SecretKeys.restPublicKeyPin2(TV), null)
+            write(SecretKeys.restPin(TV), null)
+            return
+        }
+        val keys = TrustedPins.admit(tvRestKeys().map { it.sha256Hex }, pin.sha256Hex)
+        // A new SPKI pin deliberately leaves the old cert digest alone so an immediate downgrade
+        // still fails closed, not open. The second first, as for the remote pins.
+        write(SecretKeys.restPublicKeyPin2(TV), keys.getOrNull(1))
+        write(SecretKeys.restPublicKeyPin(TV), keys[0])
+    }
+
+    /** Pin mismatches recorded for the developer-mode diagnostics, newest first. Not secret, kept here off backups. */
+    suspend fun pinMismatches(): List<PinMismatchEvent> = PinMismatchLog.decode(read(PIN_MISMATCHES))
+
+    suspend fun recordPinMismatch(event: PinMismatchEvent) = write(PIN_MISMATCHES, PinMismatchLog.add(read(PIN_MISMATCHES), event))
+
+    /** Label of the Remote v2 public key last seen on a working session, to tell a reissued certificate from a new key. */
+    suspend fun lastRemoteKeyLabel(): String? = read(REMOTE_KEY_LABEL)
+
+    suspend fun setLastRemoteKeyLabel(label: String) {
+        if (read(REMOTE_KEY_LABEL) != label) write(REMOTE_KEY_LABEL, label)
     }
 
     /** "Oublier l'appareil" (TV): PSK, IP-control cookie and both pins, old keys included. */
@@ -118,6 +177,10 @@ class SecureStore @Inject constructor(
 
         /** Secure-store key of the launcher-shortcut token; outside [SecretKeys], which are per device. */
         const val SHORTCUT_TOKEN = "shortcut/token"
+
+        /** Diagnostics only (PinMismatchLog); outside [SecretKeys], so forgetting the TV keeps the history. */
+        private const val PIN_MISMATCHES = "diag/pin-mismatches"
+        private const val REMOTE_KEY_LABEL = "diag/remote-key"
 
         /**
          * Inside one edit: the readable token already stored, else a fresh one written in its place.

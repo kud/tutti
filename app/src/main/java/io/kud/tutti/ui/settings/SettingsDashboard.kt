@@ -84,7 +84,7 @@ fun dashboard(input: DashInput): List<DashItem> {
 }
 
 /** Words only he can act on: a pairing lost, a key or code refused, a permission, a bar that moved. */
-private val NEEDS_YOU = setOf(ConnWords.NEEDS_PAIRING, ConnWords.KEY_REFUSED, ConnWords.CODE_TO_RENEW, ConnWords.NEEDS_PERMISSION, ConnWords.MOVED)
+private val NEEDS_YOU = setOf(ConnWords.NEEDS_PAIRING, ConnWords.KEY_REFUSED, ConnWords.CODE_TO_RENEW, ConnWords.NEEDS_PERMISSION, ConnWords.MOVED, ConnWords.NEW_IDENTITY)
 
 private fun ConnLine.needsYou(): Boolean = words in NEEDS_YOU
 
@@ -94,7 +94,7 @@ private fun ConnAction.dash(): DashAction? = when (this) {
     ConnAction.SET_UP_IP -> DashAction.SET_UP_IP
     ConnAction.ADD_BAR -> DashAction.ADD_BAR
     ConnAction.USE_NEW_ADDRESS, ConnAction.OPEN_DEVICES, ConnAction.PAIR_COMPUTER -> DashAction.OPEN_DEVICES
-    ConnAction.WAKE_TV, ConnAction.CONTROL, ConnAction.LAN_REQUEST, ConnAction.LAN_OPEN_SETTINGS -> null
+    ConnAction.WAKE_TV, ConnAction.CONTROL, ConnAction.LAN_REQUEST, ConnAction.LAN_OPEN_SETTINGS, ConnAction.TRUST_IDENTITY -> null
 }
 
 private fun tvTile(connections: List<ConnDevice>): DashItem {

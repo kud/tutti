@@ -53,6 +53,7 @@ fun TechnicalScreen(
     onOpen: () -> Unit,
     onProbeLink: suspend (String) -> io.kud.tutti.protocol.apps.LinkProbeResult,
     onBack: () -> Unit,
+    pinMismatches: List<io.kud.tutti.protocol.net.PinMismatchEvent> = emptyList(),
 ) {
     val context = LocalContext.current
     LaunchedEffect(Unit) { onOpen() }
@@ -122,6 +123,21 @@ fun TechnicalScreen(
                         }
                         Fact(R.string.technical_bar_refused, refused.joinToString(", "))
                     }
+                }
+            }
+            // Each time a pinned plane of the TV showed another identity: the line to send us.
+            SettingsGroup(stringResource(R.string.technical_identity_changes)) {
+                if (pinMismatches.isEmpty()) {
+                    SettingsRow(title = stringResource(R.string.technical_identity_none))
+                } else {
+                    for (event in pinMismatches.take(5)) SettingsRow(title = event.plane.wire, detail = event.line())
+                    SettingsRow(
+                        title = stringResource(R.string.technical_identity_copy),
+                        detail = stringResource(R.string.technical_identity_copy_detail),
+                        onClick = {
+                            io.kud.tutti.ui.common.copyDetails(context, io.kud.tutti.protocol.net.PinMismatchLog.report(pinMismatches), messages = null)
+                        },
+                    )
                 }
             }
             if (tv != null) LinkProbeGroup(onProbe = onProbeLink)

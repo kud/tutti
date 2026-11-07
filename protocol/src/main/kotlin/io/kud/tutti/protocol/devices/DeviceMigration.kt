@@ -67,6 +67,16 @@ object SecretKeys {
     /** REST HTTPS SubjectPublicKeyInfo SHA-256 pin. */
     fun restPublicKeyPin(id: String) = "pin/$id/rest-spki"
 
+    /** The second trusted Remote v2 certificate (TrustedPins), the one before [remotePin]. Absent before 0.3.1. */
+    fun remotePin2(id: String) = "pin/$id/remote-2"
+
+    /** The second trusted REST public key, the one before [restPublicKeyPin]. Absent before 0.3.1. */
+    fun restPublicKeyPin2(id: String) = "pin/$id/rest-spki-2"
+
+    /** A plane's trusted pins, newest first, from its two keys: an install from before has only the first. */
+    fun pins(read: (String) -> String?, first: String, second: String): List<String> =
+        listOfNotNull(read(first), read(second)).distinct()
+
     /** The IP-control cookie of Sony's "Normal" authentication (a bearer secret), `AuthCookie.encode()`. */
     fun ipCookie(id: String) = "ipcookie/$id"
 
@@ -86,5 +96,5 @@ object SecretKeys {
 
     /** Every key that holds [id]'s secrets, including the version-1 ones for the TV. */
     fun all(id: String): List<String> =
-        listOf(psk(id), remotePin(id), restPin(id), restPublicKeyPin(id), ipCookie(id)) + if (id == Device.TV_ID) legacy.keys else emptySet()
+        listOf(psk(id), remotePin(id), remotePin2(id), restPin(id), restPublicKeyPin(id), restPublicKeyPin2(id), ipCookie(id)) + if (id == Device.TV_ID) legacy.keys else emptySet()
 }

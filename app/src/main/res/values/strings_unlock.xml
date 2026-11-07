@@ -70,6 +70,10 @@
     <string name="technical_tv">TV</string>
     <string name="technical_bar">Soundbar</string>
     <string name="technical_app">tutti</string>
+    <string name="technical_identity_changes">TV identity changes</string>
+    <string name="technical_identity_none">None recorded</string>
+    <string name="technical_identity_copy">Copy the identity changes</string>
+    <string name="technical_identity_copy_detail">Short labels only, no address or key</string>
     <string name="technical_address">Address</string>
     <string name="technical_remote_link">Remote link (6466)</string>
     <string name="technical_rest_link">IP control (REST)</string>

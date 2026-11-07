@@ -140,6 +140,21 @@ class ConnectionsTest {
     }
 
     @Test
+    fun aVouchedNewIdentityOffersOneTapTrustOnItsOwnLineOnly() {
+        assertEquals(
+            ConnLine(ConnLink.SONY_IP, ConnWords.NEW_IDENTITY, ConnAction.TRUST_IDENTITY),
+            line(room.copy(rest = Link.NEEDS_PAIRING, identityOffer = io.kud.tutti.protocol.net.PinPlane.REST), "tv", ConnLink.SONY_IP),
+        )
+        val remote = room.copy(tvShown = TvShown(Link.NEEDS_PAIRING), identityOffer = io.kud.tutti.protocol.net.PinPlane.REMOTE)
+        assertEquals(ConnLine(ConnLink.GOOGLE_TV, ConnWords.NEW_IDENTITY, ConnAction.TRUST_IDENTITY), line(remote, "tv", ConnLink.GOOGLE_TV))
+        // An offer for the other plane never changes this line's pairing ask.
+        assertEquals(
+            ConnLine(ConnLink.SONY_IP, ConnWords.NEEDS_PAIRING, ConnAction.PAIR_TV),
+            line(room.copy(rest = Link.NEEDS_PAIRING, identityOffer = io.kud.tutti.protocol.net.PinPlane.REMOTE), "tv", ConnLink.SONY_IP),
+        )
+    }
+
+    @Test
     fun standbyIsNotAFault() {
         val asleep = room.copy(tvAsleep = true, tvShown = TvShown(Link.UNREACHABLE), rest = Link.UNREACHABLE)
         assertEquals(ConnLine(ConnLink.GOOGLE_TV, ConnWords.STANDBY, ConnAction.WAKE_TV), line(asleep, "tv", ConnLink.GOOGLE_TV))

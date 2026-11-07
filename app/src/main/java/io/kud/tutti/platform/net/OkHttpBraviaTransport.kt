@@ -10,6 +10,8 @@ import io.kud.tutti.protocol.bravia.HttpReply
 import io.kud.tutti.protocol.bravia.IpRegistration
 import io.kud.tutti.protocol.net.CertificatePinMismatch
 import io.kud.tutti.protocol.net.LanAddress
+import io.kud.tutti.protocol.net.MAX_PINS
+import io.kud.tutti.protocol.net.PinSet
 import io.kud.tutti.protocol.net.PublicKeyPin
 import io.kud.tutti.protocol.net.ServerIdentityPin
 import kotlinx.coroutines.Dispatchers
@@ -67,6 +69,10 @@ class OkHttpBraviaTransport internal constructor(
 
     @Volatile private var observedKeyPin: PublicKeyPin? = null
     @Volatile private var useHttp = false
+
+    /** The certificate of the last pin mismatch, for diagnostics and the trust offer; never trusted by itself. */
+    @Volatile internal var lastMismatch: X509Certificate? = null
+        private set
     private val trust = PinningTrustManager(initialPin) { observedKeyPin = PublicKeyPin.of(it) }
 
     private val client: OkHttpClient by lazy {
@@ -122,7 +128,11 @@ class OkHttpBraviaTransport internal constructor(
                 if (trust.expected != null || authenticated) throw e
                 execute("http", path, body, headers).also { useHttp = true }
             } catch (e: SSLException) {
-                if (generateSequence<Throwable>(e) { it.cause }.take(8).any { it is PinMismatchException }) throw CertificatePinMismatch(e)
+                val mismatch = generateSequence<Throwable>(e) { it.cause }.take(8).filterIsInstance<PinMismatchException>().firstOrNull()
+                if (mismatch != null) {
+                    lastMismatch = mismatch.seen
+                    throw CertificatePinMismatch(e)
+                }
                 throw e
             }
         }
@@ -238,10 +248,12 @@ class OkHttpBraviaTransport internal constructor(
         val seen = observedKeyPin ?: return
         // A matching legacy full-certificate pin is promoted after one authenticated success.
         // A mismatching legacy pin never reaches here: the TLS handshake has already failed.
-        if (trust.expected != seen) {
-            trust.expected = seen
-            savePin(seen)
-        }
+        // With two trusted keys (PinSet), the one the TV answered with becomes the newest and the
+        // other stays trusted, so a TV that alternates keeps working in this session too.
+        val current = trust.expected
+        if (current == seen || (current is PinSet && current.pins.firstOrNull() == seen)) return
+        trust.expected = if (current is PinSet) PinSet(listOf(seen) + current.pins.filter { it != seen && it is PublicKeyPin }.take(MAX_PINS - 1)) else seen
+        savePin(seen)
     }
 
     /**

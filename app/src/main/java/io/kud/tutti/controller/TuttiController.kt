@@ -225,6 +225,31 @@ class TuttiController @Inject constructor(
     /** App launches, optimistic ([LaunchQueue]): what is in flight and the app shown meanwhile. */
     private val launches = MutableStateFlow(LaunchBook())
     private val restart = MutableStateFlow(0)
+
+    /**
+     * The identity a pinned TV plane presented instead of a trusted one, waiting for the one-tap
+     * trust ([trustNewIdentity]). Never applied on its own; cleared by pairing.
+     */
+    private data class TrustOffer(val plane: io.kud.tutti.protocol.net.PinPlane, val host: String, val sha256Hex: String)
+
+    private val trustOffer = MutableStateFlow<TrustOffer?>(null)
+
+    /** The host the Remote v2 session talks to, for [io.kud.tutti.protocol.net.TrustGate]. */
+    @Volatile private var remoteHost: String? = null
+
+    private val pinMismatchList = MutableStateFlow<List<io.kud.tutti.protocol.net.PinMismatchEvent>>(emptyList())
+
+    /** Recorded pin mismatches, newest first, for the developer-mode diagnostics (Technical details). */
+    val pinMismatches: StateFlow<List<io.kud.tutti.protocol.net.PinMismatchEvent>> = pinMismatchList
+
+    /**
+     * The plane whose new identity may be trusted with one tap right now: an offer stands and the
+     * other plane is online to the same host over its own matching pin ([io.kud.tutti.protocol.net.TrustGate]).
+     */
+    val identityOffer: StateFlow<io.kud.tutti.protocol.net.PinPlane?> by lazy {
+        combine(trustOffer, links) { offer, current -> offer?.takeIf { trustGateOpen(it, current) }?.plane }
+            .stateIn(scope, SharingStarted.Eagerly, null)
+    }
     private val wake = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     /** Latest level to send; a Channel, not a StateFlow, so setting the level it already holds still sends it. */
     private val volumeTarget = Channel<Int>(Channel.CONFLATED)
@@ -748,8 +773,8 @@ class TuttiController @Inject constructor(
             links.update { it.copy(tv = Link.ABSENT) }
             return
         }
-        val pin = secure.tvRemotePin()
-        if (pin == null) {
+        val storedPin = secure.tvRemotePin()
+        if (storedPin == null) {
             links.update { it.copy(tv = Link.NEEDS_PAIRING) }
             linkNotes.update { it.copy(tv = failureDetail("tv remote: connect (TLS 6466)", outcome = "no pairing stored on this phone: pair the TV")) }
             return
@@ -783,6 +808,9 @@ class TuttiController @Inject constructor(
             linkNotes.update { it.copy(tv = failureDetail("tv remote: connect (TLS 6466)", outcome = "the local network permission is missing")) }
             return
         }
+        // The newest trusted certificate first; a TV that answers with the other trusted one is followed ([TrustedPins.follow]).
+        var pin: io.kud.tutti.protocol.net.CertificatePin = storedPin
+        remoteHost = device.host
         var wait = MIN_BACKOFF_MS
         var handshakeFailures = 0
         var unreachable = 0
@@ -790,6 +818,7 @@ class TuttiController @Inject constructor(
         var lasted: Long? = null
         try {
             while (scope.isActive) {
+                var followed: io.kud.tutti.protocol.net.CertificatePin? = null
                 // Once the TV has refused our certificate twice, it keeps reading "pair again" between tries.
                 if (!HandshakeRule.needsPairing(handshakeFailures)) links.update { it.copy(tv = TvLinkRule.whileTrying(unreachable)) }
                 linkTimings.started(io.kud.tutti.protocol.diagnostic.TimedLink.REMOTE, SystemClock.elapsedRealtime())
@@ -824,13 +853,23 @@ class TuttiController @Inject constructor(
                     tvLastConnect = ErrorClass.of(e)
                     linkNotes.update { it.copy(tv = failureDetail("tv remote: connect (TLS 6466)", outcome = "handshake failures in a row: $handshakeFailures", error = e)) }
                     if (e.hasCause<PinMismatchException>()) {
-                        Link.NEEDS_PAIRING
+                        val seen = e.causeOf<PinMismatchException>()?.seen
+                        followed = seen?.let { onPinMismatch(io.kud.tutti.protocol.net.PinPlane.REMOTE, device.host, it) }
+                        if (followed != null) Link.UNREACHABLE else Link.NEEDS_PAIRING
                     } else {
                         // Only the TV refusing our certificate counts towards "pair again"; a reset,
                         // timeout or closed port is the network, and clears the count.
                         handshakeFailures = HandshakeRule.next(handshakeFailures, e)
                         if (HandshakeRule.needsPairing(handshakeFailures)) Link.NEEDS_PAIRING else Link.UNREACHABLE
                     }
+                }
+                val other = followed
+                if (other != null) {
+                    // The TV answered with its other trusted certificate: use it first from now on, at once.
+                    secure.setTvRemotePin(other)
+                    pin = other
+                    atv.disconnect()
+                    continue
                 }
                 if (outcome == Link.NEEDS_PAIRING) {
                     atv.disconnect()
@@ -842,6 +881,8 @@ class TuttiController @Inject constructor(
                 }
                 if (outcome == Link.ONLINE) {
                     linkTimings.ready(io.kud.tutti.protocol.diagnostic.TimedLink.REMOTE, SystemClock.elapsedRealtime())
+                    // Which key a working session saw, so a later mismatch can tell a reissued certificate from a new key.
+                    atv.peerCertificate?.let { secure.setLastRemoteKeyLabel(io.kud.tutti.protocol.net.pinLabel(PublicKeyPin.of(it).sha256Hex)) }
                     handshakeFailures = 0
                     unreachable = 0
                     tvLastConnect = null
@@ -1054,6 +1095,9 @@ class TuttiController @Inject constructor(
                     linkNotes.update { it.copy(rest = failureDetail("tv ip control: poll", outcome = "answered, then stopped answering getPowerStatus")) }
                 }
                 is BraviaResult.Failure -> {
+                    if (found.error == BraviaError.PinMismatch) {
+                        braviaTransport?.lastMismatch?.let { onPinMismatch(io.kud.tutti.protocol.net.PinPlane.REST, device.host, it) }
+                    }
                     val link = when (found.error) {
                         BraviaError.Unauthorized -> Link.UNAUTHORIZED
                         // Another certificate than the pinned one: the TV was reset, or someone is in between.
@@ -2235,6 +2279,7 @@ class TuttiController @Inject constructor(
      * when IP control is up. Each runs once per opening; nothing here is polled.
      */
     fun loadTechnical() {
+        loadPinMismatches()
         scope.launch { theatre.refreshDetails() }
         val bar = state.value.devices.bar
         if (bar != null) {
@@ -2632,6 +2677,7 @@ class TuttiController @Inject constructor(
                         staged?.let { identities.commit(it) }
                         committed = true
                         secure.setTvRemotePin(result.serverPin)
+                        trustOffer.value = null
                         // The six-character Remote v2 code is the user's explicit trust ceremony.
                         // Use that moment to refresh REST trust from an unauthenticated HTTPS probe:
                         // no PSK/cookie is sent before the new certificate has been stored.
@@ -3061,6 +3107,84 @@ class TuttiController @Inject constructor(
     }
 
     // endregion
+
+    /**
+     * A pinned TV plane presented [seen] instead of a trusted identity. Records it for the
+     * diagnostics (labels only), then: if [seen] is the plane's other trusted identity, returns it
+     * so the caller follows it; otherwise leaves a [TrustOffer] that only [trustNewIdentity] applies.
+     */
+    private suspend fun onPinMismatch(
+        plane: io.kud.tutti.protocol.net.PinPlane,
+        host: String,
+        seen: java.security.cert.X509Certificate,
+    ): io.kud.tutti.protocol.net.CertificatePin? {
+        val seenCert = io.kud.tutti.protocol.net.CertificatePin.of(seen)
+        val seenKey = PublicKeyPin.of(seen)
+        val trusted = when (plane) {
+            io.kud.tutti.protocol.net.PinPlane.REMOTE -> secure.tvRemotePins().map { it.sha256Hex }
+            io.kud.tutti.protocol.net.PinPlane.REST -> secure.tvRestKeys().map { it.sha256Hex }
+        }
+        val sameKey = plane == io.kud.tutti.protocol.net.PinPlane.REMOTE &&
+            secure.lastRemoteKeyLabel() == io.kud.tutti.protocol.net.pinLabel(seenKey.sha256Hex)
+        val event = io.kud.tutti.protocol.net.PinMismatchEvent(
+            atMs = System.currentTimeMillis(),
+            plane = plane,
+            host = io.kud.tutti.protocol.net.hostLabel(host, stored = store.devices.first().tv?.host == host),
+            pinned = trusted.map { io.kud.tutti.protocol.net.pinLabel(it) },
+            seenCert = io.kud.tutti.protocol.net.pinLabel(seenCert.sha256Hex),
+            seenKey = io.kud.tutti.protocol.net.pinLabel(seenKey.sha256Hex),
+            sameKey = sameKey,
+        )
+        // A REST session retries a refused key every few minutes: one line per change, not per retry.
+        val last = secure.pinMismatches().firstOrNull()
+        if (last == null || last.plane != plane || last.seenCert != event.seenCert || last.host != event.host) {
+            runCatching { secure.recordPinMismatch(event) }
+        }
+        pinMismatchList.value = runCatching { secure.pinMismatches() }.getOrDefault(pinMismatchList.value)
+        Log.w(TAG, "pin mismatch: ${event.line()}")
+        val seenHex = if (plane == io.kud.tutti.protocol.net.PinPlane.REMOTE) seenCert.sha256Hex else seenKey.sha256Hex
+        if (plane == io.kud.tutti.protocol.net.PinPlane.REMOTE && io.kud.tutti.protocol.net.TrustedPins.follow(trusted, seenHex) != null) {
+            return seenCert
+        }
+        trustOffer.value = TrustOffer(plane, host, seenHex)
+        return null
+    }
+
+    private fun trustGateOpen(offer: TrustOffer, current: Links): Boolean = io.kud.tutti.protocol.net.TrustGate.allows(
+        offer.plane,
+        offer.host,
+        remote = io.kud.tutti.protocol.net.PlaneState(online = current.tv == Link.ONLINE, host = remoteHost, pinned = true),
+        rest = io.kud.tutti.protocol.net.PlaneState(
+            online = current.rest == Link.ONLINE,
+            host = tvHostForIcons,
+            pinned = braviaTransport?.scheme == "https",
+        ),
+    )
+
+    /**
+     * "Trust the new identity": admits the offered identity on its plane, the previous one staying
+     * trusted as the second, then restarts the sessions. Only while the gate holds, checked again here.
+     */
+    fun trustNewIdentity() {
+        val offer = trustOffer.value ?: return
+        if (!trustGateOpen(offer, links.value)) return
+        scope.launch {
+            when (offer.plane) {
+                io.kud.tutti.protocol.net.PinPlane.REMOTE -> secure.setTvRemotePin(io.kud.tutti.protocol.net.CertificatePin(offer.sha256Hex))
+                io.kud.tutti.protocol.net.PinPlane.REST -> secure.setTvRestPin(PublicKeyPin(offer.sha256Hex))
+            }
+            trustOffer.value = null
+            restart.update { it + 1 }
+        }
+    }
+
+    /** Reads the recorded pin mismatches into [pinMismatches] (Technical details opening). */
+    fun loadPinMismatches() {
+        scope.launch { pinMismatchList.value = runCatching { secure.pinMismatches() }.getOrDefault(emptyList()) }
+    }
+
+    private inline fun <reified T : Throwable> Throwable.causeOf(): T? =
+        generateSequence(this) { it.cause }.take(8).filterIsInstance<T>().firstOrNull()
 
     private inline fun <reified T : Throwable> Throwable.hasCause(): Boolean {
         var current: Throwable? = this

@@ -79,6 +79,7 @@ internal fun stateWords(words: ConnWords): String = stringResource(
         ConnWords.BUSY -> R.string.conn_busy
         ConnWords.NOT_ADDED -> R.string.conn_not_added
         ConnWords.MOVED -> R.string.conn_moved
+        ConnWords.NEW_IDENTITY -> R.string.conn_new_identity
     },
 )
 
@@ -101,6 +102,7 @@ private fun actionLabel(action: ConnAction): String = stringResource(
         ConnAction.SET_UP_IP -> R.string.conn_action_set_up
         ConnAction.ADD_BAR -> R.string.conn_action_add
         ConnAction.USE_NEW_ADDRESS -> R.string.conn_action_use_address
+        ConnAction.TRUST_IDENTITY -> R.string.conn_action_trust_identity
         ConnAction.CONTROL -> R.string.conn_action_control
         ConnAction.OPEN_DEVICES -> R.string.conn_action_devices
         ConnAction.LAN_REQUEST -> R.string.conn_action_lan_allow

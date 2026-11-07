@@ -39,6 +39,16 @@ data class PublicKeyPin(val sha256Hex: String) : ServerIdentityPin {
     }
 }
 
+/**
+ * Several trusted identities for one plane, newest first ([TrustedPins], at most [MAX_PINS]): the TV
+ * passes if it presents any of them. Each was admitted by pairing or by the one-tap [TrustGate].
+ */
+data class PinSet(val pins: List<ServerIdentityPin>) : ServerIdentityPin {
+    override fun matches(certificate: X509Certificate): Boolean = pins.any { it.matches(certificate) }
+
+    override fun toString(): String = pins.joinToString(" | ", "PinSet(", ")")
+}
+
 private fun sha256Hex(bytes: ByteArray): String =
     MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
 

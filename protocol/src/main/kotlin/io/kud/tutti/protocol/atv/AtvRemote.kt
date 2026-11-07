@@ -62,6 +62,9 @@ class AtvRemote(
     private var voiceTimer: Job? = null
 
     @Volatile private var connection: TlsConnection? = null
+
+    /** The certificate the TV presented on the open session, for diagnostics; null when closed. */
+    val peerCertificate: java.security.cert.X509Certificate? get() = connection?.peerCertificate
     private var readJob: Job? = null
 
     /**

@@ -29,6 +29,7 @@
     <string name="conn_busy">taken by another app: only one at a time can be the keyboard</string>
     <string name="conn_not_added">not added</string>
     <string name="conn_moved">seems to answer at a new address</string>
+    <string name="conn_new_identity">shows a new identity, vouched for by the other link</string>
     <string name="conn_gives_google_tv">keys, keyboard, apps</string>
     <string name="conn_gives_sony_ip">icons, HDMI inputs, TV settings</string>
     <string name="conn_gives_bar">volume, sound, power</string>
@@ -44,6 +45,7 @@
     <string name="conn_action_set_up">Set up</string>
     <string name="conn_action_add">Add</string>
     <string name="conn_action_use_address">Use it</string>
+    <string name="conn_action_trust_identity">Trust the new identity</string>
     <string name="conn_action_control">Control</string>
     <string name="conn_action_devices">Open Devices</string>
     <!-- Android 17\'s local-network permission, the banner\'s line and the sheet\'s one step. -->
