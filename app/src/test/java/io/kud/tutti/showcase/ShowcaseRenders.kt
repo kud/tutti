@@ -136,6 +136,7 @@ class ShowcaseRenders {
     private fun shoot(name: String, screen: @Composable (TuttiController, TargetController, String) -> Unit) {
         val dir = out
         assumeTrue("TUTTI_SHOWCASE not set", dir != null)
+        dir!!.mkdirs()
         val (controller, target) = Graph.build()
         for (locale in listOf("en", "fr")) {
             for (dark in listOf(false, true)) {
