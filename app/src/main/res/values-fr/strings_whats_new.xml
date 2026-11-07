@@ -14,15 +14,15 @@
     <!-- 0.3.0 -->
     <string name="whats_new_0_3_0_headline">La recherche depuis les commandes de lecture, des pochettes nettes sur l’écran verrouillé et des réglages qui montrent où vous en êtes.</string>
     <string name="whats_new_0_3_0_search">Rechercher sans quitter la télécommande</string>
-    <string name="whats_new_0_3_0_search_detail">Depuis les commandes de lecture, cherchez dans l’appli à l’écran ou sur toute la TV. YouTube a aussi son raccourci de recherche.</string>
+    <string name="whats_new_0_3_0_search_detail">Depuis les commandes de lecture, cherchez dans l’app à l’écran ou sur toute la TV. YouTube a aussi son raccourci de recherche.</string>
     <string name="whats_new_0_3_0_lockscreen">La pochette sur l’écran verrouillé</string>
-    <string name="whats_new_0_3_0_lockscreen_detail">La carte de l’écran verrouillé montre la pochette de ce qui passe, nette, plutôt qu’une icône d’appli floue.</string>
+    <string name="whats_new_0_3_0_lockscreen_detail">La carte de l’écran verrouillé montre la pochette de ce qui passe, nette, plutôt qu’une icône d’app floue.</string>
     <string name="whats_new_0_3_0_tiles">Les réglages en un coup d’œil</string>
     <string name="whats_new_0_3_0_tiles_detail">Réglages s’ouvre sur quatre tuiles : TV, barre de son, synchronisation et fonctions. Ce qui demande votre attention passe en premier, avec le bouton qui s’en occupe.</string>
     <string name="whats_new_0_3_0_dock">Modifier le dock d’un appui long</string>
     <string name="whats_new_0_3_0_dock_detail">Restez appuyé sur un espace vide du dock pour le réorganiser.</string>
-    <string name="whats_new_0_3_0_icons">Plus d’icônes d’applis</string>
-    <string name="whats_new_0_3_0_icons_detail">De nombreuses applis TV britanniques et européennes ont désormais leur propre icône, de BBC iPlayer à ZDF, DAZN et Rakuten TV.</string>
+    <string name="whats_new_0_3_0_icons">Plus d’icônes d’apps</string>
+    <string name="whats_new_0_3_0_icons_detail">De nombreuses apps TV britanniques et européennes ont désormais leur propre icône, de BBC iPlayer à ZDF, DAZN et Rakuten TV.</string>
     <string name="whats_new_0_3_0_channel">Version stable ou de test</string>
     <string name="whats_new_0_3_0_channel_detail">Dans À propos, choisissez de recevoir ou non les versions de test. Sans elles, tutti reste sur les versions finales.</string>
     <string name="whats_new_0_3_0_link">Le lien avec la TV, tel qu’il est</string>
@@ -32,11 +32,11 @@
     <string name="whats_new_0_3_0_back">Retour à la télécommande après une mise à jour</string>
     <string name="whats_new_0_3_0_back_detail">Une mise à jour ferme tutti. Une notification discrète vous ramène maintenant directement à la télécommande.</string>
     <string name="whats_new_0_3_0_jog">L’avance rapide de Nuvio sur la molette</string>
-    <string name="whats_new_0_3_0_jog_detail">Sur Nuvio, la molette avance du pas propre à l’appli.</string>
+    <string name="whats_new_0_3_0_jog_detail">Sur Nuvio, la molette avance du pas propre à l’app.</string>
     <string name="whats_new_0_3_0_keys">Les touches ne se perdent plus après la veille</string>
     <string name="whats_new_0_3_0_keys_detail">Une connexion à la TV restée muette pendant la veille du téléphone est rouverte avant votre premier appui.</string>
     <string name="whats_new_0_3_0_crash">Les commandes de lecture ne plantent plus sur Nuvio</string>
     <string name="whats_new_0_3_0_crash_detail">Les ouvrir sur Nuvio pouvait fermer tutti. Ce n’est plus le cas.</string>
-    <string name="whats_new_0_3_0_names">Les applis de la TV, par leur nom</string>
-    <string name="whats_new_0_3_0_names_detail">La carte de ce qui passe nomme aussi les applis intégrées à la TV, pas seulement celles que tutti connaît déjà.</string>
+    <string name="whats_new_0_3_0_names">Les apps de la TV, par leur nom</string>
+    <string name="whats_new_0_3_0_names_detail">La carte de ce qui passe nomme aussi les apps intégrées à la TV, pas seulement celles que tutti connaît déjà.</string>
 </resources>
