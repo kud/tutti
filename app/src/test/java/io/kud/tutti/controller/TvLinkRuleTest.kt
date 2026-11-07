@@ -147,4 +147,25 @@ class TvLinkRuleTest {
         assertEquals(false, TvLinkRule.launchWakes(hasTv = true, tvPowered = false, raw = Link.NEEDS_PAIRING, shown = TvShown(Link.NEEDS_PAIRING)))
         assertEquals(false, TvLinkRule.launchWakes(hasTv = true, tvPowered = false, raw = Link.UNAUTHORIZED, shown = TvShown(Link.UNAUTHORIZED)))
     }
+
+    @Test
+    fun `a resume reads connecting from the first frame, honest and never online`() {
+        // Iris, 2026-11-07: back already in the down dress, one transition up.
+        assertEquals(TvShown(Link.CONNECTING, resuming = true), TvLinkRule.shown(Link.UNREACHABLE, 0, resuming = true))
+        assertEquals(TvShown(Link.CONNECTING, resuming = true), TvLinkRule.shown(Link.CONNECTING, GIVE_UP_MS - 1, resuming = true))
+        assertEquals(TvShown(Link.ONLINE), TvLinkRule.shown(Link.ONLINE, 500, resuming = true))
+        assertEquals(TvShown(Link.UNREACHABLE), TvLinkRule.shown(Link.UNREACHABLE, GIVE_UP_MS, resuming = true))
+        assertEquals(TvShown(Link.NEEDS_PAIRING), TvLinkRule.shown(Link.NEEDS_PAIRING, 0, resuming = true))
+        // A key pressed meanwhile is dropped and says "connecting", never held.
+        assertEquals(KeyOutcome.DROPPED_WAITING, TvLinkRule.whileDown(Link.CONNECTING, TvShown(Link.CONNECTING, resuming = true)))
+        assertEquals(false, TvLinkRule.launchWakes(hasTv = true, tvPowered = null, raw = Link.CONNECTING, shown = TvShown(Link.CONNECTING, resuming = true)))
+    }
+
+    @Test
+    fun `only a return to a tv that was up and must connect again is a resume`() {
+        assertTrue(TvLinkRule.resumes(upWhenLeft = true, sessionsLive = false, droppedStale = false))
+        assertTrue(TvLinkRule.resumes(upWhenLeft = true, sessionsLive = true, droppedStale = true))
+        assertFalse("a live session comes back as it is", TvLinkRule.resumes(upWhenLeft = true, sessionsLive = true, droppedStale = false))
+        assertFalse("a cold start or a tv down when the app left", TvLinkRule.resumes(upWhenLeft = false, sessionsLive = false, droppedStale = false))
+    }
 }

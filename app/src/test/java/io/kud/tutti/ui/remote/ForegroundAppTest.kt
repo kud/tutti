@@ -121,4 +121,12 @@ class ForegroundAppTest {
         assertNull(launchingApp("org.example.player", apps, Link.ONLINE, PowerStatus.STANDBY))
         assertNull(launchingApp("org.example.unknown", apps, Link.ONLINE, PowerStatus.ACTIVE))
     }
+
+    @Test
+    fun `a resume keeps the last card, never a skeleton, and the live one takes over after`() {
+        val netflix = CardShowing.Showing(NowShowing.App("Netflix", "com.netflix.ninja"))
+        assertEquals(netflix, heldCard(live = CardShowing.Offline, resuming = true, last = netflix))
+        assertEquals(CardShowing.Home, heldCard(live = CardShowing.Home, resuming = false, last = netflix))
+        assertEquals(CardShowing.Offline, heldCard(live = CardShowing.Offline, resuming = true, last = null))
+    }
 }

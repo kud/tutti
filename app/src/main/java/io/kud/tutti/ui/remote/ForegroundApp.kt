@@ -1,5 +1,7 @@
 package io.kud.tutti.ui.remote
 
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import io.kud.tutti.controller.Link
 import io.kud.tutti.controller.TuttiUiState
 import io.kud.tutti.protocol.apps.ForegroundName
@@ -157,3 +159,22 @@ fun cardShowing(state: TuttiUiState): CardShowing? = cardShowing(
     reconnecting = state.links.tvShown.reconnecting,
     barAlone = barAlone(state),
 )
+
+/**
+ * The card during a resume ([io.kud.tutti.controller.TvShown.resuming]): the last card shown
+ * before it, kept while the link comes back, never a skeleton (Iris, 2026-11-07: a skeleton says
+ * "we know nothing", which isn't true after a short absence, and makes the layout flash twice).
+ * The link alone says "Connecting…"; once the resume ends, up or given up, [live] takes over.
+ */
+fun heldCard(live: CardShowing?, resuming: Boolean, last: CardShowing?): CardShowing? =
+    if (resuming && last != null) last else live
+
+/** [cardShowing], held through a resume ([heldCard]). */
+@Composable
+fun heldCardShowing(state: TuttiUiState): CardShowing? {
+    val live = cardShowing(state)
+    val resuming = state.links.tvShown.resuming
+    val last = remember { arrayOfNulls<CardShowing>(1) }
+    if (!resuming) last[0] = live
+    return heldCard(live, resuming, last[0])
+}

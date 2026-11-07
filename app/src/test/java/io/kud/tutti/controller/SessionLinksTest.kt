@@ -66,7 +66,8 @@ class SessionLinksTest {
         assertTrue("runSessions not found", start >= 0)
         val body = source.substring(start, source.indexOf("\n    }\n", start))
         val reset = body.indexOf("tvWasUp = false")
-        val clock = body.indexOf("tvDownSince = null")
+        // A resume keeps the clock retainSession started (TvLinkRule.resumes).
+        val clock = body.indexOf("if (!tvResuming.value) tvDownSince = null")
         val restarted = body.indexOf("links.update { it.restarted(epoch) }")
         assertTrue("the shown clock resets before the links move", reset in 0 until restarted && clock in 0 until restarted)
         assertEquals(TvShown(Link.CONNECTING), TvLinkRule.shown(Link.CONNECTING, null))

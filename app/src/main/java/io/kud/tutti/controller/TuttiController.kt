@@ -240,6 +240,12 @@ class TuttiController @Inject constructor(
 
     @Volatile private var tvDownSince: Long? = null
 
+    /** The TV's remote link was up when the last holder let go ([release]). */
+    @Volatile private var tvUpWhenLeft = false
+
+    /** The app came back to a TV link it must connect again ([TvLinkRule.resumes]), until it is up or settled. */
+    private val tvResuming = MutableStateFlow(false)
+
     /** Time to ready per link, for the diagnostic ([LinkTimings]). */
     val linkTimings = io.kud.tutti.protocol.diagnostic.LinkTimings()
 
@@ -479,21 +485,24 @@ class TuttiController @Inject constructor(
         scope.launch {
             // What the remote shows of the TV's link (TvLinkRule.shown): the link as it is, with
             // "reconnecting" until give-up. UNREACHABLE and CONNECTING alternating in a reconnect keep the clock.
-            links.map { it.tv }.distinctUntilChanged().collectLatest { raw ->
+            // A resume (TvLinkRule.resumes) reads "Connecting..." on the same clock until the link is up.
+            combine(links.map { it.tv }.distinctUntilChanged(), tvResuming) { raw, resuming -> raw to resuming }.collectLatest { (raw, resuming) ->
                 when (raw) {
                     Link.ONLINE -> {
                         tvWasUp = true
                         tvDownSince = null
+                        tvResuming.value = false
                     }
                     Link.ABSENT, Link.NEEDS_PAIRING, Link.UNAUTHORIZED -> {
                         tvWasUp = false
                         tvDownSince = null
+                        tvResuming.value = false
                     }
-                    Link.CONNECTING, Link.UNREACHABLE -> if (tvWasUp && tvDownSince == null) tvDownSince = SystemClock.elapsedRealtime()
+                    Link.CONNECTING, Link.UNREACHABLE -> if ((tvWasUp || resuming) && tvDownSince == null) tvDownSince = SystemClock.elapsedRealtime()
                 }
                 while (true) {
                     val down = tvDownSince?.let { SystemClock.elapsedRealtime() - it }
-                    val shown = TvLinkRule.shown(raw, down)
+                    val shown = TvLinkRule.shown(raw, down, resuming)
                     links.update { if (it.tvShown == shown) it else it.copy(tvShown = shown) }
                     delay(TvLinkRule.nextChangeInMs(down) ?: break)
                 }
@@ -546,6 +555,7 @@ class TuttiController @Inject constructor(
      * clear what the new one set.
      */
     fun retainSession(): Int {
+        val live = sessionsLive
         val current = synchronized(lock) {
             holders++
             lingerJob?.cancel()
@@ -562,7 +572,18 @@ class TuttiController @Inject constructor(
         }
         // Back from the background or a sleep: a remote session that heard nothing from the TV
         // meanwhile is dead even if it reads ready. Reconnect now, before the first key.
-        if (atv.dropIfStale()) Log.i(TAG, "tv remote: stale session dropped on return")
+        val stale = atv.dropIfStale()
+        if (stale) Log.i(TAG, "tv remote: stale session dropped on return")
+        // A TV that was up when the app left, connected again: the remote's first frame back
+        // already reads "Connecting" in the down dress, so there is one transition, up (TvLinkRule).
+        if (TvLinkRule.resumes(tvUpWhenLeft, live, stale)) {
+            tvUpWhenLeft = false
+            tvDownSince = SystemClock.elapsedRealtime()
+            // The stale session is gone: the raw link says so now, not when its loop next looks.
+            // Shown first, then flagged: a link already back up clears the flag and wins.
+            links.update { it.copy(tv = if (stale) Link.CONNECTING else it.tv, tvShown = TvShown(Link.CONNECTING, resuming = true)) }
+            tvResuming.value = true
+        }
         wake.tryEmit(Unit)
         return current
     }
@@ -575,6 +596,7 @@ class TuttiController @Inject constructor(
         synchronized(lock) {
             holders = (holders - 1).coerceAtLeast(0)
             if (holders > 0) return
+            tvUpWhenLeft = links.value.tv == Link.ONLINE
             lingerJob?.cancel()
             lingerJob = scope.launch {
                 delay(LINGER_MS)
@@ -594,10 +616,10 @@ class TuttiController @Inject constructor(
     private suspend fun runSessions(epoch: Int) {
         // Coming back after the sessions stopped is a fresh connect, not a reconnect: the remote
         // reads "Connecting…" until the link is up (Iris, 2026-11-07). Reset before the links move,
-        // so the shown link is never judged against the old clock. Sessions still lingering never
-        // come through here: a link that is up stays up.
+        // so the shown link is never judged against the old clock; a resume ([retainSession]) keeps
+        // the clock it started. Sessions still lingering never come through here.
         tvWasUp = false
-        tvDownSince = null
+        if (!tvResuming.value) tvDownSince = null
         // Whatever the stopped sessions left is not news: every link is asked again under this epoch.
         links.update { it.restarted(epoch) }
         if (lan.missing()) {
@@ -3052,7 +3074,13 @@ class TuttiController @Inject constructor(
     companion object {
         private const val TAG = "tutti"
         const val MAX_VOLUME = 100
-        private const val LINGER_MS = 30_000L
+        /**
+         * How long the sessions outlive the last [release]: an idle TLS socket the TV pings every
+         * ~5 s, a REST poll every 10 s and a bar poll every 20 s, cheap on Wi-Fi, so a glance at
+         * another app comes back to a live link. Where Android freezes a cached app, the session
+         * goes stale meanwhile and the return is a resume (TvLinkRule).
+         */
+        private const val LINGER_MS = 5 * 60_000L
         private const val MIN_BACKOFF_MS = 1_000L
         private const val MAX_BACKOFF_MS = 30_000L
         private const val READY_TIMEOUT_MS = 8_000L

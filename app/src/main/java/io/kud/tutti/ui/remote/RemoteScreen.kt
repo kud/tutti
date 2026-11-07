@@ -621,7 +621,7 @@ fun RemoteScreen(
                 // and the free room goes above them to the card (placePad). One size (Erwann, 2026-10-30).
                 val large = layout.padOnScreen == PadSize.LARGE
                 val railGap = if (large) 8.dp else 12.dp
-                val showing = cardShowing(state)
+                val showing = heldCardShowing(state)
                 Column(
                     Modifier
                         .weight(1f)
@@ -1007,7 +1007,7 @@ fun RemoteScreen(
         }
     }
 
-    val liveCard = cardShowing(state)
+    val liveCard = heldCardShowing(state)
     val keysPinner = rememberDockPinner(state, controller)
     playbackFor?.let { opened ->
         PlaybackSheet(

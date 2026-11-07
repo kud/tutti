@@ -3,11 +3,12 @@ package io.kud.tutti.controller
 import io.kud.tutti.protocol.atv.V2Key
 
 /**
- * The TV's remote link as the remote screen shows it: [link] as it is ([TvLinkRule.shown]), and
- * [reconnecting] while a link that was up is being won back. Technical details read the raw
+ * The TV's remote link as the remote screen shows it: [link] as it is ([TvLinkRule.shown]),
+ * [reconnecting] while a link that was up is being won back in use, and [resuming] while one that
+ * was up when the app left is being won back on its return. Technical details read the raw
  * [Links.tv]; everything on the remote reads this.
  */
-data class TvShown(val link: Link, val reconnecting: Boolean = false)
+data class TvShown(val link: Link, val reconnecting: Boolean = false, val resuming: Boolean = false)
 
 /**
  * Why a TV key or app pressed while the remote link was not up was dropped. Nothing is ever held
@@ -37,7 +38,16 @@ enum class KeyOutcome {
  * the TV…": a clean blip on a home LAN (a 1 s backoff, then the TLS handshake and configure, about
  * 1.5 to 2.5 s) is a short fade down and back (`linkFade`). Past [GIVE_UP_MS] (20 s: the 1, 2, 4
  * and 8 s backoffs and their attempts) it is a real outage and "out of reach" comes back. A link
- * that was never up this session (the first connect, a return from the background) shows as it is.
+ * never up in this process (the first connect) shows as it is.
+ *
+ * A return to the app whose TV link was up when it left, but must be connected again (the
+ * sessions stopped after the linger, or the one kept went stale while the phone slept), is a
+ * resume ([TvShown.resuming]): CONNECTING, "Connecting…", from the first frame back, so the
+ * remote comes back already in the down dress and has one transition, up, when the link is ready
+ * (no fade from normal to down; Iris, 2026-11-07). The now-showing card keeps its last content
+ * meanwhile, no skeletons: the content is rarely wrong after a short absence, and only the link
+ * is in doubt. Keys stay honest: a press is dropped and says "connecting" ([whileDown]). A return
+ * to a session still alive changes nothing.
  */
 object TvLinkRule {
     const val GIVE_UP_MS = 20_000L
@@ -64,15 +74,15 @@ object TvLinkRule {
     }
 
     /**
-     * [downForMs]: time since a link that was up this session went down; null when it never was
-     * (or is up). Never ONLINE unless [raw] is: no grace that shows connected while presses fail.
-     * ABSENT and NEEDS_PAIRING always show as they are.
+     * [downForMs]: time since a link that was up went down (or since the return, when [resuming]);
+     * null when it never was (or is up). Never ONLINE unless [raw] is: no grace that shows
+     * connected while presses fail. ABSENT and NEEDS_PAIRING always show as they are.
      */
-    fun shown(raw: Link, downForMs: Long?): TvShown = when {
+    fun shown(raw: Link, downForMs: Long?, resuming: Boolean = false): TvShown = when {
         raw == Link.ONLINE -> TvShown(Link.ONLINE)
         raw == Link.ABSENT || raw == Link.NEEDS_PAIRING || raw == Link.UNAUTHORIZED -> TvShown(raw)
         downForMs == null -> TvShown(raw)
-        downForMs < GIVE_UP_MS -> TvShown(Link.CONNECTING, reconnecting = true)
+        downForMs < GIVE_UP_MS -> TvShown(Link.CONNECTING, reconnecting = !resuming, resuming = resuming)
         else -> TvShown(Link.UNREACHABLE)
     }
 
@@ -85,6 +95,14 @@ object TvLinkRule {
      * ever saw (dev.16, 2026-10-26). A link that was up reads "reconnecting" until give-up ([shown]).
      */
     fun whileTrying(failedInARow: Int): Link = if (failedInARow > 0) Link.UNREACHABLE else Link.CONNECTING
+
+    /**
+     * Whether the app coming to the front is a resume ([TvShown.resuming]): the TV link was up
+     * when the app left, and must be connected again, because the sessions stopped
+     * ([sessionsLive] false) or the one kept went stale ([droppedStale]).
+     */
+    fun resumes(upWhenLeft: Boolean, sessionsLive: Boolean, droppedStale: Boolean): Boolean =
+        upWhenLeft && (!sessionsLive || droppedStale)
 
     /** When [shown] next changes on its own, in ms from now; null once nothing more will. */
     fun nextChangeInMs(downForMs: Long?): Long? = when {

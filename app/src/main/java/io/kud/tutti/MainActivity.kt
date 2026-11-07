@@ -48,6 +48,7 @@ import io.kud.tutti.ui.TuttiApp
 import io.kud.tutti.ui.common.CrashDialog
 import io.kud.tutti.ui.common.LocalMessages
 import io.kud.tutti.ui.common.LocalReducedMotion
+import io.kud.tutti.ui.motion.LocalLinkResuming
 import io.kud.tutti.ui.common.MessageHost
 import io.kud.tutti.ui.common.Messages
 import io.kud.tutti.ui.common.rememberReducedMotion
@@ -121,6 +122,7 @@ class MainActivity : ComponentActivity() {
                     LocalIndication provides rememberTuttiIndication(RoundedCornerShape(12.dp), ripple = true, ringInset = true),
                     LocalChipNudge provides remember { ChipNudge() },
                     LocalReducedMotion provides reducedMotion,
+                    LocalLinkResuming provides state.links.tvShown.resuming,
                     LocalIntroAnchors provides remember { IntroAnchors() },
                 ) {
                     TuttiApp(controller, discovery, diagnostics, hid, state, target)
