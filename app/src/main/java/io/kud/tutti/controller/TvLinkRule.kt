@@ -1,6 +1,5 @@
 package io.kud.tutti.controller
 
-import io.kud.tutti.protocol.atv.KeyBuffer
 import io.kud.tutti.protocol.atv.V2Key
 
 /**
@@ -12,7 +11,7 @@ data class TvShown(val link: Link, val reconnecting: Boolean = false)
 
 /** What happened to a TV key pressed while the remote link was not up. */
 enum class KeyOutcome {
-    /** A one-shot key, held for up to [TvLinkRule.HOLD_MS] and sent, collapsed, the moment the link is back. */
+    /** A one-shot key, held for up to [TvLinkRule.HOLD_MS] and sent the moment the link is back. */
     HELD,
 
     /** Dropped, while the link is on its way (a blip, a reconnect, the first connect). */
@@ -45,18 +44,31 @@ object TvLinkRule {
     const val GIVE_UP_MS = 20_000L
 
     /**
-     * How long a one-shot key waits for the link: [KeyBuffer.HOLD_WINDOW_MS], from the press.
+     * How long a one-shot key waits for the link. A blip's reconnect lands within about 2 s of the
+     * drop, so a key pressed in it usually lands in under that. Any later and the person has
+     * already looked down or pressed again: a Home arriving five seconds on is a surprise, not help.
      */
-    const val HOLD_MS = KeyBuffer.HOLD_WINDOW_MS
+    const val HOLD_MS = 2_000L
 
     /**
-     * One-shot keys ([KeyBuffer.ONE_SHOT]): held through a reconnect, collapsed, and replayed in
-     * press order once the link is back (Erwann, 2026-11-06). OK is one: arrows never wait, so the
-     * focus it lands on is the one it was aimed at. Everything else drops: the D-pad's arrows,
-     * digits and channel steps (sequences), colour keys and skips (context), volume and mute, and
-     * power and inputs, which have their own wake path and must never toggle late.
+     * One-shot keys: where they go doesn't depend on where the focus is, and one landing late
+     * does what was asked. Held (newest wins, so two Backs in a blip send one). Everything else
+     * drops: D-pad and OK (a burst of arrows landing late, or OK on whatever got focus meanwhile),
+     * digits and channel steps (sequences), colour keys and skips (context), and power, which has
+     * its own wake path and must never toggle late.
      */
-    val HOLDABLE: Set<Int> = KeyBuffer.ONE_SHOT
+    val HOLDABLE: Set<Int> = setOf(
+        V2Key.HOME,
+        V2Key.BACK,
+        V2Key.MEDIA_PLAY_PAUSE,
+        V2Key.MEDIA_PLAY,
+        V2Key.MEDIA_PAUSE,
+        V2Key.MEDIA_STOP,
+        V2Key.GUIDE,
+        V2Key.SETTINGS,
+        V2Key.ALL_APPS,
+        V2Key.TV,
+    )
 
     /**
      * Implicit wake (Erwann, 2026-10-25): Home and Play/Pause pressed while the

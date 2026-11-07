@@ -79,7 +79,7 @@
     <string name="card_reconnecting">Reconnexion…</string>
     <string name="card_reconnecting_detail">Les touches reviennent dès que la TV répond</string>
     <string name="tv_link_back">De nouveau connecté à la TV</string>
-    <string name="key_held">Reconnexion… l’appui partira juste après</string>
+    <string name="key_held">Envoi dès que la TV répond…</string>
     <string name="key_dropped_waiting">Non envoyé : en attente de la TV</string>
     <string name="key_dropped_down">Non envoyé : la TV est injoignable</string>
     <string name="key_dropped_pairing">Non envoyé : associez à nouveau la TV</string>

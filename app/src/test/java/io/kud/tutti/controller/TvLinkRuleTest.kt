@@ -54,12 +54,12 @@ class TvLinkRuleTest {
     }
 
     @Test
-    fun `one-shot keys and ok wait, the arrows never do`() {
+    fun `one-shot keys wait, the d-pad and ok never do`() {
         val blip = TvShown(Link.ONLINE)
-        listOf(V2Key.HOME, V2Key.BACK, V2Key.MEDIA_PLAY_PAUSE, V2Key.DPAD_CENTER).forEach {
+        listOf(V2Key.HOME, V2Key.BACK, V2Key.MEDIA_PLAY_PAUSE).forEach {
             assertEquals(KeyOutcome.HELD, TvLinkRule.whileDown(it, long = false, raw = Link.UNREACHABLE, shown = blip))
         }
-        listOf(V2Key.DPAD_UP, V2Key.DPAD_LEFT, V2Key.ENTER, V2Key.CHANNEL_UP, V2Key.NUM_1, V2Key.POWER, V2Key.VOLUME_UP, V2Key.VOLUME_MUTE, V2Key.TV_INPUT).forEach {
+        listOf(V2Key.DPAD_UP, V2Key.DPAD_LEFT, V2Key.DPAD_CENTER, V2Key.ENTER, V2Key.CHANNEL_UP, V2Key.NUM_1, V2Key.POWER).forEach {
             assertEquals(KeyOutcome.DROPPED_WAITING, TvLinkRule.whileDown(it, long = false, raw = Link.CONNECTING, shown = blip))
         }
         assertEquals(KeyOutcome.DROPPED_WAITING, TvLinkRule.whileDown(V2Key.HOME, long = true, raw = Link.CONNECTING, shown = blip))

@@ -211,9 +211,6 @@ sealed interface TuttiEvent {
     /** A TV key met a link that wasn't up: held for a moment, or not sent ([TvLinkRule]). */
     data class KeyNotSent(val outcome: KeyOutcome) : TuttiEvent
 
-    /** Held keys ran out of [io.kud.tutti.protocol.atv.KeyBuffer.HOLD_WINDOW_MS] before the link came back: dropped. */
-    data object HeldKeysDropped : TuttiEvent
-
     /** An app launch tapped in a blip of the TV's link: held, and sent the moment it is back ([io.kud.tutti.protocol.apps.LaunchQueue]). */
     data class AppLaunchHeld(val appName: String) : TuttiEvent
 

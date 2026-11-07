@@ -50,7 +50,6 @@ import io.kud.tutti.protocol.apps.LaunchStep
 import io.kud.tutti.protocol.apps.LaunchResult
 import io.kud.tutti.protocol.apps.LaunchRoute
 import io.kud.tutti.protocol.net.ReconnectPace
-import io.kud.tutti.protocol.atv.KeyBuffer
 import io.kud.tutti.protocol.net.Redact
 import io.kud.tutti.protocol.bravia.TvApp
 import java.io.File
@@ -1396,11 +1395,9 @@ class TuttiController @Inject constructor(
     private val heldKey = java.util.concurrent.atomic.AtomicInteger()
 
     /**
-     * Sends a TV key, never dropping it unsaid: with the remote link not ready (down, or a stale
-     * session [io.kud.tutti.protocol.atv.AtvRemote] just refused), [TvLinkRule.whileDown] says
-     * whether it is held. A held one-shot goes into [KeyBuffer] (collapsed, replayed in press
-     * order when the link is back, dropped silently past [KeyBuffer.HOLD_WINDOW_MS]); anything
-     * else is dropped and said ([TuttiEvent.KeyNotSent]). True only when the key went out now.
+     * Sends a TV key, never dropping it silently: with the remote link down, [TvLinkRule.whileDown]
+     * holds a one-shot key for [TvLinkRule.HOLD_MS] or drops it, and either way says so
+     * ([TuttiEvent.KeyNotSent]). Before this, `AtvRemote.send` returned false and nothing listened.
      */
     private suspend fun sendTvKey(keyCode: Int, long: Boolean): Boolean {
         val send: suspend () -> Boolean = { if (long) atv.longPress(keyCode) else atv.sendKey(keyCode) }
@@ -1408,64 +1405,13 @@ class TuttiController @Inject constructor(
         val current = links.value
         val outcome = TvLinkRule.whileDown(keyCode, long, current.tv, current.tvShown)
         mutableEvents.tryEmit(TuttiEvent.KeyNotSent(outcome))
-        if (outcome == KeyOutcome.HELD) {
-            // A newer press supersedes a wake-then-key or an Apps screen waiting on its own.
-            heldKey.incrementAndGet()
-            holdTvKey(keyCode)
-        }
+        if (outcome != KeyOutcome.HELD) return false
+        val mine = heldKey.incrementAndGet()
+        val back = withTimeoutOrNull(TvLinkRule.HOLD_MS) { atv.state.first { it.ready } } != null
+        if (mine != heldKey.get()) return false
+        if (back && send()) return true
+        mutableEvents.tryEmit(TuttiEvent.KeyNotSent(KeyOutcome.EXPIRED))
         return false
-    }
-
-    private val bufferLock = Any()
-    private var keyBuffer = KeyBuffer()
-    private var bufferDrain: Job? = null
-
-    private fun holdTvKey(keyCode: Int) {
-        synchronized(bufferLock) {
-            keyBuffer = keyBuffer.press(KeyBuffer.PendingPress.Key(keyCode), SystemClock.elapsedRealtime()).buffer
-            if (bufferDrain != null) return
-            // Lazy, so the job is recorded before it can run and clear itself.
-            val drain = scope.launch(start = CoroutineStart.LAZY) { drainKeyBuffer() }
-            bufferDrain = drain
-            drain.start()
-        }
-    }
-
-    /**
-     * Waits for the link while anything is held: on its return, sends what is still inside the
-     * window in press order; when the newest press runs out first, empties the buffer and says
-     * so ([TuttiEvent.HeldKeysDropped]) so the "it'll go through" words don't outlive the press.
-     */
-    private suspend fun drainKeyBuffer() {
-        while (true) {
-            val wait = synchronized(bufferLock) {
-                keyBuffer.emptyInMs(SystemClock.elapsedRealtime()).also { if (it == null) bufferDrain = null }
-            } ?: return
-            val back = withTimeoutOrNull(wait.coerceAtLeast(1)) { atv.state.first { it.ready } } != null
-            val now = SystemClock.elapsedRealtime()
-            if (!back) {
-                val gone = synchronized(bufferLock) {
-                    keyBuffer = keyBuffer.expire(now)
-                    keyBuffer.isEmpty.also { if (it) bufferDrain = null }
-                }
-                if (gone) {
-                    mutableEvents.tryEmit(TuttiEvent.HeldKeysDropped)
-                    return
-                }
-                continue
-            }
-            val presses = synchronized(bufferLock) {
-                val (empty, out) = keyBuffer.flush(now)
-                keyBuffer = empty
-                out
-            }
-            for (press in presses) {
-                when (press) {
-                    is KeyBuffer.PendingPress.Key -> atv.sendKey(press.keyCode)
-                    is KeyBuffer.PendingPress.AppLink -> atv.launch(press.link)
-                }
-            }
-        }
     }
 
     /** Replaces the TV field's text (each keystroke, live). */
