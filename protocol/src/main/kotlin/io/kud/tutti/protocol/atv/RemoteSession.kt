@@ -183,6 +183,10 @@ class RemoteSession(private val deviceInfo: ClientDeviceInfo = ClientDeviceInfo(
 
     /** The TV reported its field's text [text]: an echo of ours, the answer to a trial, or its own change. */
     private fun heard(state: RemoteState, text: String, start: Int, end: Int): RemoteStep {
+        // Typing by keys, the field reporting each key as it lands (or a late echo of an edit
+        // that did land after all, which the keys retyped from empty): ours, not the TV's change.
+        // Following it would pull the phone field back mid-word.
+        if (state.imeDeaf && state.keyed.startsWith(text)) return RemoteStep(state.copy(tvSaid = text))
         val answered = state.copy(imeSession = true, imeSentAt = null, imeDeaf = false, tvSaid = text)
         val trial = state.imeTrial
         if (trial != null && text != trial.sent && text == trial.before + trial.sent) {
@@ -233,13 +237,13 @@ class RemoteSession(private val deviceInfo: ClientDeviceInfo = ClientDeviceInfo(
      */
     fun type(state: RemoteState, text: String, now: Long = 0L): TypeStep {
         var s = state
-        val sentAt = s.imeSentAt
-        if (s.imeSession && !s.imeDeaf && sentAt != null && now - sentAt >= ACK_MS) {
-            // The field never answered: our edits went nowhere. Keys from what it last confirmed.
-            val confirmed = s.tvSaid
-            s = s.copy(imeDeaf = true, imeEchoes = emptyList(), imeTrial = null, imeHeld = null, imeSentAt = null, keyed = confirmed, keyedAsked = confirmed)
+        var lead = emptyList<RemoteMessage>()
+        if (unanswered(s, now)) {
+            val deaf = deafen(s)
+            s = deaf.state
+            lead = deaf.messages
         }
-        if (!s.imeSession || s.imeDeaf) return typeKeys(s, text)
+        if (!s.imeSession || s.imeDeaf) return typeKeys(s, text).let { it.copy(messages = lead + it.messages) }
         val asked = s.imeHeld ?: s.ime?.text ?: s.imeEchoes.lastOrNull()
         if (asked == text) return TypeStep(s, emptyList())
         val mirrored = s.copy(ime = s.ime?.copy(text = text, selectionStart = text.length, selectionEnd = text.length))
@@ -247,6 +251,45 @@ class RemoteSession(private val deviceInfo: ClientDeviceInfo = ClientDeviceInfo(
         if (s.imeTrial != null) return TypeStep(mirrored.copy(imeHeld = text), emptyList())
         val sent = send(mirrored, text)
         return TypeStep(sent.state.copy(imeSentAt = s.imeSentAt ?: now), sent.messages)
+    }
+
+    /**
+     * Nothing typed, but time passed: an edit the TV hasn't answered in [ACK_MS] went nowhere, so
+     * what the phone shows goes as key presses now, not on the next keystroke. Without this the
+     * last letters typed before a pause, and everything held behind an unanswered trial, stayed
+     * on the phone, and Enter submitted a field that never got them. [AtvRemote] calls it on a
+     * timer after each edit and before Enter.
+     */
+    fun settle(state: RemoteState, now: Long): TypeStep {
+        if (!unanswered(state, now)) return TypeStep(state, emptyList())
+        // What the phone shows: the held text, else the newest edit sent.
+        val target = state.imeHeld ?: state.tvText
+        val deaf = deafen(state)
+        val keys = typeKeys(deaf.state, target)
+        return keys.copy(messages = deaf.messages + keys.messages)
+    }
+
+    private fun unanswered(state: RemoteState, now: Long): Boolean {
+        val sentAt = state.imeSentAt ?: return false
+        return state.imeSession && !state.imeDeaf && now - sentAt >= ACK_MS
+    }
+
+    /**
+     * The field never answered an edit: from here text goes as keys. Whether the edits landed
+     * silently or not at all can't be told, so the keys start from an empty field (caret to the
+     * end, one Delete per character it could hold) and type the phone's whole text: a Delete on
+     * an empty field does nothing, and nothing typed earlier can come back doubled.
+     */
+    private fun deafen(state: RemoteState): TypeStep {
+        val holds = maxOf(state.tvText.length, state.tvSaid.length)
+        val clear = buildList {
+            if (holds > 0) {
+                add(RemoteMessages.key(V2Key.MOVE_END)!!)
+                repeat(holds) { add(RemoteMessages.key(V2Key.DEL)!!) }
+            }
+        }
+        val deaf = state.copy(imeDeaf = true, imeEchoes = emptyList(), imeTrial = null, imeHeld = null, imeSentAt = null, keyed = "", keyedAsked = "")
+        return TypeStep(deaf, clear)
     }
 
     /** Edits that take the TV's field from [RemoteState.tvText] to [text], in the TV's style. */

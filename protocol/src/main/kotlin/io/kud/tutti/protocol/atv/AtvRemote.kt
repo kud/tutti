@@ -15,10 +15,12 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withTimeoutOrNull
 import okio.ByteString.Companion.toByteString
 import java.io.IOException
 
@@ -207,6 +209,7 @@ class AtvRemote(
     /** Returns false when not connected or [keyCode] is not a v2 key. */
     suspend fun sendKey(keyCode: Int, direction: KeyDirection = KeyDirection.SHORT): Boolean {
         val message = RemoteMessages.key(keyCode, direction) ?: return false
+        if (keyCode == V2Key.ENTER || keyCode == V2Key.NUMPAD_ENTER) beforeEnter()
         return send(message)
     }
 
@@ -240,20 +243,71 @@ class AtvRemote(
         var dropped = emptyList<Char>()
         synchronized(typing) {
             var messages = emptyList<RemoteMessage>()
-            val now = System.nanoTime() / 1_000_000
+            val now = now()
             mutableState.update { state -> session.type(state, text, now).also { messages = it.messages; dropped = it.dropped }.state }
             if (messages.isEmpty()) return dropped
             typing.addAll(messages)
         }
-        scope.launch {
-            typingLock.withLock {
-                while (true) {
-                    val next = synchronized(typing) { typing.removeFirstOrNull() } ?: break
-                    send(next)
-                }
+        scope.launch { drainTyping() }
+        watchAnswer()
+        return dropped
+    }
+
+    private suspend fun drainTyping() {
+        typingLock.withLock {
+            while (true) {
+                val next = synchronized(typing) { typing.removeFirstOrNull() } ?: break
+                send(next)
             }
         }
-        return dropped
+    }
+
+    /** Queues what [RemoteSession.settle] says an unanswered edit needs (its text as keys). */
+    private fun settleTyping() {
+        synchronized(typing) {
+            var messages = emptyList<RemoteMessage>()
+            val now = now()
+            mutableState.update { state -> session.settle(state, now).also { messages = it.messages }.state }
+            typing.addAll(messages)
+        }
+    }
+
+    private var answerWatch: Job? = null
+
+    /**
+     * Once an edit is out, checks it was answered within [RemoteSession.ACK_MS] even if nothing
+     * more is typed: an unanswered one goes as keys then, not on the next keystroke.
+     */
+    private fun watchAnswer() {
+        if (mutableState.value.imeSentAt == null || answerWatch?.isActive == true) return
+        answerWatch = scope.launch {
+            while (true) {
+                val sentAt = mutableState.value.imeSentAt ?: break
+                val wait = sentAt + RemoteSession.ACK_MS - now()
+                if (wait > 0) {
+                    delay(wait)
+                    continue
+                }
+                settleTyping()
+                drainTyping()
+                break
+            }
+        }
+    }
+
+    /**
+     * Before Enter: what was typed reaches the field first. An edit still unanswered gets the
+     * rest of [RemoteSession.ACK_MS] to be, then goes as keys; and Enter never overtakes the
+     * typing queue, or it submitted the field before its last letters.
+     */
+    private suspend fun beforeEnter() {
+        val sentAt = mutableState.value.imeSentAt
+        if (sentAt != null) {
+            val wait = sentAt + RemoteSession.ACK_MS - now()
+            if (wait > 0) withTimeoutOrNull(wait) { mutableState.first { it.imeSentAt == null } }
+            settleTyping()
+        }
+        drainTyping()
     }
 
     suspend fun launch(link: String): Boolean = send(RemoteMessages.appLink(link))

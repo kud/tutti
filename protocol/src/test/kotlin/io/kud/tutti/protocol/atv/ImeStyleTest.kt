@@ -97,6 +97,7 @@ class ImeStyleTest {
                 text = text.dropLast(1)
                 return
             }
+            if (code == V2Key.MOVE_END) return
             val char = (' '..'~').first { TextKeys.stroke(it) == TextKeys.Stroke(code, shift) }
             text += char
         }
@@ -230,7 +231,7 @@ class ImeStyleTest {
     }
 
     @Test
-    fun `a field that never answers an edit falls back to keys from what it last said`() {
+    fun `a field that never answers an edit falls back to keys, cleared first`() {
         val tv = Tv(inserts = false, imeCounter = 7)
         val start = RemoteState(ready = true, currentApp = "com.example.tv")
         // The TV started its keyboard (so tutti tries edits), but the box swallows them.
