@@ -32,6 +32,7 @@ import io.kud.tutti.platform.security.StagedIdentity
 import io.kud.tutti.platform.security.SecureStore
 import io.kud.tutti.protocol.apps.AppIcons
 import io.kud.tutti.protocol.apps.AppLauncher
+import io.kud.tutti.protocol.apps.LaunchPlan
 import io.kud.tutti.protocol.apps.AppLibrary
 import io.kud.tutti.protocol.apps.AppsScreen
 import io.kud.tutti.protocol.apps.AppsScreenOpener
@@ -1683,7 +1684,7 @@ class TuttiController @Inject constructor(
         if (wakes && powered == false) return LaunchLink.ASLEEP
         if (atv.state.value.ready) return LaunchLink.READY
         // IP control can launch without the remote link, with a uri the TV listed (now or before).
-        val listed = tv.value.apps.any { AppLibrary.packageOf(it.uri) == packageName } ||
+        val listed = tv.value.apps.any { AppLibrary.lists(it.uri, packageName) } ||
             state.value.apps.any { it.packageName == packageName && it.tvUri != null }
         // setActiveApp needs the key: a refused one leaves launches to the remote link.
         if (bravia != null && links.value.rest == Link.ONLINE && !pskRefused && listed) return LaunchLink.READY
@@ -1691,7 +1692,7 @@ class TuttiController @Inject constructor(
     }
 
     private suspend fun restUriFor(packageName: String): String? =
-        tv.value.apps.firstOrNull { AppLibrary.packageOf(it.uri) == packageName }?.uri
+        tv.value.apps.firstOrNull { AppLibrary.lists(it.uri, packageName) }?.uri
             ?: store.apps.first().firstOrNull { it.packageName == packageName }?.tvUri
 
     /** An app's name for the words on screen: what the TV listed, else the catalogue's, else the package. */
@@ -1715,6 +1716,8 @@ class TuttiController @Inject constructor(
         val client = bravia
         val restOnline = client != null && links.value.rest == Link.ONLINE && !pskRefused
         val restUri = if (!restOnline) null else restUriFor(packageName)
+        // No TV with IP control set up at all is not worth a line in the trace.
+        val restSkipped = if (client == null) null else LaunchPlan.restSkip(links.value.rest == Link.ONLINE, pskRefused, restUri)
         val launcher = AppLauncher(
             send = { route ->
                 when (route) {
@@ -1726,7 +1729,7 @@ class TuttiController @Inject constructor(
             // app_info arrives over the remote link only; without it nothing can be confirmed.
             canObserve = { atv.state.value.ready },
         )
-        val result = launcher.launch(packageName, LaunchPlan.routes(packageName, restOnline, restUri))
+        val result = launcher.launch(packageName, LaunchPlan.routes(packageName, restOnline, restUri), restSkipped)
         lastLaunchTrace = Redact.text(result.trace())
         return result
     }

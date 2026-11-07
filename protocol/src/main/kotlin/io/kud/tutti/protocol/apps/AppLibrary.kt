@@ -29,14 +29,31 @@ object AppLibrary {
      * (`com.netflix.ninja.com.netflix.ninja.MainActivity`); otherwise the last segment is the
      * activity. Null for uris that are not apps (`localapp://webappruntime?...`).
      */
-    fun packageOf(uri: String): String? {
+    fun packageOf(uri: String, known: Collection<String> = AppCatalog.apps.map { it.packageName }): String? {
         if (!uri.startsWith(SONY_PREFIX)) return null
-        val parts = uri.removePrefix(SONY_PREFIX).split('.').filter { it.isNotEmpty() }
+        val rest = uri.removePrefix(SONY_PREFIX)
+        // A package we know, followed by a class: no guessing (the longest, should two nest).
+        known.filter { rest.startsWith("$it.") }.maxByOrNull { it.length }?.let { return it }
+        val parts = rest.split('.').filter { it.isNotEmpty() }
         if (parts.size < 2) return null
         val restart = (2 until parts.size).firstOrNull { parts[it] == parts[0] }
-        val end = restart ?: (parts.size - 1)
+        // An activity in another namespace (`com.nuvio.app` + `app.nuvio.MainActivity`): it
+        // starts on a domain root, with at least a segment and the class after it. The last
+        // such root, since the package itself may hold one (`com.nuvio.app`).
+        val foreign = (2..parts.size - 3).lastOrNull { parts[it] in ROOTS }
+        val end = restart ?: foreign ?: (parts.size - 1)
         return parts.subList(0, end).joinToString(".")
     }
+
+    /** Whether the TV uri [uri] opens [packageName], whatever its activity is called. */
+    fun lists(uri: String, packageName: String): Boolean =
+        uri.startsWith("$SONY_PREFIX$packageName.") || packageOf(uri) == packageName
+
+    /** Top-level domains that start Java namespaces, for activities outside their package. */
+    private val ROOTS = setOf(
+        "com", "org", "net", "io", "app", "tv", "dev", "me", "co", "de", "fr", "uk", "nl", "es", "it",
+        "se", "no", "dk", "fi", "ch", "at", "be", "pl", "pt", "jp", "kr", "cn", "ru", "br", "ca", "au", "us", "eu",
+    )
 
     /** A TV list entry as a [KnownApp]; null when its uri names no package. */
     fun fromTv(app: TvApp): KnownApp? {

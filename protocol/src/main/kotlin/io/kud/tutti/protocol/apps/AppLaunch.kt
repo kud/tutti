@@ -26,10 +26,23 @@ enum class LaunchVerdict {
     FAILED,
 }
 
+/** Why IP control's `setActiveApp` was not among the routes. */
+enum class RestSkip(val words: String) {
+    OFFLINE("IP control offline"),
+    KEY_REFUSED("IP control key refused"),
+    NOT_LISTED("app never listed by the TV"),
+}
+
 /** One route tried: whether it went out, and what the TV showed when we stopped watching. */
 data class LaunchAttempt(val route: LaunchRoute, val sent: Boolean, val foreground: String?)
 
-data class LaunchResult(val packageName: String, val verdict: LaunchVerdict, val attempts: List<LaunchAttempt>) {
+data class LaunchResult(
+    val packageName: String,
+    val verdict: LaunchVerdict,
+    val attempts: List<LaunchAttempt>,
+    /** Why the REST route wasn't tried; null when it was, or when there is no IP control at all. */
+    val restSkipped: RestSkip? = null,
+) {
     val ok: Boolean get() = verdict != LaunchVerdict.FAILED
 
     /**
@@ -39,6 +52,7 @@ data class LaunchResult(val packageName: String, val verdict: LaunchVerdict, val
     fun trace(): String = buildString {
         append("launch ").append(packageName).append(": ").append(verdict.name.lowercase())
         if (attempts.isEmpty()) append(" (no route)")
+        restSkipped?.let { append("\nrest setActiveApp skipped: ").append(it.words) }
         attempts.forEachIndexed { index, attempt ->
             append('\n').append(index + 1).append(". ")
             when (val route = attempt.route) {
@@ -53,6 +67,17 @@ data class LaunchResult(val packageName: String, val verdict: LaunchVerdict, val
 
 /** Which routes to try, in order. Pure. */
 object LaunchPlan {
+    /**
+     * Why the REST route can't go, checked in the order that explains most: no link at all, a
+     * refused key, then an app the TV never listed. Null when it can go.
+     */
+    fun restSkip(restOnline: Boolean, keyRefused: Boolean, restUri: String?): RestSkip? = when {
+        keyRefused -> RestSkip.KEY_REFUSED
+        !restOnline -> RestSkip.OFFLINE
+        restUri == null -> RestSkip.NOT_LISTED
+        else -> null
+    }
+
     /**
      * IP control first when it answers and the TV ever listed the app (Sony's own launcher), then
      * every app link the catalogue knows for it, ending on `market://launch?id=`.
@@ -78,7 +103,10 @@ class AppLauncher(
     private val canObserve: () -> Boolean,
     private val confirmMs: Long = CONFIRM_MS,
 ) {
-    suspend fun launch(packageName: String, routes: List<LaunchRoute>): LaunchResult {
+    suspend fun launch(packageName: String, routes: List<LaunchRoute>, restSkipped: RestSkip? = null): LaunchResult =
+        attempt(packageName, routes).copy(restSkipped = restSkipped)
+
+    private suspend fun attempt(packageName: String, routes: List<LaunchRoute>): LaunchResult {
         val attempts = mutableListOf<LaunchAttempt>()
         for (route in routes) {
             if (!send(route)) {
