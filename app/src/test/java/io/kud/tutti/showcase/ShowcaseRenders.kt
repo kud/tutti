@@ -3,6 +3,7 @@ package io.kud.tutti.showcase
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.os.Looper
+import android.view.ViewGroup
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Box
@@ -12,6 +13,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.core.graphics.Insets
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import io.kud.tutti.controller.Link
 import io.kud.tutti.controller.Links
 import io.kud.tutti.controller.SceneUi
@@ -73,7 +77,12 @@ import java.time.Duration
  *
  *     TUTTI_SHOWCASE=<dir> ./gradlew --offline :app:testGithubDebugUnitTest --tests '*Showcase*'
  *
- * Writes `<dir>/<locale>/<shot>-<light|dark>.png` at 1080x2400 for `en` and `fr`.
+ * Writes `<dir>/<locale>/<shot>-<light|dark>.png` for `en` and `fr`, at a Pixel 10's size: 1080x2424
+ * px at 420 dpi (density 2.625, about 411x923 dp; Google lists the panel at 1080x2424, 422 ppi), so
+ * the width-based layout (the pad, the card room) spreads its space as it does on that phone. The
+ * window is edge to edge, as in [io.kud.tutti.MainActivity], under a status bar and a gesture
+ * navigation bar given as insets ([STATUS_BAR], [NAVIGATION_BAR]); the bars themselves are not
+ * drawn, so their space shows the app's own background.
  *
  * The screens take the real [TuttiController], built here from offline stand-ins (no connector ever
  * reaches the network: nothing is configured in its stores), while what they draw comes from the
@@ -81,7 +90,7 @@ import java.time.Duration
  */
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
-@Config(sdk = [35], qualifiers = "w360dp-h800dp-xxhdpi")
+@Config(sdk = [35], qualifiers = "$SCREEN-420dpi")
 class ShowcaseRenders {
     private val out: File? = System.getenv("TUTTI_SHOWCASE")?.takeIf { it.isNotBlank() }?.let(::File)
 
@@ -121,20 +130,45 @@ class ShowcaseRenders {
         val (controller, target) = Graph.build()
         for (locale in listOf("en", "fr")) {
             for (dark in listOf(false, true)) {
-                RuntimeEnvironment.setQualifiers("$locale-w360dp-h800dp-${if (dark) "night" else "notnight"}-xxhdpi")
+                RuntimeEnvironment.setQualifiers("$locale-$SCREEN-${if (dark) "night" else "notnight"}-420dpi")
                 val activity = Robolectric.buildActivity(ComponentActivity::class.java).setup().get()
+                withSystemBars(activity)
                 activity.setContent { TuttiTheme(darkTheme = dark, dynamicColor = false) { screen(controller, target, locale) } }
                 repeat(EIGHTHS) { shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(125)) }
                 val view = activity.window.decorView
                 val bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
                 view.draw(Canvas(bitmap))
-                check(bitmap.width == 1080 && bitmap.height == 2400) { "$name rendered at ${bitmap.width}x${bitmap.height}" }
+                check(bitmap.width == WIDTH_PX && bitmap.height == HEIGHT_PX) { "$name rendered at ${bitmap.width}x${bitmap.height}" }
                 val file = File(dir!!, "$locale/$name-${if (dark) "dark" else "light"}.png")
                 file.parentFile!!.mkdirs()
                 file.outputStream().use { check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) { "$file not written" } }
                 activity.finish()
             }
         }
+    }
+
+    /**
+     * Robolectric draws no system bars and hands the window zero insets. Every dispatch through the
+     * content frame is replaced by a phone's: a status bar on top and a gesture bar at the bottom,
+     * so `statusBarsPadding`, `navigationBarsPadding` and the sheet's peek read what they read on
+     * the phone. The same insets are dispatched once by hand in case nothing else asks.
+     */
+    private fun withSystemBars(activity: ComponentActivity) {
+        val density = activity.resources.displayMetrics.density
+        val status = Insets.of(0, Math.round(STATUS_BAR * density), 0, 0)
+        val navigation = Insets.of(0, 0, 0, Math.round(NAVIGATION_BAR * density))
+        val bars = WindowInsetsCompat.Builder()
+            .setInsets(WindowInsetsCompat.Type.statusBars(), status)
+            .setInsets(WindowInsetsCompat.Type.navigationBars(), navigation)
+            .setInsets(WindowInsetsCompat.Type.systemGestures(), navigation)
+            .setInsetsIgnoringVisibility(WindowInsetsCompat.Type.statusBars(), status)
+            .setInsetsIgnoringVisibility(WindowInsetsCompat.Type.navigationBars(), navigation)
+            .setVisible(WindowInsetsCompat.Type.statusBars(), true)
+            .setVisible(WindowInsetsCompat.Type.navigationBars(), true)
+            .build()
+        val content = activity.findViewById<ViewGroup>(android.R.id.content)
+        ViewCompat.setOnApplyWindowInsetsListener(content) { _, _ -> bars }
+        ViewCompat.dispatchApplyWindowInsets(content, bars)
     }
 
     /** The real controller over empty stores and connectors that refuse: it never reaches a device. */
@@ -167,6 +201,18 @@ class ShowcaseRenders {
     private companion object {
         /** Two seconds of frames: every entrance has settled. */
         const val EIGHTHS = 16
+
+        /** A Pixel 10 at its default display size: 1080x2424 px at 420 dpi. */
+        const val SCREEN = "w411dp-h923dp"
+        const val WIDTH_PX = 1080
+        const val HEIGHT_PX = 2424
+
+        /**
+         * The bars in dp. Estimates for a recent Pixel (status bar sized by the camera cutout, the
+         * gesture handle's strip), not measured on Erwann's phone; adjust once read from the device.
+         */
+        const val STATUS_BAR = 52f
+        const val NAVIGATION_BAR = 24f
     }
 }
 

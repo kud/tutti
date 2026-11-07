@@ -41,10 +41,12 @@ jobs:
       # here) and `fdroid` (no updater, built by F-Droid from source; never attached to a release,
       # since installs that predate the updater's `-fdroid.apk` rule would take it as theirs).
       # A manual run without a tag also writes the render tests' PNGs (invented fixtures), to judge a
-      # visual change; push, PR and release runs never do.
+      # visual change, and the showcase screenshots (README, F-Droid) under `renders/showcase`; push,
+      # PR and release runs never do.
       - name: Test, lint and assemble
         env:
           TUTTI_RENDERS: ${{ github.event_name == 'workflow_dispatch' && inputs.tag == '' && format('{0}/renders', github.workspace) || '' }}
+          TUTTI_SHOWCASE: ${{ github.event_name == 'workflow_dispatch' && inputs.tag == '' && format('{0}/renders/showcase', github.workspace) || '' }}
         run: ./gradlew --stacktrace :protocol:test :app:testGithubDebugUnitTest :app:testFdroidDebugUnitTest :app:lintGithubDebug :app:lintFdroidDebug :app:assembleGithubDebug :app:assembleFdroidDebug
 
       - name: No lint errors
