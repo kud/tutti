@@ -3,6 +3,7 @@ package io.kud.tutti.showcase
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.os.Looper
+import android.view.View
 import android.view.ViewGroup
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -88,6 +89,14 @@ import java.time.Duration
  * reaches the network: nothing is configured in its stores), while what they draw comes from the
  * [TuttiUiState] passed in, which is the fixture.
  */
+/**
+ * A Pixel 10 at its default display size: 1080x2424 px at 420 dpi. 411x923 dp is the nearest whole-dp
+ * window Robolectric can be given; each shot is then measured and laid out at the exact pixels.
+ */
+private const val SCREEN = "w411dp-h923dp"
+private const val WIDTH_PX = 1080
+private const val HEIGHT_PX = 2424
+
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [35], qualifiers = "$SCREEN-420dpi")
@@ -136,6 +145,12 @@ class ShowcaseRenders {
                 activity.setContent { TuttiTheme(darkTheme = dark, dynamicColor = false) { screen(controller, target, locale) } }
                 repeat(EIGHTHS) { shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(125)) }
                 val view = activity.window.decorView
+                File(dir!!, "window.txt").appendText("$name $locale ${if (dark) "dark" else "light"}: window ${view.width}x${view.height}, drawn at ${WIDTH_PX}x$HEIGHT_PX\n")
+                view.measure(
+                    View.MeasureSpec.makeMeasureSpec(WIDTH_PX, View.MeasureSpec.EXACTLY),
+                    View.MeasureSpec.makeMeasureSpec(HEIGHT_PX, View.MeasureSpec.EXACTLY),
+                )
+                view.layout(0, 0, WIDTH_PX, HEIGHT_PX)
                 val bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
                 view.draw(Canvas(bitmap))
                 check(bitmap.width == WIDTH_PX && bitmap.height == HEIGHT_PX) { "$name rendered at ${bitmap.width}x${bitmap.height}" }
@@ -202,10 +217,6 @@ class ShowcaseRenders {
         /** Two seconds of frames: every entrance has settled. */
         const val EIGHTHS = 16
 
-        /** A Pixel 10 at its default display size: 1080x2424 px at 420 dpi. */
-        const val SCREEN = "w411dp-h923dp"
-        const val WIDTH_PX = 1080
-        const val HEIGHT_PX = 2424
 
         /**
          * The bars in dp. Estimates for a recent Pixel (status bar sized by the camera cutout, the
