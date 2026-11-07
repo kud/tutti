@@ -7,6 +7,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import io.kud.tutti.BuildConfig
 import io.kud.tutti.R
 import io.kud.tutti.protocol.update.AppVersion
@@ -58,6 +59,7 @@ fun WhatsNewHintEffect(
     onOpen: () -> Unit,
 ) {
     val context = LocalContext.current
+    val resources = LocalResources.current
     val messages = LocalMessages.current ?: return
     val open by rememberUpdatedState(onOpen)
     LaunchedEffect(ready) {
@@ -80,8 +82,8 @@ fun WhatsNewHintEffect(
         // Read again: opening the page from the notification meanwhile has already said it.
         if (WhatsNewRule.hint(notes.version, memory.seen, established = true) != WhatsNewRule.Hint.SHOW) return@LaunchedEffect
         messages.show(
-            context.getString(R.string.whats_new_message, notes.version.toString()),
-            actionLabel = context.getString(R.string.whats_new_action),
+            resources.getString(R.string.whats_new_message, notes.version.toString()),
+            actionLabel = resources.getString(R.string.whats_new_action),
             onAction = { open() },
             long = true,
         )

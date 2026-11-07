@@ -12,7 +12,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import io.kud.tutti.R
 import io.kud.tutti.controller.Link
 import io.kud.tutti.controller.Links
@@ -81,7 +81,7 @@ class WhatsNewRenders {
 
     @Test fun message() = shoot("whats-new-message") { controller, target ->
         val messages = remember { Messages() }
-        val context = LocalContext.current
+        val context = LocalResources.current
         CompositionLocalProvider(LocalMessages provides messages) {
             Box(Modifier.fillMaxSize()) {
                 RemoteScreen(Fixture.home, controller, target, onOpenScenes = {}, onOpenSettings = {}, onEditScene = {})
