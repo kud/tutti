@@ -58,36 +58,53 @@ internal fun PlaybackChipRow(modifier: Modifier = Modifier, content: @Composable
     Layout(content, modifier) { measurables, constraints ->
         val gap = CHIP_GAP.roundToPx()
         val width = constraints.maxWidth
-        val natural = measurables.map { it.maxIntrinsicWidth(Constraints.Infinity) }
-        val fits = natural.sum() + gap * (measurables.size - 1).coerceAtLeast(0) <= width
-        val rows: List<List<Int>> = if (fits) listOf(measurables.indices.toList()) else measurables.indices.chunked(2)
+        val rows = chipRows(measurables.map { it.maxIntrinsicWidth(Constraints.Infinity) }, width, gap)
+        // Nothing to show (Nuvio offers no search and no shortcut): the row takes no room.
+        if (rows.isEmpty()) return@Layout layout(width, 0) {}
         val placeables = arrayOfNulls<androidx.compose.ui.layout.Placeable>(measurables.size)
         for (row in rows) {
-            val free = width - gap * (row.size - 1)
-            val widths = if (fits) {
-                val slack = (free - row.sumOf { natural[it] }) / row.size
-                row.map { natural[it] + slack }
-            } else {
-                row.map { if (row.size == 1) width else free / 2 }
-            }
-            row.forEachIndexed { i, index ->
-                placeables[index] = measurables[index].measure(Constraints.fixedWidth(widths[i].coerceAtLeast(0)))
+            for (chip in row) {
+                placeables[chip.index] = measurables[chip.index].measure(Constraints.fixedWidth(chip.width))
             }
         }
-        val heights = rows.map { row -> row.maxOf { placeables[it]!!.height } }
-        val total = heights.sum() + gap * (rows.size - 1).coerceAtLeast(0)
+        val heights = rows.map { row -> row.maxOf { placeables[it.index]!!.height } }
+        val total = heights.sum() + gap * (rows.size - 1)
         layout(width, total) {
             var y = 0
             rows.forEachIndexed { r, row ->
                 var x = 0
-                for (index in row) {
-                    val p = placeables[index]!!
+                for (chip in row) {
+                    val p = placeables[chip.index]!!
                     p.placeRelative(x, y + (heights[r] - p.height) / 2)
                     x += p.width + gap
                 }
                 y += heights[r] + gap
             }
         }
+    }
+}
+
+/** A chip's place in [chipRows]: which child, and the width it is measured at. */
+internal data class ChipSlot(val index: Int, val width: Int)
+
+/**
+ * The rows [PlaybackChipRow] lays out, from each chip's natural width: one row when they all fit,
+ * each widened by an equal share of the room left; else rows of two at half the width. No chips,
+ * no rows: an empty row once divided by zero and crashed the sheet over Nuvio (2026-11-07).
+ */
+internal fun chipRows(natural: List<Int>, width: Int, gap: Int): List<List<ChipSlot>> {
+    if (natural.isEmpty()) return emptyList()
+    val fits = natural.sum() + gap * (natural.size - 1) <= width
+    val rows = if (fits) listOf(natural.indices.toList()) else natural.indices.chunked(2)
+    return rows.map { row ->
+        val free = width - gap * (row.size - 1)
+        val widths = if (fits) {
+            val slack = (free - row.sumOf { natural[it] }) / row.size
+            row.map { natural[it] + slack }
+        } else {
+            row.map { if (row.size == 1) width else free / 2 }
+        }
+        row.mapIndexed { i, index -> ChipSlot(index, widths[i].coerceAtLeast(0)) }
     }
 }
 
