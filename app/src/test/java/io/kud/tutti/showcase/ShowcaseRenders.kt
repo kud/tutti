@@ -16,6 +16,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.core.graphics.Insets
@@ -154,18 +159,37 @@ class ShowcaseRenders {
                     setRealHeight(HEIGHT_PX)
                 }
                 val activity = Robolectric.buildActivity(ComponentActivity::class.java).setup().get()
-                withSystemBars(activity)
+                val redispatch = withSystemBars(activity)
                 var seen = "compose insets never read"
+                var compositions = 0
+                var generation by mutableIntStateOf(0)
                 activity.setContent {
-                    val px = LocalDensity.current
-                    val status = WindowInsets.statusBars.getTop(px)
-                    val navigation = WindowInsets.navigationBars.getBottom(px)
-                    SideEffect { seen = "compose insets: status $status px, navigation $navigation px" }
-                    TuttiTheme(darkTheme = dark, dynamicColor = false) { screen(controller, target, locale) }
+                    key(generation) {
+                        val px = LocalDensity.current
+                        val status = WindowInsets.statusBars.getTop(px)
+                        val navigation = WindowInsets.navigationBars.getBottom(px)
+                        SideEffect {
+                            compositions++
+                            seen = "compose insets: status $status px, navigation $navigation px"
+                        }
+                        TuttiTheme(darkTheme = dark, dynamicColor = false) { screen(controller, target, locale) }
+                    }
                 }
+                // The first composition reads the insets holder before it has the bars, and nothing
+                // makes those reads run again: layout-time padding catches up, composition-time reads
+                // (the sheet's peek) stay at 0. Once the ComposeView is attached, hand it the bars and
+                // compose the screen afresh so every read sees them.
+                repeat(2) { shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(16)) }
+                val before = "first pass $seen after $compositions composition(s)"
+                redispatch()
+                generation++
+                Snapshot.sendApplyNotifications()
                 repeat(EIGHTHS) { shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(125)) }
                 val view = activity.window.decorView
-                File(dir!!, "window.txt").appendText("$name $locale ${if (dark) "dark" else "light"}: window ${view.width}x${view.height}, screen ${activity.resources.configuration.screenWidthDp}x${activity.resources.configuration.screenHeightDp} dp, $seen\n")
+                val log = File(dir!!, "window.txt")
+                val line = "$name $locale ${if (dark) "dark" else "light"}: window ${view.width}x${view.height}, screen ${activity.resources.configuration.screenWidthDp}x${activity.resources.configuration.screenHeightDp} dp, $seen, $compositions composition(s); $before"
+                // Both flavours run this test into the same folder: one line per shot.
+                if (!log.exists() || line !in log.readLines()) log.appendText("$line\n")
                 val bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
                 view.draw(Canvas(bitmap))
                 check(bitmap.width == WIDTH_PX && bitmap.height == HEIGHT_PX) { "$name rendered at ${bitmap.width}x${bitmap.height}" }
@@ -181,9 +205,10 @@ class ShowcaseRenders {
      * Robolectric draws no system bars and hands the window zero insets. Every dispatch through the
      * content frame is replaced by a phone's: a status bar on top and a gesture bar at the bottom,
      * so `statusBarsPadding`, `navigationBarsPadding` and the sheet's peek read what they read on
-     * the phone. The same insets are dispatched once by hand in case nothing else asks.
+     * the phone. The same insets are dispatched once by hand in case nothing else asks; the returned
+     * function dispatches them again, once the content is there to take them.
      */
-    private fun withSystemBars(activity: ComponentActivity) {
+    private fun withSystemBars(activity: ComponentActivity): () -> Unit {
         val density = activity.resources.displayMetrics.density
         val status = Insets.of(0, Math.round(STATUS_BAR * density), 0, 0)
         val navigation = Insets.of(0, 0, 0, Math.round(NAVIGATION_BAR * density))
@@ -199,6 +224,7 @@ class ShowcaseRenders {
         val content = activity.findViewById<ViewGroup>(android.R.id.content)
         ViewCompat.setOnApplyWindowInsetsListener(content) { _, _ -> bars }
         ViewCompat.dispatchApplyWindowInsets(content, bars)
+        return { ViewCompat.dispatchApplyWindowInsets(content, bars) }
     }
 
     /** The real controller over empty stores and connectors that refuse: it never reaches a device. */
@@ -234,11 +260,13 @@ class ShowcaseRenders {
 
 
         /**
-         * The bars in dp. Estimates for a recent Pixel (status bar sized by the camera cutout, the
-         * gesture handle's strip), not measured on Erwann's phone; adjust once read from the device.
+         * The bars in dp, read off a screenshot of Erwann's Pixel 10 (dark remote, 2026-11-07): the
+         * top bar's chip starts 193 px down (8 dp of row padding under the status bar), the Sound
+         * sheet's edge 284 px above the bottom (72 dp of peek over the gesture strip), and the
+         * gesture handle sits centred in that 95 px strip.
          */
-        const val STATUS_BAR = 52f
-        const val NAVIGATION_BAR = 24f
+        const val STATUS_BAR = 65f
+        const val NAVIGATION_BAR = 36f
     }
 }
 
