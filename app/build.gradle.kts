@@ -112,7 +112,13 @@ android {
     testOptions {
         unitTests.isIncludeAndroidResources = true
         // Robolectric's native graphics (the render tests) outgrow the 512 MB default.
-        unitTests.all { it.maxHeapSize = "2g" }
+        // Render tests only run when TUTTI_RENDERS names a folder: excluded otherwise, so a plain
+        // test run never boots Robolectric's sandbox just to skip them.
+        val renders = !System.getenv("TUTTI_RENDERS").isNullOrBlank()
+        unitTests.all {
+            it.maxHeapSize = "2g"
+            if (!renders) it.exclude("**/*Renders*")
+        }
     }
 
     lint {
