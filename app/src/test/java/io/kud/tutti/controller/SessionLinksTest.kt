@@ -5,6 +5,7 @@ import io.kud.tutti.platform.data.Devices
 import io.kud.tutti.platform.data.TvDevice
 import io.kud.tutti.quick.ControllerQuickControls
 import io.kud.tutti.platform.diagnostic.remotePairingRecorded
+import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -35,6 +36,46 @@ class SessionLinksTest {
         assertFalse(ControllerQuickControls.powerSettled(connecting))
         assertTrue(ControllerQuickControls.powerSettled(connecting.copy(powered = false)))
     }
+
+    @Test
+    fun `a quick surface waits for the link only on a cold start`() {
+        // Erwann, 2026-11-07: « Soit c'est connecté, soit c'est pas connecté, et puis basta. »
+        assertTrue("no sessions: the tap starts the connect", ControllerQuickControls.waitsForLink(sessionsWereLive = false))
+        assertFalse("a live session is never waited on through a blip", ControllerQuickControls.waitsForLink(sessionsWereLive = true))
+    }
+
+    @Test
+    fun `the quick surfaces gate their wait on a cold start, and read liveness before retaining`() {
+        // The controller has no harness; this reads the source, as TvLinkRuleTest does for sendTvKey.
+        val source = source("quick/ControllerQuickControls.kt")
+        val start = source.indexOf("private suspend fun held(")
+        assertTrue("held not found", start >= 0)
+        val body = source.substring(start, source.indexOf("\n    }\n", start))
+        val live = body.indexOf("controller.sessionsLive")
+        val retain = body.indexOf("controller.retainSession()")
+        val gate = body.indexOf("if (waitsForLink(")
+        val wait = body.indexOf("withTimeoutOrNull(")
+        assertTrue("liveness is read before retaining starts the sessions", live in 0 until retain)
+        assertTrue("the wait sits inside the cold-start gate", gate in 0 until wait)
+    }
+
+    @Test
+    fun `restarted sessions read as a fresh connect, never as a reconnect`() {
+        val source = source("controller/TuttiController.kt")
+        val start = source.indexOf("private suspend fun runSessions(")
+        assertTrue("runSessions not found", start >= 0)
+        val body = source.substring(start, source.indexOf("\n    }\n", start))
+        val reset = body.indexOf("tvWasUp = false")
+        val clock = body.indexOf("tvDownSince = null")
+        val restarted = body.indexOf("links.update { it.restarted(epoch) }")
+        assertTrue("the shown clock resets before the links move", reset in 0 until restarted && clock in 0 until restarted)
+        assertEquals(TvShown(Link.CONNECTING), TvLinkRule.shown(Link.CONNECTING, null))
+    }
+
+    private fun source(path: String): String =
+        sequenceOf(File("src/main/java/io/kud/tutti/$path"), File("app/src/main/java/io/kud/tutti/$path"))
+            .first { it.isFile }
+            .readText()
 
     @Test
     fun `Power goes ahead (and wakes) once no configured link is trying`() {

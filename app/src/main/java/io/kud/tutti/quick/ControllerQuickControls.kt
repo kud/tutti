@@ -29,8 +29,8 @@ import javax.inject.Singleton
 /**
  * [QuickControls] over [TuttiController]. The quick surfaces live outside the main
  * activity, so each action holds the sessions open for its own duration (the
- * controller lingers after the last release) and waits briefly for the bar link,
- * so a widget tap on a cold process is not dropped.
+ * controller lingers after the last release). It waits for the link only on a cold
+ * start, where the tap itself starts the connection ([waitsForLink]).
  */
 @Singleton
 class ControllerQuickControls @Inject constructor(
@@ -106,21 +106,25 @@ class ControllerQuickControls @Inject constructor(
     }
 
     /**
-     * Holds the sessions for [action], after waiting (bounded) for a link of this session's
-     * epoch: a link the stopped sessions reported is never taken for a live one, so a cold
-     * widget tap waits for the connect instead of going nowhere.
+     * Holds the sessions for [action]. On a cold start ([waitsForLink]) it first waits (bounded)
+     * for a link of this session's epoch: a link the stopped sessions reported is never taken for
+     * a live one, so a widget tap on a cold process connects instead of going nowhere. With
+     * sessions live it never waits: through a blip the action goes now or not at all.
      */
     private suspend fun held(
         onTv: Boolean = false,
         until: ((TuttiUiState) -> Boolean)? = null,
         action: suspend () -> Unit,
     ) {
+        val live = controller.sessionsLive
         val epoch = controller.retainSession()
         try {
-            val bar = !onTv && onBar()
-            val ready = until ?: { s: TuttiUiState -> (if (bar) s.links.bar else s.links.tv) == Link.ONLINE }
-            withTimeoutOrNull(LINK_TIMEOUT_MS) {
-                controller.state.first { it.links.epoch == epoch && ready(it) }
+            if (waitsForLink(sessionsWereLive = live)) {
+                val bar = !onTv && onBar()
+                val ready = until ?: { s: TuttiUiState -> (if (bar) s.links.bar else s.links.tv) == Link.ONLINE }
+                withTimeoutOrNull(LINK_TIMEOUT_MS) {
+                    controller.state.first { it.links.epoch == epoch && ready(it) }
+                }
             }
             action()
         } finally {
@@ -182,6 +186,15 @@ class ControllerQuickControls @Inject constructor(
     }
 
     internal companion object {
+        /**
+         * Whether a quick surface's tap waits for the link before acting (Erwann, 2026-11-07:
+         * « Soit c'est connecté, soit c'est pas connecté, et puis basta. »). Only on a cold start:
+         * with no sessions running the tap itself starts the connection, which is connecting, not
+         * buffering. A session that was live is never waited on through a drop: the tap does
+         * nothing, and the surface already reads the same live link ([QuickState.connected]).
+         */
+        fun waitsForLink(sessionsWereLive: Boolean): Boolean = !sessionsWereLive
+
         /** Power is known, or no configured link is still trying: Power can decide (and wake) now. */
         fun powerSettled(state: TuttiUiState): Boolean {
             if (state.powered != null) return true

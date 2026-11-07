@@ -61,7 +61,8 @@ private fun Link.isDown() = this == Link.UNREACHABLE || this == Link.NEEDS_PAIRI
 fun SystemChip(state: TuttiUiState, onClick: () -> Unit, modifier: Modifier = Modifier, showNow: Boolean = true) {
     val tv = state.devices.tv
     val bar = state.devices.bar
-    // The shown link (TvLinkRule): a blip changes nothing here, a reconnect reads "Reconnecting…".
+    // The shown link (TvLinkRule): the link as it is. A drop reads "Reconnecting…" at once, with the
+    // working ring, never the down mark before give-up (Iris, 2026-11-07).
     // The bar on its own with the TV known asleep: a sleeping TV is not a fault, so its silent
     // link reads neither "unreachable" nor "Connecting…"; the chip says "on standby" instead.
     val tvAsleepAlone = barAlone(state)?.tvAsleep == true

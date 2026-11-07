@@ -79,7 +79,7 @@ data class LinkNotes(val tv: String? = null, val rest: String? = null, val bar: 
 
 /**
  * tv = remote v2 (6466), rest = BRAVIA REST + PSK, bar = TCP 33336, each as it is. [tvShown] is
- * the TV's link after [TvLinkRule]'s calm rule: what the remote screen shows.
+ * the TV's link as [TvLinkRule.shown] reads it: what the remote screen shows.
  */
 data class Links(
     val tv: Link = Link.ABSENT,

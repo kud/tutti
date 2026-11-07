@@ -74,6 +74,7 @@ import io.kud.tutti.ui.common.rememberHaptics
 import io.kud.tutti.ui.intro.LocalIntroAnchors
 import io.kud.tutti.ui.intro.TouchpadAnchor
 import io.kud.tutti.ui.motion.Motion
+import io.kud.tutti.ui.motion.linkFade
 import io.kud.tutti.ui.motion.snappyOrFade
 import kotlin.math.abs
 import kotlin.math.min
@@ -429,8 +430,8 @@ fun Pad(
     // Down is the down dress: the surface keeps its shape, solid and quieter (downFill), and what
     // sends (the chevrons, OK, the switch) fades to DOWN_INK, so the big pad reads as waiting, not
     // broken and not an editor's empty place. Opacity alone, which is also its reduced-motion form.
-    val live by animateFloatAsState(if (down) DOWN_INK else 1f, snappyOrFade(), label = "padLive")
-    val surface by animateColorAsState(if (down) downFill(surfaceColor) else surfaceColor, snappyOrFade(), label = "padSurface")
+    val live by animateFloatAsState(if (down) DOWN_INK else 1f, linkFade(down), label = "padLive")
+    val surface by animateColorAsState(if (down) downFill(surfaceColor) else surfaceColor, linkFade(down), label = "padSurface")
     BoxWithConstraints(
         modifier = modifier
             .then(touchpadAnchor)

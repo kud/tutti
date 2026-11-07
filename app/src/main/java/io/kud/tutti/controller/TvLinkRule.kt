@@ -3,7 +3,7 @@ package io.kud.tutti.controller
 import io.kud.tutti.protocol.atv.V2Key
 
 /**
- * The TV's remote link as the remote screen shows it: [link] after the calm rule, and
+ * The TV's remote link as the remote screen shows it: [link] as it is ([TvLinkRule.shown]), and
  * [reconnecting] while a link that was up is being won back. Technical details read the raw
  * [Links.tv]; everything on the remote reads this.
  */
@@ -29,19 +29,17 @@ enum class KeyOutcome {
 }
 
 /**
- * Calm when it doesn't matter, honest when it does (2026-10-24, from Erwann's "si les
- * touches ne marchent pas à ce moment-là, peut-être que c'est mieux").
+ * The remote shows the TV's link as it is (Erwann, 2026-11-07: « Soit c'est connecté, soit c'est
+ * pas connecté, et puis basta. »; it replaces the 2026-10-24 calm rule, which showed a drop as
+ * still connected for 3 s while presses failed).
  *
- * A link that drops after being up goes through the remote loop as UNREACHABLE, a 1 s backoff,
- * CONNECTING, then the TLS handshake and the remote's configure exchange: about 1.5 to 2.5 s on a
- * home LAN. [BLIP_MS] (3 s) covers that first retry with margin, so a clean blip changes nothing
- * on screen. Past it the first retry has failed, and the remote says "Reconnecting to the TV…",
- * quietly. Past [GIVE_UP_MS] (20 s: the 1, 2, 4 and 8 s backoffs and their attempts) it is a real
- * outage and the stronger "out of reach" comes back. A link that was never up this session (first
- * connect, no pairing) shows as it is.
+ * The moment a link that was up drops, the remote wears the down dress and reads "Reconnecting to
+ * the TV…": a clean blip on a home LAN (a 1 s backoff, then the TLS handshake and configure, about
+ * 1.5 to 2.5 s) is a short fade down and back (`linkFade`). Past [GIVE_UP_MS] (20 s: the 1, 2, 4
+ * and 8 s backoffs and their attempts) it is a real outage and "out of reach" comes back. A link
+ * that was never up this session (the first connect, a return from the background) shows as it is.
  */
 object TvLinkRule {
-    const val BLIP_MS = 3_000L
     const val GIVE_UP_MS = 20_000L
 
     /**
@@ -67,13 +65,13 @@ object TvLinkRule {
 
     /**
      * [downForMs]: time since a link that was up this session went down; null when it never was
-     * (or is up). ABSENT and NEEDS_PAIRING always show as they are.
+     * (or is up). Never ONLINE unless [raw] is: no grace that shows connected while presses fail.
+     * ABSENT and NEEDS_PAIRING always show as they are.
      */
     fun shown(raw: Link, downForMs: Long?): TvShown = when {
         raw == Link.ONLINE -> TvShown(Link.ONLINE)
         raw == Link.ABSENT || raw == Link.NEEDS_PAIRING || raw == Link.UNAUTHORIZED -> TvShown(raw)
         downForMs == null -> TvShown(raw)
-        downForMs < BLIP_MS -> TvShown(Link.ONLINE)
         downForMs < GIVE_UP_MS -> TvShown(Link.CONNECTING, reconnecting = true)
         else -> TvShown(Link.UNREACHABLE)
     }
@@ -84,14 +82,13 @@ object TvLinkRule {
      * reads CONNECTING; a retry keeps UNREACHABLE, so a TV off the network reads "out of reach"
      * with its Wake action instead of "connecting…" forever: the retries are woken at once by
      * the remote coming to the front and by Power's wake kick, so CONNECTING was nearly all one
-     * ever saw (dev.16, 2026-10-26). A link that was up keeps the calm rule ([shown]).
+     * ever saw (dev.16, 2026-10-26). A link that was up reads "reconnecting" until give-up ([shown]).
      */
     fun whileTrying(failedInARow: Int): Link = if (failedInARow > 0) Link.UNREACHABLE else Link.CONNECTING
 
     /** When [shown] next changes on its own, in ms from now; null once nothing more will. */
     fun nextChangeInMs(downForMs: Long?): Long? = when {
         downForMs == null -> null
-        downForMs < BLIP_MS -> BLIP_MS - downForMs
         downForMs < GIVE_UP_MS -> GIVE_UP_MS - downForMs
         else -> null
     }
@@ -100,7 +97,7 @@ object TvLinkRule {
      * Whether an app tapped by hand wakes the TV before it opens (Erwann, 2026-11-01: « allumer
      * la TV quand on appuie sur Netflix »). Unlike a key ([wakesTv]), an app
      * means "this, on the TV", the way the TV's own Netflix button powers it straight into
-     * Netflix. So it wakes a TV known in standby, and also one out of reach past the calm rule:
+     * Netflix. So it wakes a TV known in standby, and also one shown out of reach:
      * that is where a TV in deep standby sits, and a wake that fails says why (Remote start)
      * where the tap was only refused. Never with no TV or a lost pairing, and never while a link
      * that was up is on its way back: a reconnect is not standby, and the tap is refused.

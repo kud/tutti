@@ -3,8 +3,10 @@ package io.kud.tutti.ui.motion
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.Easing
 import androidx.compose.animation.core.FiniteAnimationSpec
+import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.SpringSpec
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
@@ -62,6 +64,15 @@ object Motion {
 /** [Motion.snappy], or a [Motion.SHORT] fade when motion is reduced. */
 @Composable
 fun <T> snappyOrFade(): FiniteAnimationSpec<T> = if (LocalReducedMotion.current) Motion.fade() else Motion.snappy()
+
+/**
+ * The down dress coming and going with its device's link (Iris, 2026-11-07): [Motion.MEDIUM]
+ * going down, so a blip of a second or two is softened without being hidden, and [Motion.SHORT]
+ * coming back, so keys that work again look ready at once. Opacity only; reduced motion snaps.
+ */
+@Composable
+fun <T> linkFade(down: Boolean): FiniteAnimationSpec<T> =
+    if (LocalReducedMotion.current) snap() else tween(if (down) Motion.MEDIUM else Motion.SHORT, easing = LinearOutSlowInEasing)
 
 /** [Motion.bouncy], or a [Motion.SHORT] fade when motion is reduced. */
 @Composable

@@ -187,12 +187,12 @@ fun RemoteScreen(
         controller.keyboardAnswered()
     }
     val tvReachable = !(state.devices.tv != null && state.links.tvShown.link == Link.UNREACHABLE)
-    // TalkBack hears the TV's link change once per real change: the shown link (TvLinkRule) never
-    // moves on a blip, so neither does this. The first connect says nothing; the chip already does.
+    // TalkBack hears the TV's link change once per real outage: "out of reach" past give-up, and
+    // "back" after it. A blip fades the remote down and back and says nothing (Iris, 2026-11-07):
+    // the chip and the key's own "not sent" reason carry it. The first connect says nothing either.
     val view = LocalView.current
     val tvLinkSay = state.devices.tv?.name?.let { name ->
         when {
-            state.links.tvShown.reconnecting -> stringResource(R.string.system_reconnecting_tv)
             state.links.tvShown.link == Link.UNREACHABLE -> stringResource(R.string.system_unreachable, name)
             state.links.tvShown.link == Link.ONLINE -> stringResource(R.string.tv_link_back)
             else -> null
@@ -200,10 +200,11 @@ fun RemoteScreen(
     }
     var lastTvLinkSay by remember { mutableStateOf(tvLinkSay) }
     LaunchedEffect(tvLinkSay) {
+        if (tvLinkSay == null) return@LaunchedEffect
         val was = lastTvLinkSay
         lastTvLinkSay = tvLinkSay
         @Suppress("DEPRECATION")
-        if (tvLinkSay != null && was != null && tvLinkSay != was) view.announceForAccessibility(tvLinkSay)
+        if (was != null && tvLinkSay != was) view.announceForAccessibility(tvLinkSay)
     }
     val reduced = LocalReducedMotion.current
     val rise = with(LocalDensity.current) { INPUT_RISE.roundToPx() }

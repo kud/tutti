@@ -51,6 +51,7 @@ import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
 import io.kud.tutti.ui.motion.Motion
+import io.kud.tutti.ui.motion.linkFade
 import io.kud.tutti.ui.motion.snappyOrFade
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
@@ -128,15 +129,20 @@ fun TonalRoundButton(
             active -> scheme.primary
             else -> rest
         },
-        snappyOrFade(),
+        if (unreachable) linkFade(true) else snappyOrFade(),
         label = "container",
     )
-    val content = when {
-        unreachable -> downInk(if (pinLabel != null) scheme.onSurfaceVariant else scheme.onSecondaryContainer)
-        active -> scheme.onPrimary
-        pinLabel != null -> scheme.onSurfaceVariant
-        else -> scheme.onSecondaryContainer
-    }
+    // The down dress fades in and out with the link (linkFade): a blip reads as a fade, never a flash.
+    val content by animateColorAsState(
+        when {
+            unreachable -> downInk(if (pinLabel != null) scheme.onSurfaceVariant else scheme.onSecondaryContainer)
+            active -> scheme.onPrimary
+            pinLabel != null -> scheme.onSurfaceVariant
+            else -> scheme.onSecondaryContainer
+        },
+        linkFade(unreachable),
+        label = "content",
+    )
     Box(
         modifier = modifier
             .then(if (pinLabel != null) Modifier.heightIn(min = PIN_MIN_HEIGHT) else Modifier.size(size))

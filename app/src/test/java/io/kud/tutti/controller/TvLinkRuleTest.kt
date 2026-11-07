@@ -1,6 +1,5 @@
 package io.kud.tutti.controller
 
-import io.kud.tutti.controller.TvLinkRule.BLIP_MS
 import io.kud.tutti.controller.TvLinkRule.GIVE_UP_MS
 import io.kud.tutti.protocol.atv.V2Key
 import java.io.File
@@ -12,18 +11,30 @@ import org.junit.Test
 
 class TvLinkRuleTest {
     @Test
-    fun `a blip after being up changes nothing on screen`() {
-        assertEquals(TvShown(Link.ONLINE), TvLinkRule.shown(Link.UNREACHABLE, 0))
-        assertEquals(TvShown(Link.ONLINE), TvLinkRule.shown(Link.CONNECTING, BLIP_MS - 1))
+    fun `a drop after being up shows at once, never connected while presses fail`() {
+        // Erwann, 2026-11-07: « Soit c'est connecté, soit c'est pas connecté, et puis basta. »
+        assertEquals(TvShown(Link.CONNECTING, reconnecting = true), TvLinkRule.shown(Link.UNREACHABLE, 0))
+        assertEquals(TvShown(Link.CONNECTING, reconnecting = true), TvLinkRule.shown(Link.CONNECTING, 1))
+        for (raw in Link.entries.filter { it != Link.ONLINE }) {
+            for (down in listOf(null, 0L, 500L, 2_999L, 3_000L, GIVE_UP_MS, GIVE_UP_MS * 10)) {
+                assertTrue("$raw after $down ms must not read online", TvLinkRule.shown(raw, down).link != Link.ONLINE)
+            }
+        }
     }
 
     @Test
-    fun `past the blip it reads reconnecting, past give-up out of reach`() {
-        assertEquals(TvShown(Link.CONNECTING, reconnecting = true), TvLinkRule.shown(Link.UNREACHABLE, BLIP_MS))
+    fun `it reads reconnecting until give-up, then out of reach`() {
         assertEquals(TvShown(Link.CONNECTING, reconnecting = true), TvLinkRule.shown(Link.CONNECTING, GIVE_UP_MS - 1))
         assertEquals(TvShown(Link.UNREACHABLE), TvLinkRule.shown(Link.UNREACHABLE, GIVE_UP_MS))
         // A retry after give-up does not flicker back to "Connecting…".
         assertEquals(TvShown(Link.UNREACHABLE), TvLinkRule.shown(Link.CONNECTING, GIVE_UP_MS + 5_000))
+    }
+
+    @Test
+    fun `a link that is up reads up, whatever the clock`() {
+        assertEquals(TvShown(Link.ONLINE), TvLinkRule.shown(Link.ONLINE, null))
+        assertEquals(TvShown(Link.ONLINE), TvLinkRule.shown(Link.ONLINE, 0))
+        assertEquals(TvShown(Link.ONLINE), TvLinkRule.shown(Link.ONLINE, GIVE_UP_MS * 2))
     }
 
     @Test
@@ -49,10 +60,10 @@ class TvLinkRuleTest {
     }
 
     @Test
-    fun `the clock wakes at each threshold, then stops`() {
+    fun `the clock wakes at give-up, then stops`() {
         assertNull(TvLinkRule.nextChangeInMs(null))
-        assertEquals(BLIP_MS, TvLinkRule.nextChangeInMs(0))
-        assertEquals(GIVE_UP_MS - BLIP_MS, TvLinkRule.nextChangeInMs(BLIP_MS))
+        assertEquals(GIVE_UP_MS, TvLinkRule.nextChangeInMs(0))
+        assertEquals(GIVE_UP_MS - 3_000, TvLinkRule.nextChangeInMs(3_000))
         assertNull(TvLinkRule.nextChangeInMs(GIVE_UP_MS))
     }
 

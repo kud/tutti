@@ -78,7 +78,7 @@
     <string name="card_home_detail">No app playing</string>
     <string name="card_offline">TV out of reach</string>
     <string name="card_offline_detail">It may be on standby with its network off</string>
-    <!-- The TV's link, calm rule (TvLinkRule): past a blip, then a key pressed while it's down. -->
+    <!-- The TV's link as it is (TvLinkRule, Erwann 2026-11-07), then a key pressed while it's down. -->
     <string name="system_reconnecting_tv">Reconnecting to the TV…</string>
     <string name="card_reconnecting">Reconnecting…</string>
     <string name="card_reconnecting_detail">Keys work again once the TV answers</string>

@@ -74,7 +74,7 @@
     <string name="card_home_detail">Aucune app en cours</string>
     <string name="card_offline">TV injoignable</string>
     <string name="card_offline_detail">Elle est peut-être en veille, réseau coupé</string>
-    <!-- The TV's link, calm rule (TvLinkRule): past a blip, then a key pressed while it's down. -->
+    <!-- The TV's link as it is (TvLinkRule, Erwann 2026-11-07), then a key pressed while it's down. -->
     <string name="system_reconnecting_tv">Reconnexion à la TV…</string>
     <string name="card_reconnecting">Reconnexion…</string>
     <string name="card_reconnecting_detail">Les touches reviennent dès que la TV répond</string>

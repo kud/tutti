@@ -477,8 +477,8 @@ class TuttiController @Inject constructor(
             }
         }
         scope.launch {
-            // The calm rule (TvLinkRule): what the remote shows of the TV's link, judged again at
-            // each threshold. UNREACHABLE and CONNECTING alternating in a reconnect keep the clock.
+            // What the remote shows of the TV's link (TvLinkRule.shown): the link as it is, with
+            // "reconnecting" until give-up. UNREACHABLE and CONNECTING alternating in a reconnect keep the clock.
             links.map { it.tv }.distinctUntilChanged().collectLatest { raw ->
                 when (raw) {
                     Link.ONLINE -> {
@@ -567,6 +567,10 @@ class TuttiController @Inject constructor(
         return current
     }
 
+    /** Whether the sessions are running now (held, or lingering after the last [release]). */
+    val sessionsLive: Boolean
+        get() = synchronized(lock) { sessionsJob?.isActive == true }
+
     fun release() {
         synchronized(lock) {
             holders = (holders - 1).coerceAtLeast(0)
@@ -588,10 +592,14 @@ class TuttiController @Inject constructor(
     }
 
     private suspend fun runSessions(epoch: Int) {
+        // Coming back after the sessions stopped is a fresh connect, not a reconnect: the remote
+        // reads "Connecting…" until the link is up (Iris, 2026-11-07). Reset before the links move,
+        // so the shown link is never judged against the old clock. Sessions still lingering never
+        // come through here: a link that is up stays up.
+        tvWasUp = false
+        tvDownSince = null
         // Whatever the stopped sessions left is not news: every link is asked again under this epoch.
         links.update { it.restarted(epoch) }
-        // Coming back to the app is a fresh blip, not the minutes spent away.
-        if (tvWasUp) tvDownSince = SystemClock.elapsedRealtime()
         if (lan.missing()) {
             // No LAN permission, no sockets: the loops only confirm it at their own gates.
             lanMissing.value = true

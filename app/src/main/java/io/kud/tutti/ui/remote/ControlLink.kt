@@ -28,7 +28,7 @@ enum class ControlLink {
 /**
  * One rule for every control on the remote (2026-10-25). Per device, never "anything down
  * disables everything": a TV control reads the TV's shown link ([io.kud.tutti.controller.TvLinkRule],
- * so a blip stays normal), a bar control the bar's. A device not added is [ControlLink.NORMAL]:
+ * the link as it is, so a blip is a short fade down and back), a bar control the bar's. A device not added is [ControlLink.NORMAL]:
  * there is nothing to wait for, and the no-device layouts say so themselves.
  */
 fun controlLink(

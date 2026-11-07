@@ -92,6 +92,7 @@ import io.kud.tutti.ui.common.AppIcon
 import io.kud.tutti.ui.common.LocalReducedMotion
 import io.kud.tutti.ui.motion.Motion
 import io.kud.tutti.ui.motion.rememberWaiting
+import io.kud.tutti.ui.motion.linkFade
 import io.kud.tutti.ui.motion.snappyOrFade
 import io.kud.tutti.ui.common.PressSource
 import io.kud.tutti.ui.common.pressScale
@@ -313,10 +314,12 @@ private fun PinTile(
             on -> scheme.primary
             else -> scheme.surfaceContainerHigh
         },
-        snappyOrFade(),
+        if (link.down) linkFade(true) else snappyOrFade(),
         label = "pin",
     )
     val content = if (on) scheme.onPrimary else scheme.onSurfaceVariant
+    // The face fades with the link (linkFade): a blip reads as a fade, never a flash.
+    val face by animateFloatAsState(if (link.down) DOWN_INK else 1f, linkFade(link.down), label = "pinFace")
     // The badge's cut-out must be opaque: the down fill is translucent and would show as a disc.
     val cutout = background.compositeOver(scheme.surface)
     val reduced = LocalReducedMotion.current
@@ -357,7 +360,7 @@ private fun PinTile(
             shape = shape,
             stateText = reason ?: toggleStateText(toggle, state),
             // Down, the face fades as one, a brand's own colours included: the pin waits, it is no slot.
-            faceAlpha = if (link.down) DOWN_INK else 1f,
+            faceAlpha = face,
             modifier = Modifier
                 .combinedClickable(
                 interactionSource = press.interaction,

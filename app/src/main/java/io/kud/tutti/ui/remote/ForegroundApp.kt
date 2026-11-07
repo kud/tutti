@@ -115,7 +115,7 @@ sealed interface CardShowing {
     /** The TV awake with no app to name: the home screen, or an app neither the TV's list nor the catalogue knows. */
     data object Home : CardShowing
 
-    /** A link that was up is being won back, past the blip ([io.kud.tutti.controller.TvLinkRule]). */
+    /** A link that was up is being won back ([io.kud.tutti.controller.TvLinkRule]). */
     data object Reconnecting : CardShowing
 
     /** The TV's link is down or still connecting. */
@@ -125,7 +125,7 @@ sealed interface CardShowing {
 /**
  * Standby first (the power answer outlives the app's package), then Reconnecting or Offline while
  * the TV's link isn't up, then what [nowShowing] finds, else Home. [tvLink] is the shown link
- * (`Links.tvShown`), so a blip stays on the last app. The link wins over a channel or input that
+ * (`Links.tvShown`), so a drop reads as one at once. The link wins over a channel or input that
  * REST still reports: the keys are what the card vouches for (2026-10-24). Null without a
  * TV configured: then there is nothing to show and the card stands aside.
  */
