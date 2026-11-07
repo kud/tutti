@@ -52,7 +52,7 @@ private const val SOURCE_URL = "https://github.com/kud/tutti"
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AboutScreen(onBack: () -> Unit) {
+fun AboutScreen(onBack: () -> Unit, onWhatsNew: () -> Unit = {}) {
     val context = LocalContext.current
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -99,6 +99,7 @@ fun AboutScreen(onBack: () -> Unit) {
             )
 
             Heading(stringResource(R.string.about_version))
+            WhatsNewRow(onClick = onWhatsNew)
             UpdateRow()
         }
     }
@@ -158,6 +159,30 @@ private fun SourceRow(onClick: () -> Unit) {
         }
         Spacer(Modifier.width(16.dp))
         Icon(painterResource(R.drawable.ic_open), contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+/** What's new in the release this build carries: a row like any other, opening its page. */
+@Composable
+private fun WhatsNewRow(onClick: () -> Unit) {
+    val release = installedNotes() ?: ReleaseNotes.latest.forBuild(CARRIES_UPDATER)
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(stringResource(R.string.about_whats_new), style = MaterialTheme.typography.bodyLarge)
+            Text(
+                stringResource(R.string.about_whats_new_detail, release.version.toString()),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Spacer(Modifier.width(16.dp))
+        Icon(painterResource(R.drawable.ic_chevron_right), contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 

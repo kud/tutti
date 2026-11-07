@@ -66,6 +66,8 @@ class MessageCopyTest {
         val MESSAGES = listOf(
             // The updater's daily check (TuttiApp).
             "update_available",
+            // After an update, once (ui/about/WhatsNew.kt).
+            "whats_new_message",
             // Problems.report and the problem reporter (TuttiApp, VoiceButton).
             "scene_failed_steps",
             "error_action_failed",

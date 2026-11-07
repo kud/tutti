@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="whats_new_title">Nouveautés</string>
+    <string name="whats_new_version">Version %1$s</string>
+    <string name="whats_new_new">Nouveau</string>
+    <string name="whats_new_better">Amélioré</string>
+    <string name="whats_new_fixed">Corrigé</string>
+    <string name="whats_new_message">Mis à jour en version %1$s.</string>
+    <string name="whats_new_action">Nouveautés</string>
+    <string name="about_whats_new">Nouveautés</string>
+    <string name="about_whats_new_detail">Ce qui change avec la version %1$s</string>
+    <string name="update_done_notes">Version %1$s. %2$s Touchez pour voir les nouveautés.</string>
+
+    <!-- 0.3.0 -->
+    <string name="whats_new_0_3_0_headline">La recherche depuis les commandes de lecture, des pochettes nettes sur l’écran verrouillé et des réglages qui montrent où vous en êtes.</string>
+    <string name="whats_new_0_3_0_search">Rechercher sans quitter la télécommande</string>
+    <string name="whats_new_0_3_0_search_detail">Depuis les commandes de lecture, cherchez dans l’app à l’écran ou sur toute la TV. YouTube a aussi son raccourci de recherche.</string>
+    <string name="whats_new_0_3_0_lockscreen">La pochette sur l’écran verrouillé</string>
+    <string name="whats_new_0_3_0_lockscreen_detail">La carte de l’écran verrouillé montre la pochette de ce qui passe, nette, plutôt qu’une icône d’app floue.</string>
+    <string name="whats_new_0_3_0_tiles">Les réglages en un coup d’œil</string>
+    <string name="whats_new_0_3_0_tiles_detail">Réglages s’ouvre sur quatre tuiles : TV, barre de son, synchronisation et fonctions. Ce qui demande votre attention passe en premier, avec le bouton qui s’en occupe.</string>
+    <string name="whats_new_0_3_0_dock">Modifier le dock d’un appui long</string>
+    <string name="whats_new_0_3_0_dock_detail">Restez appuyé sur un espace vide du dock pour le réorganiser.</string>
+    <string name="whats_new_0_3_0_icons">Plus d’icônes d’apps</string>
+    <string name="whats_new_0_3_0_icons_detail">De nombreuses apps TV britanniques et européennes ont désormais leur propre icône, de BBC iPlayer à ZDF, DAZN et Rakuten TV.</string>
+    <string name="whats_new_0_3_0_channel">Version stable ou de test</string>
+    <string name="whats_new_0_3_0_channel_detail">Dans À propos, choisissez de recevoir ou non les versions de test. Sans elles, tutti reste sur les versions finales.</string>
+    <string name="whats_new_0_3_0_link">Le lien avec la TV, tel qu’il est</string>
+    <string name="whats_new_0_3_0_link_detail">La télécommande ne se dit connectée que lorsqu’elle l’est, et signale une coupure tout de suite. Les commandes que la TV ne peut pas recevoir pour l’instant s’estompent, discrètement.</string>
+    <string name="whats_new_0_3_0_status">Une seule façon de dire où en sont les choses</string>
+    <string name="whats_new_0_3_0_status_detail">Connexions, Réglages et la configuration emploient les mêmes mots et les mêmes signes pour l’état de chaque appareil.</string>
+    <string name="whats_new_0_3_0_back">Retour à la télécommande après une mise à jour</string>
+    <string name="whats_new_0_3_0_back_detail">Une mise à jour ferme tutti. Une notification discrète vous ramène maintenant directement à la télécommande.</string>
+    <string name="whats_new_0_3_0_jog">L’avance rapide de Nuvio sur la molette</string>
+    <string name="whats_new_0_3_0_jog_detail">Sur Nuvio, la molette avance du pas propre à l’app.</string>
+    <string name="whats_new_0_3_0_keys">Les touches ne se perdent plus après la veille</string>
+    <string name="whats_new_0_3_0_keys_detail">Une connexion à la TV restée muette pendant la veille du téléphone est rouverte avant votre premier appui.</string>
+    <string name="whats_new_0_3_0_crash">Les commandes de lecture ne plantent plus sur Nuvio</string>
+    <string name="whats_new_0_3_0_crash_detail">Les ouvrir sur Nuvio pouvait fermer tutti. Ce n’est plus le cas.</string>
+    <string name="whats_new_0_3_0_names">Les apps de la TV, par leur nom</string>
+    <string name="whats_new_0_3_0_names_detail">La carte de ce qui passe nomme aussi les apps intégrées à la TV, pas seulement celles que tutti connaît déjà.</string>
+</resources>

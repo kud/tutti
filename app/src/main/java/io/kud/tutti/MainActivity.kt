@@ -64,6 +64,9 @@ import javax.inject.Inject
 class MainActivity : ComponentActivity() {
     @Inject lateinit var controller: TuttiController
 
+    /** The after-update notification asked for What's new; TuttiApp opens it once the stores load. */
+    private var whatsNewAsked by mutableStateOf(false)
+
     @Inject lateinit var discovery: TvDiscovery
 
     @Inject lateinit var diagnostics: Diagnostics
@@ -125,7 +128,11 @@ class MainActivity : ComponentActivity() {
                     LocalLinkResuming provides state.links.tvShown.resuming,
                     LocalIntroAnchors provides remember { IntroAnchors() },
                 ) {
-                    TuttiApp(controller, discovery, diagnostics, hid, state, target)
+                    TuttiApp(
+                        controller, discovery, diagnostics, hid, state, target,
+                        whatsNewAsked = whatsNewAsked,
+                        onWhatsNewAsked = { whatsNewAsked = false },
+                    )
                     LaunchIntroOverlay(
                         intro,
                         firstLaunch = if (state.loaded) state.devices.isEmpty && !state.prefs.onboarded else null,
@@ -166,6 +173,8 @@ class MainActivity : ComponentActivity() {
                 }
             }
             ACTION_KEYBOARD -> controller.askKeyboard()
+            // Only opens a page of the app's own: safe from any caller of this exported activity.
+            io.kud.tutti.ui.about.ACTION_WHATS_NEW -> whatsNewAsked = true
         }
     }
 

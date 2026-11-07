@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- What's new (docs/design.md, "What's new"). The notes are repeated in docs/releases/<version>.md; ReleaseNotesDocTest keeps them in step. -->
+    <string name="whats_new_title">What’s new</string>
+    <string name="whats_new_version">Version %1$s</string>
+    <string name="whats_new_new">New</string>
+    <string name="whats_new_better">Better</string>
+    <string name="whats_new_fixed">Fixed</string>
+    <string name="whats_new_message">Updated to version %1$s.</string>
+    <string name="whats_new_action">What’s new</string>
+    <string name="about_whats_new">What’s new</string>
+    <string name="about_whats_new_detail">What changed in version %1$s</string>
+    <string name="update_done_notes">Version %1$s. %2$s Tap to see what’s new.</string>
+
+    <!-- 0.3.0 -->
+    <string name="whats_new_0_3_0_headline">Search from the playback controls, sharper lock-screen artwork and Settings that show how things stand.</string>
+    <string name="whats_new_0_3_0_search">Search without leaving the remote</string>
+    <string name="whats_new_0_3_0_search_detail">From the playback controls, search inside the app on screen or across the whole TV. YouTube has its own search shortcut too.</string>
+    <string name="whats_new_0_3_0_lockscreen">Artwork on the lock screen</string>
+    <string name="whats_new_0_3_0_lockscreen_detail">The lock-screen card leads with the artwork of what’s playing, sharp rather than a blurred app icon.</string>
+    <string name="whats_new_0_3_0_tiles">Settings at a glance</string>
+    <string name="whats_new_0_3_0_tiles_detail">Settings opens on four tiles: TV, soundbar, sync and features. Anything that needs you comes first, with the one button that sorts it.</string>
+    <string name="whats_new_0_3_0_dock">Edit the dock with a long press</string>
+    <string name="whats_new_0_3_0_dock_detail">Press and hold an empty spot in the dock to rearrange it.</string>
+    <string name="whats_new_0_3_0_icons">More app icons</string>
+    <string name="whats_new_0_3_0_icons_detail">Many UK and European TV apps now wear their own icons, from BBC iPlayer to ZDF, DAZN and Rakuten TV.</string>
+    <string name="whats_new_0_3_0_channel">Stable or test builds</string>
+    <string name="whats_new_0_3_0_channel_detail">In About, choose whether to get test builds. With them off, tutti stays on final releases.</string>
+    <string name="whats_new_0_3_0_link">The TV’s link, as it is</string>
+    <string name="whats_new_0_3_0_link_detail">The remote says connected only when it is, and shows a drop straight away. Controls the TV can’t take just now dim quietly.</string>
+    <string name="whats_new_0_3_0_status">One way to say how things stand</string>
+    <string name="whats_new_0_3_0_status_detail">Connections, Settings and setup use the same words and signs for each device’s state.</string>
+    <string name="whats_new_0_3_0_back">Back to the remote after an update</string>
+    <string name="whats_new_0_3_0_back_detail">An update closes tutti. A quiet notification now brings you straight back.</string>
+    <string name="whats_new_0_3_0_jog">Nuvio’s fast forward on the jog wheel</string>
+    <string name="whats_new_0_3_0_jog_detail">Over Nuvio, the jog wheel jumps by the app’s own step.</string>
+    <string name="whats_new_0_3_0_keys">Keys no longer vanish after the phone sleeps</string>
+    <string name="whats_new_0_3_0_keys_detail">A TV connection that went quiet while the phone slept is reopened before your first press goes into it.</string>
+    <string name="whats_new_0_3_0_crash">Playback controls no longer crash over Nuvio</string>
+    <string name="whats_new_0_3_0_crash_detail">Opening them over Nuvio could close tutti. Not any more.</string>
+    <string name="whats_new_0_3_0_names">The TV’s own apps, by name</string>
+    <string name="whats_new_0_3_0_names_detail">The now-showing card names the TV’s built-in apps too, not only the ones tutti already knows.</string>
+</resources>
