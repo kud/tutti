@@ -80,7 +80,8 @@ import io.kud.tutti.R
 import io.kud.tutti.protocol.atv.V2Key
 import io.kud.tutti.ui.common.PinnedHeader
 import io.kud.tutti.ui.common.TuttiSheet
-import io.kud.tutti.ui.common.drawDownRing
+import io.kud.tutti.ui.common.downFill
+import io.kud.tutti.ui.common.downInk
 import io.kud.tutti.ui.common.keyIcon
 import io.kud.tutti.ui.common.keyLabel
 import io.kud.tutti.ui.common.rememberHaptics
@@ -312,7 +313,7 @@ private fun Timeline(strip: PlaybackStrip.Timeline, state: CastPlayerState?) {
  * turning and for a moment after, the sum: "About +30 s" where the app's step is known, else
  * "3 skips forward". "About" until an app documents its step. TalkBack hears "Jog wheel" with
  * "Skip back" and "Skip forward" actions and the sum, or [appDecides], as its state. Down: the
- * dashed ring, no drag, the reason as its state.
+ * down dress (solid, quieter), no drag, the reason as its state.
  */
 @Composable
 private fun JogWheel(downReason: String?, appDecides: String, seekStep: SeekStep, onKey: (Int) -> Unit) {
@@ -326,9 +327,8 @@ private fun JogWheel(downReason: String?, appDecides: String, seekStep: SeekStep
     var notches by remember { mutableIntStateOf(0) }
     val down = downReason != null
     val shape = RoundedCornerShape(16.dp)
-    val ring = MaterialTheme.colorScheme.outline
     val fill = MaterialTheme.colorScheme.surfaceContainerHigh
-    val ink = if (down) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
+    val ink = MaterialTheme.colorScheme.onSurface.let { if (down) downInk(it) else it }
     val tick = MaterialTheme.colorScheme.onSurfaceVariant
     val name = stringResource(R.string.jog_name)
     val rest = stringResource(R.string.jog_label)
@@ -356,11 +356,7 @@ private fun JogWheel(downReason: String?, appDecides: String, seekStep: SeekStep
             .heightIn(min = STRIP_HEIGHT)
             .clip(shape)
             .then(
-                if (down) {
-                    Modifier.drawBehind { drawDownRing(shape.createOutline(size, layoutDirection, this), ring) }
-                } else {
-                    Modifier.background(fill, shape)
-                },
+                Modifier.background(if (down) downFill(fill) else fill, shape),
             )
             .drawBehind {
                 if (down) return@drawBehind
@@ -451,8 +447,8 @@ private val STRIP_HEIGHT = 56.dp
 
 /**
  * One media key: a glyph (and its name when [wide]), 56 dp or more. Up: a tonal fill (the
- * primary container for play/pause, the one key the thumb looks for). Down: no fill and the
- * dashed ring, the glyph in onSurfaceVariant, not clickable, TalkBack hearing why.
+ * primary container for play/pause, the one key the thumb looks for). Down: the down
+ * dress, its own fill and glyph quieter, not clickable, TalkBack hearing why.
  */
 @Composable
 private fun PlaybackKey(
@@ -472,19 +468,13 @@ private fun PlaybackKey(
     // play/pause claims no state (2026-10-30).
     val fill = if (main) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh
     val ink = when {
-        down -> MaterialTheme.colorScheme.onSurfaceVariant
         main -> MaterialTheme.colorScheme.onSecondaryContainer
         else -> MaterialTheme.colorScheme.onSurface
-    }
-    val ring = MaterialTheme.colorScheme.outline
+    }.let { if (down) downInk(it) else it }
     val base = (if (wide) modifier.heightIn(min = size) else modifier.size(size))
         .clip(shape)
         .then(
-            if (down) {
-                Modifier.drawBehind { drawDownRing(shape.createOutline(this.size, layoutDirection, this), ring) }
-            } else {
-                Modifier.background(fill, shape)
-            },
+            Modifier.background(if (down) downFill(fill) else fill, shape),
         )
         .clickable(enabled = !down, role = Role.Button, onClickLabel = label) { onKey(code) }
         .semantics(mergeDescendants = true) {
@@ -575,35 +565,35 @@ internal fun AppActionsSheet(
     }
 }
 
-/** A row like the Power sheet's: the glyph on its tile, the action and what it does. Disabled: dashed tile, no fill. */
+/** A row like the Power sheet's: the glyph on its tile, the action and what it does. Disabled: the down dress, solid and quieter. */
 @Composable
 private fun ActionRow(@DrawableRes icon: Int, name: String, detail: String, enabled: Boolean = true, onClick: () -> Unit) {
     val shape = RoundedCornerShape(16.dp)
-    val ring = MaterialTheme.colorScheme.outline
+    val rest = MaterialTheme.colorScheme.surfaceContainerHigh
     Row(
         Modifier
             .fillMaxWidth()
             .heightIn(min = 64.dp)
             .clip(shape)
-            .then(if (enabled) Modifier.background(MaterialTheme.colorScheme.surfaceContainerHigh, shape) else Modifier.drawBehind { drawDownRing(shape.createOutline(size, layoutDirection, this), ring) })
+            .background(if (enabled) rest else downFill(rest), shape)
             .clickable(enabled = enabled, role = Role.Button, onClickLabel = name, onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
-            Modifier.size(40.dp).background(if (enabled) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(12.dp)),
+            Modifier.size(40.dp).background(MaterialTheme.colorScheme.secondaryContainer.let { if (enabled) it else downFill(it) }, RoundedCornerShape(12.dp)),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
                 painterResource(icon),
                 contentDescription = null,
-                tint = if (enabled) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                tint = MaterialTheme.colorScheme.onSecondaryContainer.let { if (enabled) it else downInk(it) },
                 modifier = Modifier.size(22.dp),
             )
         }
         Spacer(Modifier.width(16.dp))
         Column(Modifier.weight(1f)) {
-            Text(name, style = MaterialTheme.typography.titleMedium, maxLines = 1, color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(name, style = MaterialTheme.typography.titleMedium, maxLines = 1, color = MaterialTheme.colorScheme.onSurface.let { if (enabled) it else downInk(it) })
             Text(detail, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }

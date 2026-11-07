@@ -34,11 +34,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextOverflow
-import io.kud.tutti.ui.common.drawDownRing
+import io.kud.tutti.ui.common.downFill
+import io.kud.tutti.ui.common.downInk
 import io.kud.tutti.ui.common.keyIcon
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -286,10 +286,10 @@ private fun KeyTile(
     }
 }
 
-/** The ink of a key's glyph and word: onSurfaceVariant while the TV is down, as the dress asks. */
+/** The ink of a key's glyph and word: faded while the TV is down ([downInk]), as the dress asks. */
 @Composable
 private fun keyInk(): Color =
-    if (LocalDownReason.current != null) MaterialTheme.colorScheme.onSurfaceVariant else LocalContentColor.current
+    if (LocalDownReason.current != null) downInk(LocalContentColor.current) else LocalContentColor.current
 
 @Composable
 private fun RowScope.ColourKey(@StringRes name: Int, colour: Color, keyCode: Int, onKey: (Int) -> Unit) {
@@ -318,23 +318,17 @@ private fun RowScope.ColourKey(@StringRes name: Int, colour: Color, keyCode: Int
 /**
  * A key of the sheet: the click plays on down and the key tightens, the command goes on release.
  * Its surface, shape and layer live here so every key answers alike. With the TV connecting or out
- * of reach (design.md, Visual, Down) it wears the down dress: no fill, the dashed ring, its glyph
- * and word in onSurfaceVariant; a tap bumps and sends nothing, and TalkBack hears the reason.
+ * of reach (design.md, Visual, Down) it wears the down dress: its fill solid and quieter
+ * ([downFill]); a tap bumps and sends nothing, and TalkBack hears the reason.
  */
 private fun Modifier.keyPress(onClick: () -> Unit): Modifier = composed {
     val feedback = rememberFeedback()
     val reason = LocalDownReason.current
     val press = rememberPressSource { if (reason == null) feedback.click() else feedback.bump() }
-    val ring = MaterialTheme.colorScheme.outline
+    val rest = MaterialTheme.colorScheme.surfaceContainerHigh
     pressScale(press.state)
         .clip(KeyShape)
-        .then(
-            if (reason == null) {
-                Modifier.background(MaterialTheme.colorScheme.surfaceContainerHigh)
-            } else {
-                Modifier.drawBehind { drawDownRing(KeyShape.createOutline(size, layoutDirection, this), ring) }
-            },
-        )
+        .background(if (reason == null) rest else downFill(rest))
         .clickable(
             interactionSource = press.interaction,
             indication = rememberTuttiIndication(KeyShape),

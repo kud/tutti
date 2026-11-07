@@ -34,11 +34,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Outline
-import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawOutline
-import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
@@ -68,9 +64,9 @@ import kotlinx.coroutines.flow.filter
  *
  * - [active] ("on") is carried by shape first: the key rests as a squircle (30 %), and the
  *   caller passes a solid or struck icon where one exists. The fill only doubles it.
- * - [unreachable]: the device this key drives can't be reached. The key stays tappable, drawn
- *   as a dashed outline with no fill and its icon kept; a tap bumps and nudges the system chip
- *   instead of sending (Erwann, 2026-10-23: no greying).
+ * - [unreachable]: the device this key drives can't be reached. The key stays tappable and wears
+ *   the down dress ([downFill], [DOWN_INK]): its own fill, solid and quieter, its glyph faded; a
+ *   tap bumps and nudges the system chip instead of sending.
  * - With [onLongClick], a ring sweeps the edge from 150 ms to the long-press timeout and the key
  *   pops to 1.04 when it lands.
  * - Reduced motion: no scale, no corner travel, no sweep; the layer fades and the ring appears
@@ -125,23 +121,22 @@ fun TonalRoundButton(
     // As a pin: the pins' corners, squarer when on (the remote's one "on" dress).
     val shape: Shape = if (pinLabel != null) RoundedCornerShape(if (active) PIN_ON_CORNER else PIN_CORNER) else morph
     val scheme = MaterialTheme.colorScheme
+    val rest = if (pinLabel != null) scheme.surfaceContainerHigh else scheme.secondaryContainer
     val container by animateColorAsState(
         when {
-            unreachable -> Color.Transparent
+            unreachable -> downFill(rest)
             active -> scheme.primary
-            pinLabel != null -> scheme.surfaceContainerHigh
-            else -> scheme.secondaryContainer
+            else -> rest
         },
         snappyOrFade(),
         label = "container",
     )
     val content = when {
-        unreachable -> scheme.onSurfaceVariant
+        unreachable -> downInk(if (pinLabel != null) scheme.onSurfaceVariant else scheme.onSecondaryContainer)
         active -> scheme.onPrimary
         pinLabel != null -> scheme.onSurfaceVariant
         else -> scheme.onSecondaryContainer
     }
-    val dashed = scheme.outline
     Box(
         modifier = modifier
             .then(if (pinLabel != null) Modifier.heightIn(min = PIN_MIN_HEIGHT) else Modifier.size(size))
@@ -151,14 +146,7 @@ fun TonalRoundButton(
                 scaleY = scale
                 alpha = if (enabled) 1f else 0.38f
             }
-            .drawBehind {
-                val outline = shape.createOutline(this.size, layoutDirection, this)
-                if (unreachable) {
-                    drawDownRing(outline, dashed)
-                } else {
-                    drawOutline(outline, container)
-                }
-            }
+            .drawBehind { drawOutline(shape.createOutline(this.size, layoutDirection, this), container) }
             .longPressRing({ ring.value }, shape, scheme.onSurface)
             .combinedClickable(
                 interactionSource = interaction,
@@ -226,18 +214,24 @@ val PIN_ON_CORNER = 14.dp
 val PIN_ICON = 20.dp
 
 /**
- * The down dress (2026-10-25): a control whose device's link isn't up, connecting or out of
- * reach alike, loses its fill and wears a dashed ring in the outline tone, its glyph in
- * onSurfaceVariant. Shape, not colour, says it: a dashed edge is never a normal or "on" look.
- * Every TV and bar control uses it (round keys, mic, Dock pins, the pad's edge).
+ * The down dress (2026-10-25; solid since 2026-11-07, from Erwann on dev.5: « Quand c'est
+ * déconnecté on dirait plus que c'est éditable que disabled »): a control whose device's link isn't
+ * up, connecting or out of reach alike, keeps its own shape and its own resting fill, solid, at
+ * [DOWN_FILL], and its glyph and words at [DOWN_INK]. The control reads as waiting, by lightness
+ * and contrast rather than hue; the words (the system chip, the card, TalkBack) say why. Never a
+ * dashed edge: dashes are the layout editor's (an empty place, a drop target), and a dashed key read
+ * as a slot to fill. Every TV and bar control uses it (round keys, mic, Dock pins, the pad).
  */
-fun DrawScope.drawDownRing(outline: Outline, color: Color) {
-    val dash = DOWN_DASH.toPx()
-    drawOutline(outline, color, style = Stroke(width = DOWN_STROKE.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(dash, dash))))
-}
+fun downFill(rest: Color): Color = rest.copy(alpha = rest.alpha * DOWN_FILL)
 
-val DOWN_DASH = 4.dp
-val DOWN_STROKE = 1.5.dp
+/** A down control's glyph and words: its own ink, faded ([downFill]). */
+fun downInk(ink: Color): Color = ink.copy(alpha = ink.alpha * DOWN_INK)
+
+/** How much of its resting fill a down control keeps: enough to stay a solid shape on the page. */
+const val DOWN_FILL = 0.5f
+
+/** How much of its ink a down control keeps: Material's disabled content emphasis. */
+const val DOWN_INK = 0.38f
 
 /** Centred above the anchor, kept inside the window. */
 private class AboveAnchor(private val gap: Int) : PopupPositionProvider {

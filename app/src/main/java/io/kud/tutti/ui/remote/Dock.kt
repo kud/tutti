@@ -43,7 +43,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.graphics.drawscope.inset
+import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
@@ -71,9 +72,9 @@ import io.kud.tutti.R
 import io.kud.tutti.ui.common.longPressRing
 import io.kud.tutti.ui.common.rememberLongPressProgress
 import io.kud.tutti.ui.common.TuttiMenu
-import io.kud.tutti.ui.common.DOWN_STROKE
+import io.kud.tutti.ui.common.DOWN_INK
 import io.kud.tutti.ui.common.LocalChipNudge
-import io.kud.tutti.ui.common.drawDownRing
+import io.kud.tutti.ui.common.downFill
 import io.kud.tutti.controller.TuttiUiState
 import io.kud.tutti.platform.data.DockAction
 import io.kud.tutti.platform.data.DockConfig
@@ -308,7 +309,7 @@ private fun PinTile(
     // check. Never the doors' tonal fill, which only says "a door", so fill alone never means on.
     val background by animateColorAsState(
         when {
-            link.down -> Color.Transparent
+            link.down -> downFill(scheme.surfaceContainerHigh)
             on -> scheme.primary
             else -> scheme.surfaceContainerHigh
         },
@@ -316,7 +317,8 @@ private fun PinTile(
         label = "pin",
     )
     val content = if (on) scheme.onPrimary else scheme.onSurfaceVariant
-    val downEdge = scheme.outline
+    // The badge's cut-out must be opaque: the down fill is translucent and would show as a disc.
+    val cutout = background.compositeOver(scheme.surface)
     val reduced = LocalReducedMotion.current
     // On also squares the tile a little, as the Sound sheet's tiles do: shape, not only colour.
     val corner by animateDpAsState(if (on) 14.dp else 20.dp, if (reduced) snap() else Motion.snappy(), label = "pinCorner")
@@ -354,13 +356,9 @@ private fun PinTile(
             press = press,
             shape = shape,
             stateText = reason ?: toggleStateText(toggle, state),
+            // Down, the face fades as one, a brand's own colours included: the pin waits, it is no slot.
+            faceAlpha = if (link.down) DOWN_INK else 1f,
             modifier = Modifier
-                .drawBehind {
-                    if (link.down) {
-                        val half = DOWN_STROKE.toPx() / 2f
-                        inset(half) { drawDownRing(shape.createOutline(size, layoutDirection, this), downEdge) }
-                    }
-                }
                 .combinedClickable(
                 interactionSource = press.interaction,
                 indication = rememberTuttiIndication(shape, layerColor = content),
@@ -385,14 +383,14 @@ private fun PinTile(
             Box(contentAlignment = Alignment.Center) {
                 PinFace(slot.primary ?: slot.secondary, slot.icon, slot.letters, state, tint, iconSize = dress.glyphSize, faceSize = dress.faceSize)
                 if (toggle != null) {
-                    PinStateBadge(toggle, tint, background, Modifier.align(Alignment.TopEnd).offset(x = 8.dp, y = (-6).dp))
+                    PinStateBadge(toggle, tint, cutout, Modifier.align(Alignment.TopEnd).offset(x = 8.dp, y = (-6).dp))
                 }
             }
         }
         // Names alone: the toggle's mark has no glyph to sit on, so it takes the tile's corner. The
         // mark, never the fill alone, still says on, off or not known.
         if (toggle != null && !dress.glyph) {
-            PinStateBadge(toggle, content, background, Modifier.align(Alignment.TopEnd).padding(top = 4.dp, end = 4.dp))
+            PinStateBadge(toggle, content, cutout, Modifier.align(Alignment.TopEnd).padding(top = 4.dp, end = 4.dp))
         }
         if (secondary != null) {
             TuttiMenu(expanded = menu, onDismissRequest = { menu = false }) {
@@ -471,6 +469,7 @@ private fun Tile(
     outer: Modifier = Modifier.fillMaxWidth(),
     shape: Shape = TileShape,
     stateText: String? = null,
+    faceAlpha: Float = 1f,
     icon: @Composable (Color) -> Unit,
 ) {
     Column(
@@ -490,19 +489,21 @@ private fun Tile(
         verticalArrangement = Arrangement.Center,
     ) {
         // The dock's dress (PinDress): the tile's own node carries the name for TalkBack in every one.
-        when {
-            !dress.name -> icon(content)
-            !dress.glyph -> PinNameOnly(label, dress.nameLines, content, description = null)
-            else -> {
-                icon(content)
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    text = label,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = content,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+        Column(Modifier.graphicsLayer { alpha = faceAlpha }, horizontalAlignment = Alignment.CenterHorizontally) {
+            when {
+                !dress.name -> icon(content)
+                !dress.glyph -> PinNameOnly(label, dress.nameLines, content, description = null)
+                else -> {
+                    icon(content)
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = content,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
         }
     }

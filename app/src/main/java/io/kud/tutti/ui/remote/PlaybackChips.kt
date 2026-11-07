@@ -19,7 +19,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -32,7 +31,8 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import io.kud.tutti.R
 import io.kud.tutti.protocol.apps.AppShortcut
-import io.kud.tutti.ui.common.drawDownRing
+import io.kud.tutti.ui.common.downFill
+import io.kud.tutti.ui.common.downInk
 import io.kud.tutti.ui.common.keyIcon
 import io.kud.tutti.ui.common.keyLabel
 
@@ -93,7 +93,7 @@ internal fun PlaybackChipRow(modifier: Modifier = Modifier, content: @Composable
 
 /**
  * Captions or Audio track: glyph and word, no ring or check, because a press opens a picker on
- * the TV rather than switching something here. Down: the dashed ring, no fill, TalkBack hearing why.
+ * the TV rather than switching something here. Down: the down dress (solid, quieter), TalkBack hearing why.
  */
 @Composable
 internal fun KeyChip(code: Int, downReason: String?, onKey: (Int) -> Unit) {
@@ -143,19 +143,12 @@ private fun shortcutLabel(shortcut: AppShortcut): Int = when (shortcut) {
 private fun ActionChip(@DrawableRes icon: Int, label: String, downReason: String?, onClick: () -> Unit) {
     val down = downReason != null
     val scheme = MaterialTheme.colorScheme
-    val ink = if (down) scheme.onSurfaceVariant else scheme.onSurface
-    val ring = scheme.outline
+    val ink = if (down) downInk(scheme.onSurface) else scheme.onSurface
     Row(
         Modifier
             .heightIn(min = CHIP_HEIGHT)
             .clip(CHIP_SHAPE)
-            .then(
-                if (down) {
-                    Modifier.drawBehind { drawDownRing(CHIP_SHAPE.createOutline(size, layoutDirection, this), ring) }
-                } else {
-                    Modifier.background(scheme.surfaceContainerHigh, CHIP_SHAPE)
-                },
-            )
+            .background(if (down) downFill(scheme.surfaceContainerHigh) else scheme.surfaceContainerHigh, CHIP_SHAPE)
             .clickable(enabled = !down, role = Role.Button, onClickLabel = label, onClick = onClick)
             .semantics(mergeDescendants = true) {
                 contentDescription = label

@@ -1,5 +1,6 @@
 package io.kud.tutti.ui.remote
 
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloatAsState
@@ -39,7 +40,6 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.inset
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.pointer.PointerEvent
@@ -63,10 +63,10 @@ import io.kud.tutti.R
 import io.kud.tutti.controller.TuttiController
 import io.kud.tutti.platform.data.PadMode
 import io.kud.tutti.protocol.atv.V2Key
-import io.kud.tutti.ui.common.DOWN_STROKE
+import io.kud.tutti.ui.common.DOWN_INK
 import io.kud.tutti.ui.common.FeedbackEvent
 import io.kud.tutti.ui.common.LocalChipNudge
-import io.kud.tutti.ui.common.drawDownRing
+import io.kud.tutti.ui.common.downFill
 import io.kud.tutti.ui.common.LocalReducedMotion
 import io.kud.tutti.ui.common.RING_DELAY_MS
 import io.kud.tutti.ui.common.ValueTag
@@ -426,23 +426,18 @@ fun Pad(
         animationSpec = snappyOrFade(),
         label = "dpadFace",
     )
-    // Down dims what sends (the chevrons, OK, the switch) and leaves the surface whole, so the big
-    // pad reads as waiting, not broken. An opacity change, which is also its reduced-motion form.
-    val live by animateFloatAsState(if (down) DOWN_ALPHA else 1f, snappyOrFade(), label = "padLive")
-    val downEdge = MaterialTheme.colorScheme.outline
+    // Down is the down dress: the surface keeps its shape, solid and quieter (downFill), and what
+    // sends (the chevrons, OK, the switch) fades to DOWN_INK, so the big pad reads as waiting, not
+    // broken and not an editor's empty place. Opacity alone, which is also its reduced-motion form.
+    val live by animateFloatAsState(if (down) DOWN_INK else 1f, snappyOrFade(), label = "padLive")
+    val surface by animateColorAsState(if (down) downFill(surfaceColor) else surfaceColor, snappyOrFade(), label = "padSurface")
     BoxWithConstraints(
         modifier = modifier
             .then(touchpadAnchor)
             .clip(RoundedCornerShape(PAD_CORNER))
-            .background(surfaceColor)
+            .background(surface)
             .then(semanticsModifier)
             .drawBehind {
-                if (down) {
-                    val half = DOWN_STROKE.toPx() / 2f
-                    inset(half) {
-                        drawDownRing(RoundedCornerShape(PAD_CORNER - DOWN_STROKE / 2).createOutline(size, layoutDirection, this), downEdge)
-                    }
-                }
                 if (glow.isSpecified && glowAlpha.value > 0f) {
                     drawCircle(
                         brush = Brush.radialGradient(
@@ -867,4 +862,3 @@ private const val VOLUME_STEP_DP = 14
 private const val SKIP_STEP_DP = 72
 
 /** How far a down pad's face and switch dim: enough to read as waiting, the glyphs still legible. */
-private const val DOWN_ALPHA = 0.38f

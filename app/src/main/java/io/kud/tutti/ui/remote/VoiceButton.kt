@@ -42,7 +42,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawOutline
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
@@ -66,7 +65,8 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import io.kud.tutti.R
 import io.kud.tutti.ui.common.LocalMessages
 import io.kud.tutti.ui.common.LocalChipNudge
-import io.kud.tutti.ui.common.drawDownRing
+import io.kud.tutti.ui.common.downFill
+import io.kud.tutti.ui.common.downInk
 import io.kud.tutti.controller.TuttiController
 import io.kud.tutti.protocol.atv.VoiceEvent
 import io.kud.tutti.protocol.atv.VoiceFailure
@@ -167,16 +167,17 @@ fun VoiceButton(
         snappyOrFade(),
         label = "scale",
     )
+    val rest = if (pinLabel != null) scheme.surfaceContainerHigh else scheme.secondaryContainer
     val container by animateColorAsState(
-        if (down) Color.Transparent else when (hold) {
+        if (down) downFill(rest) else when (hold) {
             Hold.TALKING -> scheme.primary
             Hold.CANCELLING -> scheme.errorContainer
-            Hold.NONE -> if (pinLabel != null) scheme.surfaceContainerHigh else scheme.secondaryContainer
+            Hold.NONE -> rest
         },
         snappyOrFade(),
         label = "container",
     )
-    val content = if (down) scheme.onSurfaceVariant else when (hold) {
+    val content = if (down) downInk(if (pinLabel != null) scheme.onSurfaceVariant else scheme.onSecondaryContainer) else when (hold) {
         Hold.TALKING -> scheme.onPrimary
         Hold.CANCELLING -> scheme.onErrorContainer
         Hold.NONE -> if (pinLabel != null) scheme.onSurfaceVariant else scheme.onSecondaryContainer
@@ -198,7 +199,7 @@ fun VoiceButton(
             }
             .drawBehind {
                 val outline = voiceShape.createOutline(this.size, layoutDirection, this)
-                if (down) drawDownRing(outline, scheme.outline) else drawOutline(outline, container)
+                drawOutline(outline, container)
             }
             .clip(voiceShape)
             .semantics {
