@@ -329,7 +329,6 @@ fun VolumeRail(
                 }
                 val text = shown?.toString() ?: NO_LEVEL
                 val topPx = with(density) { READOUT_TOP.toPx() }
-                val edge = railHeight * (1f - fraction) - topPx
                 val opens = onOpenLevel != null && shown != null
                 for (onFillPart in listOf(false, true)) {
                     Column(
@@ -339,7 +338,12 @@ fun VolumeRail(
                             .padding(top = READOUT_TOP)
                             .clearAndSetSemantics { }
                             .drawWithContent {
-                                val cut = edge.coerceIn(0f, size.height)
+                                // Read here, in the draw pass, never in composition: the rail's height
+                                // is only known after layout, and a composition-time read cut the
+                                // number at a stale 0 (the whole number in the fill's ink) until the
+                                // next recomposition. Drawing also follows the level without
+                                // recomposing the rail on every frame of its animation.
+                                val cut = readoutCut(railHeight.toFloat(), fraction, topPx, size.height)
                                 if (onFillPart) {
                                     clipRect(top = cut) { this@drawWithContent.drawContent() }
                                 } else {
@@ -506,6 +510,16 @@ private val MINUS_BOTTOM = FOOT_INSET + FOOT_ICON / 2 + FOOT_TARGET / 2
 
 /** The readout, under +. */
 private val READOUT_TOP = KEY_INSET + KEY_TARGET + 4.dp
+
+/**
+ * Where the level readout is cut, in its own pixels from its top: above it the number is drawn
+ * in onSurface over the empty track, below it in the fill's ink. The fill's edge sits at
+ * [railHeight] × (1 − [fraction]) from the rail's top; the readout starts [readoutTop] down.
+ * Kept inside the readout, so an edge above it puts the whole number on the fill and one below
+ * it, the usual case at a low level, puts it all over the track.
+ */
+internal fun readoutCut(railHeight: Float, fraction: Float, readoutTop: Float, readoutHeight: Float): Float =
+    (railHeight * (1f - fraction.coerceIn(0f, 1f)) - readoutTop).coerceIn(0f, readoutHeight.coerceAtLeast(0f))
 
 /** The readout's "opens" chevron: small enough to stay under the number inside its 48 dp target. */
 private val OPENS_CHEVRON = 16.dp
