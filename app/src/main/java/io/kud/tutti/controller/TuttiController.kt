@@ -44,7 +44,6 @@ import io.kud.tutti.protocol.apps.KnownApp
 import io.kud.tutti.protocol.apps.LaunchBook
 import io.kud.tutti.protocol.apps.LaunchEffect
 import io.kud.tutti.protocol.apps.LaunchLink
-import io.kud.tutti.protocol.apps.LaunchPlan
 import io.kud.tutti.protocol.apps.AppHistory
 import io.kud.tutti.protocol.apps.LaunchQueue
 import io.kud.tutti.protocol.apps.LaunchStep
