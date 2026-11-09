@@ -6,7 +6,8 @@ data class AppEntry(
     val packageName: String,
     /**
      * Deep links the app answers to, tried first. Only forms documented by Home Assistant's
-     * Android TV Remote integration (its "Launching apps" table, 2026-10); never guessed.
+     * Android TV Remote integration (its "Launching apps" table, 2026-10), or read from the app's
+     * own published source, cited beside its entry; never guessed.
      */
     val links: List<String> = emptyList(),
     /**
@@ -69,6 +70,12 @@ object AppCatalog {
         AppEntry("kodi", "Kodi", "org.xbmc.kodi"),
         AppEntry("vlc", "VLC", "org.videolan.vlc"),
         AppEntry("putio", "Put.io", "io.put.putio"),
+        // The Play Store build of NuvioTV (gl=FR shows TV, 2026-11-09); its GitHub build is
+        // com.nuvio.tv. tapframe/NuvioTV at 48bef4f: app/build.gradle.kts (flavour "playstore",
+        // applicationId) and app/src/main/AndroidManifest.xml (.MainActivity, VIEW, scheme "nuvio").
+        // A bare nuvio:// parses to no deep link there (DeepLinkParser), so it only opens the app.
+        // The phone app under the same id declares the scheme too (tapframe/NuvioMobile, androidApp).
+        AppEntry("nuvio", "Nuvio", "com.nuvio.app", listOf("nuvio://")),
     )
 
     /** By catalog id or display name, case-insensitive. */
