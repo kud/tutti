@@ -32,7 +32,9 @@ import io.kud.tutti.platform.security.StagedIdentity
 import io.kud.tutti.platform.security.SecureStore
 import io.kud.tutti.protocol.apps.AppIcons
 import io.kud.tutti.protocol.apps.AppLauncher
+import io.kud.tutti.protocol.apps.IpControl
 import io.kud.tutti.protocol.apps.LaunchPlan
+import io.kud.tutti.protocol.apps.RestWait
 import io.kud.tutti.protocol.apps.AppLibrary
 import io.kud.tutti.protocol.apps.AppsScreen
 import io.kud.tutti.protocol.apps.AppsScreenOpener
@@ -1745,11 +1747,16 @@ class TuttiController @Inject constructor(
      * catalogue knows, watching the remote link's foreground app between them ([AppLauncher]).
      */
     private suspend fun launchWithResult(packageName: String): LaunchResult {
-        val client = bravia
-        val restOnline = client != null && links.value.rest == Link.ONLINE && !pskRefused
+        // IP control set up but not up this instant (a session just started or resumed, a poll
+        // missed, the loop in backoff) used to read "offline" and lose the one route that opens any
+        // installed app (Erwann's Nuvio trace, 2026-11-09). Hold briefly for it, kicking the loop
+        // out of its backoff, and say in the trace that we did.
+        val restWait = if (LaunchPlan.waitsForRest(ipControlNow())) awaitRest() else null
+        val ip = ipControlNow()
+        val client = bravia.takeIf { ip == IpControl.ONLINE }
+        val restOnline = client != null
         val restUri = if (!restOnline) null else restUriFor(packageName)
-        // No TV with IP control set up at all is not worth a line in the trace.
-        val restSkipped = if (client == null) null else LaunchPlan.restSkip(links.value.rest == Link.ONLINE, pskRefused, restUri)
+        val restSkipped = LaunchPlan.restSkip(if (ip == IpControl.ONLINE && client == null) IpControl.CONNECTING else ip, restUri)
         val launcher = AppLauncher(
             send = { route ->
                 when (route) {
@@ -1761,9 +1768,46 @@ class TuttiController @Inject constructor(
             // app_info arrives over the remote link only; without it nothing can be confirmed.
             canObserve = { atv.state.value.ready },
         )
-        val result = launcher.launch(packageName, LaunchPlan.routes(packageName, restOnline, restUri), restSkipped)
+        val result = launcher.launch(packageName, LaunchPlan.routes(packageName, restOnline, restUri), restSkipped).copy(restWait = restWait)
         lastLaunchTrace = Redact.text(result.trace())
         return result
+    }
+
+    /** Where IP control stands for a launch ([LaunchPlan.restSkip]); a verdict outranks the raw link. */
+    private fun ipControlNow(): IpControl {
+        val rest = links.value.rest
+        return when {
+            rest == Link.ABSENT -> IpControl.NOT_SET_UP
+            pskRefused || rest == Link.UNAUTHORIZED -> IpControl.KEY_REFUSED
+            rest == Link.NEEDS_PAIRING -> IpControl.CERTIFICATE_CHANGED
+            lanMissing.value -> IpControl.NO_LAN_PERMISSION
+            rest == Link.ONLINE && bravia != null -> IpControl.ONLINE
+            rest == Link.UNREACHABLE -> IpControl.NOT_ANSWERING
+            else -> IpControl.CONNECTING
+        }
+    }
+
+    /**
+     * Holds a launch up to [LaunchPlan.REST_WAIT_MS] for a set-up IP control to come up, waking
+     * its loop out of backoff now and again meanwhile (as [wakeAndPower] does). Stops early on
+     * any verdict that waiting won't change.
+     */
+    private suspend fun awaitRest(): RestWait {
+        val started = SystemClock.elapsedRealtime()
+        val cameUp = coroutineScope {
+            val kick = launch {
+                while (isActive) {
+                    wake.tryEmit(Unit)
+                    delay(REST_KICK_MS)
+                }
+            }
+            val settled = withTimeoutOrNull(LaunchPlan.REST_WAIT_MS) {
+                links.map { ipControlNow() }.first { !LaunchPlan.waitsForRest(it) }
+            }
+            kick.cancel()
+            settled == IpControl.ONLINE
+        }
+        return RestWait(SystemClock.elapsedRealtime() - started, cameUp)
     }
 
     /**
@@ -3242,6 +3286,9 @@ class TuttiController @Inject constructor(
         private const val LINGER_MS = 5 * 60_000L
         private const val MIN_BACKOFF_MS = 1_000L
         private const val MAX_BACKOFF_MS = 30_000L
+
+        /** How often a launch holding for IP control wakes its loop out of backoff ([awaitRest]). */
+        private const val REST_KICK_MS = 700L
         private const val READY_TIMEOUT_MS = 8_000L
 
         /** How long one mDNS browse listens before the candidates are probed. */
