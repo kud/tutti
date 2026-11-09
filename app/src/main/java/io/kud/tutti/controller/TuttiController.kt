@@ -57,6 +57,8 @@ import io.kud.tutti.protocol.atv.AtvPairing
 import io.kud.tutti.protocol.atv.AtvRemote
 import io.kud.tutti.protocol.atv.ClientDeviceInfo
 import io.kud.tutti.protocol.atv.HardwareKey
+import io.kud.tutti.protocol.atv.HoldLease
+import io.kud.tutti.protocol.atv.KeyBacklog
 import io.kud.tutti.protocol.atv.KeyHold
 import io.kud.tutti.protocol.atv.KeyMap
 import io.kud.tutti.protocol.atv.PairingFailure
@@ -1366,8 +1368,22 @@ class TuttiController @Inject constructor(
     // region remote
 
     fun key(keyCode: Int) {
-        scope.launch { sendTvKey(keyCode, long = false) }
+        // Bounded (KeyBacklog): a socket slow to drain drops keys rather than piling them up to
+        // arrive after the finger has lifted.
+        if (!keyBacklog.tryAcquire()) return
+        scope.launch {
+            try {
+                keyOrder.withLock { sendTvKey(keyCode, long = false) }
+            } finally {
+                keyBacklog.done()
+            }
+        }
     }
+
+    private val keyBacklog = KeyBacklog()
+
+    /** Keys go out one at a time, in the order they were pressed. */
+    private val keyOrder = Mutex()
 
     /**
      * Implicit wake ([TvLinkRule.wakesTv]): wakes the TV through [power]'s own path (remote power
@@ -1418,13 +1434,22 @@ class TuttiController @Inject constructor(
     }
 
     /**
-     * A key held by a finger (OK held on the pad): down on the TV now (START_LONG), up on
-     * [releaseKey] (END_LONG), never before [KeyHold.MIN_HOLD_MS] nor after [KeyHold.MAX_HOLD_MS].
+     * A key held by a finger (OK or an arrow held on the pad): down on the TV now (START_LONG), up
+     * on [releaseKey] (END_LONG), never before [minHoldMs] ([KeyHold.MIN_HOLD_MS] for OK, so the
+     * TV sees a long press; 0 for an arrow, which must stop when the finger does). The hold lasts
+     * while [renewHold] keeps coming: it comes up by itself [leaseMs] after the last renewal (a
+     * release lost on the phone), never while the finger is still there and renewing.
      * Hold and release run in the order they were made, so a quick hold-and-lift never lifts first.
+     * One key is held at a time: a new hold lifts the old one first.
      * A hold the link can't carry is dropped and said, as a long press is ([TvLinkRule.whileDown]).
      */
-    fun holdKey(keyCode: Int) {
-        scope.launch(start = CoroutineStart.UNDISPATCHED) { holdOrder.withLock { holdNow(keyCode) } }
+    fun holdKey(keyCode: Int, minHoldMs: Long = KeyHold.MIN_HOLD_MS, leaseMs: Long = KeyHold.MAX_HOLD_MS) {
+        scope.launch(start = CoroutineStart.UNDISPATCHED) { holdOrder.withLock { holdNow(keyCode, minHoldMs, leaseMs) } }
+    }
+
+    /** The finger that holds the key is still there: re-arm its lease. Nothing goes to the TV. */
+    fun renewHold() {
+        holding?.lease?.renew(SystemClock.uptimeMillis())
     }
 
     /** The finger left: the held key comes up. Nothing when nothing is held. */
@@ -1433,18 +1458,26 @@ class TuttiController @Inject constructor(
     }
 
     private val holdOrder = Mutex()
+
+    @Volatile
     private var holding: HeldTvKey? = null
     private var holdCap: Job? = null
 
-    private class HeldTvKey(val keyCode: Int, val since: Long)
+    private class HeldTvKey(val keyCode: Int, val since: Long, val minHoldMs: Long, val lease: HoldLease)
 
-    private suspend fun holdNow(keyCode: Int) {
+    private suspend fun holdNow(keyCode: Int, minHoldMs: Long, leaseMs: Long) {
         releaseNow()
         if (atv.state.value.ready && atv.holdKey(keyCode)) {
-            val held = HeldTvKey(keyCode, SystemClock.uptimeMillis())
+            val now = SystemClock.uptimeMillis()
+            val held = HeldTvKey(keyCode, now, minHoldMs, HoldLease(leaseMs, now))
             holding = held
             holdCap = scope.launch {
-                delay(KeyHold.MAX_HOLD_MS)
+                // Sleeps until the lease runs out; each renewal pushes it further.
+                while (true) {
+                    val wait = held.lease.remaining(SystemClock.uptimeMillis())
+                    if (wait <= 0L) break
+                    delay(wait)
+                }
                 // Not cancelled by the release it makes: it is the cap job itself.
                 holdOrder.withLock {
                     if (holding === held) {
@@ -1464,7 +1497,7 @@ class TuttiController @Inject constructor(
         holding = null
         holdCap?.cancel()
         holdCap = null
-        delay(KeyHold.releaseDelay(held.since, SystemClock.uptimeMillis()))
+        delay(KeyHold.releaseDelay(held.since, SystemClock.uptimeMillis(), held.minHoldMs))
         atv.releaseKey(held.keyCode)
     }
 

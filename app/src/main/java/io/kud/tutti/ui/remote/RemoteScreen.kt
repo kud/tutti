@@ -96,6 +96,8 @@ import io.kud.tutti.protocol.apps.KnownApp
 import io.kud.tutti.platform.data.PadSize
 import io.kud.tutti.platform.data.SecondaryButton
 import io.kud.tutti.controller.TvLinkRule
+import io.kud.tutti.protocol.atv.DirectionHold
+import io.kud.tutti.protocol.devices.HoldPlan
 import io.kud.tutti.protocol.atv.V2Key
 import io.kud.tutti.ui.common.LocalReducedMotion
 import io.kud.tutti.ui.common.TonalRoundButton
@@ -362,6 +364,36 @@ fun RemoteScreen(
         haptics.bump()
         messages?.show(why)
     }
+    /**
+     * An arrow held on the D-pad ([io.kud.tutti.protocol.atv.DirectionPress]): down where a key can be held (the TV's remote
+     * key, the TV's Bluetooth key), so the TV repeats and scrubs as with a physical remote, and up
+     * on lift or cancel. False where it can't be held (a computer): the pad repeats plain presses.
+     * An arrow comes up the moment the finger does, and a lost release lets it go after
+     * [DirectionHold.LEASE_MS] without renewal.
+     */
+    fun holdDirection(code: Int, down: Boolean): Boolean {
+        if (!down) {
+            target.releaseKey()
+            controller.releaseKey()
+            return true
+        }
+        if (!routed) {
+            controller.holdKey(code, minHoldMs = 0L, leaseMs = DirectionHold.LEASE_MS)
+            return true
+        }
+        return when (target.holdPlan(code)) {
+            HoldPlan.REMOTE, HoldPlan.HID -> {
+                target.holdKey(code, minHoldMs = 0L, leaseMs = DirectionHold.LEASE_MS)
+                true
+            }
+            HoldPlan.PLAIN, HoldPlan.NONE -> false
+        }
+    }
+
+    fun renewHold() {
+        target.renewHold()
+        controller.renewHold()
+    }
     // A key that opens a menu on the TV closes its sheet, so the pad is in view to drive that
     // menu (keyClosesSheet); TalkBack hears where to go next, since the sheet vanished under it.
     val tvMenuSay = stringResource(R.string.sheet_key_tv_menu)
@@ -506,6 +538,8 @@ fun RemoteScreen(
                     },
                     onKey = ::sendKey,
                     onSelectHold = ::holdSelect,
+                    onDirectionHold = ::holdDirection,
+                    onHoldRenew = ::renewHold,
                     onLeave = { input = InputRules.leave(input) },
                     onTypingChange = { controller.typing = it },
                     modifier = Modifier.statusBarsPadding().navigationBarsPadding().imePadding(),
@@ -712,6 +746,8 @@ fun RemoteScreen(
                                 mode = if (routed) PadMode.DPAD else state.prefs.padMode,
                                 onKey = { if (routed || !tvAsleepAlone(it)) sendKey(it) },
                                 onSelectHold = { down -> if (!down || routed || !tvAsleepAlone()) holdSelect(down) },
+                                onDirectionHold = { code, down -> if (!down || routed || !tvAsleepAlone(code)) holdDirection(code, down) else false },
+                                onHoldRenew = ::renewHold,
                                 onPlayPause = { if (routed || !tvAsleepAlone(V2Key.MEDIA_PLAY_PAUSE)) sendKey(V2Key.MEDIA_PLAY_PAUSE) },
                                 onVolumeStep = controller::volumeStep,
                                 onSkip = { if (routed || !tvAsleepAlone()) sendKey(skipKey(it)) },

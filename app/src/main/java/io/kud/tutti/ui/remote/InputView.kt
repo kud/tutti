@@ -123,6 +123,9 @@ fun InputView(
     onEnter: () -> Unit,
     onKey: (Int) -> Unit,
     onSelectHold: (Boolean) -> Unit,
+    /** An arrow held on the D-pad ([Pad]'s onDirectionHold). */
+    onDirectionHold: (code: Int, down: Boolean) -> Boolean = { _, _ -> false },
+    onHoldRenew: () -> Unit = {},
     onLeave: () -> Unit,
     onTypingChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
@@ -427,6 +430,8 @@ fun InputView(
                     mode = PadMode.DPAD,
                     onKey = onKey,
                     onSelectHold = onSelectHold,
+                    onDirectionHold = onDirectionHold,
+                    onHoldRenew = onHoldRenew,
                     onPlayPause = { onKey(V2Key.MEDIA_PLAY_PAUSE) },
                     onVolumeStep = {},
                     onSkip = { onKey(skipKey(it)) },

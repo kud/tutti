@@ -1,5 +1,6 @@
 package io.kud.tutti.ui.remote
 
+import android.os.SystemClock
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
@@ -62,6 +63,7 @@ import androidx.compose.ui.unit.dp
 import io.kud.tutti.R
 import io.kud.tutti.controller.TuttiController
 import io.kud.tutti.platform.data.PadMode
+import io.kud.tutti.protocol.atv.DirectionPress
 import io.kud.tutti.protocol.atv.V2Key
 import io.kud.tutti.ui.common.DOWN_INK
 import io.kud.tutti.ui.common.FeedbackEvent
@@ -89,7 +91,7 @@ import kotlinx.coroutines.launch
  * ([switchOnLeft]: top-left when the pad stands on the right), switches in one tap.
  * Tap = OK; OK held = the TV's OK held, down at the long-press timeout and up on release
  * ([OkHold]), as a physical remote holds it, so apps open their long-press menus.
- * A held direction repeats on the [KeyRepeat] schedule, on the D-pad and under a finger resting after a swipe step.
+ * A held arrow on the D-pad is held on the TV ([DirectionPress]); a finger resting after a swipe step repeats on the [KeyRepeat] schedule.
  * A fast swipe flings: steps carry on after the lift and slow down ([PadFling]); a new touch stops them.
  * Two-finger gestures, in both modes: tap = play/pause, vertical drag = bar volume, horizontal
  * drag = skip back or forward ([TwoFingerTrack]); the app on the TV decides how far, so no
@@ -105,6 +107,13 @@ fun Pad(
     onKey: (Int) -> Unit,
     /** OK held: true when the key should go down on the TV, false when it comes up (once each). */
     onSelectHold: (Boolean) -> Unit,
+    /**
+     * An arrow held on the D-pad: true when it should go down, false when it comes up (once each).
+     * Returns false on the way down when the route can't hold it: the pad then repeats plain keys.
+     */
+    onDirectionHold: (code: Int, down: Boolean) -> Boolean = { _, _ -> false },
+    /** The held key's finger is still there: re-arm its lease. */
+    onHoldRenew: () -> Unit = {},
     onPlayPause: () -> Unit,
     onVolumeStep: (Int) -> Unit,
     /** Two-finger horizontal drag: -1 skips back, +1 forward ([skipKey]). Null: the drag does nothing. */
@@ -133,6 +142,8 @@ fun Pad(
     var glow by remember { mutableStateOf(Offset.Unspecified) }
     val key by rememberUpdatedState(onKey)
     val selectHold by rememberUpdatedState(onSelectHold)
+    val directionHold by rememberUpdatedState(onDirectionHold)
+    val holdRenew by rememberUpdatedState(onHoldRenew)
     val playPause by rememberUpdatedState(onPlayPause)
     val volumeStep by rememberUpdatedState(onVolumeStep)
     val skip by rememberUpdatedState(onSkip)
@@ -294,30 +305,42 @@ fun Pad(
                                 }
                             }
                         }
-                        // A held direction repeats (KeyRepeat); a quick one goes once, on release.
-                        var repeats = 0
-                        val repeater = if (zone == V2Key.DPAD_CENTER) {
-                            null
-                        } else {
+                        // A held direction is held on the TV, as a physical remote holds it
+                        // (DirectionPress): one key down past the hold delay, the TV repeats and
+                        // accelerates, one key up on lift. A quick one goes once, on release.
+                        val press = if (zone == V2Key.DPAD_CENTER) null else DirectionPress(SystemClock.uptimeMillis())
+                        val driver = press?.let {
                             scope.launch {
-                                KeyRepeat.run {
-                                    repeats++
-                                    haptics.tick()
-                                    key(zone)
-                                }
+                                DirectionDrive.run(
+                                    press = it,
+                                    clock = SystemClock::uptimeMillis,
+                                    hold = {
+                                        haptics.tick()
+                                        directionHold(zone, true)
+                                    },
+                                    renew = { holdRenew() },
+                                    repeat = {
+                                        haptics.tick()
+                                        key(zone)
+                                    },
+                                )
                             }
                         }
                         val hold = if (zone == V2Key.DPAD_CENTER) OkHold().also { okHold = it } else null
-                        val released = try {
-                            tryAwaitRelease()
+                        var released = false
+                        try {
+                            released = tryAwaitRelease()
                         } finally {
+                            // Lifted, or the press was cancelled (the pad went down mid-hold, the
+                            // gesture restarted): the driver stops and a held key always comes up.
+                            // It once ran on in the screen's scope and kept the TV scrubbing.
+                            driver?.cancel()
+                            if (press != null) DirectionDrive.end(press, released, tap = { key(zone) }, release = { directionHold(zone, false) })
                             if (hold != null) {
                                 if (hold.end() == OkHoldEffect.RELEASE) selectHold(false)
                                 if (okHold === hold) okHold = null
                             }
                         }
-                        repeater?.cancel()
-                        if (repeater != null && released && repeats == 0) key(zone)
                         scope.launch { pressAlpha.animateTo(0f, tween(durationMillis = 180)) }
                         if (ring != null) {
                             ring.cancel()

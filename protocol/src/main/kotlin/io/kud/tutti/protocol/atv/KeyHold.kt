@@ -16,11 +16,17 @@ object KeyHold {
     const val MIN_HOLD_MS = 700L
 
     /**
-     * A hold never outlives this: a lost release (the app killed mid-hold) must not leave OK
-     * repeating on the TV. Far past any menu's long press.
+     * OK's lease ([HoldLease]): a hold nobody renews comes up after this, so a lost release (the
+     * app frozen mid-hold) never leaves OK repeating on the TV. Far past any menu's long press.
+     * A held arrow uses [DirectionHold.LEASE_MS], renewed while the finger stays.
      */
     const val MAX_HOLD_MS = 10_000L
 
-    /** How long to wait before END_LONG, for a key that went down at [startedAt], released at [now]. */
-    fun releaseDelay(startedAt: Long, now: Long): Long = (MIN_HOLD_MS - (now - startedAt)).coerceIn(0L, MIN_HOLD_MS)
+    /**
+     * How long to wait before END_LONG, for a key that went down at [startedAt], released at [now].
+     * [minHoldMs] is 0 for a held arrow: it must come up the moment the finger does, or the TV
+     * scrubs on past where the finger stopped.
+     */
+    fun releaseDelay(startedAt: Long, now: Long, minHoldMs: Long = MIN_HOLD_MS): Long =
+        (minHoldMs - (now - startedAt)).coerceIn(0L, minHoldMs)
 }

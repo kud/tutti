@@ -11,6 +11,7 @@ import io.kud.tutti.platform.bluetooth.HidPhase
 import io.kud.tutti.platform.bluetooth.HidState
 import io.kud.tutti.platform.data.TuttiStore
 import io.kud.tutti.platform.security.SecureStore
+import io.kud.tutti.protocol.atv.HoldLease
 import io.kud.tutti.protocol.atv.KeyHold
 import io.kud.tutti.protocol.devices.ComputerOs
 import io.kud.tutti.protocol.devices.Device
@@ -266,27 +267,40 @@ class TargetController @Inject constructor(
         return route
     }
 
+    /** How [v2Key] would be held right now ([Targeting.hold]), so the pad knows whether to repeat it itself. */
+    fun holdPlan(v2Key: Int): HoldPlan = Targeting.hold(state.value.route(v2Key))
+
     /**
-     * OK held on the pad, wherever it belongs ([Targeting.hold]): the TV on its LAN holds the
-     * remote key, the TV over Bluetooth holds the keyboard report, a computer gets one plain
-     * press. Returns the route, so the UI bumps a hold that went nowhere as it does a tap.
+     * OK or an arrow held on the pad, wherever it belongs ([Targeting.hold]): the TV on its LAN
+     * holds the remote key, the TV over Bluetooth holds the keyboard report, a computer gets one
+     * plain press. [minHoldMs] and [leaseMs] as in [TuttiController.holdKey]. Returns the route, so
+     * the UI bumps a hold that went nowhere as it does a tap.
      */
-    fun holdKey(v2Key: Int): KeyRoute {
+    fun holdKey(v2Key: Int, minHoldMs: Long = KeyHold.MIN_HOLD_MS, leaseMs: Long = KeyHold.MAX_HOLD_MS): KeyRoute {
         val route = state.value.route(v2Key)
         when (Targeting.hold(route)) {
             HoldPlan.REMOTE -> {
                 heldOn = HoldPlan.REMOTE
-                controller.holdKey(v2Key)
+                controller.holdKey(v2Key, minHoldMs, leaseMs)
             }
             HoldPlan.HID -> {
                 val stroke = (route.action as HidAction.Key).stroke
                 heldOn = HoldPlan.HID
-                scope.launch(start = CoroutineStart.UNDISPATCHED) { hidOrder.withLock { hidHoldNow(stroke) } }
+                scope.launch(start = CoroutineStart.UNDISPATCHED) { hidOrder.withLock { hidHoldNow(stroke, minHoldMs, leaseMs) } }
             }
             HoldPlan.PLAIN -> key(v2Key)
             HoldPlan.NONE -> Unit
         }
         return route
+    }
+
+    /** The finger is still there: re-arm whichever hold it keeps. */
+    fun renewHold() {
+        when (heldOn) {
+            HoldPlan.REMOTE -> controller.renewHold()
+            HoldPlan.HID -> hidHeld?.lease?.renew(SystemClock.uptimeMillis())
+            else -> Unit
+        }
     }
 
     /** The finger left: whatever [holdKey] put down comes up. */
@@ -301,18 +315,27 @@ class TargetController @Inject constructor(
 
     private var heldOn: HoldPlan? = null
     private val hidOrder = Mutex()
-    private var hidSince: Long? = null
+
+    private class HidHeld(val since: Long, val minHoldMs: Long, val lease: HoldLease)
+
+    @Volatile
+    private var hidHeld: HidHeld? = null
     private var hidCap: Job? = null
 
-    private suspend fun hidHoldNow(stroke: KeyStroke) {
+    private suspend fun hidHoldNow(stroke: KeyStroke, minHoldMs: Long, leaseMs: Long) {
         hidReleaseNow()
         hid.press(stroke)
-        val since = SystemClock.uptimeMillis()
-        hidSince = since
+        val now = SystemClock.uptimeMillis()
+        val held = HidHeld(now, minHoldMs, HoldLease(leaseMs, now))
+        hidHeld = held
         hidCap = scope.launch {
-            delay(KeyHold.MAX_HOLD_MS)
+            while (true) {
+                val wait = held.lease.remaining(SystemClock.uptimeMillis())
+                if (wait <= 0L) break
+                delay(wait)
+            }
             hidOrder.withLock {
-                if (hidSince == since) {
+                if (hidHeld === held) {
                     hidCap = null
                     hidReleaseNow()
                 }
@@ -321,11 +344,11 @@ class TargetController @Inject constructor(
     }
 
     private suspend fun hidReleaseNow() {
-        val since = hidSince ?: return
-        hidSince = null
+        val held = hidHeld ?: return
+        hidHeld = null
         hidCap?.cancel()
         hidCap = null
-        delay(KeyHold.releaseDelay(since, SystemClock.uptimeMillis()))
+        delay(KeyHold.releaseDelay(held.since, SystemClock.uptimeMillis(), held.minHoldMs))
         hid.releaseKeys()
     }
 
