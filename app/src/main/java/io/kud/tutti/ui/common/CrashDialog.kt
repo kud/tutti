@@ -1,5 +1,6 @@
 package io.kud.tutti.ui.common
 
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -24,9 +25,12 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import io.kud.tutti.R
 
-/** Shown once after a crash: the scrubbed stack trace, to copy into a report. Copyable whatever the developer mode. */
+/**
+ * Shown once after a crash: the scrubbed stack trace, to copy into a report. Copyable whatever the
+ * developer mode; in developer mode, "Report on GitHub" opens it as a new issue to review.
+ */
 @Composable
-fun CrashDialog(report: String, onDismiss: () -> Unit) {
+fun CrashDialog(report: String, developer: Boolean, onDismiss: () -> Unit) {
     val context = LocalContext.current
     // The dialog is its own window, above any message: the button itself says it worked.
     var copied by remember { mutableStateOf(false) }
@@ -54,6 +58,11 @@ fun CrashDialog(report: String, onDismiss: () -> Unit) {
                 Text(stringResource(if (copied) R.string.crash_copied else R.string.crash_copy))
             }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.crash_close)) } },
+        dismissButton = {
+            Row {
+                if (developer) ReportButton(what = context.getString(R.string.report_crash_title), detail = report)
+                TextButton(onClick = onDismiss) { Text(stringResource(R.string.crash_close)) }
+            }
+        },
     )
 }

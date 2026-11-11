@@ -158,6 +158,7 @@ fun SettingsPageScreen(
     onPair: () -> Unit,
     onAddBar: () -> Unit,
     onOpenTechnical: () -> Unit,
+    onOpenEventLog: () -> Unit = {},
     hid: HidLink? = null,
 ) {
     SettingsFrame(categoryTitle(category), onBack) {
@@ -166,7 +167,7 @@ fun SettingsPageScreen(
             SettingsCategory.REMOTE -> RemotePage(state, controller, onEditLayout)
             SettingsCategory.DISPLAY -> DisplayPage(state, controller)
             SettingsCategory.SYNC -> SyncPage()
-            SettingsCategory.ADVANCED -> AdvancedPage(state, controller, onOpenDiagnostic, onOpenTechnical)
+            SettingsCategory.ADVANCED -> AdvancedPage(state, controller, onOpenDiagnostic, onOpenTechnical, onOpenEventLog)
             // Their screens were there before Settings had categories (SettingsRoutes.category).
             SettingsCategory.UNLOCK, SettingsCategory.TV, SettingsCategory.SOUNDBAR, SettingsCategory.ABOUT -> Unit
         }
@@ -524,7 +525,13 @@ private fun DisplayPage(state: TuttiUiState, controller: TuttiController) {
  * land here as rows, never on the everyday screens.
  */
 @Composable
-private fun AdvancedPage(state: TuttiUiState, controller: TuttiController, onOpenDiagnostic: () -> Unit, onOpenTechnical: () -> Unit) {
+private fun AdvancedPage(
+    state: TuttiUiState,
+    controller: TuttiController,
+    onOpenDiagnostic: () -> Unit,
+    onOpenTechnical: () -> Unit,
+    onOpenEventLog: () -> Unit,
+) {
     SettingsGroup(null, Modifier.padding(top = 8.dp)) {
         SwitchRow(
             label = stringResource(R.string.settings_developer_mode),
@@ -548,6 +555,14 @@ private fun AdvancedPage(state: TuttiUiState, controller: TuttiController, onOpe
                 enabled = true,
                 onClick = onOpenTechnical,
                 icon = R.drawable.ic_code,
+                opens = true,
+            )
+            LinkRow(
+                title = stringResource(R.string.event_log_title),
+                detail = stringResource(R.string.event_log_entry_detail),
+                enabled = true,
+                onClick = onOpenEventLog,
+                icon = R.drawable.ic_article,
                 opens = true,
             )
         }

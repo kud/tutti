@@ -41,6 +41,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dagger.hilt.android.AndroidEntryPoint
 import io.kud.tutti.controller.TuttiController
 import io.kud.tutti.platform.data.ThemeMode
+import io.kud.tutti.platform.diagnostic.AppLog
 import io.kud.tutti.platform.diagnostic.CrashLog
 import io.kud.tutti.platform.diagnostic.Diagnostics
 import io.kud.tutti.platform.discovery.TvDiscovery
@@ -137,9 +138,9 @@ class MainActivity : ComponentActivity() {
                         intro,
                         firstLaunch = if (state.loaded) state.devices.isEmpty && !state.prefs.onboarded else null,
                     )
-                    var crash by remember { mutableStateOf(CrashLog.read(this@MainActivity)) }
+                    var crash by remember { mutableStateOf(CrashLog.read(this@MainActivity)?.also { AppLog.events.crash(it) }) }
                     crash?.let { report ->
-                        CrashDialog(report) {
+                        CrashDialog(report, developer = state.prefs.developerMode) {
                             CrashLog.clear(this@MainActivity)
                             crash = null
                         }

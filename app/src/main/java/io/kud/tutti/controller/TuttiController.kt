@@ -50,6 +50,9 @@ import io.kud.tutti.protocol.apps.AppHistory
 import io.kud.tutti.protocol.apps.LaunchQueue
 import io.kud.tutti.protocol.apps.LaunchStep
 import io.kud.tutti.protocol.apps.LaunchResult
+import io.kud.tutti.platform.diagnostic.AppLog
+import io.kud.tutti.protocol.diagnostic.EventLog
+import io.kud.tutti.protocol.diagnostic.IssueLink
 import io.kud.tutti.protocol.apps.LaunchRoute
 import io.kud.tutti.protocol.net.ReconnectPace
 import io.kud.tutti.protocol.net.Redact
@@ -443,6 +446,20 @@ class TuttiController @Inject constructor(
     private val appHistory = MutableStateFlow(AppHistory())
 
     init {
+        AppLog.events.known = ::knownSecrets
+        // Each plane's connection changes, for the developer event log.
+        scope.launch {
+            var before: Links? = null
+            links.collect { now ->
+                val was = before
+                before = now
+                if (was != null) {
+                    if (was.tv != now.tv) AppLog.events.record(EventLog.Kind.CONNECTION, "remote ${was.tv} -> ${now.tv}")
+                    if (was.rest != now.rest) AppLog.events.record(EventLog.Kind.CONNECTION, "rest ${was.rest} -> ${now.rest}")
+                    if (was.bar != now.bar) AppLog.events.record(EventLog.Kind.CONNECTION, "bar ${was.bar} -> ${now.bar}")
+                }
+            }
+        }
         scope.launch {
             pskSet.value = secure.tvPsk() != null
             ipCookie = secure.tvIpCookie()
@@ -1472,6 +1489,7 @@ class TuttiController @Inject constructor(
             val now = SystemClock.uptimeMillis()
             val held = HeldTvKey(keyCode, now, minHoldMs, HoldLease(leaseMs, now))
             holding = held
+            AppLog.events.record(EventLog.Kind.KEY, "hold $keyCode")
             holdCap = scope.launch {
                 // Sleeps until the lease runs out; each renewal pushes it further.
                 while (true) {
@@ -1490,6 +1508,7 @@ class TuttiController @Inject constructor(
             return
         }
         val current = links.value
+        AppLog.events.record(EventLog.Kind.KEY, "hold $keyCode not sent: remote ${current.tv}")
         mutableEvents.tryEmit(TuttiEvent.KeyNotSent(TvLinkRule.whileDown(current.tv, current.tvShown)))
     }
 
@@ -1499,7 +1518,8 @@ class TuttiController @Inject constructor(
         holdCap?.cancel()
         holdCap = null
         delay(KeyHold.releaseDelay(held.since, SystemClock.uptimeMillis(), held.minHoldMs))
-        atv.releaseKey(held.keyCode)
+        val sent = atv.releaseKey(held.keyCode)
+        AppLog.events.record(EventLog.Kind.KEY, "release ${held.keyCode} after ${SystemClock.uptimeMillis() - held.since} ms, sent $sent")
     }
 
     /** Bumped by every [wakeThenKey], so only the newest key waiting on a wake is sent. */
@@ -1736,6 +1756,10 @@ class TuttiController @Inject constructor(
 
     /** The last launch's redacted trace, for the developer diagnostic. */
     @Volatile var lastLaunchTrace: String? = null
+        set(value) {
+            field = value
+            if (value != null) AppLog.events.record(EventLog.Kind.LAUNCH, value)
+        }
         private set
 
     /** A scene's launch: straight to the routes, since the scene has woken the TV and shows its own progress. */
@@ -1820,11 +1844,29 @@ class TuttiController @Inject constructor(
             send = { atv.launch(it) },
             foreground = atv.state.map { it.currentApp },
             canObserve = { atv.state.value.ready },
-        )
+        ).also { AppLog.events.record(EventLog.Kind.LINK, "probe (${linkScheme(link)}): ${it.outcome}, ${it.before} -> ${it.after}") }
 
     /** Opens a per-app command ([io.kud.tutti.protocol.apps.AppShortcut]) as an app link; never logged. */
     fun openAppLink(link: String) {
-        scope.launch { atv.launch(link) }
+        scope.launch {
+            val sent = atv.launch(link)
+            AppLog.events.record(EventLog.Kind.LINK, "sent (${linkScheme(link)}): $sent")
+        }
+    }
+
+    /** What the event log says of an app link: its scheme only, since the rest can carry anything. */
+    private fun linkScheme(link: String): String =
+        link.trim().substringBefore(':', "").lowercase().takeIf { it.isNotEmpty() && it.length <= 16 && it.all(Char::isLetterOrDigit) } ?: "?"
+
+    /**
+     * Every value the event log scrubs by name, read on each line: hosts, the TV's MAC, the PSK,
+     * the IP-control cookie, the names given to the TV, the bar and the phone.
+     */
+    private fun knownSecrets(): List<String> {
+        val devices = state.value.devices
+        return listOfNotNull(
+            devices.tv?.host, devices.tv?.mac, devices.tv?.name, devices.bar?.host, devices.bar?.name, psk, ipCookie?.value,
+        ) + AppLog.phoneNames(context)
     }
 
     /** Keeps what the TV listed, then fetches the icons not cached yet. */
@@ -2808,7 +2850,7 @@ class TuttiController @Inject constructor(
     ): String {
         val devices = state.value.devices
         val l = links.value
-        return FailureReport.render(
+        val report = FailureReport.render(
             what = what,
             outcome = outcome,
             steps = steps,
@@ -2821,6 +2863,8 @@ class TuttiController @Inject constructor(
             ),
             sensitive = sensitive + listOfNotNull(devices.tv?.host, devices.tv?.mac, devices.bar?.host, psk, ipCookie?.value),
         )
+        AppLog.events.record(EventLog.Kind.ERROR, report, sensitive)
+        return report
     }
 
     private fun actionFailed(what: String, outcome: String, keyRefused: Boolean = false) {
@@ -3021,6 +3065,8 @@ class TuttiController @Inject constructor(
                 ircc = TvAnswer.ask(caps.supports(BraviaService.SYSTEM, "getRemoteControllerInfo")) { client.remoteControllerInfo() },
                 system = TvAnswer.ask(caps.supports(BraviaService.SYSTEM, "getSystemInformation")) { client.systemInformation() },
             )
+            ((answers.system as? TvAnswer.Got<*>)?.value as? io.kud.tutti.protocol.bravia.SystemInfo)?.model
+                ?.let { model -> IssueLink.modelFamily(model)?.let { AppLog.tvFamily = it } }
             val inputs = client.externalInputs().getOrNull()
             tv.update {
                 it.copy(

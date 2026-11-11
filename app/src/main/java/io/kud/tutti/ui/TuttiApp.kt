@@ -113,6 +113,9 @@ sealed interface Screen {
     data class Unlock(val focus: io.kud.tutti.ui.settings.Unlock? = null) : Screen
 
     data object Technical : Screen
+
+    /** Developer mode's recent-events log. */
+    data object EventLog : Screen
 }
 
 /**
@@ -135,6 +138,7 @@ internal object ScreenKey {
         Screen.WhatsNew -> "whats-new"
         is Screen.Unlock -> "unlock:" + screen.focus?.name.orEmpty()
         Screen.Technical -> "technical"
+        Screen.EventLog -> "event-log"
     }
 
     /** Null for a key this version does not know. */
@@ -153,6 +157,7 @@ internal object ScreenKey {
         key == "whats-new" -> Screen.WhatsNew
         key.startsWith("unlock:") -> Screen.Unlock(io.kud.tutti.ui.settings.Unlock.entries.firstOrNull { it.name == key.removePrefix("unlock:") })
         key == "technical" -> Screen.Technical
+        key == "event-log" -> Screen.EventLog
         else -> null
     }
 
@@ -451,6 +456,7 @@ fun TuttiApp(
                             },
                             onAddBar = { push(Screen.Onboarding(barOnly = true, cancellable = true)) },
                             onOpenTechnical = { push(Screen.Technical) },
+                            onOpenEventLog = { push(Screen.EventLog) },
                         )
                         Screen.TvSettings -> TvSettingsScreen(
                             state = state,
@@ -481,6 +487,7 @@ fun TuttiApp(
                         }
                         Screen.BarSettings -> BarSettingsScreen(state = state, controller = controller, onBack = ::pop)
                         Screen.Diagnostic -> DiagnosticScreen(diagnostics = diagnostics, onBack = ::pop)
+                        Screen.EventLog -> io.kud.tutti.ui.settings.EventLogScreen(onBack = ::pop)
                         is Screen.Onboarding -> OnboardingScreen(
                             state = state,
                             controller = controller,

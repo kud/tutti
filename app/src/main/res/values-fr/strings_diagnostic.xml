@@ -46,4 +46,17 @@
     <string name="crash_copy">Copier</string>
     <string name="crash_close">Fermer</string>
     <string name="crash_copied">Copié</string>
+    <!-- Mode développeur : le journal des événements récents et le signalement GitHub sans clé. -->
+    <string name="event_log_title">Événements récents</string>
+    <string name="event_log_entry_detail">Ce que tutti a fait récemment et ce qui est revenu, nettoyé</string>
+    <string name="event_log_intro">Lancements, liens d’app, touches maintenues, connexions et erreurs, du plus récent au plus ancien : les %1$d derniers, gardés en mémoire seulement. Adresses, clés, noms et numéros de série sont retirés avant d’être gardés.</string>
+    <string name="event_log_copy">Copier le journal</string>
+    <string name="event_log_share">Partager</string>
+    <string name="event_log_clear">Effacer</string>
+    <string name="event_log_empty">Rien pour l’instant.</string>
+    <string name="event_log_last_crash">Dernier plantage</string>
+    <string name="event_log_share_subject">Événements récents de tutti</string>
+    <string name="report_github">Signaler sur GitHub</string>
+    <string name="report_crash_title">L’app a planté</string>
+    <string name="report_log_title">Signalement depuis les événements récents de tutti</string>
 </resources>

@@ -46,4 +46,17 @@
     <string name="crash_copy">Copy</string>
     <string name="crash_close">Close</string>
     <string name="crash_copied">Copied</string>
+    <!-- Developer mode: the recent-events log and the keyless GitHub report. -->
+    <string name="event_log_title">Recent events</string>
+    <string name="event_log_entry_detail">What tutti did lately and what came back, scrubbed</string>
+    <string name="event_log_intro">Launches, app links, held keys, connections and errors, newest first: the last %1$d, kept in memory only. Addresses, keys, names and serials are scrubbed before they are kept.</string>
+    <string name="event_log_copy">Copy log</string>
+    <string name="event_log_share">Share</string>
+    <string name="event_log_clear">Clear</string>
+    <string name="event_log_empty">Nothing yet.</string>
+    <string name="event_log_last_crash">Last crash</string>
+    <string name="event_log_share_subject">tutti recent events</string>
+    <string name="report_github">Report on GitHub</string>
+    <string name="report_crash_title">The app crashed</string>
+    <string name="report_log_title">Report from tutti’s recent events</string>
 </resources>

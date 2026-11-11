@@ -6,6 +6,8 @@ import android.content.Context
 import android.os.Build
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -104,7 +106,7 @@ fun rememberProblemReporter(): (String, String?) -> Unit {
 /**
  * A failure that stays on screen: a warning icon and the short [message] (the icon and the words
  * carry it, never colour alone), then "Details" to unfold the redacted technical text, small and
- * selectable, and "Copy details", both in developer mode only. [message] may be null when the screen
+ * selectable, "Copy details" and "Report on GitHub", all in developer mode only. [message] may be null when the screen
  * already says what is wrong: outside developer mode such a note then shows nothing.
  */
 @Composable
@@ -113,6 +115,7 @@ fun ProblemNote(message: String?, detail: String?, modifier: Modifier = Modifier
     ProblemNoteContent(message, shown, modifier)
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ProblemNoteContent(message: String?, detail: String?, modifier: Modifier) {
     if (message == null && detail == null) return
@@ -132,7 +135,8 @@ private fun ProblemNoteContent(message: String?, detail: String?, modifier: Modi
             }
         }
         if (detail != null) {
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            // Wraps rather than overflows: three actions don't fit one line in French.
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 TextButton(onClick = { open = !open }) {
                     Icon(
                         painterResource(if (open) R.drawable.ic_arrow_up else R.drawable.ic_arrow_down),
@@ -144,6 +148,7 @@ private fun ProblemNoteContent(message: String?, detail: String?, modifier: Modi
                 TextButton(onClick = { copyDetails(context, detail, messages) }) {
                     Text(stringResource(R.string.problem_copy))
                 }
+                ReportButton(what = message ?: detail.lineSequence().first().removePrefix("tutti: "), detail = detail)
             }
             if (open) {
                 SelectionContainer {
