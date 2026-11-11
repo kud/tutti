@@ -32,7 +32,8 @@ class AppDestinationsTest {
     fun `custom links are https or the app's own scheme`() {
         assertTrue(AppDestinations.accepts(youtube, "https://www.youtube.com/playlist?list=PLexample"))
         assertTrue(AppDestinations.accepts(youtube, "  https://www.youtube.com/@example  "))
-        assertTrue(AppDestinations.accepts(youtube, "vnd.youtube://abcdefghijk"))
+        assertTrue(AppDestinations.accepts(youtube, "vnd.youtube.launch://"))
+        assertFalse(AppDestinations.accepts(youtube, "vnd.youtube://abcdefghijk"))
         assertTrue(AppDestinations.accepts(netflix, "https://www.netflix.com/title/12345678?source=30"))
         assertTrue(AppDestinations.accepts(netflix, "netflix://"))
         assertTrue(AppDestinations.accepts("org.example", "https://example.com/x"))
