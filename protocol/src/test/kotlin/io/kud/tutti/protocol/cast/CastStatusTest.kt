@@ -196,4 +196,24 @@ class CastStatusTest {
         assertEquals(listOf(CastMessage.PayloadType.STRING, CastMessage.PayloadType.BINARY), out.map { it.payload_type })
         assertFailsWith<CastFrameException> { CastFrameDecoder().feed(byteArrayOf(0x7f, 0, 0, 0)) }
     }
+
+    @Test fun `a TV show item that names only its series is shown, not dropped as untitled`() {
+        val reducer = CastStatusReducer()
+        val report = reducer.report(json(
+            """{"type":"MEDIA_STATUS","status":[{"mediaSessionId":5,"playerState":"PLAYING","currentTime":12,
+              "media":{"duration":1500,"metadata":{"metadataType":2,"seriesTitle":"Sample Show","subtitle":"Sample Episode"}}}]}""",
+        ), 1_000)
+        val shown = report.nowPlaying
+        assertEquals("Sample Show", shown?.title)
+        assertEquals("Sample Episode", shown?.secondary, "the series is the title, so it is not repeated below it")
+        assertTrue(reducer.lastHadTitle)
+
+        // With its own title, the series stays the secondary line as before.
+        val titled = CastStatusReducer().report(json(
+            """{"type":"MEDIA_STATUS","status":[{"mediaSessionId":5,"playerState":"PLAYING","currentTime":12,
+              "media":{"metadata":{"metadataType":2,"title":"Sample Title","seriesTitle":"Sample Show"}}}]}""",
+        ), 1_000).nowPlaying
+        assertEquals("Sample Title", titled?.title)
+        assertEquals("Sample Show", titled?.secondary)
+    }
 }

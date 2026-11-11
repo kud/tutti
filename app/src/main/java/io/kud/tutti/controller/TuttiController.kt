@@ -411,6 +411,7 @@ class TuttiController @Inject constructor(
         log = { Log.i(TAG, it) },
         onReady = { linkTimings.record(io.kud.tutti.protocol.diagnostic.TimedLink.CAST, it) },
         onReading = castReadings::record,
+        event = { AppLog.events.record(EventLog.Kind.CAST, it) },
         // What proves a held Cast item over: standby, another package in front, a tuner or input.
         context = state.map {
             io.kud.tutti.protocol.cast.CastContext(

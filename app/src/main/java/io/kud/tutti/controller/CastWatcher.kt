@@ -5,6 +5,7 @@ import io.kud.tutti.protocol.cast.CastConnector
 import io.kud.tutti.protocol.cast.CastContext
 import io.kud.tutti.protocol.cast.CastEnd
 import io.kud.tutti.protocol.cast.CastHold
+import io.kud.tutti.protocol.cast.CastLogLines
 import io.kud.tutti.protocol.cast.CastNowPlaying
 import io.kud.tutti.protocol.cast.CastReading
 import io.kud.tutti.protocol.cast.CastReport
@@ -64,8 +65,10 @@ class CastWatcher(
     onReading: (CastReading) -> Unit = {},
     /** What the other planes say about the TV ([CastHold.onContext]). */
     context: Flow<CastContext> = emptyFlow(),
+    /** Lines for developer mode's event log ([CastLogLines]): states and packages, never viewing data. */
+    private val event: (String) -> Unit = {},
     private val runSession: suspend (CastConnection, (CastReport) -> Unit) -> CastEnd = { connection, emit ->
-        CastSession(connection, emit, onReading = onReading).run()
+        CastSession(connection, emit, onReading = onReading, onEvent = event).run()
     },
 ) {
     private val mutable = MutableStateFlow<CastNowPlaying?>(null)
@@ -78,9 +81,12 @@ class CastWatcher(
     private fun fold(change: CastHold.() -> Unit) {
         val shown: CastNowPlaying?
         val expires: Long?
+        val lines = mutableListOf<String>()
         synchronized(lock) {
             hold.change()
             shown = hold.at(clock())
+            hold.takeClearReason()?.let { lines += CastLogLines.clearedBy(it, lastForeground) }
+            if (hold.takeRanOut()) lines += CastLogLines.graceRanOut()
             expires = hold.expiresAtMillis
             expiry?.cancel()
             expiry = expires?.let { at ->
@@ -91,7 +97,10 @@ class CastWatcher(
             }
         }
         mutable.value = shown
+        lines.forEach(event)
     }
+
+    @Volatile private var lastForeground: String? = null
 
     /** Per host: no attempt before this time, and the ends in a row so far. */
     private val holds = mutableMapOf<String, Pair<Long, Int>>()
@@ -112,7 +121,10 @@ class CastWatcher(
             }
         }
         scope.launch {
-            context.distinctUntilChanged().collect { fold { onContext(it) } }
+            context.distinctUntilChanged().collect {
+                lastForeground = it.foreground
+                fold { onContext(it) }
+            }
         }
     }
 
@@ -122,6 +134,7 @@ class CastWatcher(
             val wait = notBefore - clock()
             if (wait > 0) delay(wait)
             val started = clock()
+            event(CastLogLines.connecting())
             val end = try {
                 val connection = connector.connect(host)
                 try {
@@ -130,6 +143,7 @@ class CastWatcher(
                         if (!reported) {
                             reported = true
                             onReady(clock() - started)
+                            event(CastLogLines.ready(clock() - started))
                         }
                         fold { onReport(it, clock()) }
                     }
@@ -148,6 +162,7 @@ class CastWatcher(
             val hold = CastBackoff.delayFor(end, count)
             holds[host] = clock() + hold to count
             log("cast ended: $end, next try in ${hold / 1000} s")
+            event(CastLogLines.ended(end, hold))
         }
     }
 

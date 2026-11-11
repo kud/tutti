@@ -28,6 +28,7 @@ class EventLog(
         LINK("app link"),
         KEY("key"),
         CONNECTION("connection"),
+        CAST("cast"),
         ERROR("error"),
     }
 

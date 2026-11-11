@@ -11,6 +11,7 @@ import kotlinx.coroutines.test.runTest
 import java.security.cert.X509Certificate
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 
 class CastSessionTest {
@@ -144,6 +145,99 @@ class CastSessionTest {
         tv.close()
         run.await()
         assertEquals(CastReport.Unknown, reports.last(), "the end of a session is silence, not a stop")
+        run.cancel()
+    }
+
+    private fun app(id: String, transport: String) =
+        """{"type":"RECEIVER_STATUS","status":{"applications":[{"appId":"$id","transportId":"$transport","namespaces":[{"name":"${CastNamespaces.MEDIA}"}]}]}}"""
+
+    private val episode =
+        """{"type":"MEDIA_STATUS","requestId":4,"status":[{"mediaSessionId":7,"playerState":"PAUSED","currentTime":61.5,""" +
+            """"media":{"contentId":"https://cdn.example/stream/abc123.m3u8","duration":2589,"metadata":{"metadataType":2,""" +
+            """"title":"Sample Show","artist":"S1:E5 – Sample Episode","images":[{"url":"https://image.tmdb.org/t/p/w500/sample.jpg"}]}}}]}"""
+
+    @Test fun `a transport the app closes is found again by asking the receiver`() = runTest {
+        val tv = FakeCast()
+        val reports = mutableListOf<CastReport>()
+        val session = CastSession(tv, { reports += it }, clock = { NOW + testScheduler.currentTime }, nonce = CastFixtures.nonce(), roots = listOf(CastFixtures.root))
+        val run = async { session.run() }
+        runCurrent()
+        tv.deliver(CastFraming.binary(CastSession.RECEIVER, CastSession.SENDER, CastDeviceAuth.NAMESPACE, CastFixtures.reply()))
+        tv.deliver(fromTv(CastSession.RECEIVER, CastNamespaces.RECEIVER, app("APP1", "t-1")))
+        tv.deliver(fromTv("t-1", CastNamespaces.MEDIA, episode))
+        runCurrent()
+        assertEquals("Sample Show", reports.last().nowPlaying?.title)
+        fun receiverGets() = tv.sent.count { it.namespace == CastNamespaces.RECEIVER && it.payload_utf8?.contains("GET_STATUS") == true }
+        val before = receiverGets()
+
+        // The app closes our virtual connection but stays in front on the same transport: the
+        // receiver has nothing new to push, so tutti has to ask.
+        tv.deliver(fromTv("t-1", CastNamespaces.CONNECTION, """{"type":"CLOSE"}"""))
+        runCurrent()
+        assertEquals(CastReport.Unknown, reports.last())
+        assertEquals(before + 1, receiverGets(), "a closed transport asks the receiver at once")
+
+        tv.deliver(fromTv(CastSession.RECEIVER, CastNamespaces.RECEIVER, app("APP1", "t-1")))
+        runCurrent()
+        val reconnect = tv.sent.takeLast(2)
+        assertEquals(listOf("t-1", "t-1"), reconnect.map { it.destination_id })
+        assertEquals(listOf(CastNamespaces.CONNECTION, CastNamespaces.MEDIA), reconnect.map { it.namespace })
+        tv.deliver(fromTv("t-1", CastNamespaces.MEDIA, episode))
+        runCurrent()
+        assertEquals("Sample Show", reports.last().nowPlaying?.title)
+
+        tv.close()
+        run.await()
+        run.cancel()
+    }
+
+    @Test fun `with no media app known, the refresh asks the receiver instead of nothing`() = runTest {
+        val tv = FakeCast()
+        val session = CastSession(tv, { }, clock = { NOW + testScheduler.currentTime }, nonce = CastFixtures.nonce(), roots = listOf(CastFixtures.root))
+        val run = async { session.run() }
+        runCurrent()
+        tv.deliver(CastFraming.binary(CastSession.RECEIVER, CastSession.SENDER, CastDeviceAuth.NAMESPACE, CastFixtures.reply()))
+        runCurrent()
+        fun receiverGets() = tv.sent.count { it.namespace == CastNamespaces.RECEIVER && it.payload_utf8?.contains("GET_STATUS") == true }
+        assertEquals(1, receiverGets())
+        testScheduler.advanceTimeBy(CastSession.REFRESH_MS + 1)
+        runCurrent()
+        assertEquals(2, receiverGets(), "a receiver status we missed is asked for on the refresh")
+        tv.close()
+        run.await()
+        run.cancel()
+    }
+
+    @Test fun `the event log lines carry states and presence, never the title, episode, image or stream`() = runTest {
+        val tv = FakeCast()
+        val lines = mutableListOf<String>()
+        val session = CastSession(tv, { }, clock = { NOW + testScheduler.currentTime }, nonce = CastFixtures.nonce(), roots = listOf(CastFixtures.root), onEvent = { lines += it })
+        val run = async { session.run() }
+        runCurrent()
+        tv.deliver(CastFraming.binary(CastSession.RECEIVER, CastSession.SENDER, CastDeviceAuth.NAMESPACE, CastFixtures.reply()))
+        tv.deliver(fromTv(CastSession.RECEIVER, CastNamespaces.RECEIVER, app("APP1", "t-1")))
+        tv.deliver(fromTv("t-1", CastNamespaces.MEDIA, episode))
+        tv.deliver(fromTv("t-1", CastNamespaces.MEDIA, episode))
+        tv.deliver(fromTv("t-1", CastNamespaces.MEDIA, """{"type":"MEDIA_STATUS","status":[]}"""))
+        tv.deliver(fromTv("t-1", CastNamespaces.CONNECTION, """{"type":"CLOSE"}"""))
+        runCurrent()
+        tv.close()
+        run.await()
+
+        assertEquals(
+            listOf(
+                "media app APP1 in front",
+                "PAUSED, title yes, position yes, duration yes, answer, same session: playing",
+                "media status empty: unknown",
+                "media app APP1: transport closed, asking the receiver again",
+            ),
+            lines,
+            "an unchanged status is logged once",
+        )
+        val all = lines.joinToString("\n")
+        for (secret in listOf("Sample Show", "S1:E5", "Sample Episode", "tmdb", "sample.jpg", "abc123", "cdn.example", "t-1", "61.5", "2589")) {
+            assertFalse(secret in all, "the log holds $secret")
+        }
         run.cancel()
     }
 }

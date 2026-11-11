@@ -1,5 +1,13 @@
 package io.kud.tutti.protocol.diagnostic
 
+import io.kud.tutti.protocol.cast.CastApp
+import io.kud.tutti.protocol.cast.CastEnd
+import io.kud.tutti.protocol.cast.CastHold
+import io.kud.tutti.protocol.cast.CastLogLines
+import io.kud.tutti.protocol.cast.CastNowPlaying
+import io.kud.tutti.protocol.cast.CastPlayerState
+import io.kud.tutti.protocol.cast.CastReading
+import io.kud.tutti.protocol.cast.CastReport
 import java.net.URLDecoder
 import java.time.ZoneOffset
 import kotlin.test.Test
@@ -51,6 +59,36 @@ private val DIRTY = listOf(
 
 class LogScrubberTest {
     private val known = listOf(PSK, TV_NAME, PHONE_NAME, IPV4)
+
+    @Test
+    fun `cast lines recorded in the event log carry no viewing data`() {
+        val log = EventLog(clock = { 0L })
+        val app = CastApp("APP1", "transport-9f8e7d6c", "session-1a2b3c")
+        val reading = CastReading(0, "PLAYING", 812.4, 2589.0, mediaIncluded = true, playbackRate = 1.0, answer = false, sameSession = true)
+        val shown = CastNowPlaying(
+            title = "Sample Show", secondary = "S1:E5 – Sample Episode", state = CastPlayerState.PLAYING,
+            positionSec = 812.4, durationSec = 2589.0, playbackRate = 1.0, readAtMillis = 0,
+            imageUrl = "https://image.tmdb.org/t/p/w500/sample.jpg",
+        )
+        listOf(
+            CastLogLines.connecting(),
+            CastLogLines.ready(1_250),
+            CastLogLines.app(null, app),
+            CastLogLines.app(app, app.copy(transportId = "transport-0a0b0c")),
+            CastLogLines.media(reading, hadTitle = true, report = CastReport.Playing(shown)),
+            CastLogLines.media(null, hadTitle = false, report = CastReport.Unknown),
+            CastLogLines.transportClosed(app),
+            CastLogLines.clearedBy(CastHold.ClearReason.FOREGROUND, "com.example.player"),
+            CastLogLines.graceRanOut(),
+            CastLogLines.ended(CastEnd.Closed("SocketException"), 5_000),
+        ).forEach { log.record(EventLog.Kind.CAST, it) }
+        val text = log.render(ZoneOffset.UTC)
+        for (leak in listOf("Sample Show", "S1:E5", "Sample Episode", "tmdb", "sample.jpg", "transport-", "session-1a2b3c", "812.4", "2589")) {
+            assertFalse(leak in text, "$leak leaked: $text")
+        }
+        assertTrue("cast: PLAYING, title yes, position yes, duration yes, unasked, same session: playing" in text, text)
+        assertTrue("com.example.player in front" in text, "the package in front is kept: $text")
+    }
 
     @Test
     fun `no secret, address, MAC, serial or device name survives`() {

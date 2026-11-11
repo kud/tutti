@@ -90,6 +90,11 @@ class CastHold(private val graceMillis: Long = GRACE_MS) {
             (next.foreground != null && foreground != null && next.foreground != foreground) ||
             (next.source != null && next.source != sourceAtReport)
         if (changed) {
+            lastClear = when {
+                next.standby -> ClearReason.STANDBY
+                next.source != null && next.source != sourceAtReport -> ClearReason.SOURCE
+                else -> ClearReason.FOREGROUND
+            }
             clear()
             return true
         }
@@ -100,9 +105,23 @@ class CastHold(private val graceMillis: Long = GRACE_MS) {
     /** What to show at [nowMillis]: the item, or null once its grace window has run out. */
     fun at(nowMillis: Long): CastNowPlaying? {
         val since = gapSince
-        if (since != null && nowMillis - since >= graceMillis) clear()
+        if (since != null && nowMillis - since >= graceMillis) {
+            clear()
+            ranOut = true
+        }
         return shown
     }
+
+    /** Why the last [onContext] cleared the item, for the event log; read once, then null. */
+    fun takeClearReason(): ClearReason? = lastClear.also { lastClear = null }
+
+    /** True once if the grace window ran out since the last call, for the event log. */
+    fun takeRanOut(): Boolean = ranOut.also { ranOut = false }
+
+    enum class ClearReason { STANDBY, FOREGROUND, SOURCE }
+
+    private var lastClear: ClearReason? = null
+    private var ranOut = false
 
     /** When the held item goes, if nothing confirms it first; null when nothing is held. */
     val expiresAtMillis: Long? get() = gapSince?.let { it + graceMillis }

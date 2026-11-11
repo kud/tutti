@@ -208,11 +208,19 @@ class CastStatusReducer {
     var lastReading: CastReading? = null
         private set
 
+    /**
+     * Whether the last status folded had a title, its own or one kept from the same session. For
+     * the event log, which records that a title was there and never what it said.
+     */
+    var lastHadTitle: Boolean = false
+        private set
+
     /** The media session of the last item reported playing; an IDLE from another one is a confirmed end. */
     private var shownSessionId: Long? = null
 
     fun reset() {
         media = null
+        lastHadTitle = false
         lastSessionId = null
         anchor = null
         shownSessionId = null
@@ -228,7 +236,13 @@ class CastStatusReducer {
      * status list, IDLE between two items of the same session, a new item without its title yet).
      */
     fun report(payload: JsonObject, nowMillis: Long): CastReport = with(CastStatusParser) {
-        val entry = mediaEntries(payload).firstOrNull() ?: run { media = null; lastReading = null; anchor = null; return CastReport.Unknown }
+        val entry = mediaEntries(payload).firstOrNull() ?: run {
+            media = null
+            lastReading = null
+            lastHadTitle = false
+            anchor = null
+            return CastReport.Unknown
+        }
         val sessionId = entry.long("mediaSessionId")
         val rawState = entry.string("playerState")
         lastReading = CastReading(
@@ -245,16 +259,21 @@ class CastStatusReducer {
         val metadata = entry["media"].obj()?.get("metadata").obj()
         val previous = media?.takeIf { it.mediaSessionId == sessionId }
         val mediaObj = entry["media"].obj()
+        fun field(key: String) = metadata?.string(key)?.trim()?.takeIf { it.isNotEmpty() }
+        // A TV_SHOW item may carry only its series: `title` (the episode's) is optional in Cast's
+        // TvShowMediaMetadata, and dropping such an item as "no title" left the card bare.
+        val ownTitle = field("title")
+        val titleKey = if (ownTitle == null && field("seriesTitle") != null) "seriesTitle" else "title"
         val snapshot = MediaSnapshot(
             mediaSessionId = sessionId,
-            title = metadata?.string("title")?.trim()?.takeIf { it.isNotEmpty() } ?: previous?.title,
-            secondary = metadata?.let { m ->
-                listOf("artist", "subtitle", "seriesTitle", "albumName").firstNotNullOfOrNull { k -> m.string(k)?.trim()?.takeIf { it.isNotEmpty() } }
-            } ?: previous?.secondary,
+            title = field(titleKey) ?: previous?.title,
+            secondary = (if (metadata == null) null else SECONDARY_KEYS.filter { key -> key != titleKey }.firstNotNullOfOrNull(::field))
+                ?: previous?.secondary,
             duration = mediaObj?.number("duration")?.takeIf { it > 0 } ?: previous?.duration.takeIf { mediaObj == null },
             imageUrl = CastArtwork.pick(metadata) ?: previous?.imageUrl,
         )
         media = snapshot
+        lastHadTitle = snapshot.title != null
         val state = when (rawState) {
             "PLAYING" -> CastPlayerState.PLAYING
             "PAUSED" -> CastPlayerState.PAUSED
@@ -341,6 +360,8 @@ class CastStatusReducer {
     }
 
     private companion object {
+        val SECONDARY_KEYS = listOf("artist", "subtitle", "seriesTitle", "albumName")
+
         val RAW_STATES = setOf("PLAYING", "PAUSED", "BUFFERING", "LOADING", "IDLE")
 
         /** Idle reasons that end the item for good; FINISHED and INTERRUPTED usually lead to the next one. */

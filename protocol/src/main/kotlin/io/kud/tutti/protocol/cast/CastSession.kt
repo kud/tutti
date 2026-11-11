@@ -55,6 +55,8 @@ class CastSession(
     private val refreshMillis: Long = REFRESH_MS,
     /** The raw numbers of every media status from the app in front, for the diagnostic. */
     private val onReading: (CastReading) -> Unit = {},
+    /** Lines for developer mode's event log ([CastLogLines]): states and presence, never viewing data. */
+    private val onEvent: (String) -> Unit = {},
 ) {
     private val decoder = CastFrameDecoder()
     private val reducer = CastStatusReducer()
@@ -66,6 +68,12 @@ class CastSession(
     /** Set by a media status that said nothing either way: ask again on the next heartbeat, not the next refresh. */
     @Volatile private var askSoon = false
     private var lastReport: CastReport? = null
+
+    /** The last media line logged: an unchanged status every refresh is not news. */
+    private var lastMediaLine: String? = null
+
+    /** Whether "asking the receiver again" is already in the log since the last app change. */
+    @Volatile private var askLogged = false
 
     /** Runs until the connection ends; the caller closes it on cancellation. */
     suspend fun run(): CastEnd = coroutineScope {
@@ -81,7 +89,17 @@ class CastSession(
                     if (sinceRefresh >= refreshMillis || askSoon) {
                         sinceRefresh = 0
                         askSoon = false
-                        app?.let { mediaStatus(it) }
+                        // No app known: a receiver status pushed while we weren't listening, or a
+                        // transport that closed under an app still in front, would otherwise leave
+                        // the session deaf until it drops.
+                        val target = app
+                        if (target != null) {
+                            mediaStatus(target)
+                        } else {
+                            if (!askLogged) onEvent(CastLogLines.askReceiver())
+                            askLogged = true
+                            receiverStatus()
+                        }
                     }
                 } catch (e: CancellationException) {
                     throw e
@@ -126,7 +144,7 @@ class CastSession(
                 CastAuthResult.Verified -> {
                     verified = true
                     send(text(RECEIVER, CastNamespaces.CONNECTION, """{"type":"CONNECT","origin":{}}"""))
-                    send(text(RECEIVER, CastNamespaces.RECEIVER, """{"type":"GET_STATUS","requestId":${requestId.incrementAndGet()}}"""))
+                    receiverStatus()
                     null
                 }
             }
@@ -140,16 +158,27 @@ class CastSession(
             CastNamespaces.MEDIA -> if (CastStatusParser.type(payload) == "MEDIA_STATUS" && m.source_id == app?.transportId) {
                 val report = reducer.report(payload, clock())
                 reducer.lastReading?.let(onReading)
+                val line = CastLogLines.media(reducer.lastReading, reducer.lastHadTitle, report)
+                if (line != lastMediaLine) {
+                    lastMediaLine = line
+                    onEvent(line)
+                }
                 // One quick re-ask per gap: a status that keeps saying nothing waits for the refresh.
                 if (report == CastReport.Unknown && lastReport != CastReport.Unknown) askSoon = true
                 lastReport = report
                 onReport(report)
             }
             CastNamespaces.CONNECTION -> if (CastStatusParser.type(payload) == "CLOSE" && m.source_id == app?.transportId) {
+                onEvent(CastLogLines.transportClosed(app))
                 app = null
+                lastMediaLine = null
                 reducer.reset()
                 lastReport = CastReport.Unknown
                 onReport(CastReport.Unknown)
+                // The receiver pushes a status only when its apps change; an app that closed our
+                // virtual connection but stays in front, on the same transport, would never come
+                // back. Ask, and [onReceiverStatus] reconnects to it.
+                receiverStatus()
             }
         }
         return null
@@ -159,7 +188,10 @@ class CastSession(
         val next = CastStatusParser.mediaApp(payload)
         val current = app
         if (next?.transportId == current?.transportId) return
+        onEvent(CastLogLines.app(current, next))
         app = next
+        lastMediaLine = null
+        askLogged = false
         reducer.reset()
         // Another media app in front ends the item. The same app on a new transport says nothing yet,
         // and so does no media app at all: receivers drop and relist apps around a reload, and a real
@@ -172,6 +204,10 @@ class CastSession(
             send(text(next.transportId, CastNamespaces.CONNECTION, """{"type":"CONNECT","origin":{}}"""))
             mediaStatus(next)
         }
+    }
+
+    private suspend fun receiverStatus() {
+        send(text(RECEIVER, CastNamespaces.RECEIVER, """{"type":"GET_STATUS","requestId":${requestId.incrementAndGet()}}"""))
     }
 
     private suspend fun mediaStatus(target: CastApp) {
