@@ -37,10 +37,11 @@ val LocalFeedbackPrefs = staticCompositionLocalOf { FeedbackPrefs() }
  */
 @Stable
 class Feedback internal constructor(private val view: View, private val prefs: FeedbackPrefs) {
-    fun perform(event: FeedbackEvent) {
+    /** [withSound] false keeps the haptic and drops the click: the intro's landing, when its chime plays instead. */
+    fun perform(event: FeedbackEvent, withSound: Boolean = true) {
         val plan = FeedbackRules.plan(event, prefs.vibration, prefs.keySounds)
         plan.haptic?.let(::vibrate)
-        if (plan.sound) view.playSoundEffect(SoundEffectConstants.CLICK)
+        if (plan.sound && withSound) view.playSoundEffect(SoundEffectConstants.CLICK)
     }
 
     fun tick() = perform(FeedbackEvent.STEP)

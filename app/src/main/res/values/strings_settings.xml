@@ -29,7 +29,7 @@
     <string name="settings_vibration_essentials">Essentials</string>
     <string name="settings_vibration_system_off">Inactive until touch vibration is on in Android.</string>
     <string name="settings_key_sounds">Key sounds</string>
-    <string name="settings_key_sounds_detail">A soft click on each key, at system volume</string>
+    <string name="settings_key_sounds_detail">A soft click on each key, and a quiet chime as tutti opens, at system volume</string>
     <string name="settings_key_sounds_system_off">Inactive until touch sounds are on in Android.</string>
     <string name="settings_open_system">Open Android settings</string>
     <string name="settings_theme">Theme</string>

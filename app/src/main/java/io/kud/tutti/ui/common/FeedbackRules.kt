@@ -76,3 +76,33 @@ object FeedbackRules {
         return FeedbackPlan(haptic = haptic, sound = keySounds && event == FeedbackEvent.KEY)
     }
 }
+
+/** The phone's ringer, as AudioManager reports it. */
+enum class Ringer { NORMAL, VIBRATE, SILENT }
+
+/**
+ * What the phone says at the intro's landing: everything the intro chime asks before it plays.
+ * [touchSounds] is Android's "Touch sounds" switch, which already silences the key click.
+ */
+data class IntroSoundContext(
+    val keySounds: Boolean,
+    val touchSounds: Boolean,
+    val coldStart: Boolean,
+    val ringer: Ringer,
+    val doNotDisturb: Boolean,
+    val phoneMediaPlaying: Boolean,
+)
+
+/**
+ * The intro chime (Erwann, 2026-11-11: « si on a du son activé, ça serait bien de pouvoir avoir
+ * du son au splash screen »). It belongs to Key sounds, so it is off unless they are on and Android's
+ * touch sounds are too; it plays once per cold start, never on a warm return or a recreated
+ * activity; a silent or vibrating ringer and Do Not Disturb keep it quiet; and anything already
+ * playing on the phone wins, since the chime takes no audio focus and must never sit on top of it.
+ * Reduced motion is not a reason: sound is not motion.
+ */
+object IntroSoundRule {
+    fun shouldPlay(context: IntroSoundContext): Boolean = with(context) {
+        keySounds && touchSounds && coldStart && ringer == Ringer.NORMAL && !doNotDisturb && !phoneMediaPlaying
+    }
+}

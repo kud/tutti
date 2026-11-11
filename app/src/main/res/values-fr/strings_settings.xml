@@ -29,7 +29,7 @@
     <string name="settings_vibration_essentials">L’essentiel</string>
     <string name="settings_vibration_system_off">Inactif tant que les vibrations tactiles sont désactivées dans Android.</string>
     <string name="settings_key_sounds">Sons des touches</string>
-    <string name="settings_key_sounds_detail">Un clic discret à chaque touche, au volume système</string>
+    <string name="settings_key_sounds_detail">Un clic discret à chaque touche, et un léger carillon à l’ouverture de tutti, au volume système</string>
     <string name="settings_key_sounds_system_off">Inactif tant que les sons des touches sont désactivés dans Android.</string>
     <string name="settings_open_system">Ouvrir les réglages Android</string>
     <string name="settings_theme">Thème</string>
