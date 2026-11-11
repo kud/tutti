@@ -62,4 +62,15 @@ class MediaArtTest {
         assertNotEquals(a, MediaArt.key(840, "com.google.android.youtube.tv", "/icons/b.png", 1L))
         assertNotEquals(a, MediaArt.key(1024, "com.netflix.ninja", "/icons/a.png", 1L))
     }
+
+    @Test
+    fun `the in-app tile is the wide band for landscape art and the poster's own shape for tall art`() {
+        assertEquals(16f / 9f, MediaArt.leadAspect(480, 360), 0.001f)
+        assertEquals(16f / 9f, MediaArt.leadAspect(1280, 720), 0.001f)
+        assertEquals(2f / 3f, MediaArt.leadAspect(500, 750), 0.001f)
+        assertEquals(2f / 3f, MediaArt.leadAspect(100, 400), 0.001f)
+        assertEquals(0.8f, MediaArt.leadAspect(400, 500), 0.001f)
+        assertEquals(1f, MediaArt.leadAspect(300, 300), 0.001f)
+        assertEquals(1f, MediaArt.leadAspect(0, 300), 0.001f)
+    }
 }

@@ -103,6 +103,24 @@ object MediaArt {
         return intArrayOf(0, (height - band) / 2, width, band)
     }
 
+    /** The narrowest a tall picture is shown: a film poster's 2:3. */
+    const val TALL_ASPECT = 2f / 3f
+
+    /** The widest picture tile: the 16:9 band [contentCrop] keeps. */
+    const val WIDE_ASPECT = 16f / 9f
+
+    /**
+     * The width-to-height of the in-app tile that leads with a [width] x [height] picture: a
+     * landscape one (YouTube's 4:3 `hqdefault`, a 16:9 backdrop) is the [contentCrop] band; a tall
+     * one (Nuvio's 2:3 poster) is shown whole at its own shape, never narrower than [TALL_ASPECT],
+     * since a 16:9 slab from the middle of a poster pictures nothing; a square stays square.
+     */
+    fun leadAspect(width: Int, height: Int): Float {
+        if (width <= 0 || height <= 0) return 1f
+        if (width > height) return WIDE_ASPECT
+        return (width.toFloat() / height).coerceIn(TALL_ASPECT, 1f)
+    }
+
     internal fun opaque(argb: Int): Int = argb or (0xFF shl 24)
 
     /** [over] laid on [base] at [alpha], per channel, opaque. */

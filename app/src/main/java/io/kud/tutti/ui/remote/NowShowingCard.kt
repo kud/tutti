@@ -75,7 +75,7 @@ internal fun NowShowingCard(
     onActions: (() -> Unit)? = null,
     /** A running switch-off timer, in words ("Off at 23:40 · 12 min left"), added to the card's detail line. */
     timer: String? = null,
-    /** What Cast reports playing: the full card's title line, track and time; never on the compact card. */
+    /** What Cast reports playing: the full card's title line, track and time, and on either card the content's artwork in place of the icon. */
     cast: io.kud.tutti.protocol.cast.CastNowPlaying? = null,
 ) {
     if (fit.size == CardSize.HIDDEN) return
@@ -129,7 +129,7 @@ internal fun NowShowingCard(
             if (fit.size == CardSize.FULL) {
                 Full(now, words, fit.height, appIcons, wake, cast?.takeIf { castFits(now) })
             } else {
-                Line(now, words, appIcons, wake)
+                Line(now, words, appIcons, wake, cast?.takeIf { castFits(now) })
             }
         }
     }
@@ -254,12 +254,20 @@ private fun Full(
 }
 
 @Composable
-private fun Line(showing: CardShowing, words: CardWords, appIcons: Map<String, String>, action: (@Composable () -> Unit)?) {
+private fun Line(
+    showing: CardShowing,
+    words: CardWords,
+    appIcons: Map<String, String>,
+    action: (@Composable () -> Unit)?,
+    cast: io.kud.tutti.protocol.cast.CastNowPlaying?,
+) {
     Row(
         Modifier.fillMaxSize().padding(horizontal = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        CardIcon(showing, 32.dp, appIcons)
+        // The line names the app, not the item, so the picture says what plays (Erwann, 2026-11-11:
+        // « plutôt que l'icône… afficher l'image… que je suis en train de regarder »).
+        CastLead(showing, 32.dp, appIcons, cast, description = cast?.title)
         Spacer(Modifier.width(12.dp))
         Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
             Text(
