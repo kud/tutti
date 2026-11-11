@@ -58,11 +58,14 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.unit.dp
 import androidx.core.splashscreen.SplashScreenViewProvider
 import io.kud.tutti.R
 import io.kud.tutti.protocol.atv.V2Key
+import io.kud.tutti.ui.common.FeedbackEvent
+import io.kud.tutti.ui.common.LocalFeedbackPrefs
 import io.kud.tutti.ui.common.LocalReducedMotion
 import io.kud.tutti.ui.common.rememberHaptics
 import io.kud.tutti.ui.motion.Motion
@@ -1065,6 +1068,11 @@ fun LaunchIntroOverlay(intro: LaunchIntro, firstLaunch: Boolean?) {
     val reduced = LocalReducedMotion.current
     // Latest prefs at landing: the stores may load after the intro starts, and the key sound follows them.
     val haptics by rememberUpdatedState(rememberHaptics())
+    val keySounds by rememberUpdatedState(LocalFeedbackPrefs.current.keySounds)
+    // The chime rings at the landing (or as a landing-less intro starts), once per cold start.
+    val context = LocalContext.current
+    val chime = remember(intro) { IntroChime.forIntro(context, intro.kind) }
+    DisposableEffect(chime) { onDispose { chime?.release() } }
     val padOk = MaterialTheme.colorScheme.secondaryContainer
     // As Pad draws them: the surface, and the D-pad's disc a tone up on it.
     val padSurface = MaterialTheme.colorScheme.surfaceContainerHigh
@@ -1106,13 +1114,17 @@ fun LaunchIntroOverlay(intro: LaunchIntro, firstLaunch: Boolean?) {
         val chosen = choreographyFor(intro.kind, reduced, known, shown)
         script = chosen
         val start = withFrameNanos { it }
+        val landing = chosen.landingMs
+        // No landing (the fade, reduced motion included, or the hand-off to welcome): the chime opens it.
+        if (landing == null) chime?.play(keySounds)
         var landed = false
         while (elapsed < chosen.durationMs) {
             withFrameNanos { now -> elapsed = (now - start) / 1_000_000f }
-            val landing = chosen.landingMs
             if (!landed && landing != null && elapsed >= landing) {
                 landed = true
-                haptics.click()
+                // The chime replaces the landing's key click, never doubles it; the haptic stays.
+                val chimed = chime?.play(keySounds) == true
+                haptics.perform(FeedbackEvent.KEY, withSound = !chimed)
             }
         }
         intro.finish()
