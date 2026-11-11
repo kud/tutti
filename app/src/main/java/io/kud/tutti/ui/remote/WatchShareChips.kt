@@ -14,7 +14,7 @@ import io.kud.tutti.protocol.cast.CastNowPlaying
 import io.kud.tutti.protocol.share.ShareLanguage
 import io.kud.tutti.protocol.share.TitleLink
 import io.kud.tutti.protocol.share.TitleLinks
-import io.kud.tutti.protocol.share.TraktTarget
+import io.kud.tutti.protocol.share.TraktStep
 import io.kud.tutti.protocol.share.WatchShare
 import io.kud.tutti.protocol.share.Watching
 import java.util.Locale
@@ -46,7 +46,7 @@ internal fun watchingOf(showing: CardShowing, cast: CastNowPlaying?, nowMillis: 
 /**
  * The playback sheet's last row (Erwann, 2026-11-11): Share, always, and the Trakt and JustWatch
  * buttons when their switches are on ([TitleLinks.offered]): JustWatch searches a known title;
- * Trakt searches it too, or, with only an app in front, opens Trakt itself ([TraktTarget]). All three act
+ * Trakt searches it too, or, with only an app in front, opens Trakt itself ([io.kud.tutti.protocol.share.TraktTarget]). All three act
  * on the phone, so they stay live with the TV's link down. Nothing leaves the phone but through
  * the share sheet or the link he taps, and nothing here is logged: titles are viewing data.
  */
@@ -72,10 +72,7 @@ internal fun WatchShareChips(watchingAt: (nowMillis: Long) -> Watching?, trakt: 
         val traktTo = TitleLinks.traktTarget(watching)
         if (traktTo != null && TitleLink.TRAKT in links) {
             ActionChip(R.drawable.ic_open_in_new, stringResource(R.string.watch_trakt), null) {
-                when (traktTo) {
-                    is TraktTarget.Search -> openLink(context, TitleLinks.trakt(traktTo.title))
-                    TraktTarget.Home -> openTrakt(context)
-                }
+                openTrakt(context, TitleLinks.traktSteps(traktTo))
             }
         }
         if (title != null && TitleLink.JUSTWATCH in links) {
@@ -97,23 +94,31 @@ private fun shareText(context: Context, text: String, chooserTitle: String) {
 }
 
 /**
- * Trakt at its own start: the Trakt app by its launch intent (visible through the manifest's
- * launcher `<queries>`), else Trakt Web's home ([TitleLinks.TRAKT_HOME]).
+ * Trakt, by [TitleLinks.traktSteps]: the first step the phone can take. The app's package is
+ * visible through the manifest's launcher `<queries>`, so the app link is resolved before it is
+ * sent, and a link the app does not handle falls through rather than reaching a browser.
  */
-private fun openTrakt(context: Context) {
-    val app = context.packageManager.getLaunchIntentForPackage(TitleLinks.TRAKT_PACKAGE)
-    if (app == null) {
-        openLink(context, TitleLinks.TRAKT_HOME)
-        return
-    }
-    try {
-        context.startActivity(app.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-    } catch (_: ActivityNotFoundException) {
-        openLink(context, TitleLinks.TRAKT_HOME)
+private fun openTrakt(context: Context, steps: List<TraktStep>) {
+    val pm = context.packageManager
+    for (step in steps) {
+        val intent = when (step) {
+            is TraktStep.AppLink -> Intent(Intent.ACTION_VIEW, step.url.toUri())
+                .addCategory(Intent.CATEGORY_BROWSABLE)
+                .setPackage(TitleLinks.TRAKT_PACKAGE)
+                .takeIf { it.resolveActivity(pm) != null }
+            TraktStep.LaunchApp -> pm.getLaunchIntentForPackage(TitleLinks.TRAKT_PACKAGE)
+            is TraktStep.Web -> Intent(Intent.ACTION_VIEW, step.url.toUri()).addCategory(Intent.CATEGORY_BROWSABLE)
+        } ?: continue
+        try {
+            context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            return
+        } catch (_: ActivityNotFoundException) {
+            // Try the next way; with none left, there is nothing to open.
+        }
     }
 }
 
-/** A plain VIEW, not a Custom Tab, so an app that verified the link's host (Trakt's) can take it. */
+/** A plain VIEW, not a Custom Tab, so an app that verified the link's host can take it. */
 private fun openLink(context: Context, url: String) {
     val view = Intent(Intent.ACTION_VIEW, url.toUri())
         .addCategory(Intent.CATEGORY_BROWSABLE)
