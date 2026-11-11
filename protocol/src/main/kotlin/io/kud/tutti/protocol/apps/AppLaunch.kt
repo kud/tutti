@@ -82,6 +82,12 @@ data class LaunchResult(
     val restSkipped: RestSkip? = null,
     /** Set when the launch held for a set-up IP control that wasn't up yet. */
     val restWait: RestWait? = null,
+    /**
+     * A destination launch ([DestinationPlan]) whose link did not bring the app up itself: true
+     * once the link went again with the app in front, false when that resend was refused. Null
+     * for a plain launch, or when the destination link opened the app first time.
+     */
+    val followUpSent: Boolean? = null,
 ) {
     val ok: Boolean get() = verdict != LaunchVerdict.FAILED
 
@@ -102,6 +108,10 @@ data class LaunchResult(
             }
             append(if (attempt.sent) " - sent" else " - not sent")
             if (attempt.sent) append(", foreground ").append(attempt.foreground ?: "unknown")
+        }
+        followUpSent?.let {
+            append("\ndestination link didn't open the app; opened plainly, link resent with the app in front: ")
+            append(if (it) "sent" else "not sent")
         }
     }
 }
@@ -160,6 +170,19 @@ class AppLauncher(
 ) {
     suspend fun launch(packageName: String, routes: List<LaunchRoute>, restSkipped: RestSkip? = null): LaunchResult =
         attempt(packageName, routes).copy(restSkipped = restSkipped)
+
+    /**
+     * A launch to a destination: [plan]'s routes in order, and when a route after the first (the
+     * destination link) is the one that brought the app up, the link once more with the app in
+     * front. Falling back to a plain open is said in the trace ([LaunchResult.followUpSent]).
+     */
+    suspend fun launch(packageName: String, plan: DestinationPlan, restSkipped: RestSkip? = null): LaunchResult {
+        val result = launch(packageName, plan.routes, restSkipped)
+        val link = plan.followUp ?: return result
+        val openedByFallback = result.verdict == LaunchVerdict.CONFIRMED && result.attempts.size > 1
+        if (!openedByFallback) return result
+        return result.copy(followUpSent = send(LaunchRoute.AppLink(link)))
+    }
 
     private suspend fun attempt(packageName: String, routes: List<LaunchRoute>): LaunchResult {
         val attempts = mutableListOf<LaunchAttempt>()

@@ -34,6 +34,7 @@ import io.kud.tutti.protocol.apps.AppIcons
 import io.kud.tutti.protocol.apps.AppLauncher
 import io.kud.tutti.protocol.apps.IpControl
 import io.kud.tutti.protocol.apps.LaunchPlan
+import io.kud.tutti.protocol.apps.toDestination
 import io.kud.tutti.protocol.apps.RestWait
 import io.kud.tutti.protocol.apps.AppLibrary
 import io.kud.tutti.protocol.apps.AppsScreen
@@ -1604,7 +1605,15 @@ class TuttiController @Inject constructor(
      * and opens the app once it is ([TvLinkRule.launchWakes], [wakeForLaunch]); only a hand on a
      * tile, a dock slot or a shortcut asks for that, never anything running on its own.
      */
-    fun launchApp(packageName: String, wake: Boolean = true): Long? {
+    fun launchApp(packageName: String, wake: Boolean = true): Long? = launchApp(packageName, destination = null, wake = wake)
+
+    /**
+     * [launchApp] to a place inside the app ([io.kud.tutti.protocol.apps.AppDestinations]): the
+     * destination link goes first, the app's ordinary routes after it, and the link again once
+     * the app is up if it took a fallback to open it. A null [destination] is the app's home.
+     */
+    fun launchApp(packageName: String, destination: String?, wake: Boolean = true): Long? {
+        if (destination == null) pendingDestinations.remove(packageName) else pendingDestinations[packageName] = destination
         val (id, effects) = tapLaunch(packageName, await = false, wake = wake)
         handleLaunch(effects)
         return id
@@ -1633,6 +1642,13 @@ class TuttiController @Inject constructor(
         }
         return id to effects
     }
+
+    /**
+     * The destination of the latest tap per app, read when its launch is sent. Kept beside
+     * [LaunchQueue] rather than in it: the queue decides when a launch goes, not where it lands,
+     * and a newer tap of the same app replaces both.
+     */
+    private val pendingDestinations = java.util.concurrent.ConcurrentHashMap<String, String>()
 
     /** Callers awaiting a launch's end ([requestLaunch]), by launch id. */
     private val launchWaiters = java.util.concurrent.ConcurrentHashMap<Long, CompletableDeferred<Boolean>>()
@@ -1790,7 +1806,9 @@ class TuttiController @Inject constructor(
             // app_info arrives over the remote link only; without it nothing can be confirmed.
             canObserve = { atv.state.value.ready },
         )
-        val result = launcher.launch(packageName, LaunchPlan.routes(packageName, restOnline, restUri), restSkipped).copy(restWait = restWait)
+        val destination = pendingDestinations.remove(packageName)
+        val plan = LaunchPlan.toDestination(packageName, destination, restOnline, restUri)
+        val result = launcher.launch(packageName, plan, restSkipped).copy(restWait = restWait)
         lastLaunchTrace = Redact.text(result.trace())
         return result
     }
