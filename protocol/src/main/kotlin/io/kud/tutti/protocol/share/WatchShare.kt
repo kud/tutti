@@ -80,7 +80,7 @@ object WatchShare {
 
     private fun media(m: Watching.Media, language: ShareLanguage): String? {
         val title = m.title.trim().takeIf { it.isNotEmpty() } ?: return null
-        val secondary = m.secondary?.trim()?.takeIf { it.isNotEmpty() && it != title }
+        val secondary = m.secondary?.trim()?.takeIf { it.isNotEmpty() && it != title }?.let { episodeLabel(it, language) ?: it }
         val app = m.app?.trim()?.takeIf { it.isNotEmpty() }
         val time = time(m.positionSec, m.durationSec, language)
         return buildString {
@@ -120,6 +120,18 @@ object WatchShare {
             head != null -> if (language == ShareLanguage.FR) "Je regarde $head." else "I'm watching $head."
             else -> null
         }
+    }
+
+    /**
+     * A secondary that opens with an episode marker reads as "S1:E5, « The Place I Lie »": the
+     * marker as [Episode.label], the episode's name quoted like a title. Nuvio's Cast status gives
+     * "S1:E5 – The Place I Lie" (seen on Erwann's BRAVIA, 2026-11-11), and its dash read as a
+     * typo inside the sentence's parentheses. Anything else is left as it came.
+     */
+    private fun episodeLabel(secondary: String, language: ShareLanguage): String? {
+        val episode = Episode.parse(secondary) ?: return null
+        val name = Episode.nameAfter(secondary)
+        return if (name == null) episode.label else "${episode.label}, ${quoted(name, language)}"
     }
 
     private fun quoted(s: String, language: ShareLanguage): String =
@@ -164,6 +176,58 @@ object WatchShare {
         val t = positionSec?.takeIf { it > 0 }
         return if (t == null) "https://youtu.be/$videoId" else "https://youtu.be/$videoId?t=$t"
     }
+}
+
+/**
+ * A season and episode, read only from a marker at the very start of a Cast secondary: "S1:E5"
+ * (Nuvio's form) or "S01E05", then the end, a space or a separator. Nothing else is read as one, so
+ * a secondary without a marker is never guessed at. Kept for a future exact-episode Trakt link;
+ * today's link still searches the series title, since an episode URL needs Trakt's slug, which
+ * tutti does not know.
+ */
+data class Episode(val season: Int, val episode: Int) {
+    val label: String get() = "S$season:E$episode"
+
+    companion object {
+        private val MARKER = Regex("^S(\\d{1,3}):?E(\\d{1,4})(?=$|[\\s–—:·-])", RegexOption.IGNORE_CASE)
+        private val SEPARATORS = Regex("^[\\s–—:·-]+")
+
+        fun parse(secondary: String?): Episode? {
+            val m = MARKER.find(secondary?.trim() ?: return null) ?: return null
+            val season = m.groupValues[1].toInt()
+            val episode = m.groupValues[2].toInt()
+            return if (episode > 0) Episode(season, episode) else null
+        }
+
+        /** The episode's name after the marker, separators dropped; null when there is none. */
+        internal fun nameAfter(secondary: String): String? {
+            val m = MARKER.find(secondary.trim()) ?: return null
+            return secondary.trim().substring(m.range.last + 1).replace(SEPARATORS, "").trim().ifEmpty { null }
+        }
+    }
+}
+
+/**
+ * Where the Trakt button goes (Erwann, 2026-11-11: « à côté de Share, j'ai un bouton Trakt qui me
+ * permet d'ouvrir Trakt au bon endroit pour continuer sur mon téléphone »).
+ */
+sealed interface TraktTarget {
+    /**
+     * A title is known: Trakt's search on it ([TitleLinks.trakt]). For an episode that is the
+     * series title, never the episode's name; [episode] is what the Cast secondary's marker says,
+     * when it says one.
+     */
+    data class Search(val title: String, val episode: Episode? = null) : TraktTarget {
+        override fun toString(): String = "TraktTarget.Search(title=<redacted>, episode=${if (episode == null) "none" else "<redacted>"})"
+    }
+
+    /**
+     * An app is in front but names nothing it plays (Nuvio before its Cast status arrives, Netflix):
+     * Trakt itself, at its own start. Apps that scrobble to Trakt (NuvioTV does, once connected:
+     * https://mintlify.wiki/NuvioMedia/NuvioTV/configuration/integrations) put the episode in
+     * progress there, so Trakt knows what tutti does not.
+     */
+    data object Home : TraktTarget
 }
 
 /**
@@ -226,13 +290,35 @@ object TitleLinks {
         "it" to "it/cerca",
     )
 
-    /** The links offered: each only when its switch is on and a title is known. */
-    fun offered(watching: Watching?, trakt: Boolean, justWatch: Boolean): Set<TitleLink> {
-        if (searchTitle(watching) == null) return emptySet()
-        return buildSet {
-            if (trakt) add(TitleLink.TRAKT)
-            if (justWatch) add(TitleLink.JUSTWATCH)
-        }
+    /**
+     * The Trakt button's target: the search when a title is known, Trakt's start when only an app
+     * is in front, and nothing for a tuner channel without a programme (Trakt does not follow live
+     * TV) or when nothing plays (an input, the home screen, standby: [Watching] is null).
+     */
+    fun traktTarget(watching: Watching?): TraktTarget? {
+        val title = searchTitle(watching)
+        if (title != null) return TraktTarget.Search(title, (watching as? Watching.Media)?.let { Episode.parse(it.secondary) })
+        return if (watching is Watching.App && watching.name.isNotBlank()) TraktTarget.Home else null
+    }
+
+    /**
+     * Trakt's start when no title is known: the official Android app (`tv.trakt.trakt`) when it is
+     * installed, which the phone opens by its launch intent, else Trakt Web's home. `trakt.tv/`
+     * answers 302 to `https://app.trakt.tv/` ("Trakt Web: Home"; checked 2026-11-11). Trakt Web has
+     * no checked per-user "continue watching" URL: `app.trakt.tv/users/<slug>/progress` renders the
+     * same "Continue Watching" shell for any slug, an unknown one included, so whether `me` there
+     * means the signed-in account could not be verified, and the home page it is.
+     */
+    const val TRAKT_PACKAGE: String = "tv.trakt.trakt"
+    const val TRAKT_HOME: String = "https://app.trakt.tv/"
+
+    /**
+     * The links offered: Trakt when its switch is on and [traktTarget] has somewhere to go,
+     * JustWatch when its switch is on and a title is known.
+     */
+    fun offered(watching: Watching?, trakt: Boolean, justWatch: Boolean): Set<TitleLink> = buildSet {
+        if (trakt && traktTarget(watching) != null) add(TitleLink.TRAKT)
+        if (justWatch && searchTitle(watching) != null) add(TitleLink.JUSTWATCH)
     }
 
     private fun encode(s: String): String = URLEncoder.encode(s.trim(), Charsets.UTF_8).replace("+", "%20")

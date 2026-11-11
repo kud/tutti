@@ -8,7 +8,7 @@
     <string name="watch_justwatch">JustWatch</string>
     <string name="settings_title_links">Title links</string>
     <string name="settings_trakt_link">Trakt button</string>
-    <string name="settings_trakt_link_detail">In Playback, opens a Trakt search for what\'s playing, in the Trakt app if it takes the link</string>
+    <string name="settings_trakt_link_detail">In Playback, searches Trakt for what\'s playing when tutti knows the title, else opens Trakt itself</string>
     <string name="settings_justwatch_link">JustWatch button</string>
     <string name="settings_justwatch_link_detail">In Playback, opens a JustWatch search for what\'s playing, for your country</string>
 </resources>
