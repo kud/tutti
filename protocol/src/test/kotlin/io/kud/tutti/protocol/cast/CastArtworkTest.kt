@@ -14,6 +14,10 @@ class CastArtworkTest {
         assertTrue(CastArtwork.isAllowed("https://i.ytimg.com/vi/SAMPLEID01/hqdefault.jpg"))
         assertTrue(CastArtwork.isAllowed("https://I.YTIMG.COM:443/vi/SAMPLEID01/mqdefault.jpg?sqp=x"))
         assertTrue(CastArtwork.isAllowed("https://lh3.googleusercontent.com/sample=w544-h544"))
+        // Nuvio: TMDB enrichment and Cinemeta's metahub posters and backgrounds.
+        assertTrue(CastArtwork.isAllowed("https://image.tmdb.org/t/p/w500/sampleposter.jpg"))
+        assertTrue(CastArtwork.isAllowed("https://images.metahub.space/poster/small/tt0000001/img"))
+        assertTrue(CastArtwork.isAllowed("https://images.metahub.space/background/medium/tt0000001/img"))
         listOf(
             null,
             "",
@@ -23,6 +27,12 @@ class CastArtworkTest {
             "https://i.ytimg.com.example.org/vi/SAMPLEID01/hqdefault.jpg",
             "https://example.org/i.ytimg.com/hqdefault.jpg",
             "https://img.youtube.com/vi/SAMPLEID01/hqdefault.jpg",
+            "http://image.tmdb.org/t/p/w500/sampleposter.jpg",
+            "https://image.tmdb.org:8443/t/p/w500/sampleposter.jpg",
+            "https://themoviedb.org/t/p/w500/sampleposter.jpg",
+            "https://episodes.metahub.space/tt0000001/1/1/w780.jpg",
+            "https://images.metahub.space.example.org/poster/small/tt0000001/img",
+            "https://v3-cinemeta.strem.io/meta/series/tt0000001.json",
             "https://192.168.1.20/icon.png",
             "file:///sdcard/a.jpg",
             "data:image/png;base64,AAAA",
