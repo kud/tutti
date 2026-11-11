@@ -139,7 +139,7 @@
     <string name="pin_step_desc">Step %1$d: %2$s</string>
     <string name="pin_on_long_press">On long press</string>
     <string name="pin_long_none">Nothing: a long press opens this editor</string>
-    <string name="pin_long_note">A long press shows this action first, with “Edit this pin” below it.</string>
+    <string name="pin_long_note">A long press runs this action, named in a bubble before it does. The pin is edited from ⋮ › Edit dock.</string>
     <string name="pin_long_title">Long press on %1$s</string>
     <string name="pin_long_clear">Clear</string>
     <string name="pin_letters">Aa</string>

@@ -30,7 +30,6 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -38,7 +37,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -72,7 +70,9 @@ import androidx.compose.ui.unit.sp
 import io.kud.tutti.R
 import io.kud.tutti.ui.common.longPressRing
 import io.kud.tutti.ui.common.rememberLongPressProgress
-import io.kud.tutti.ui.common.TuttiMenu
+import io.kud.tutti.ui.common.HoldBubble
+import io.kud.tutti.ui.common.holdPreviewClickable
+import io.kud.tutti.ui.common.rememberHoldPreview
 import io.kud.tutti.ui.common.DOWN_INK
 import io.kud.tutti.ui.common.LocalChipNudge
 import io.kud.tutti.ui.common.downFill
@@ -293,7 +293,6 @@ private fun PinTile(
     val label = slotLabel(slot, state) ?: slot.secondary?.let { actionLabel(it, state) } ?: stringResource(R.string.dock_reassign)
     val edit = stringResource(R.string.dock_reassign)
     val secondary = slot.secondary
-    var menu by remember { mutableStateOf(false) }
     // The click plays on down; the command waits for release, since a long press means another.
     val feedback = rememberFeedback()
     // The remote's one rule (controlLink): a pin goes down with the device it talks to, and only that
@@ -343,15 +342,30 @@ private fun PinTile(
         if (refusals == 0) return@LaunchedEffect
         shake.refuse()
     }
-    // The long press opens the pin's menu or editor: the same ring as the segments and tiles
-    // (discoverability rule 1). Editing is local, so it sweeps even while the device is down.
-    val ring = rememberLongPressProgress(press.interaction, enabled = true)
+    // A pin with a secondary runs it on the hold, named first by the bubble (HoldPreview; design.md
+    // § Gestures, Erwann 2026-11-11); its edit lives under ⋮ › Edit dock. A pin without one keeps
+    // the ring alone and opens its editor. A secondary whose device is down shows no bubble, and the
+    // hold is refused with a bump and the chip nudged, as a tap on a down pin is.
+    val secondaryDown = secondary != null && state.controlLink(dockOwner(secondary)).down
+    val preview = rememberHoldPreview(press.interaction, enabled = secondary != null && !secondaryDown)
+    val ring = rememberLongPressProgress(press.interaction, enabled = secondary == null)
     val dress = pinDress(LocalDockLabels.current, label)
     // Where an app pin opens, when not "As usual": a badge, and the words for TalkBack.
     val app = slot.primary as? DockAction.LaunchApp
     val destination = app?.let { AppDestinations.resolve(it.link, state.prefs.appDestinations[it.packageName]) }
     val destinationName = destination?.let { destinationLabel(it) }
     val destinationText = destinationName?.let { if (it == label) app?.label ?: it else it }
+    val onTap = {
+        // Down, a tap is the Sound tile's: a bump, the chip nudged to say why, nothing sent.
+        if (link.down) {
+            feedback.bump()
+            nudge.poke()
+        } else {
+            onClick()
+        }
+    }
+    val indication = rememberTuttiIndication(shape, layerColor = content)
+    val role = if (toggle != null) Role.Switch else null
     Box(
         modifier
             .refusalShake(shake)
@@ -367,27 +381,37 @@ private fun PinTile(
             stateText = reason ?: toggleStateText(toggle, state) ?: destinationText,
             // Down, the face fades as one, a brand's own colours included: the pin waits, it is no slot.
             faceAlpha = face,
-            modifier = Modifier
-                .combinedClickable(
-                interactionSource = press.interaction,
-                indication = rememberTuttiIndication(shape, layerColor = content),
-                role = if (toggle != null) Role.Switch else null,
-                onLongClickLabel = if (secondary != null) actionLabel(secondary, state) else edit,
-                onLongClick = {
-                    feedback.longPress()
-                    if (secondary != null) menu = true else onEdit()
-                },
-                // Down, a tap is the Sound tile's: a bump, the chip nudged to say why, nothing sent.
-                // The long press still opens the menu and the editor.
-                onClick = {
-                    if (link.down) {
-                        feedback.bump()
-                        nudge.poke()
-                    } else {
-                        onClick()
-                    }
-                },
-            ),
+            modifier = if (secondary != null) {
+                Modifier.holdPreviewClickable(
+                    preview = preview,
+                    interaction = press.interaction,
+                    indication = indication,
+                    role = role,
+                    holdLabel = actionLabel(secondary, state),
+                    onHold = {
+                        if (secondaryDown) {
+                            feedback.bump()
+                            nudge.poke()
+                        } else {
+                            feedback.longPress()
+                            onSecondary(secondary)
+                        }
+                    },
+                    onClick = onTap,
+                )
+            } else {
+                Modifier.combinedClickable(
+                    interactionSource = press.interaction,
+                    indication = indication,
+                    role = role,
+                    onLongClickLabel = edit,
+                    onLongClick = {
+                        feedback.longPress()
+                        onEdit()
+                    },
+                    onClick = onTap,
+                )
+            },
         ) { tint ->
             Box(contentAlignment = Alignment.Center) {
                 PinFace(slot.primary ?: slot.secondary, slot.icon, slot.letters, state, tint, iconSize = dress.glyphSize, faceSize = dress.faceSize)
@@ -405,27 +429,14 @@ private fun PinTile(
             PinStateBadge(toggle, content, cutout, Modifier.align(Alignment.TopEnd).padding(top = 4.dp, end = 4.dp))
         }
         if (secondary != null) {
-            TuttiMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                DropdownMenuItem(
-                    text = { Text(actionLabel(secondary, state), fontWeight = FontWeight.Medium) },
-                    leadingIcon = { Icon(painterResource(actionIcon(secondary, state)), contentDescription = null) },
-                    // A long-press toggle says where it stands now; unknown says nothing rather than "Off".
-                    trailingIcon = secondaryToggle?.let { known ->
-                        { Text(stringResource(if (known.on) R.string.toggle_state_on else R.string.toggle_state_off), style = MaterialTheme.typography.labelMedium) }
-                    },
-                    onClick = {
-                        menu = false
-                        onSecondary(secondary)
-                    },
-                )
-                DropdownMenuItem(
-                    text = { Text(edit) },
-                    leadingIcon = { Icon(painterResource(R.drawable.ic_edit), contentDescription = null) },
-                    onClick = {
-                        menu = false
-                        onEdit()
-                    },
-                )
+            // A toggle says what the hold will do from the state tutti knows; unknown, just its name.
+            val name = actionLabel(secondary, state)
+            val words = secondaryToggle?.let { stringResource(if (it.on) R.string.hold_turn_off else R.string.hold_turn_on, name) } ?: name
+            HoldBubble(preview, words) { tint ->
+                // His letters or icon belong to the tap's face; they speak for the secondary only
+                // when it is the pin's one action.
+                val own = slot.primary == null
+                PinFace(secondary, if (own) slot.icon else null, if (own) slot.letters else null, state, tint, iconSize = 24.dp, faceSize = 24.dp)
             }
         }
     }
