@@ -50,6 +50,7 @@ fun EventLogScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val messages = LocalMessages.current
     val empty = entries.isEmpty() && crash == null
+    val subject = stringResource(R.string.event_log_share_subject)
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -76,7 +77,7 @@ fun EventLogScreen(onBack: () -> Unit) {
                     if (!empty) {
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                             TextButton(onClick = {
-                                copyDetails(context, AppLog.events.render(), messages, context.getString(R.string.event_log_share_subject))
+                                copyDetails(context, AppLog.events.render(), messages, subject)
                             }) { Text(stringResource(R.string.event_log_copy)) }
                             TextButton(onClick = { shareText(context, AppLog.events.render()) }) {
                                 Text(stringResource(R.string.event_log_share))

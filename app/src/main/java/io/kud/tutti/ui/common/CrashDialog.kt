@@ -60,7 +60,7 @@ fun CrashDialog(report: String, developer: Boolean, onDismiss: () -> Unit) {
         },
         dismissButton = {
             Row {
-                if (developer) ReportButton(what = context.getString(R.string.report_crash_title), detail = report)
+                if (developer) ReportButton(what = stringResource(R.string.report_crash_title), detail = report)
                 TextButton(onClick = onDismiss) { Text(stringResource(R.string.crash_close)) }
             }
         },
