@@ -182,12 +182,12 @@ class LayoutCodecTest {
         val file = full.copy(pins = listOf(FilePin(FileAction.App(yt, "YouTube", subs)), FilePin(FileAction.App(yt, "YouTube"))))
         val read = LayoutCodec.decode(LayoutCodec.encode(file))
         assertIs<LayoutRead.Ok>(read)
-        assertEquals(FileAction.App(yt, "YouTube", subs), read.file.pins[0].tap)
-        assertEquals(FileAction.App(yt, "YouTube"), read.file.pins[1].tap)
+        assertEquals(FileAction.App(yt, "YouTube", subs), read.file.pins[0]?.tap)
+        assertEquals(FileAction.App(yt, "YouTube"), read.file.pins[1]?.tap)
 
         val refused = LayoutCodec.encode(file).replace(subs, "market://details?id=evil")
         val again = LayoutCodec.decode(refused)
         assertIs<LayoutRead.Ok>(again)
-        assertEquals(FileAction.App(yt, "YouTube"), again.file.pins[0].tap)
+        assertEquals(FileAction.App(yt, "YouTube"), again.file.pins[0]?.tap)
     }
 }
