@@ -141,7 +141,7 @@
     <string name="pin_step_desc">Étape %1$d : %2$s</string>
     <string name="pin_on_long_press">À l’appui long</string>
     <string name="pin_long_none">Rien : l’appui long ouvre cet éditeur</string>
-    <string name="pin_long_note">L’appui long propose d’abord cette action, puis « Modifier l’épingle ».</string>
+    <string name="pin_long_note">L’appui long lance cette action, nommée dans une bulle juste avant. L’épingle se modifie depuis ⋮ › Modifier le dock.</string>
     <string name="pin_long_title">Appui long sur %1$s</string>
     <string name="pin_long_clear">Retirer</string>
     <string name="pin_letters">Aa</string>

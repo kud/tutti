@@ -42,8 +42,8 @@
     <string name="gesture_key_long_detail">Appui long sur Accueil, Retour ou Lecture : l’action que vous lui avez donnée ; Lecture la demande la première fois.</string>
     <string name="gesture_mic_hold">Parler à la TV</string>
     <string name="gesture_mic_hold_detail">Maintenez la touche micro pendant que vous parlez, relâchez pour envoyer.</string>
-    <string name="gesture_pin_long">Menu de l’épingle</string>
-    <string name="gesture_pin_long_detail">Appui long sur une épingle : sa seconde action, puis Modifier.</string>
+    <string name="gesture_pin_long">Seconde action de l’épingle</string>
+    <string name="gesture_pin_long_detail">Appui long sur une épingle : une bulle nomme sa seconde action, lancée quand l’anneau se referme. Relâcher avant, c’est le tap. Sans seconde action, l’appui long ouvre son éditeur ; le dock se modifie depuis ⋮ › Modifier le dock.</string>
     <string name="gesture_dock_swipe">Page d’épingles suivante</string>
     <string name="gesture_dock_swipe_detail">Balayez le dock sur le côté dès qu’il a deux pages.</string>
     <string name="gesture_scene_long">Annuler, modifier ou épingler une scène</string>
@@ -104,4 +104,6 @@
     <string name="pin_done_page">« %1$s » épinglé en %2$d, page %3$d.</string>
     <string name="app_hidden">« %1$s » masquée des apps.</string>
     <string name="pin_undo">Annuler</string>
+    <string name="hold_turn_on">Activer %1$s</string>
+    <string name="hold_turn_off">Désactiver %1$s</string>
 </resources>

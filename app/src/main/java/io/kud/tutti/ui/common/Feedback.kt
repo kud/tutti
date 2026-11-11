@@ -23,6 +23,9 @@ data class FeedbackPrefs(val vibration: VibrationLevel = VibrationLevel.ALL, val
 
 val LocalFeedbackPrefs = staticCompositionLocalOf { FeedbackPrefs() }
 
+/** Hears every event a [Feedback] is asked for, before the rules decide what plays: tests' log. */
+val LocalFeedbackObserver = staticCompositionLocalOf<((FeedbackEvent) -> Unit)?> { null }
+
 /**
  * Haptics are primary feedback (design.md), and sound is an opt-in extra on key presses only.
  * Call sites name a [FeedbackEvent]; [FeedbackRules] decides what plays. Always fired before any
@@ -36,9 +39,14 @@ val LocalFeedbackPrefs = staticCompositionLocalOf { FeedbackPrefs() }
  * The old `Haptics` method names stay as thin wrappers so call sites can move gradually.
  */
 @Stable
-class Feedback internal constructor(private val view: View, private val prefs: FeedbackPrefs) {
+class Feedback internal constructor(
+    private val view: View,
+    private val prefs: FeedbackPrefs,
+    private val observer: ((FeedbackEvent) -> Unit)? = null,
+) {
     /** [withSound] false keeps the haptic and drops the click: the intro's landing, when its chime plays instead. */
     fun perform(event: FeedbackEvent, withSound: Boolean = true) {
+        observer?.invoke(event)
         val plan = FeedbackRules.plan(event, prefs.vibration, prefs.keySounds)
         plan.haptic?.let(::vibrate)
         if (plan.sound && withSound) view.playSoundEffect(SoundEffectConstants.CLICK)
@@ -103,7 +111,8 @@ typealias Haptics = Feedback
 fun rememberFeedback(): Feedback {
     val view = LocalView.current
     val prefs = LocalFeedbackPrefs.current
-    return remember(view, prefs) { Feedback(view, prefs) }
+    val observer = LocalFeedbackObserver.current
+    return remember(view, prefs, observer) { Feedback(view, prefs, observer) }
 }
 
 @Composable

@@ -43,8 +43,8 @@
     <string name="gesture_key_long_detail">Long press Home, Back or Play: the action you gave it; Play asks for one the first time.</string>
     <string name="gesture_mic_hold">Speak to the TV</string>
     <string name="gesture_mic_hold_detail">Hold the mic key while you talk, let go to send.</string>
-    <string name="gesture_pin_long">Pin menu</string>
-    <string name="gesture_pin_long_detail">Long press a pin: its second action, then Edit.</string>
+    <string name="gesture_pin_long">Pin’s second action</string>
+    <string name="gesture_pin_long_detail">Hold a pin: a bubble names its second action, which runs when the ring closes. Lift sooner for the tap. A pin without one opens its editor; the dock is edited from ⋮ › Edit dock.</string>
     <string name="gesture_dock_swipe">Next page of pins</string>
     <string name="gesture_dock_swipe_detail">Swipe the dock sideways once it has two pages.</string>
     <string name="gesture_scene_long">Undo, edit or pin a scene</string>
@@ -109,4 +109,6 @@
     <string name="pin_done_page">“%1$s” pinned to pin %2$d, page %3$d.</string>
     <string name="app_hidden">“%1$s” hidden from Apps.</string>
     <string name="pin_undo">Undo</string>
+    <string name="hold_turn_on">Turn on %1$s</string>
+    <string name="hold_turn_off">Turn off %1$s</string>
 </resources>
