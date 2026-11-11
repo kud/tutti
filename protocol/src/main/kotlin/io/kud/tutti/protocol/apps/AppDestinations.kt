@@ -41,6 +41,26 @@ object AppDestinations {
         return scheme in ownSchemes(packageName)
     }
 
+    /**
+     * A pin's explicit "As usual": the app opens where it was, whatever the app's own default. A
+     * pin's null link means "Same as the app" instead ([resolve]).
+     */
+    const val AS_USUAL: String = ""
+
+    /**
+     * The link a launch carries (Erwann, 2026-11-11: « configurer directement un bouton… aller
+     * directement à souscription »): a pin's own choice wins, then the app's default, then none
+     * (the app opens where it was). [pinLink] null follows the app; [AS_USUAL] overrides it.
+     */
+    fun resolve(pinLink: String?, appDefault: String?): String? = when {
+        pinLink == null -> appDefault?.takeUnless { it.isBlank() }
+        pinLink.isBlank() -> null
+        else -> pinLink
+    }
+
+    /** The curated destination a link names, if it is one; null for a custom link or none. */
+    fun shortcutFor(link: String?): AppShortcut? = link?.let { l -> AppShortcut.entries.firstOrNull { it.link == l.trim() } }
+
     /** The non-web schemes the catalogue lists for [packageName]. */
     fun ownSchemes(packageName: String): Set<String> =
         AppCatalog.byPackage(packageName)?.links.orEmpty()

@@ -42,4 +42,19 @@
     <string name="more_quick_settings">Quick settings</string>
     <!-- The TV's inputs in the Apps sheet: a long press pins one. -->
     <string name="tv_input_pin">Pin to the dock</string>
+    <!-- Where an app opens (2026-11-11): the Apps sheet's long press and the pin editor. -->
+    <string name="dest_opens_at_row">Opens at · %1$s</string>
+    <string name="dest_picker_title">Open %1$s at</string>
+    <string name="dest_as_usual">As usual</string>
+    <string name="dest_as_usual_detail">Where the app was last time</string>
+    <string name="dest_same_as_app">Same as the app</string>
+    <string name="dest_same_as_app_detail">Now: %1$s</string>
+    <string name="dest_link">Link…</string>
+    <string name="dest_link_label">Link</string>
+    <string name="dest_link_hint">An https:// link, or %1$s</string>
+    <string name="dest_link_hint_web">An https:// link</string>
+    <string name="dest_link_invalid">This link can\'t open this app. Use an https:// link or the app\'s own.</string>
+    <string name="dest_paste">Paste</string>
+    <string name="dest_try">Try</string>
+    <string name="dest_done">Done</string>
 </resources>

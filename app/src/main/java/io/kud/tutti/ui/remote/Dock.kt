@@ -1,5 +1,6 @@
 package io.kud.tutti.ui.remote
 
+import io.kud.tutti.protocol.apps.AppDestinations
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.animation.animateColorAsState
@@ -346,6 +347,11 @@ private fun PinTile(
     // (discoverability rule 1). Editing is local, so it sweeps even while the device is down.
     val ring = rememberLongPressProgress(press.interaction, enabled = true)
     val dress = pinDress(LocalDockLabels.current, label)
+    // Where an app pin opens, when not "As usual": a badge, and the words for TalkBack.
+    val app = slot.primary as? DockAction.LaunchApp
+    val destination = app?.let { AppDestinations.resolve(it.link, state.prefs.appDestinations[it.packageName]) }
+    val destinationName = destination?.let { destinationLabel(it) }
+    val destinationText = destinationName?.let { if (it == label) app?.label ?: it else it }
     Box(
         modifier
             .refusalShake(shake)
@@ -358,7 +364,7 @@ private fun PinTile(
             dress = dress,
             press = press,
             shape = shape,
-            stateText = reason ?: toggleStateText(toggle, state),
+            stateText = reason ?: toggleStateText(toggle, state) ?: destinationText,
             // Down, the face fades as one, a brand's own colours included: the pin waits, it is no slot.
             faceAlpha = face,
             modifier = Modifier
@@ -387,6 +393,9 @@ private fun PinTile(
                 PinFace(slot.primary ?: slot.secondary, slot.icon, slot.letters, state, tint, iconSize = dress.glyphSize, faceSize = dress.faceSize)
                 if (toggle != null) {
                     PinStateBadge(toggle, tint, cutout, Modifier.align(Alignment.TopEnd).offset(x = 8.dp, y = (-6).dp))
+                }
+                if (destination != null && dress.glyph && slot.letters.isNullOrBlank()) {
+                    DestinationBadge(destination, tint, cutout, Modifier.align(Alignment.BottomEnd).offset(x = 8.dp, y = 6.dp))
                 }
             }
         }

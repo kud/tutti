@@ -94,7 +94,7 @@ fun LinkProbeGroup(onProbe: suspend (String) -> LinkProbeResult) {
 }
 
 @Composable
-private fun outcomeWords(result: LinkProbeResult): String {
+internal fun outcomeWords(result: LinkProbeResult): String {
     val none = stringResource(R.string.link_probe_no_app)
     return when (result.outcome) {
         LinkOutcome.INVALID -> stringResource(R.string.link_probe_invalid)

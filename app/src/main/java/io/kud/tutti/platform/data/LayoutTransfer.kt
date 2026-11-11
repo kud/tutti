@@ -113,7 +113,7 @@ object LayoutTransfer {
     }
 
     private fun toFile(action: DockAction, scenes: Map<String, String>): FileAction? = when (action) {
-        is DockAction.LaunchApp -> FileAction.App(action.packageName, action.label)
+        is DockAction.LaunchApp -> FileAction.App(action.packageName, action.label, action.link)
         // Only the TV's own inputs travel; any other URI (a channel) is this TV's and stays here.
         is DockAction.Input -> if (action.uri.startsWith("extInput:")) FileAction.Input(action.uri, action.label) else null
         is DockAction.ToggleBar -> FileAction.ToggleBar(action.featureKey)
@@ -139,7 +139,7 @@ object LayoutTransfer {
     }
 
     private fun fromFile(action: FileAction, scenes: Map<String, String>): DockAction? = when (action) {
-        is FileAction.App -> DockAction.LaunchApp(action.packageName, action.label)
+        is FileAction.App -> DockAction.LaunchApp(action.packageName, action.label, action.link)
         is FileAction.Input -> DockAction.Input(action.uri, action.label)
         is FileAction.ToggleBar -> DockAction.ToggleBar(action.featureKey)
         is FileAction.SetBar -> DockAction.SetBar(action.featureKey, action.value)

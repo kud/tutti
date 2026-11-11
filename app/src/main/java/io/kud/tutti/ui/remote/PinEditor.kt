@@ -1,5 +1,7 @@
 package io.kud.tutti.ui.remote
 
+import io.kud.tutti.protocol.apps.LinkProbeResult
+import io.kud.tutti.protocol.apps.LinkOutcome
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -99,6 +101,7 @@ fun PinEditorSheet(
     onDismiss: () -> Unit,
     onTry: (DockAction) -> Unit = {},
     onEditLayout: (() -> Unit)? = null,
+    onTryLink: (suspend (String) -> LinkProbeResult)? = null,
 ) {
     TuttiSheet(onDismissRequest = onDismiss) {
         PinEditorContent(
@@ -108,6 +111,7 @@ fun PinEditorSheet(
             onSave,
             onLoadTv,
             onTry = onTry,
+            onTryLink = onTryLink,
             onEditLayout = onEditLayout,
         )
     }
@@ -130,8 +134,11 @@ fun PinEditorContent(
     startPicking: Boolean = false,
     onTry: (DockAction) -> Unit = {},
     onEditLayout: (() -> Unit)? = null,
+    onTryLink: (suspend (String) -> LinkProbeResult)? = null,
 ) {
     val reorder = rememberReorderState()
+    // "Opens at…" for the pin's app: [DESTINATION_TAP] for its lone app step, [DESTINATION_HOLD] for its long press.
+    var choosingDestination by remember { mutableStateOf<Int?>(null) }
     val up = stringResource(R.string.layout_move_up)
     val down = stringResource(R.string.layout_move_down)
     val steps = remember(slot) { mutableStateListOf<MacroStep>().apply { addAll(slot.primary.asSteps()) } }
@@ -153,6 +160,28 @@ fun PinEditorContent(
     )
 
     val scroll = rememberScrollState()
+    choosingDestination?.let { which ->
+        val app = if (which == DESTINATION_HOLD) secondary as? DockAction.LaunchApp
+        else (steps.singleOrNull() as? MacroStep.Run)?.action as? DockAction.LaunchApp
+        if (app == null) {
+            choosingDestination = null
+        } else {
+            DestinationPicker(
+                appName = app.label,
+                packageName = app.packageName,
+                current = app.link,
+                forPin = true,
+                appDefault = state.prefs.appDestinations[app.packageName],
+                onPick = { link ->
+                    val changed = app.copy(link = link)
+                    if (which == DESTINATION_HOLD) secondary = changed else steps[0] = MacroStep.Run(changed)
+                    choosingDestination = null
+                },
+                onTry = { link -> onTryLink?.invoke(link) ?: LinkProbeResult(LinkOutcome.NOT_SENT, null, null) },
+                onDismiss = { choosingDestination = null },
+            )
+        }
+    }
     // The title and Save are the pinned header: Save stays in reach however far the editor scrolls.
     PinnedHeader(
         scrolled = scroll.canScrollBackward,
@@ -288,6 +317,14 @@ fun PinEditorContent(
                         )
                     }
                 }
+                // A pin that runs one app may open it at a chosen page (2026-11-11); macros keep the app's own.
+                ((steps.singleOrNull() as? MacroStep.Run)?.action as? DockAction.LaunchApp)?.let { app ->
+                    OpensAtRow(
+                        destinationChoice(app),
+                        onClick = { choosingDestination = DESTINATION_TAP },
+                        modifier = Modifier.padding(start = 48.dp, end = 8.dp),
+                    )
+                }
             }
             Spacer(Modifier.height(8.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -344,6 +381,9 @@ fun PinEditorContent(
             }
             (secondary as? DockAction.Key)?.let { key ->
                 PressOrHold(key.long, { secondary = key.copy(long = it) }, Modifier.padding(top = 8.dp))
+            }
+            (secondary as? DockAction.LaunchApp)?.let { app ->
+                OpensAtRow(destinationChoice(app), onClick = { choosingDestination = DESTINATION_HOLD }, modifier = Modifier.padding(top = 4.dp))
             }
             if (secondary != null) {
                 Spacer(Modifier.height(4.dp))
@@ -662,3 +702,11 @@ private const val WAIT_STEP_MS = 500L
 
 /** The controller caps a wait at 30 s too; the editor never offers more than it will honour. */
 private const val MAX_WAIT_MS = 30_000L
+
+private const val DESTINATION_TAP = 0
+private const val DESTINATION_HOLD = 1
+
+/** "Same as the app" for a pin that follows the app, else the pin's own choice. */
+@Composable
+private fun destinationChoice(app: DockAction.LaunchApp): String =
+    if (app.link == null) stringResource(R.string.dest_same_as_app) else destinationLabel(app.link)

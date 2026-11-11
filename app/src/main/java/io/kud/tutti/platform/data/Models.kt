@@ -86,6 +86,12 @@ data class AppPrefs(
     val traktLink: Boolean = false,
     /** The playback sheet's JustWatch search button for the title playing (Erwann, 2026-11-11). Off by default. */
     val justWatchLink: Boolean = false,
+    /**
+     * Where a plain tap opens each app, by package name (Erwann, 2026-11-11: « aller directement à
+     * souscription »): an app link from [io.kud.tutti.protocol.apps.AppDestinations]. Absent, the
+     * app opens where it was. Set from the Apps sheet's long press, "Opens at…".
+     */
+    val appDestinations: Map<String, String> = emptyMap(),
 ) {
     /** The old switch on reads as [VibrationLevel.ALL], off as [VibrationLevel.OFF]. */
     val vibrationLevel: VibrationLevel
@@ -226,7 +232,16 @@ fun <T> List<T>.moved(from: Int, to: Int): List<T> {
 sealed interface DockAction {
     @Serializable
     @SerialName("app")
-    data class LaunchApp(val packageName: String, val label: String) : DockAction
+    data class LaunchApp(
+        val packageName: String,
+        val label: String,
+        /**
+         * Where this pin opens the app: null follows the app's default ([AppPrefs.appDestinations]),
+         * [io.kud.tutti.protocol.apps.AppDestinations.AS_USUAL] opens it where it was, anything
+         * else is an app link. Resolved by [io.kud.tutti.protocol.apps.AppDestinations.resolve].
+         */
+        val link: String? = null,
+    ) : DockAction
 
     @Serializable
     @SerialName("input")

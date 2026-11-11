@@ -1,5 +1,6 @@
 package io.kud.tutti.controller
 
+import io.kud.tutti.protocol.apps.AppDestinations
 import io.kud.tutti.platform.data.VibrationLevel
 import android.app.UiModeManager
 import android.content.Context
@@ -1620,7 +1621,8 @@ class TuttiController @Inject constructor(
     }
 
     /** [launchApp], awaiting the outcome: true once the launch went out (confirmed, or sent unobserved). */
-    private suspend fun requestLaunch(packageName: String): Boolean {
+    private suspend fun requestLaunch(packageName: String, destination: String? = null): Boolean {
+        if (destination == null) pendingDestinations.remove(packageName) else pendingDestinations[packageName] = destination
         val (id, effects) = tapLaunch(packageName, await = true, wake = true)
         handleLaunch(effects)
         return id?.let { launchWaiters[it]?.await() } ?: false
@@ -2619,7 +2621,10 @@ class TuttiController @Inject constructor(
 
     private suspend fun perform(action: DockAction) {
         when (action) {
-            is DockAction.LaunchApp -> requestLaunch(action.packageName)
+            is DockAction.LaunchApp -> requestLaunch(
+                action.packageName,
+                AppDestinations.resolve(action.link, state.value.prefs.appDestinations[action.packageName]),
+            )
             is DockAction.Input -> switchInput(action.uri)
             is DockAction.ToggleBar -> TheatreFeature.fromKey(action.featureKey)?.let { toggleBar(it) }
             is DockAction.RunScene -> applyScene(action.sceneId)
@@ -3212,6 +3217,24 @@ class TuttiController @Inject constructor(
     fun setDeveloperMode(enabled: Boolean) {
         scope.launch { store.updatePrefs { it.copy(developerMode = enabled) } }
     }
+
+    /**
+     * Where a plain tap opens [packageName] from the Apps sheet, Recent and every pin left on "Same
+     * as the app"; null (or "As usual") forgets it. A link [AppDestinations.accepts] refuses is never stored.
+     */
+    fun setAppDestination(packageName: String, link: String?) {
+        val kept = link?.trim()?.takeIf { it.isNotEmpty() && AppDestinations.accepts(packageName, it) }
+        if (link != null && link.isNotBlank() && kept == null) return
+        scope.launch {
+            store.updatePrefs { p ->
+                p.copy(appDestinations = if (kept == null) p.appDestinations - packageName else p.appDestinations + (packageName to kept))
+            }
+        }
+    }
+
+    /** A plain tap on an app: opens it at its default destination, if it has one. */
+    fun launchAppAsSet(packageName: String): Long? =
+        launchApp(packageName, destination = state.value.prefs.appDestinations[packageName]?.takeUnless { it.isBlank() })
 
     fun setAppShown(packageName: String, shown: Boolean) {
         scope.launch {

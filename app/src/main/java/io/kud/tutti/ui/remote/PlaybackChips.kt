@@ -141,7 +141,7 @@ internal fun GlobalSearchChip(downReason: String?, onKey: (Int) -> Unit) {
 }
 
 @DrawableRes
-private fun shortcutIcon(shortcut: AppShortcut): Int = when (shortcut) {
+internal fun shortcutIcon(shortcut: AppShortcut): Int = when (shortcut) {
     AppShortcut.SEARCH -> R.drawable.ic_search
     AppShortcut.SUBSCRIPTIONS -> R.drawable.ic_subscriptions
     AppShortcut.HISTORY -> R.drawable.ic_history
@@ -149,7 +149,7 @@ private fun shortcutIcon(shortcut: AppShortcut): Int = when (shortcut) {
 }
 
 @StringRes
-private fun shortcutLabel(shortcut: AppShortcut): Int = when (shortcut) {
+internal fun shortcutLabel(shortcut: AppShortcut): Int = when (shortcut) {
     AppShortcut.SEARCH -> R.string.shortcut_search
     AppShortcut.SUBSCRIPTIONS -> R.string.shortcut_subscriptions
     AppShortcut.HISTORY -> R.string.shortcut_history

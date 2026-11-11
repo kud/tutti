@@ -1,5 +1,7 @@
 package io.kud.tutti.ui.common
 
+import io.kud.tutti.protocol.apps.AppDestinations
+import io.kud.tutti.ui.remote.shortcutLabel
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.compose.runtime.Composable
@@ -298,7 +300,9 @@ val ToggleFeatures: List<TheatreFeature> = listOf(
 
 @Composable
 fun actionLabel(action: DockAction, state: TuttiUiState): String = when (action) {
-    is DockAction.LaunchApp -> action.label
+    // An auto-named pin takes its destination's name ("Subscriptions"); a custom link keeps the app's.
+    is DockAction.LaunchApp -> AppDestinations.shortcutFor(AppDestinations.resolve(action.link, state.prefs.appDestinations[action.packageName]))
+        ?.let { stringResource(shortcutLabel(it)) } ?: action.label
     is DockAction.Input -> action.label
     is DockAction.ToggleBar -> TheatreFeature.fromKey(action.featureKey)?.let { stringResource(featureLabel(it)) } ?: action.featureKey
     is DockAction.SetBar -> TheatreFeature.fromKey(action.featureKey)?.let {

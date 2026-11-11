@@ -41,4 +41,19 @@
     <string name="more_menu">Menu</string>
     <string name="more_quick_settings">Réglages rapides</string>
     <string name="tv_input_pin">Épingler au dock</string>
+    <!-- Where an app opens (2026-11-11): the Apps sheet's long press and the pin editor. -->
+    <string name="dest_opens_at_row">S\'ouvre sur · %1$s</string>
+    <string name="dest_picker_title">Ouvrir %1$s sur</string>
+    <string name="dest_as_usual">Comme d\'habitude</string>
+    <string name="dest_as_usual_detail">Là où l\'appli en était</string>
+    <string name="dest_same_as_app">Comme l\'appli</string>
+    <string name="dest_same_as_app_detail">Actuellement : %1$s</string>
+    <string name="dest_link">Lien…</string>
+    <string name="dest_link_label">Lien</string>
+    <string name="dest_link_hint">Un lien https://, ou %1$s</string>
+    <string name="dest_link_hint_web">Un lien https://</string>
+    <string name="dest_link_invalid">Ce lien ne peut pas ouvrir cette appli. Un lien https:// ou celui de l\'appli convient.</string>
+    <string name="dest_paste">Coller</string>
+    <string name="dest_try">Essayer</string>
+    <string name="dest_done">OK</string>
 </resources>

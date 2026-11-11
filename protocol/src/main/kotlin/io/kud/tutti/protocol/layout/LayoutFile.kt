@@ -1,5 +1,6 @@
 package io.kud.tutti.protocol.layout
 
+import io.kud.tutti.protocol.apps.AppDestinations
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -59,7 +60,8 @@ data class FilePin(
  * `extInput:` URI, bar settings by feature key, the TV's IRCC keys by their code, scenes by name.
  */
 sealed interface FileAction {
-    data class App(val packageName: String, val label: String) : FileAction
+    /** [link]: where the app opens ([io.kud.tutti.protocol.apps.AppDestinations]); null follows the app's own default. */
+    data class App(val packageName: String, val label: String, val link: String? = null) : FileAction
     data class Input(val uri: String, val label: String) : FileAction
     data class ToggleBar(val featureKey: String) : FileAction
     data class SetBar(val featureKey: String, val value: String) : FileAction
@@ -198,7 +200,12 @@ object LayoutCodec {
     private fun readAction(element: JsonElement, nested: Boolean): FileAction? {
         val o = element as? JsonObject ?: return null
         return when (o.str("type")) {
-            "app" -> FileAction.App(o.match("package", PACKAGE, 255) ?: return null, o.text("label", 60) ?: return null)
+            "app" -> {
+                val pkg = o.match("package", PACKAGE, 255) ?: return null
+                // A destination that fails the rules is dropped and the pin kept: it opens as the app would.
+                val link = o.str("link")?.takeIf { it == AppDestinations.AS_USUAL || AppDestinations.accepts(pkg, it) }
+                FileAction.App(pkg, o.text("label", 60) ?: return null, link)
+            }
             "input" -> FileAction.Input(o.match("uri", INPUT_URI, 96) ?: return null, o.text("label", 60) ?: return null)
             "toggle" -> FileAction.ToggleBar(o.match("feature", FEATURE_KEY, 64) ?: return null)
             "bar.set" -> FileAction.SetBar(o.match("feature", FEATURE_KEY, 64) ?: return null, o.match("value", WORD, 64) ?: return null)
@@ -255,7 +262,7 @@ object LayoutCodec {
 
     private fun actionJson(action: FileAction): JsonObject = buildJsonObject {
         when (action) {
-            is FileAction.App -> { put("type", "app"); put("package", action.packageName); put("label", action.label) }
+            is FileAction.App -> { put("type", "app"); put("package", action.packageName); put("label", action.label); action.link?.let { put("link", it) } }
             is FileAction.Input -> { put("type", "input"); put("uri", action.uri); put("label", action.label) }
             is FileAction.ToggleBar -> { put("type", "toggle"); put("feature", action.featureKey) }
             is FileAction.SetBar -> { put("type", "bar.set"); put("feature", action.featureKey); put("value", action.value) }

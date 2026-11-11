@@ -1141,7 +1141,7 @@ fun RemoteScreen(
         RemoteSheet.APPS -> AppsSheet(
             state = state,
             // The tile plays its own click on down and confirm or reject on the outcome.
-            onLaunch = { app -> controller.launchApp(app.packageName) },
+            onLaunch = { app -> controller.launchAppAsSet(app.packageName) },
             onLaunched = { sheet2 = null },
             onAllApps = {
                 haptics.click()
@@ -1150,6 +1150,8 @@ fun RemoteScreen(
             },
             onPin = { app, index -> pinToSlot(index, DockAction.LaunchApp(app.packageName, app.name), app.name) },
             onHide = { app -> hideApp(app.packageName, app.name) },
+            onSetDestination = { app, link -> controller.setAppDestination(app.packageName, link) },
+            onTryLink = { link -> controller.probeLink(link) },
             onDismiss = { sheet2 = null },
             recents = recentApps,
             inputs = tvInputsRow(
@@ -1248,6 +1250,7 @@ fun RemoteScreen(
             },
             onLoadTv = controller::loadTvSettings,
             onDismiss = { picker = null },
+            onTryLink = { link -> controller.probeLink(link) },
             onTry = { action ->
                 haptics.click()
                 controller.run(action)

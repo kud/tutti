@@ -1,5 +1,9 @@
 package io.kud.tutti.ui.remote
 
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.material3.HorizontalDivider
+import io.kud.tutti.protocol.apps.LinkProbeResult
+import io.kud.tutti.protocol.apps.LinkOutcome
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -85,9 +89,14 @@ fun AppsSheet(
     onInput: (uri: String) -> Unit = {},
     onPinInput: ((uri: String, name: String) -> Unit)? = null,
     onHide: ((KnownApp) -> Unit)? = null,
+    onSetDestination: ((KnownApp, String?) -> Unit)? = null,
+    onTryLink: (suspend (String) -> LinkProbeResult)? = null,
 ) {
     TuttiSheet(onDismissRequest = onDismiss) {
-        AppsSheetContent(state, onLaunch, onLaunched, onAllApps, onPin, Modifier.fillMaxHeight(), recents, inputs, onInput, onPinInput, onHide)
+        AppsSheetContent(
+            state, onLaunch, onLaunched, onAllApps, onPin, Modifier.fillMaxHeight(), recents, inputs, onInput, onPinInput, onHide,
+            onSetDestination, onTryLink,
+        )
     }
 }
 
@@ -117,8 +126,12 @@ fun AppsSheetContent(
     onInput: (uri: String) -> Unit = {},
     onPinInput: ((uri: String, name: String) -> Unit)? = null,
     onHide: ((KnownApp) -> Unit)? = null,
+    onSetDestination: ((KnownApp, String?) -> Unit)? = null,
+    onTryLink: (suspend (String) -> LinkProbeResult)? = null,
 ) {
     var pinning by remember { mutableStateOf<KnownApp?>(null) }
+    // "Opens at…" from the long-press menu: the app whose default destination is being chosen.
+    var choosing by remember { mutableStateOf<KnownApp?>(null) }
     // The launch this sheet asked for (its id): the sheet closes once it has gone out.
     var asked by remember { mutableStateOf<Long?>(null) }
     val inFlight = state.launches.pending
@@ -224,6 +237,7 @@ fun AppsSheetContent(
                 failed = failure?.packageName == app.packageName,
                 pinLabel = pinLabel,
                 variant = app.packageName.takeIf { app.name.trim().lowercase() in shared },
+                destination = state.prefs.appDestinations[app.packageName]?.takeUnless { it.isBlank() },
                 onLongClick = { pinning = app },
                 onClick = {
                     // Refused (the TV down): the message says why and the sheet stays.
@@ -256,6 +270,23 @@ fun AppsSheetContent(
             },
             onDismiss = { pinning = null },
             onHide = onHide?.let { hide -> { hide(app); pinning = null } },
+            destination = state.prefs.appDestinations[app.packageName],
+            onOpensAt = onSetDestination?.let { { choosing = app; pinning = null } },
+        )
+    }
+    choosing?.let { app ->
+        DestinationPicker(
+            appName = app.name,
+            packageName = app.packageName,
+            current = state.prefs.appDestinations[app.packageName],
+            forPin = false,
+            appDefault = null,
+            onPick = { link ->
+                onSetDestination?.invoke(app, link)
+                choosing = null
+            },
+            onTry = { link -> onTryLink?.invoke(link) ?: LinkProbeResult(LinkOutcome.NOT_SENT, null, null) },
+            onDismiss = { choosing = null },
         )
     }
 }
@@ -284,6 +315,7 @@ private fun AppTile(
     failed: Boolean,
     pinLabel: String,
     variant: String?,
+    destination: String?,
     onLongClick: () -> Unit,
     onClick: () -> Unit,
 ) {
@@ -336,6 +368,9 @@ private fun AppTile(
                     CircularProgressIndicator(modifier = Modifier.size(40.dp), color = scheme.onSurface, strokeWidth = 3.dp, trackColor = scheme.surface)
                 }
             }
+            if (destination != null) {
+                DestinationBadge(destination, scheme.onSurfaceVariant, scheme.surfaceContainerLow, Modifier.align(Alignment.BottomEnd))
+            }
             if (failed && !waiting.held) {
                 Box(
                     Modifier
@@ -350,8 +385,11 @@ private fun AppTile(
             }
         }
         Spacer(Modifier.size(6.dp))
+        val destinationName = destination?.let { destinationLabel(it) }
         Text(
             app.name,
+            // "YouTube, Subscriptions": the badge's meaning in words.
+            modifier = if (destinationName != null) Modifier.semantics { contentDescription = "${app.name}, $destinationName" } else Modifier,
             style = MaterialTheme.typography.labelMedium,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
@@ -400,12 +438,19 @@ internal fun PinDialog(
     onPick: (Int) -> Unit,
     onDismiss: () -> Unit,
     onHide: (() -> Unit)? = null,
+    destination: String? = null,
+    onOpensAt: (() -> Unit)? = null,
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.apps_pin_title, app.name)) },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
+                // Where a plain tap opens this app (2026-11-11); the long press keeps its menu.
+                if (onOpensAt != null) {
+                    OpensAtRow(destinationLabel(destination), onOpensAt)
+                    HorizontalDivider(Modifier.padding(vertical = 4.dp))
+                }
                 val pages = state.dock.pages
                 for (index in 0 until pages.size * DockConfig.PAGE_SIZE) {
                     val page = index / DockConfig.PAGE_SIZE
