@@ -174,4 +174,20 @@ class LayoutCodecTest {
         val read = LayoutCodec.decode("""{"format":"tutti-layout","version":1,"pins":[{"tap":{"type":"input","uri":"extInput:hdmi?port=3","label":"HDMI 3"}}]}""")
         assertEquals(FilePin(FileAction.Input("extInput:hdmi?port=3", "HDMI 3")), assertIs<LayoutRead.Ok>(read).file.pins[0])
     }
+
+    @Test
+    fun `an app pin keeps its destination, and loses only a refused one`() {
+        val yt = "com.google.android.youtube.tv"
+        val subs = "https://www.youtube.com/feed/subscriptions"
+        val file = full.copy(pins = listOf(FilePin(FileAction.App(yt, "YouTube", subs)), FilePin(FileAction.App(yt, "YouTube"))))
+        val read = LayoutCodec.decode(LayoutCodec.encode(file))
+        assertIs<LayoutRead.Ok>(read)
+        assertEquals(FileAction.App(yt, "YouTube", subs), read.file.pins[0].tap)
+        assertEquals(FileAction.App(yt, "YouTube"), read.file.pins[1].tap)
+
+        val refused = LayoutCodec.encode(file).replace(subs, "market://details?id=evil")
+        val again = LayoutCodec.decode(refused)
+        assertIs<LayoutRead.Ok>(again)
+        assertEquals(FileAction.App(yt, "YouTube"), again.file.pins[0].tap)
+    }
 }

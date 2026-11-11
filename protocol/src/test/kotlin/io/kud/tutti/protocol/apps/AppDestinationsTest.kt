@@ -135,4 +135,22 @@ class AppDestinationsTest {
         assertEquals(1, sent.size)
         assertNull(result.followUpSent)
     }
+
+    @Test
+    fun `a pin's own choice wins, then the app's default, then as usual`() {
+        val subs = AppShortcut.SUBSCRIPTIONS.link
+        val history = AppShortcut.HISTORY.link
+        assertEquals(history, AppDestinations.resolve(pinLink = history, appDefault = subs))
+        assertEquals(subs, AppDestinations.resolve(pinLink = null, appDefault = subs))
+        assertNull(AppDestinations.resolve(pinLink = AppDestinations.AS_USUAL, appDefault = subs))
+        assertNull(AppDestinations.resolve(pinLink = null, appDefault = null))
+        assertNull(AppDestinations.resolve(pinLink = null, appDefault = ""))
+    }
+
+    @Test
+    fun `a curated link names its shortcut, a custom one none`() {
+        assertEquals(AppShortcut.LIBRARY, AppDestinations.shortcutFor(AppShortcut.LIBRARY.link))
+        assertNull(AppDestinations.shortcutFor("https://www.youtube.com/watch?v=abc"))
+        assertNull(AppDestinations.shortcutFor(null))
+    }
 }
