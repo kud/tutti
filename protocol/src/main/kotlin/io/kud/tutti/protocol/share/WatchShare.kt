@@ -230,6 +230,22 @@ sealed interface TraktTarget {
     data object Home : TraktTarget
 }
 
+/** One way to open Trakt, tried in [TitleLinks.traktSteps]'s order. */
+sealed interface TraktStep {
+    /** A VIEW of [url] addressed to the Trakt app's package, so no browser can take it. */
+    data class AppLink(val url: String) : TraktStep {
+        override fun toString(): String = "TraktStep.AppLink(<redacted>)"
+    }
+
+    /** The Trakt app's launch intent, at its own start. */
+    data object LaunchApp : TraktStep
+
+    /** A plain VIEW of [url], for the browser. */
+    data class Web(val url: String) : TraktStep {
+        override fun toString(): String = "TraktStep.Web(<redacted>)"
+    }
+}
+
 /**
  * Optional "look this title up" links (Erwann, 2026-11-11: « des liens qui vont vers Trakt…
  * JustWatch… on devrait pouvoir le enable ou disable »): plain web searches opened on the phone.
@@ -248,14 +264,15 @@ object TitleLinks {
     }
 
     /**
-     * Trakt's web search, `https://trakt.tv/search?query=<title>` (checked 2026-11-11: it answers
-     * 301 to `https://app.trakt.tv/search?query=<title>`, the "Trakt Web: Search" page). Both hosts
-     * publish `/.well-known/assetlinks.json` with `delegate_permission/common.handle_all_urls` for
-     * `tv.trakt.trakt` (the official Android app), so Android may hand the link to that app when it
-     * is installed; whether the app routes `/search` itself is not verified, and the browser
-     * opens it otherwise.
+     * Trakt Web's search, `https://app.trakt.tv/search?m=media&q=<title>`, the title form-encoded
+     * (spaces as `+`): the shape verified by Erwann in Firefox, 2026-11-11
+     * (`https://app.trakt.tv/search?m=media&q=Black+bird`). The older `trakt.tv/search?query=`
+     * answers 301 to `app.trakt.tv/search?query=`, which landed on the wrong results for Erwann the
+     * same day. `m=media` searches shows and films together; a shows-only mode
+     * was not found in Trakt Web's code (checked 2026-11-11), so an episode searches as media too,
+     * on its series title alone ([TraktTarget.Search.title]).
      */
-    fun trakt(title: String): String = "https://trakt.tv/search?query=${encode(title)}"
+    fun trakt(title: String): String = "${TRAKT_HOME}search?m=media&q=${URLEncoder.encode(title.trim(), Charsets.UTF_8)}"
 
     /**
      * JustWatch's search, which lives under a country path with a localised word (checked
@@ -311,6 +328,20 @@ object TitleLinks {
      */
     const val TRAKT_PACKAGE: String = "tv.trakt.trakt"
     const val TRAKT_HOME: String = "https://app.trakt.tv/"
+
+    /**
+     * How the phone opens [target], first step that works wins. Which links the Trakt app
+     * (`tv.trakt.trakt`, the Play listing "trakt.TV Time To Watch") handles is not published: both
+     * hosts' `/.well-known/assetlinks.json` delegate `handle_all_urls` to it, yet a search link
+     * opened Firefox on Erwann's phone with the app installed (2026-11-11). So the app is asked for
+     * the link by package first ([TraktStep.AppLink]: the phone resolves it, and an app that does
+     * not handle it is skipped, never guessed into), then launched at its start, and the web is
+     * the last resort, used only without the app.
+     */
+    fun traktSteps(target: TraktTarget): List<TraktStep> = when (target) {
+        is TraktTarget.Search -> trakt(target.title).let { listOf(TraktStep.AppLink(it), TraktStep.LaunchApp, TraktStep.Web(it)) }
+        TraktTarget.Home -> listOf(TraktStep.LaunchApp, TraktStep.Web(TRAKT_HOME))
+    }
 
     /**
      * The links offered: Trakt when its switch is on and [traktTarget] has somewhere to go,
