@@ -1756,11 +1756,10 @@ class TuttiController @Inject constructor(
 
     /** The last launch's redacted trace, for the developer diagnostic. */
     @Volatile var lastLaunchTrace: String? = null
-        set(value) {
+        private set(value) {
             field = value
             if (value != null) AppLog.events.record(EventLog.Kind.LAUNCH, value)
         }
-        private set
 
     /** A scene's launch: straight to the routes, since the scene has woken the TV and shows its own progress. */
     private suspend fun launchDirect(packageName: String): Boolean = launchWithResult(packageName).ok
