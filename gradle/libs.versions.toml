@@ -1,7 +1,7 @@
 # Versions verified against upstream git tags where marked (tag): 2026-10-28 (2026-10-20 base set).
 # AGP and the AndroidX/Compose versions are checked against Google Maven metadata; CI settles them.
 [versions]
-agp = "9.5.0"                  # AGP 9.x line; Gradle 9.8.2 wrapper
+agp = "9.5.1"                  # AGP 9.x line; Gradle 9.8.2 wrapper
 kotlin = "2.4.21"              # (tag) v2.4.21
 ksp = "2.3.13"                 # (tag) KSP2, Kotlin-version independent
 hilt = "2.60.1"                # (tag) Hilt's plugin needs AGP 9; the AGP 8 pin at 2.58 went with the AGP 9 upgrade
