@@ -48,12 +48,6 @@ enum class ConnWords {
      * (mDNS, then port 33336): an offer, never applied without the user ([ConnAction.USE_NEW_ADDRESS]).
      */
     MOVED,
-
-    /**
-     * A pinned plane of the TV presents a new identity while the other plane vouches for the TV:
-     * one tap trusts it ([ConnAction.TRUST_IDENTITY]); never applied without the user.
-     */
-    NEW_IDENTITY,
     ;
 
     val mark: Status get() = when (this) {
@@ -61,7 +55,7 @@ enum class ConnWords {
         CONNECTING, RECONNECTING -> Status.WORKING
         STANDBY -> Status.STANDBY
         READY, NOT_SET_UP, NOT_PAIRED, NOT_ADDED -> Status.NOT_YET
-        UNREACHABLE, KEY_REFUSED, CODE_TO_RENEW, NEEDS_PAIRING, BLUETOOTH_OFF, NEEDS_PERMISSION, BUSY, MOVED, NEW_IDENTITY -> Status.NEEDS_YOU
+        UNREACHABLE, KEY_REFUSED, CODE_TO_RENEW, NEEDS_PAIRING, BLUETOOTH_OFF, NEEDS_PERMISSION, BUSY, MOVED -> Status.NEEDS_YOU
     }
 }
 
@@ -81,12 +75,6 @@ enum class ConnAction {
 
     /** Move the bar to the address it was found answering at ([TuttiController.useBarAddressOffer]). */
     USE_NEW_ADDRESS,
-
-    /**
-     * Trust the identity the TV now presents on one plane, while the other plane proves it is the
-     * same TV ([TuttiController.trustNewIdentity]): recovery without a full pairing.
-     */
-    TRUST_IDENTITY,
 
     /** Point the remote at this computer: the Bluetooth link follows the target. */
     CONTROL,
@@ -163,8 +151,6 @@ data class ConnInput(
     val bar: Link = Link.ABSENT,
     /** A bar of the same model answers at another address ([TuttiController.barAddressOffer]). */
     val barOffer: Boolean = false,
-    /** The plane whose new identity may be trusted with one tap ([TuttiController.identityOffer]). */
-    val identityOffer: io.kud.tutti.protocol.net.PinPlane? = null,
     /** The bar's Network / Bluetooth standby (`system.netbtstandby`), as last read; null when unknown. */
     val barStandby: Boolean? = null,
     val computers: List<ConnComputer> = emptyList(),
@@ -183,7 +169,6 @@ fun connInput(
     t: TargetState,
     barOffer: Boolean = false,
     lanCantAsk: Boolean = false,
-    identityOffer: io.kud.tutti.protocol.net.PinPlane? = null,
 ): ConnInput {
     val tv = t.list.tv
     return ConnInput(
@@ -202,7 +187,6 @@ fun connInput(
         barName = state.devices.bar?.name,
         bar = state.links.bar,
         barOffer = barOffer,
-        identityOffer = identityOffer,
         barStandby = state.bar.isOn(TheatreFeature.NET_BT_STANDBY),
         computers = t.list.devices.filter { it.kind == DeviceKind.COMPUTER }.map { ConnComputer(it.id, it.name, it.bluetooth?.address) },
         hidPhase = t.hidPhase,
@@ -272,12 +256,9 @@ private fun googleTv(input: ConnInput): ConnLine = when {
             ConnLine(ConnLink.GOOGLE_TV, if (input.tvShown.reconnecting) ConnWords.RECONNECTING else ConnWords.CONNECTING)
         // "Turn on" only when it can: without the MAC it would merely retry, which runs anyway.
         Link.UNREACHABLE -> ConnLine(ConnLink.GOOGLE_TV, ConnWords.UNREACHABLE, ConnAction.WAKE_TV.takeIf { input.tvWakeable })
-        Link.NEEDS_PAIRING, Link.UNAUTHORIZED ->
-            if (input.identityOffer == io.kud.tutti.protocol.net.PinPlane.REMOTE) {
-                ConnLine(ConnLink.GOOGLE_TV, ConnWords.NEW_IDENTITY, ConnAction.TRUST_IDENTITY)
-            } else {
-                ConnLine(ConnLink.GOOGLE_TV, ConnWords.NEEDS_PAIRING, ConnAction.PAIR_TV)
-            }
+        // A new identity the other plane vouches for is admitted on its own (AutoTrust) and never
+        // reaches this line for long; one that stays here has no proof, so pairing it is.
+        Link.NEEDS_PAIRING, Link.UNAUTHORIZED -> ConnLine(ConnLink.GOOGLE_TV, ConnWords.NEEDS_PAIRING, ConnAction.PAIR_TV)
     }
 }
 
@@ -305,8 +286,6 @@ private fun sonyIp(input: ConnInput, wakeShown: Boolean): ConnLine = when {
         // may renew REST trust. Standby still wins because a sleeping TV is expected not to answer.
         Link.NEEDS_PAIRING -> when {
             input.tvAsleep -> ConnLine(ConnLink.SONY_IP, ConnWords.STANDBY)
-            // Remote v2 vouches for the TV: its new IP-control key can be trusted with one tap.
-            input.identityOffer == io.kud.tutti.protocol.net.PinPlane.REST -> ConnLine(ConnLink.SONY_IP, ConnWords.NEW_IDENTITY, ConnAction.TRUST_IDENTITY)
             else -> ConnLine(ConnLink.SONY_IP, ConnWords.NEEDS_PAIRING, ConnAction.PAIR_TV)
         }
         Link.UNREACHABLE ->

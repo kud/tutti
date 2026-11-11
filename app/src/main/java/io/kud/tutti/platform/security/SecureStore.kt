@@ -61,7 +61,7 @@ class SecureStore @Inject constructor(
 
     /**
      * Admits [pin] as the newest trusted Remote v2 certificate, keeping the one before as the
-     * second (pairing, or the one-tap trust behind [io.kud.tutti.protocol.net.TrustGate]); null
+     * second (pairing, or the automatic admission behind [io.kud.tutti.protocol.net.TrustGate]); null
      * forgets both. Also used to put an already trusted one first ([TrustedPins.follow]).
      */
     suspend fun setTvRemotePin(pin: CertificatePin?) {

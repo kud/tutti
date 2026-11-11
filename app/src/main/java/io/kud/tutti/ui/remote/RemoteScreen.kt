@@ -888,8 +888,7 @@ fun RemoteScreen(
     if (connectionsSheet) {
         // A pill that says something is wrong lands on that device's line (problemLine).
         val barOffer by controller.barAddressOffer.collectAsState()
-        val identityOffer by controller.identityOffer.collectAsState()
-        val connDevices = connections(connInput(state, targets, barOffer = barOffer != null, lanCantAsk = lanCantAsk, identityOffer = identityOffer))
+        val connDevices = connections(connInput(state, targets, barOffer = barOffer != null, lanCantAsk = lanCantAsk))
         ConnectionsSheet(
             devices = connDevices,
             focus = problemLine(connDevices),
@@ -899,7 +898,6 @@ fun RemoteScreen(
                     ConnAction.WAKE_TV -> controller.power(PowerTarget.TV, on = true)
                     ConnAction.CONTROL -> target.setTarget(device.id)
                     ConnAction.USE_NEW_ADDRESS -> controller.useBarAddressOffer()
-                    ConnAction.TRUST_IDENTITY -> controller.trustNewIdentity()
                     // Local: the grant closes the loop here, no route through Settings.
                     ConnAction.LAN_REQUEST -> askLanAccess()
                     ConnAction.LAN_OPEN_SETTINGS -> openLanSettings()

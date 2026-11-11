@@ -83,4 +83,72 @@ class IdentityChangesTest {
         val both = stored + (SecretKeys.remotePin2(Device.TV_ID) to c)
         assertEquals(listOf(a, c), SecretKeys.pins(both::get, SecretKeys.remotePin(Device.TV_ID), SecretKeys.remotePin2(Device.TV_ID)))
     }
+
+    private val host = "192.0.2.10"
+    private val up = PlaneState(online = true, host = host, pinned = true)
+    private val connecting = PlaneState(online = false, host = host, pinned = true)
+
+    @Test
+    fun `a new identity is admitted at once while the other plane vouches for the tv`() {
+        val rest = PendingIdentity(PinPlane.REST, host, a, seenAtMs = 1_000)
+        assertEquals(AutoTrust.Decision.ADMIT, AutoTrust.decide(rest, nowMs = 1_000, remote = up, rest = connecting))
+        val remote = PendingIdentity(PinPlane.REMOTE, host, a, seenAtMs = 1_000)
+        assertEquals(AutoTrust.Decision.ADMIT, AutoTrust.decide(remote, nowMs = 1_000, remote = connecting, rest = up))
+    }
+
+    @Test
+    fun `it waits for the other plane and is admitted when the gate opens inside the window`() {
+        val remote = PendingIdentity(PinPlane.REMOTE, host, a, seenAtMs = 1_000)
+        assertEquals(AutoTrust.Decision.WAIT, AutoTrust.decide(remote, nowMs = 1_000, remote = connecting, rest = connecting))
+        val opens = 1_000 + AutoTrust.WINDOW_MS
+        assertEquals(AutoTrust.Decision.ADMIT, AutoTrust.decide(remote, nowMs = opens, remote = connecting, rest = up))
+    }
+
+    @Test
+    fun `past the window it is never admitted on its own`() {
+        val remote = PendingIdentity(PinPlane.REMOTE, host, a, seenAtMs = 1_000)
+        val late = 1_000 + AutoTrust.WINDOW_MS + 1
+        assertEquals(AutoTrust.Decision.DROP, AutoTrust.decide(remote, nowMs = late, remote = connecting, rest = up))
+        // Seen again: a fresh sighting starts a fresh window.
+        assertEquals(AutoTrust.Decision.ADMIT, AutoTrust.decide(remote.copy(seenAtMs = late), nowMs = late, remote = connecting, rest = up))
+    }
+
+    @Test
+    fun `another host or an unpinned other plane never vouches`() {
+        val rest = PendingIdentity(PinPlane.REST, host, a, seenAtMs = 0)
+        val elsewhere = PlaneState(online = true, host = "192.0.2.11", pinned = true)
+        assertEquals(AutoTrust.Decision.WAIT, AutoTrust.decide(rest, nowMs = 0, remote = elsewhere, rest = connecting))
+        val remote = PendingIdentity(PinPlane.REMOTE, host, a, seenAtMs = 0)
+        val http = PlaneState(online = true, host = host, pinned = false)
+        assertEquals(AutoTrust.Decision.WAIT, AutoTrust.decide(remote, nowMs = 0, remote = connecting, rest = http))
+        // The other plane not set up at all, for the whole window: dropped, never admitted.
+        val off = PlaneState(online = false, host = null, pinned = false)
+        assertEquals(AutoTrust.Decision.DROP, AutoTrust.decide(remote, nowMs = AutoTrust.WINDOW_MS + 1, remote = connecting, rest = off))
+    }
+
+    @Test
+    fun `when both planes changed neither vouches for the other`() {
+        val remote = PendingIdentity(PinPlane.REMOTE, host, a, seenAtMs = 0)
+        val rest = PendingIdentity(PinPlane.REST, host, b, seenAtMs = 0)
+        // Even if a link still reads online from before its change, the other plane's change wins.
+        assertEquals(AutoTrust.Decision.DROP, AutoTrust.decide(remote, nowMs = 0, remote = connecting, rest = up, otherPending = rest))
+        assertEquals(AutoTrust.Decision.DROP, AutoTrust.decide(rest, nowMs = 0, remote = up, rest = connecting, otherPending = remote))
+        // An old change on the other plane, long settled, does not block.
+        val stale = rest.copy(seenAtMs = -AutoTrust.WINDOW_MS - 1)
+        assertEquals(AutoTrust.Decision.ADMIT, AutoTrust.decide(remote, nowMs = 0, remote = connecting, rest = up, otherPending = stale))
+    }
+
+    @Test
+    fun `an automatic admission is recorded beside the mismatches and a dev_4 log reads back`() {
+        val mismatch = PinMismatchEvent(1L, PinPlane.REST, hostLabel(host, true), listOf("aaaaaaaa"), "bbbbbbbb", "cccccccc", false)
+        // A mismatch encodes exactly as 0.3.1-dev.4 wrote it.
+        assertEquals("1\t1\trest\t\u2026.10 (stored)\taaaaaaaa\tbbbbbbbb\tcccccccc\t0", mismatch.encode())
+        val admitted = mismatch.copy(atMs = 2L, admittedVia = PinPlane.REMOTE)
+        val stored = PinMismatchLog.add(PinMismatchLog.add(null, mismatch), admitted)
+        assertEquals(listOf(admitted, mismatch), PinMismatchLog.decode(stored))
+        val report = PinMismatchLog.report(PinMismatchLog.decode(stored))
+        assertTrue("- rest admitted automatically via remote host=" in report)
+        assertNull(PinMismatchEvent.decode(admitted.encode() + "\textra"))
+        assertNull(PinMismatchEvent.decode(admitted.encode().replace("\tremote", "\tnowhere")))
+    }
 }

@@ -140,18 +140,10 @@ class ConnectionsTest {
     }
 
     @Test
-    fun aVouchedNewIdentityOffersOneTapTrustOnItsOwnLineOnly() {
-        assertEquals(
-            ConnLine(ConnLink.SONY_IP, ConnWords.NEW_IDENTITY, ConnAction.TRUST_IDENTITY),
-            line(room.copy(rest = Link.NEEDS_PAIRING, identityOffer = io.kud.tutti.protocol.net.PinPlane.REST), "tv", ConnLink.SONY_IP),
-        )
-        val remote = room.copy(tvShown = TvShown(Link.NEEDS_PAIRING), identityOffer = io.kud.tutti.protocol.net.PinPlane.REMOTE)
-        assertEquals(ConnLine(ConnLink.GOOGLE_TV, ConnWords.NEW_IDENTITY, ConnAction.TRUST_IDENTITY), line(remote, "tv", ConnLink.GOOGLE_TV))
-        // An offer for the other plane never changes this line's pairing ask.
-        assertEquals(
-            ConnLine(ConnLink.SONY_IP, ConnWords.NEEDS_PAIRING, ConnAction.PAIR_TV),
-            line(room.copy(rest = Link.NEEDS_PAIRING, identityOffer = io.kud.tutti.protocol.net.PinPlane.REMOTE), "tv", ConnLink.SONY_IP),
-        )
+    fun aRemoteCertificateMismatchOffersPairAgainAndNoOtherTap() {
+        // A vouched new identity is admitted on its own (AutoTrust); what stays is unproven: pair again.
+        val remote = room.copy(tvShown = TvShown(Link.NEEDS_PAIRING))
+        assertEquals(ConnLine(ConnLink.GOOGLE_TV, ConnWords.NEEDS_PAIRING, ConnAction.PAIR_TV), line(remote, "tv", ConnLink.GOOGLE_TV))
     }
 
     @Test

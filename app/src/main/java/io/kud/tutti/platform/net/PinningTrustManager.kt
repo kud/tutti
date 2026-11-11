@@ -35,6 +35,6 @@ internal class PinningTrustManager(
 
 /**
  * The device presented an identity none of the pins trust. [seen] is that (public) certificate, kept
- * for the diagnostics and the one-tap trust offer; it is never trusted from here.
+ * for the diagnostics and the automatic admission under the gate (AutoTrust); it is never trusted from here.
  */
 class PinMismatchException(val seen: X509Certificate? = null) : CertificateException("server identity does not match the recorded pin")

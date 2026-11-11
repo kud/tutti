@@ -53,6 +53,7 @@ import io.kud.tutti.protocol.apps.LaunchResult
 import io.kud.tutti.protocol.apps.LaunchRoute
 import io.kud.tutti.protocol.net.ReconnectPace
 import io.kud.tutti.protocol.net.Redact
+import io.kud.tutti.protocol.net.other
 import io.kud.tutti.protocol.bravia.TvApp
 import java.io.File
 import io.kud.tutti.protocol.atv.AtvPairing
@@ -231,12 +232,18 @@ class TuttiController @Inject constructor(
     private val restart = MutableStateFlow(0)
 
     /**
-     * The identity a pinned TV plane presented instead of a trusted one, waiting for the one-tap
-     * trust ([trustNewIdentity]). Never applied on its own; cleared by pairing.
+     * The identity a pinned TV plane presented instead of a trusted one, at most one per plane,
+     * waiting for [io.kud.tutti.protocol.net.AutoTrust] to admit it ([autoTrust]) or drop it.
+     * [event] is the recorded mismatch, whose labels the admission entry reuses. Cleared by pairing.
      */
-    private data class TrustOffer(val plane: io.kud.tutti.protocol.net.PinPlane, val host: String, val sha256Hex: String)
+    private data class TrustOffer(val pending: io.kud.tutti.protocol.net.PendingIdentity, val event: io.kud.tutti.protocol.net.PinMismatchEvent)
 
-    private val trustOffer = MutableStateFlow<TrustOffer?>(null)
+    private val trustOffers = MutableStateFlow<Map<io.kud.tutti.protocol.net.PinPlane, TrustOffer>>(emptyMap())
+
+    /** Watches [trustOffers] against the links; started by the first mismatch. */
+    private val autoTrustWatch by lazy {
+        scope.launch { combine(trustOffers, links) { offers, current -> offers to current }.collect { (offers, current) -> autoTrust(offers, current) } }
+    }
 
     /** The host the Remote v2 session talks to, for [io.kud.tutti.protocol.net.TrustGate]. */
     @Volatile private var remoteHost: String? = null
@@ -246,14 +253,6 @@ class TuttiController @Inject constructor(
     /** Recorded pin mismatches, newest first, for the developer-mode diagnostics (Technical details). */
     val pinMismatches: StateFlow<List<io.kud.tutti.protocol.net.PinMismatchEvent>> = pinMismatchList
 
-    /**
-     * The plane whose new identity may be trusted with one tap right now: an offer stands and the
-     * other plane is online to the same host over its own matching pin ([io.kud.tutti.protocol.net.TrustGate]).
-     */
-    val identityOffer: StateFlow<io.kud.tutti.protocol.net.PinPlane?> by lazy {
-        combine(trustOffer, links) { offer, current -> offer?.takeIf { trustGateOpen(it, current) }?.plane }
-            .stateIn(scope, SharingStarted.Eagerly, null)
-    }
     private val wake = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     /** Latest level to send; a Channel, not a StateFlow, so setting the level it already holds still sends it. */
     private val volumeTarget = Channel<Int>(Channel.CONFLATED)
@@ -2756,7 +2755,7 @@ class TuttiController @Inject constructor(
                         staged?.let { identities.commit(it) }
                         committed = true
                         secure.setTvRemotePin(result.serverPin)
-                        trustOffer.value = null
+                        trustOffers.value = emptyMap()
                         // The six-character Remote v2 code is the user's explicit trust ceremony.
                         // Use that moment to refresh REST trust from an unauthenticated HTTPS probe:
                         // no PSK/cookie is sent before the new certificate has been stored.
@@ -3190,7 +3189,8 @@ class TuttiController @Inject constructor(
     /**
      * A pinned TV plane presented [seen] instead of a trusted identity. Records it for the
      * diagnostics (labels only), then: if [seen] is the plane's other trusted identity, returns it
-     * so the caller follows it; otherwise leaves a [TrustOffer] that only [trustNewIdentity] applies.
+     * so the caller follows it; otherwise leaves a [TrustOffer] that [autoTrust] admits only under
+     * the gate, within its window.
      */
     private suspend fun onPinMismatch(
         plane: io.kud.tutti.protocol.net.PinPlane,
@@ -3216,7 +3216,7 @@ class TuttiController @Inject constructor(
         )
         // A REST session retries a refused key every few minutes: one line per change, not per retry.
         val last = secure.pinMismatches().firstOrNull()
-        if (last == null || last.plane != plane || last.seenCert != event.seenCert || last.host != event.host) {
+        if (last == null || last.admittedVia != null || last.plane != plane || last.seenCert != event.seenCert || last.host != event.host) {
             runCatching { secure.recordPinMismatch(event) }
         }
         pinMismatchList.value = runCatching { secure.pinMismatches() }.getOrDefault(pinMismatchList.value)
@@ -3225,35 +3225,58 @@ class TuttiController @Inject constructor(
         if (plane == io.kud.tutti.protocol.net.PinPlane.REMOTE && io.kud.tutti.protocol.net.TrustedPins.follow(trusted, seenHex) != null) {
             return seenCert
         }
-        trustOffer.value = TrustOffer(plane, host, seenHex)
+        // A new sighting of the same identity moves its window to now; another identity replaces it.
+        val pending = io.kud.tutti.protocol.net.PendingIdentity(plane, host, seenHex, SystemClock.elapsedRealtime())
+        trustOffers.update { it + (plane to TrustOffer(pending, event)) }
+        autoTrustWatch.start()
         return null
     }
 
-    private fun trustGateOpen(offer: TrustOffer, current: Links): Boolean = io.kud.tutti.protocol.net.TrustGate.allows(
-        offer.plane,
-        offer.host,
-        remote = io.kud.tutti.protocol.net.PlaneState(online = current.tv == Link.ONLINE, host = remoteHost, pinned = true),
-        rest = io.kud.tutti.protocol.net.PlaneState(
+    /**
+     * Admits each pending identity the moment [io.kud.tutti.protocol.net.AutoTrust] says so: the
+     * other plane online to the same host over its own pinned, matching identity, within the
+     * window. Same effect as pairing on that plane alone: the new identity first, the previous one
+     * kept as the second, the sessions restarted; and an entry in the identity changes saying it
+     * was admitted automatically and which plane vouched. Runs on one collector, so one admission
+     * at a time. No button, no banner (Erwann, 2026-11-11).
+     */
+    private suspend fun autoTrust(offers: Map<io.kud.tutti.protocol.net.PinPlane, TrustOffer>, current: Links) {
+        if (offers.isEmpty()) return
+        val now = SystemClock.elapsedRealtime()
+        val remote = io.kud.tutti.protocol.net.PlaneState(online = current.tv == Link.ONLINE, host = remoteHost, pinned = true)
+        val rest = io.kud.tutti.protocol.net.PlaneState(
             online = current.rest == Link.ONLINE,
             host = tvHostForIcons,
             pinned = braviaTransport?.scheme == "https",
-        ),
-    )
-
-    /**
-     * "Trust the new identity": admits the offered identity on its plane, the previous one staying
-     * trusted as the second, then restarts the sessions. Only while the gate holds, checked again here.
-     */
-    fun trustNewIdentity() {
-        val offer = trustOffer.value ?: return
-        if (!trustGateOpen(offer, links.value)) return
-        scope.launch {
-            when (offer.plane) {
-                io.kud.tutti.protocol.net.PinPlane.REMOTE -> secure.setTvRemotePin(io.kud.tutti.protocol.net.CertificatePin(offer.sha256Hex))
-                io.kud.tutti.protocol.net.PinPlane.REST -> secure.setTvRestPin(PublicKeyPin(offer.sha256Hex))
+        )
+        for ((plane, offer) in offers) {
+            val other = offers[plane.other()]?.pending
+            when (io.kud.tutti.protocol.net.AutoTrust.decide(offer.pending, now, remote, rest, other)) {
+                io.kud.tutti.protocol.net.AutoTrust.Decision.WAIT -> Unit
+                io.kud.tutti.protocol.net.AutoTrust.Decision.DROP -> trustOffers.update { if (it[plane] == offer) it - plane else it }
+                io.kud.tutti.protocol.net.AutoTrust.Decision.ADMIT -> {
+                    // Still the offer we decided on: a pairing may have cleared it meanwhile.
+                    if (trustOffers.value[plane] != offer) continue
+                    val before = when (plane) {
+                        io.kud.tutti.protocol.net.PinPlane.REMOTE -> secure.tvRemotePins().map { it.sha256Hex }
+                        io.kud.tutti.protocol.net.PinPlane.REST -> secure.tvRestKeys().map { it.sha256Hex }
+                    }
+                    when (plane) {
+                        io.kud.tutti.protocol.net.PinPlane.REMOTE -> secure.setTvRemotePin(io.kud.tutti.protocol.net.CertificatePin(offer.pending.sha256Hex))
+                        io.kud.tutti.protocol.net.PinPlane.REST -> secure.setTvRestPin(PublicKeyPin(offer.pending.sha256Hex))
+                    }
+                    val admitted = offer.event.copy(
+                        atMs = System.currentTimeMillis(),
+                        pinned = before.map { io.kud.tutti.protocol.net.pinLabel(it) },
+                        admittedVia = plane.other(),
+                    )
+                    runCatching { secure.recordPinMismatch(admitted) }
+                    pinMismatchList.value = runCatching { secure.pinMismatches() }.getOrDefault(pinMismatchList.value)
+                    Log.i(TAG, "pin admitted: ${admitted.line()}")
+                    trustOffers.update { if (it[plane] == offer) it - plane else it }
+                    restart.update { it + 1 }
+                }
             }
-            trustOffer.value = null
-            restart.update { it + 1 }
         }
     }
 
