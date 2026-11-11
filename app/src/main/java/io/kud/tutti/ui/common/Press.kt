@@ -189,5 +189,5 @@ class MorphCornerShape(private val percent: () -> Float) : Shape {
     }
 }
 
-/** The ring waits this long, so a plain tap never shows it. */
-const val RING_DELAY_MS = 150L
+/** The ring and the hold bubble wait this long, so a plain tap never shows either (one threshold). */
+const val RING_DELAY_MS = 200L
