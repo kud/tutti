@@ -11,8 +11,12 @@ import kotlin.math.roundToInt
  * off. A volume raised by hand during the fade is never fought: the fade only ever lowers.
  */
 object SleepFade {
-    /** The choices offered, in minutes. Kept short on purpose: no "end of programme" guessing. */
-    val DURATIONS_MIN: List<Int> = listOf(15, 30, 45, 60, 90)
+    /**
+     * The choices offered, in minutes. Kept short on purpose: no "end of programme" guessing. The
+     * shortest still leaves eight quiet minutes before the two-minute fade; a time of day goes
+     * through [SwitchOffAt] instead.
+     */
+    val DURATIONS_MIN: List<Int> = listOf(10, 15, 30, 45, 60, 90)
 
     const val FADE_MS: Long = 120_000L
     const val STEP_MS: Long = 10_000L

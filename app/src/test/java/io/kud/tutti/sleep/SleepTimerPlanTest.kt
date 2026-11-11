@@ -63,4 +63,13 @@ class SleepTimerPlanTest {
         val running = SleepTimerState(endsAt, exact = false)
         assertEquals(GentleOffRow(running, null), gentleOffRow(hasDevice = true, powered = false, running = running, offReason = "off"))
     }
+
+    @Test
+    fun anInexactTimerTurnsExactOnceTheGrantArrives() {
+        val inexact = SleepTimerState(endsAt, exact = false)
+        assertEquals(true, needsExactUpgrade(inexact, exactAllowed = true))
+        assertEquals(false, needsExactUpgrade(inexact, exactAllowed = false))
+        assertEquals(false, needsExactUpgrade(inexact.copy(exact = true), exactAllowed = true))
+        assertEquals(false, needsExactUpgrade(null, exactAllowed = true))
+    }
 }

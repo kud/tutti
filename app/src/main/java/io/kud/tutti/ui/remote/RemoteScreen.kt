@@ -688,9 +688,9 @@ fun RemoteScreen(
                                     cast = castNowPlaying,
                                     timer = gentleTimer?.let { timer ->
                                         stringResource(
-                                            R.string.gentle_off_card,
+                                            if (gentleOffTomorrow(gentleNow, timer.endsAt)) R.string.gentle_off_card_tomorrow else R.string.gentle_off_card,
                                             android.text.format.DateFormat.getTimeFormat(context).format(java.util.Date(timer.endsAt)),
-                                            SleepFade.minutesLeft(gentleNow, timer.endsAt),
+                                            gentleOffSpan(gentleNow, timer.endsAt),
                                         )
                                     },
                                     onOpen = when (cardTap(shown, targets.computerOnInput != null)) {
@@ -929,8 +929,14 @@ fun RemoteScreen(
     }
 
     if (powerSheet) {
-        // Asked again on every opening: the system page that grants exact alarms is one tap away.
-        val exactAllowed = remember(powerSheet) { SleepTimers.exactAllowed(context) }
+        // Live: asked again each time tutti comes back to the front, so granting exact alarms on the
+        // system page (one tap away) clears the "late" line at once, and a running timer turns exact.
+        var exactAllowed by remember { mutableStateOf(SleepTimers.exactAllowed(context)) }
+        androidx.lifecycle.compose.LifecycleResumeEffect(context) {
+            exactAllowed = SleepTimers.exactAllowed(context)
+            SleepTimers.refreshExact(context)
+            onPauseOrDispose {}
+        }
         // The sleep key comes from the TV's IRCC list, which only TV settings load: ask once.
         LaunchedEffect(Unit) { controller.loadSleepTimer() }
         val powerPinner = rememberDockPinner(state, controller)
@@ -987,6 +993,11 @@ fun RemoteScreen(
             onGentle = { minutes ->
                 haptics.select()
                 SleepTimers.start(context, minutes)
+                powerSheet = false
+            },
+            onGentleAt = { endsAt ->
+                haptics.select()
+                SleepTimers.startAt(context, endsAt)
                 powerSheet = false
             },
             onGentleCancel = {

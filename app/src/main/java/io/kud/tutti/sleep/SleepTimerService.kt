@@ -27,6 +27,9 @@ import io.kud.tutti.controller.PowerTarget
 import io.kud.tutti.controller.TuttiController
 import io.kud.tutti.controller.VolumeSource
 import io.kud.tutti.protocol.sleep.SleepFade
+import io.kud.tutti.protocol.sleep.SwitchOffAt
+import java.time.Instant
+import java.time.ZoneId
 import java.util.Date
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
@@ -71,6 +74,20 @@ object SleepTimers {
         ContextCompat.startForegroundService(context, SleepTimerService.intent(context, SleepTimerService.ACTION_START).putExtra(SleepTimerService.EXTRA_MINUTES, minutes))
     }
 
+    /** Starts a timer ending at a time of day the sheet already checked ([SwitchOffAt.plan]). */
+    fun startAt(context: Context, endsAt: Long) {
+        ContextCompat.startForegroundService(context, SleepTimerService.intent(context, SleepTimerService.ACTION_START).putExtra(SleepTimerService.EXTRA_ENDS_AT, endsAt))
+    }
+
+    /**
+     * Exact alarms may have been granted since the timer started (the system page, then back): a
+     * running timer still on an inexact alarm moves to an exact one. Called on resume and on the
+     * system's permission broadcast; a no-op otherwise.
+     */
+    fun refreshExact(context: Context) {
+        if (needsExactUpgrade(state.value, exactAllowed(context))) SleepTimerService.running?.upgradeExact()
+    }
+
     fun cancel(context: Context) {
         // A running service takes it in-process; one that died with the process leaves only the alarm.
         SleepTimerService.running?.cancelTimer() ?: run {
@@ -113,10 +130,9 @@ class SleepTimerService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_START -> {
-                val minutes = intent.getIntExtra(EXTRA_MINUTES, 0).takeIf { it in SleepFade.DURATIONS_MIN } ?: return stopNow()
+                val endsAt = startEnd(intent, System.currentTimeMillis()) ?: return stopNow()
                 fade?.cancel()
                 releaseHolds()
-                val endsAt = SleepFade.endsAt(System.currentTimeMillis(), minutes)
                 val exact = SleepTimers.exactAllowed(this)
                 SleepTimers.set(SleepTimerState(endsAt, exact))
                 foreground()
@@ -139,6 +155,14 @@ class SleepTimerService : Service() {
             else -> if (SleepTimers.state.value == null) return stopNow() else foreground()
         }
         return START_NOT_STICKY
+    }
+
+    /** Exact alarms arrived mid-timer: re-arm the fade's start exactly, or just say so once fading (the fade runs on its own clock). */
+    internal fun upgradeExact() {
+        val timer = SleepTimers.state.value ?: return
+        if (!needsExactUpgrade(timer, SleepTimers.exactAllowed(this))) return
+        if (timer.fading(System.currentTimeMillis())) SleepTimers.update { it?.copy(exact = true) } else schedule(timer.endsAt)
+        foreground()
     }
 
     /** Called by the alarm, in-process when the service is alive (no new foreground start needed). */
@@ -283,6 +307,7 @@ class SleepTimerService : Service() {
 
     private fun notification(timer: SleepTimerState): Notification {
         val at = DateFormat.getTimeFormat(this).format(Date(timer.endsAt))
+        val tomorrow = SwitchOffAt.isTomorrow(Instant.now(), Instant.ofEpochMilli(timer.endsAt), ZoneId.systemDefault())
         val text = when {
             timer.fading(System.currentTimeMillis()) -> getString(R.string.gentle_off_fading)
             !timer.exact -> getString(R.string.gentle_off_late)
@@ -297,7 +322,7 @@ class SleepTimerService : Service() {
         )
         return Notification.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_bedtime)
-            .setContentTitle(getString(R.string.gentle_off_at, at))
+            .setContentTitle(getString(if (tomorrow) R.string.gentle_off_at_tomorrow else R.string.gentle_off_at, at))
             .setContentText(text)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
@@ -335,6 +360,17 @@ class SleepTimerService : Service() {
         private const val FLUSH_MS = 2_000L
 
         @Volatile internal var running: SleepTimerService? = null
+
+        /**
+         * The end a start asks for: an absolute [EXTRA_ENDS_AT] checked by [SwitchOffAt.accepts], or
+         * [EXTRA_MINUTES] from the offered list. Anything else starts nothing.
+         */
+        internal fun startEnd(intent: Intent, now: Long): Long? {
+            val endsAt = intent.getLongExtra(EXTRA_ENDS_AT, 0L)
+            if (endsAt != 0L) return endsAt.takeIf { SwitchOffAt.accepts(now, it) }
+            val minutes = intent.getIntExtra(EXTRA_MINUTES, 0).takeIf { it in SleepFade.DURATIONS_MIN } ?: return null
+            return SleepFade.endsAt(now, minutes)
+        }
 
         fun intent(context: Context, action: String): Intent = Intent(context, SleepTimerService::class.java).setAction(action)
 
@@ -384,5 +420,16 @@ class SleepTimerAlarmReceiver : BroadcastReceiver() {
         } catch (e: IllegalStateException) {
             Log.w("SleepTimer", "could not start the switch-off timer from the alarm", e)
         }
+    }
+}
+
+/**
+ * The system's word that exact alarms were granted (sent to the app, even in the background, only on
+ * a grant). A running inexact timer turns exact; without one there is nothing to do.
+ */
+class ExactAlarmGrantReceiver : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent) {
+        // The action's constant is API 31; the string keeps lint quiet on minSdk 29, where it never comes.
+        if (intent.action == "android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED") SleepTimers.refreshExact(context)
     }
 }

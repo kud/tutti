@@ -75,3 +75,10 @@ fun gentleOffRow(hasDevice: Boolean, powered: Boolean?, running: SleepTimerState
     powered == false -> GentleOffRow(null, offReason)
     else -> GentleOffRow(null, null)
 }
+
+/**
+ * Whether a running timer should move to an exact alarm: it runs on an inexact one and the phone
+ * now allows exact. Also what clears the "may switch off late" line on the running row.
+ */
+fun needsExactUpgrade(timer: SleepTimerState?, exactAllowed: Boolean): Boolean =
+    timer != null && !timer.exact && exactAllowed

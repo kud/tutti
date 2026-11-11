@@ -15,8 +15,8 @@
     <string name="gentle_off_minutes">%1$d min</string>
     <string name="gentle_off_minutes_label">Éteindre dans %1$d minutes</string>
     <string name="gentle_off_at">Arrêt à %1$s</string>
-    <string name="gentle_off_left">Encore %1$d min · touchez pour annuler</string>
-    <string name="gentle_off_card">Arrêt à %1$s · encore %2$d min</string>
+    <string name="gentle_off_left">Encore %1$s · touchez pour annuler</string>
+    <string name="gentle_off_card">Arrêt à %1$s · encore %2$s</string>
     <string name="gentle_off_cancel">Annuler</string>
     <string name="gentle_off_late">Peut s’éteindre quelques minutes en retard</string>
     <string name="gentle_off_allow">Autoriser l’heure exacte</string>
@@ -25,4 +25,10 @@
     <string name="gentle_off_notification_text">Le volume baissera pendant les 2 dernières minutes</string>
     <string name="gentle_off_channel">Extinction programmée</string>
     <string name="gentle_off_channel_description">Le compte à rebours avant que la TV et la barre s’éteignent.</string>
+    <string name="gentle_off_at_tomorrow">Arrêt demain à %1$s</string>
+    <string name="gentle_off_card_tomorrow">Arrêt demain à %1$s · encore %2$s</string>
+    <string name="gentle_off_span_hours">%1$d h %2$02d</string>
+    <string name="gentle_off_at_time">À une heure…</string>
+    <string name="gentle_off_at_time_label">Éteindre à l’heure de votre choix</string>
+    <string name="gentle_off_too_soon">Choisissez une heure au moins 2 minutes plus tard : le volume a besoin de ce temps pour baisser.</string>
 </resources>

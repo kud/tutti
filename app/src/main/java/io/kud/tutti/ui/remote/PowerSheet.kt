@@ -38,6 +38,18 @@ import androidx.compose.ui.unit.dp
 import io.kud.tutti.R
 import io.kud.tutti.controller.PowerTarget
 import io.kud.tutti.protocol.sleep.SleepFade
+import io.kud.tutti.protocol.sleep.SwitchOffAt
+import android.app.TimePickerDialog
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import java.time.Instant
+import java.time.LocalTime
+import java.time.ZoneId
+import java.time.ZonedDateTime
 import io.kud.tutti.sleep.GentleOffRow
 import io.kud.tutti.ui.common.PinnedHeader
 import io.kud.tutti.ui.common.TuttiSheet
@@ -114,6 +126,7 @@ fun PowerSheet(
     now: Long = 0L,
     exactAllowed: Boolean = true,
     onGentle: (minutes: Int) -> Unit = {},
+    onGentleAt: (endsAt: Long) -> Unit = {},
     onGentleCancel: () -> Unit = {},
     onAllowExact: (() -> Unit)? = null,
 ) {
@@ -174,16 +187,29 @@ fun PowerSheet(
                     val detail = sleep.reason ?: stringResource(R.string.power_sleep_detail)
                     PowerRow(R.drawable.ic_bedtime, stringResource(R.string.power_sleep), detail, enabled = sleep.reason == null, down = sleep.reason != null, onClick = onSleep)
                 }
-                if (gentle != null) GentleOff(gentle, now, exactAllowed, onGentle, onGentleCancel, onAllowExact)
+                if (gentle != null) GentleOff(gentle, now, exactAllowed, onGentle, onGentleAt, onGentleCancel, onAllowExact)
             }
         }
     }
 }
 
+/** Time left for the running line and the card: "12 min", or "9 h 50" once an hour or more. */
+@Composable
+internal fun gentleOffSpan(now: Long, endsAt: Long): String {
+    val (hours, minutes) = SwitchOffAt.hoursAndMinutesLeft(now, endsAt)
+    return if (hours == 0) stringResource(R.string.gentle_off_minutes, minutes) else stringResource(R.string.gentle_off_span_hours, hours, minutes)
+}
+
+/** Whether the end is on a later day than [now] on the phone's clock: the line then says "tomorrow". */
+internal fun gentleOffTomorrow(now: Long, endsAt: Long): Boolean =
+    SwitchOffAt.isTomorrow(Instant.ofEpochMilli(now), Instant.ofEpochMilli(endsAt), ZoneId.systemDefault())
+
 /**
- * The gentle switch-off timer: a row of durations, or, while one runs, its
- * end time and time left, a tap cancelling it. Without exact alarms it says, in words, that it may
- * switch off a few minutes late, and offers the system page that allows exact timing.
+ * The gentle switch-off timer: durations and "At a time…", or, while one runs, its end time and
+ * time left, a tap cancelling it. "At a time…" opens the system time picker (24-hour when the phone
+ * is) and aims at the next time the clock reads it; a time closer than the fade is refused in words.
+ * Without exact alarms it says, in words, that it may switch off a few minutes late, and offers the
+ * system page that allows exact timing.
  */
 @Composable
 private fun GentleOff(
@@ -191,20 +217,42 @@ private fun GentleOff(
     now: Long,
     exactAllowed: Boolean,
     onStart: (Int) -> Unit,
+    onStartAt: (Long) -> Unit,
     onCancel: () -> Unit,
     onAllowExact: (() -> Unit)?,
 ) {
+    val context = LocalContext.current
     val running = row.running
     if (running != null) {
-        val at = android.text.format.DateFormat.getTimeFormat(LocalContext.current).format(java.util.Date(running.endsAt))
-        val left = stringResource(R.string.gentle_off_left, SleepFade.minutesLeft(now, running.endsAt))
+        val at = android.text.format.DateFormat.getTimeFormat(context).format(java.util.Date(running.endsAt))
+        val left = stringResource(R.string.gentle_off_left, gentleOffSpan(now, running.endsAt))
         PowerRow(
             R.drawable.ic_bedtime,
-            stringResource(R.string.gentle_off_at, at),
+            stringResource(if (gentleOffTomorrow(now, running.endsAt)) R.string.gentle_off_at_tomorrow else R.string.gentle_off_at, at),
             if (running.exact) left else left + "\n" + stringResource(R.string.gentle_off_late),
             onClick = onCancel,
         )
         return
+    }
+    var refused by remember { mutableStateOf(false) }
+    val pickTime = {
+        val soon = ZonedDateTime.now().plusMinutes(30)
+        val roundedUp = soon.plusMinutes(((5 - soon.minute % 5) % 5).toLong())
+        TimePickerDialog(
+            context,
+            { _, hour, minute ->
+                when (val plan = SwitchOffAt.plan(Instant.now(), LocalTime.of(hour, minute), ZoneId.systemDefault())) {
+                    is SwitchOffAt.Plan.Start -> {
+                        refused = false
+                        onStartAt(plan.endsAt)
+                    }
+                    is SwitchOffAt.Plan.Refused -> refused = true
+                }
+            },
+            roundedUp.hour,
+            roundedUp.minute,
+            android.text.format.DateFormat.is24HourFormat(context),
+        ).show()
     }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         PowerRow(
@@ -216,17 +264,30 @@ private fun GentleOff(
             onClick = {},
         )
         if (row.reason == null) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                for (minutes in SleepFade.DURATIONS_MIN) {
-                    val label = stringResource(R.string.gentle_off_minutes_label, minutes)
-                    FilledTonalButton(
-                        onClick = { onStart(minutes) },
-                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
-                        modifier = Modifier.weight(1f).heightIn(min = 48.dp).semantics { contentDescription = label },
-                    ) {
-                        Text(stringResource(R.string.gentle_off_minutes, minutes), maxLines = 1, style = MaterialTheme.typography.labelLarge)
+            // Four to a row, "At a time…" filling what the last row leaves (two slots for six durations).
+            val rows = SleepFade.DURATIONS_MIN.chunked(GENTLE_PER_ROW)
+            val timeLabel = stringResource(R.string.gentle_off_at_time_label)
+            rows.forEachIndexed { index, durations ->
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    for (minutes in durations) {
+                        val label = stringResource(R.string.gentle_off_minutes_label, minutes)
+                        GentleChip(stringResource(R.string.gentle_off_minutes, minutes), label, Modifier.weight(1f)) { onStart(minutes) }
+                    }
+                    if (index == rows.lastIndex && durations.size < GENTLE_PER_ROW) {
+                        GentleChip(stringResource(R.string.gentle_off_at_time), timeLabel, Modifier.weight((GENTLE_PER_ROW - durations.size).toFloat()), pickTime)
                     }
                 }
+            }
+            if (rows.last().size == GENTLE_PER_ROW) {
+                GentleChip(stringResource(R.string.gentle_off_at_time), timeLabel, Modifier.fillMaxWidth(), pickTime)
+            }
+            if (refused) {
+                Text(
+                    stringResource(R.string.gentle_off_too_soon),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 4.dp).semantics { liveRegion = LiveRegionMode.Polite },
+                )
             }
             if (!exactAllowed) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -240,6 +301,19 @@ private fun GentleOff(
                 }
             }
         }
+    }
+}
+
+private const val GENTLE_PER_ROW = 4
+
+@Composable
+private fun GentleChip(text: String, label: String, modifier: Modifier, onClick: () -> Unit) {
+    FilledTonalButton(
+        onClick = onClick,
+        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
+        modifier = modifier.heightIn(min = 48.dp).semantics { contentDescription = label },
+    ) {
+        Text(text, maxLines = 1, style = MaterialTheme.typography.labelLarge)
     }
 }
 

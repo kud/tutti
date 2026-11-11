@@ -155,5 +155,14 @@
         <receiver
             android:name=".sleep.SleepTimerAlarmReceiver"
             android:exported="false" />
+        <!-- Exact alarms granted mid-timer: the running timer turns exact. Exported because the
+             system sends it; it carries nothing and only re-arms a timer already running. -->
+        <receiver
+            android:name=".sleep.ExactAlarmGrantReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED" />
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>
