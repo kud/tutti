@@ -14,6 +14,7 @@ import io.kud.tutti.protocol.cast.CastNowPlaying
 import io.kud.tutti.protocol.share.ShareLanguage
 import io.kud.tutti.protocol.share.TitleLink
 import io.kud.tutti.protocol.share.TitleLinks
+import io.kud.tutti.protocol.share.TraktTarget
 import io.kud.tutti.protocol.share.WatchShare
 import io.kud.tutti.protocol.share.Watching
 import java.util.Locale
@@ -44,7 +45,8 @@ internal fun watchingOf(showing: CardShowing, cast: CastNowPlaying?, nowMillis: 
 
 /**
  * The playback sheet's last row (Erwann, 2026-11-11): Share, always, and the Trakt and JustWatch
- * searches when their switches are on and a title is known ([TitleLinks.offered]). All three act
+ * buttons when their switches are on ([TitleLinks.offered]): JustWatch searches a known title;
+ * Trakt searches it too, or, with only an app in front, opens Trakt itself ([TraktTarget]). All three act
  * on the phone, so they stay live with the TV's link down. Nothing leaves the phone but through
  * the share sheet or the link he taps, and nothing here is logged: titles are viewing data.
  */
@@ -67,9 +69,13 @@ internal fun WatchShareChips(watchingAt: (nowMillis: Long) -> Watching?, trakt: 
                 shareText(context, fresh, chooserTitle)
             }
         }
-        if (title != null && TitleLink.TRAKT in links) {
+        val traktTo = TitleLinks.traktTarget(watching)
+        if (traktTo != null && TitleLink.TRAKT in links) {
             ActionChip(R.drawable.ic_open_in_new, stringResource(R.string.watch_trakt), null) {
-                openLink(context, TitleLinks.trakt(title))
+                when (traktTo) {
+                    is TraktTarget.Search -> openLink(context, TitleLinks.trakt(traktTo.title))
+                    TraktTarget.Home -> openTrakt(context)
+                }
             }
         }
         if (title != null && TitleLink.JUSTWATCH in links) {
@@ -87,6 +93,23 @@ private fun shareText(context: Context, text: String, chooserTitle: String) {
         context.startActivity(Intent.createChooser(send, chooserTitle).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     } catch (_: ActivityNotFoundException) {
         // No share target at all: nothing to do, and nothing to log.
+    }
+}
+
+/**
+ * Trakt at its own start: the Trakt app by its launch intent (visible through the manifest's
+ * launcher `<queries>`), else Trakt Web's home ([TitleLinks.TRAKT_HOME]).
+ */
+private fun openTrakt(context: Context) {
+    val app = context.packageManager.getLaunchIntentForPackage(TitleLinks.TRAKT_PACKAGE)
+    if (app == null) {
+        openLink(context, TitleLinks.TRAKT_HOME)
+        return
+    }
+    try {
+        context.startActivity(app.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    } catch (_: ActivityNotFoundException) {
+        openLink(context, TitleLinks.TRAKT_HOME)
     }
 }
 

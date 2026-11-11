@@ -8,7 +8,7 @@
     <string name="watch_justwatch">JustWatch</string>
     <string name="settings_title_links">Liens vers le titre</string>
     <string name="settings_trakt_link">Bouton Trakt</string>
-    <string name="settings_trakt_link_detail">Dans Lecture, ouvre une recherche Trakt sur ce qui passe, dans l\'app Trakt si elle prend le lien</string>
+    <string name="settings_trakt_link_detail">Dans Lecture, cherche dans Trakt ce qui passe quand tutti connaît le titre, sinon ouvre Trakt lui-même</string>
     <string name="settings_justwatch_link">Bouton JustWatch</string>
     <string name="settings_justwatch_link_detail">Dans Lecture, ouvre une recherche JustWatch sur ce qui passe, pour votre pays</string>
 </resources>
