@@ -91,7 +91,7 @@ class LogScrubberTest {
 
 class EventLogTest {
     @Test
-    fun `bounded: the oldest go first`() {
+    fun `bounded, the oldest go first`() {
         val log = EventLog(capacity = 3, clock = { 0L })
         repeat(5) { log.record(EventLog.Kind.KEY, "hold $it") }
         assertEquals(listOf("hold 2", "hold 3", "hold 4"), log.entries.value.map { it.text })
