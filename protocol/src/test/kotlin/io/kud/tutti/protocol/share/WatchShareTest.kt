@@ -91,7 +91,8 @@ class WatchShareTest {
 
     @Test
     fun `title links are encoded`() {
-        assertEquals("https://trakt.tv/search?query=L%27%C3%A9t%C3%A9%20%26%20co", TitleLinks.trakt("L'été & co"))
+        assertEquals("https://app.trakt.tv/search?m=media&q=Black+Bird", TitleLinks.trakt("Black Bird"))
+        assertEquals("https://app.trakt.tv/search?m=media&q=L%27%C3%A9t%C3%A9+%26+co", TitleLinks.trakt(" L'été & co "))
         assertEquals("https://www.justwatch.com/fr/recherche?q=Night%20Rail", TitleLinks.justWatch("Night Rail", "FR", "fr"))
         assertEquals("https://www.justwatch.com/uk/search?q=Night%20Rail", TitleLinks.justWatch("Night Rail", "GB", "en"))
         assertEquals("https://www.justwatch.com/de/Suche?q=Night%20Rail", TitleLinks.justWatch("Night Rail", "AT", "de"))
@@ -153,5 +154,16 @@ class WatchShareTest {
             WatchShare.sentence(m, ShareLanguage.EN),
         )
         assertEquals("I'm watching “Night Rail” (S1:E5).", WatchShare.sentence(Watching.Media("Night Rail", secondary = "S01E05"), ShareLanguage.EN))
+    }
+
+    @Test
+    fun `an episode searches trakt for its series title and asks the app first`() {
+        val status = Watching.Media("Black Bird", secondary = "S1:E5 – The Place I Lie", app = "Nuvio")
+        val target = TitleLinks.traktTarget(status)
+        assertEquals(TraktTarget.Search("Black Bird", Episode(1, 5)), target)
+        val url = "https://app.trakt.tv/search?m=media&q=Black+Bird"
+        assertEquals(listOf(TraktStep.AppLink(url), TraktStep.LaunchApp, TraktStep.Web(url)), TitleLinks.traktSteps(target!!))
+        assertEquals(listOf(TraktStep.LaunchApp, TraktStep.Web("https://app.trakt.tv/")), TitleLinks.traktSteps(TraktTarget.Home))
+        assertFalse("Black" in TraktStep.Web(url).toString())
     }
 }
