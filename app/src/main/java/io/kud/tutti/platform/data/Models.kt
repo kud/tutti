@@ -82,6 +82,10 @@ data class AppPrefs(
     val tonightCap: TonightCap? = null,
     /** "Salle obscure": tutti's window dims in the evening while the TV is on (`EveningDim`). Off by default. */
     val eveningDim: Boolean = false,
+    /** The playback sheet's Trakt search button for the title playing (Erwann, 2026-11-11). Off by default: not everyone has Trakt. */
+    val traktLink: Boolean = false,
+    /** The playback sheet's JustWatch search button for the title playing (Erwann, 2026-11-11). Off by default. */
+    val justWatchLink: Boolean = false,
 ) {
     /** The old switch on reads as [VibrationLevel.ALL], off as [VibrationLevel.OFF]. */
     val vibrationLevel: VibrationLevel

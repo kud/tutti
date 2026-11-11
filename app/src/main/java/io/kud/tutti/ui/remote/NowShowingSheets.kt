@@ -143,6 +143,8 @@ internal fun PlaybackSheet(
     cast: io.kud.tutti.protocol.cast.CastNowPlaying? = null,
     onScrub: ((Int) -> Unit)? = null,
     appShortcuts: (@Composable () -> Unit)? = null,
+    /** Share, and the optional Trakt and JustWatch searches ([WatchShareChips]), last in the sheet. */
+    watchChips: (@Composable () -> Unit)? = null,
 ) {
     val shownCast = cast?.takeIf { castFits(showing) }
     TuttiSheet(onDismissRequest = onDismiss) {
@@ -220,6 +222,9 @@ internal fun PlaybackSheet(
                         }
                     }
                 }
+                // What's on, said elsewhere (Erwann, 2026-11-11): phone-side actions, so last and
+                // never in the down dress.
+                watchChips?.invoke()
             }
         }
     }

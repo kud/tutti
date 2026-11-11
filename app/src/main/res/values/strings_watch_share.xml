@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The language the share sentence is written in: the UI's, as these files resolve it. -->
+    <string name="watch_share_language">en</string>
+    <string name="watch_share">Share</string>
+    <string name="watch_share_title">Share what\'s on</string>
+    <string name="watch_trakt">Trakt</string>
+    <string name="watch_justwatch">JustWatch</string>
+    <string name="settings_title_links">Title links</string>
+    <string name="settings_trakt_link">Trakt button</string>
+    <string name="settings_trakt_link_detail">In Playback, opens a Trakt search for what\'s playing, in the Trakt app if it takes the link</string>
+    <string name="settings_justwatch_link">JustWatch button</string>
+    <string name="settings_justwatch_link_detail">In Playback, opens a JustWatch search for what\'s playing, for your country</string>
+</resources>

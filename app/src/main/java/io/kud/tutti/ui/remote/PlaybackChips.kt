@@ -157,7 +157,7 @@ private fun shortcutLabel(shortcut: AppShortcut): Int = when (shortcut) {
 }
 
 @Composable
-private fun ActionChip(@DrawableRes icon: Int, label: String, downReason: String?, onClick: () -> Unit) {
+internal fun ActionChip(@DrawableRes icon: Int, label: String, downReason: String?, onClick: () -> Unit) {
     val down = downReason != null
     val scheme = MaterialTheme.colorScheme
     val ink = if (down) downInk(scheme.onSurface) else scheme.onSurface

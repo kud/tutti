@@ -443,6 +443,25 @@ private fun RemotePage(state: TuttiUiState, controller: TuttiController, onEditL
         )
     }
 
+    // Optional buttons in Playback that search the title playing (Erwann, 2026-11-11), each off
+    // by default: « tout le monde n'a pas forcément Trakt ». Share needs no switch: it is always there.
+    SettingsGroup(stringResource(R.string.settings_title_links)) {
+        SwitchRow(
+            label = stringResource(R.string.settings_trakt_link),
+            supporting = stringResource(R.string.settings_trakt_link_detail),
+            checked = state.prefs.traktLink,
+            onCheckedChange = controller::setTraktLink,
+            icon = R.drawable.ic_open_in_new,
+        )
+        SwitchRow(
+            label = stringResource(R.string.settings_justwatch_link),
+            supporting = stringResource(R.string.settings_justwatch_link_detail),
+            checked = state.prefs.justWatchLink,
+            onCheckedChange = controller::setJustWatchLink,
+            icon = R.drawable.ic_open_in_new,
+        )
+    }
+
     SettingsGroup(stringResource(R.string.settings_volume_title)) {
         VolumeGuardRows(state.prefs, onChange = controller::setVolumeGuard)
     }

@@ -3180,6 +3180,14 @@ class TuttiController @Inject constructor(
         scope.launch { store.updatePrefs { it.copy(eveningDim = enabled) } }
     }
 
+    fun setTraktLink(enabled: Boolean) {
+        scope.launch { store.updatePrefs { it.copy(traktLink = enabled) } }
+    }
+
+    fun setJustWatchLink(enabled: Boolean) {
+        scope.launch { store.updatePrefs { it.copy(justWatchLink = enabled) } }
+    }
+
     fun setPadMode(mode: PadMode) {
         scope.launch { store.updatePrefs { it.copy(padMode = mode) } }
     }

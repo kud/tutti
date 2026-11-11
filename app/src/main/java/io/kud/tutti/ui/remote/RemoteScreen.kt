@@ -1058,6 +1058,14 @@ fun RemoteScreen(
             onDismiss = { playbackFor = null },
             cast = castNowPlaying,
             onScrub = { code -> sendKey(code) },
+            watchChips = {
+                val showing = liveCard?.takeIf(::cardOpensPlayback) ?: opened
+                WatchShareChips(
+                    watchingAt = { now -> watchingOf(showing, castNowPlaying, now) },
+                    trakt = state.prefs.traktLink,
+                    justWatch = state.prefs.justWatchLink,
+                )
+            },
             appShortcuts = {
                 val showing = liveCard?.takeIf(::cardOpensPlayback) ?: opened
                 val reason = controlLinkReason(state.controlLink(Owner.TV), Owner.TV, state)
