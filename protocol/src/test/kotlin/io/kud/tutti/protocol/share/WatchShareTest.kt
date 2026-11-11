@@ -99,14 +99,59 @@ class WatchShareTest {
     }
 
     @Test
-    fun `links show only with a title and their switch on`() {
+    fun `links show with their switch on and something to open`() {
         val media = Watching.Media("Night Rail")
         assertEquals(setOf(TitleLink.TRAKT, TitleLink.JUSTWATCH), TitleLinks.offered(media, trakt = true, justWatch = true))
         assertEquals(setOf(TitleLink.JUSTWATCH), TitleLinks.offered(media, trakt = false, justWatch = true))
         assertEquals(emptySet(), TitleLinks.offered(media, trakt = false, justWatch = false))
-        assertEquals(emptySet(), TitleLinks.offered(Watching.App("Example Flix"), trakt = true, justWatch = true))
+        // An app that names nothing: Trakt still opens, at its own start; JustWatch has nothing to search.
+        assertEquals(setOf(TitleLink.TRAKT), TitleLinks.offered(Watching.App("Example Flix"), trakt = true, justWatch = true))
+        assertEquals(emptySet(), TitleLinks.offered(Watching.App("Example Flix"), trakt = false, justWatch = true))
+        assertEquals(emptySet(), TitleLinks.offered(Watching.App("  "), trakt = true, justWatch = true))
         assertEquals(emptySet(), TitleLinks.offered(Watching.Channel("7", "Canal Exemple", null), trakt = true, justWatch = true))
         assertEquals(setOf(TitleLink.TRAKT), TitleLinks.offered(Watching.Channel("7", null, "Les Jardins du Nord"), trakt = true, justWatch = false))
         assertEquals(emptySet(), TitleLinks.offered(null, trakt = true, justWatch = true))
+    }
+
+    @Test
+    fun `trakt target is the search with a title, trakt itself with an app alone`() {
+        val episode = Watching.Media("Night Rail", secondary = "S1:E5 – The Long Platform", app = "Example Player")
+        assertEquals(TraktTarget.Search("Night Rail", Episode(1, 5)), TitleLinks.traktTarget(episode))
+        assertEquals(TraktTarget.Search("Night Rail"), TitleLinks.traktTarget(Watching.Media("Night Rail", secondary = "Some Artist")))
+        assertEquals(TraktTarget.Search("Les Jardins du Nord"), TitleLinks.traktTarget(Watching.Channel("7", null, "Les Jardins du Nord")))
+        assertEquals(TraktTarget.Home, TitleLinks.traktTarget(Watching.App("Example Player")))
+        assertNull(TitleLinks.traktTarget(Watching.Channel("7", "Canal Exemple", null)))
+        assertNull(TitleLinks.traktTarget(null))
+        assertEquals("https://app.trakt.tv/", TitleLinks.TRAKT_HOME)
+        assertFalse("Night Rail" in TitleLinks.traktTarget(episode).toString())
+    }
+
+    @Test
+    fun `episode markers are read strictly`() {
+        assertEquals(Episode(1, 5), Episode.parse("S1:E5 – The Long Platform"))
+        assertEquals(Episode(1, 5), Episode.parse("S01E05"))
+        assertEquals(Episode(12, 103), Episode.parse("s12:e103: Finale"))
+        assertEquals(Episode(0, 2), Episode.parse("S0:E2"))
+        assertNull(Episode.parse(null))
+        assertNull(Episode.parse("Some Artist"))
+        assertNull(Episode.parse("The Long Platform S1:E5"))
+        assertNull(Episode.parse("S1:E5x"))
+        assertNull(Episode.parse("S1"))
+        assertNull(Episode.parse("Season 1 Episode 5"))
+        assertNull(Episode.parse("S1:E0"))
+    }
+
+    @Test
+    fun `an episode secondary reads as marker and quoted name`() {
+        val m = Watching.Media("Night Rail", secondary = "S1:E5 – The Long Platform", app = "Example Player", positionSec = 449, durationSec = 3259)
+        assertEquals(
+            "Je regarde «\u00a0Night Rail\u00a0» (S1:E5, «\u00a0The Long Platform\u00a0») sur Example Player, j'en suis à 7:29 sur 54:19.",
+            WatchShare.sentence(m, ShareLanguage.FR),
+        )
+        assertEquals(
+            "I'm watching “Night Rail” (S1:E5, “The Long Platform”) on Example Player, 7:29 into 54:19.",
+            WatchShare.sentence(m, ShareLanguage.EN),
+        )
+        assertEquals("I'm watching “Night Rail” (S1:E5).", WatchShare.sentence(Watching.Media("Night Rail", secondary = "S01E05"), ShareLanguage.EN))
     }
 }
