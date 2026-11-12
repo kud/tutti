@@ -36,18 +36,21 @@ internal fun watchingOf(showing: CardShowing, cast: CastNowPlaying?, nowMillis: 
             durationSec = cast.durationSec?.toLong(),
             videoId = WatchShare.youTubeVideoId(cast.imageUrl),
             imdbId = CastArtwork.imdbId(cast.imageUrl),
+            metadataType = cast.metadataType,
+            appPackage = (now as? NowShowing.App)?.packageName,
         )
     }
     return when (now) {
         is NowShowing.Channel -> Watching.Channel(now.number, now.name, now.programme)
-        is NowShowing.App -> Watching.App(now.name)
+        is NowShowing.App -> Watching.App(now.name, now.packageName)
         else -> null
     }
 }
 
 /**
  * The playback sheet's last row (Erwann, 2026-11-11): Share, always, and the Trakt, JustWatch and
- * IMDb buttons when their switches are on ([TitleLinks.offered]): JustWatch searches a known title;
+ * IMDb buttons when their switches are on and a film or series plays ([TitleLinks.offered],
+ * [TitleLinks.isFilmOrSeries]: never in YouTube or a music app): JustWatch searches a known title;
  * IMDb opens its page, or searches it; Trakt opens on it, or searches it, or, with only an app in
  * front, opens Trakt itself ([io.kud.tutti.protocol.share.TraktTarget]). All of them act
  * on the phone, so they stay live with the TV's link down. Nothing leaves the phone but through

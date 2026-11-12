@@ -228,4 +228,22 @@ class CastStatusTest {
         assertEquals("Sample Title", titled?.title)
         assertEquals("Sample Show", titled?.secondary)
     }
+
+    @Test fun `the metadata type is kept, and survives a status without media`() {
+        val reducer = CastStatusReducer()
+        val first = reducer.report(json(
+            """{"type":"MEDIA_STATUS","status":[{"mediaSessionId":7,"playerState":"PLAYING","currentTime":3,
+              "media":{"duration":600,"metadata":{"metadataType":1,"title":"Sample Title"}}}]}""",
+        ), 1_000).nowPlaying
+        assertEquals(1, first?.metadataType)
+        val later = reducer.report(json(
+            """{"type":"MEDIA_STATUS","status":[{"mediaSessionId":7,"playerState":"PLAYING","currentTime":9}]}""",
+        ), 7_000).nowPlaying
+        assertEquals(1, later?.metadataType)
+        val untyped = CastStatusReducer().report(json(
+            """{"type":"MEDIA_STATUS","status":[{"mediaSessionId":8,"playerState":"PLAYING","currentTime":3,
+              "media":{"metadata":{"title":"Sample Title"}}}]}""",
+        ), 1_000).nowPlaying
+        assertEquals(null, untyped?.metadataType)
+    }
 }

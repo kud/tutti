@@ -1,5 +1,6 @@
 package io.kud.tutti.protocol.share
 
+import io.kud.tutti.protocol.atv.AppCatalog
 import java.net.URI
 import java.net.URLEncoder
 import java.util.Locale
@@ -16,7 +17,9 @@ sealed interface Watching {
      * plays in when the TV names one ([app]), and where it is, in whole seconds, when that can be
      * trusted ([positionSec]; [durationSec] is null for live content). [videoId] is a YouTube video
      * id, only from [WatchShare.youTubeVideoId]; [imdbId] an IMDb id, only from
-     * [io.kud.tutti.protocol.cast.CastArtwork.imdbId].
+     * [io.kud.tutti.protocol.cast.CastArtwork.imdbId]. [metadataType] is Cast's kind of item
+     * ([io.kud.tutti.protocol.cast.CastNowPlaying.metadataType]) and [appPackage] the package of
+     * the app in front: neither is viewing data, and both feed [TitleLinks.isFilmOrSeries].
      */
     data class Media(
         val title: String,
@@ -26,11 +29,13 @@ sealed interface Watching {
         val durationSec: Long? = null,
         val videoId: String? = null,
         val imdbId: String? = null,
+        val metadataType: Int? = null,
+        val appPackage: String? = null,
     ) : Watching {
         override fun toString(): String =
             "Watching.Media(title=<redacted>, secondary=${if (secondary == null) "none" else "<redacted>"}, " +
                 "app=$app, position=$positionSec, duration=$durationSec, video=${if (videoId == null) "none" else "<redacted>"}, " +
-                "imdb=${if (imdbId == null) "none" else "<redacted>"})"
+                "imdb=${if (imdbId == null) "none" else "<redacted>"}, type=$metadataType, package=$appPackage)"
     }
 
     /** The TV's own tuner: the channel's [number] and [name], and the [programme] when the EPG names it. */
@@ -40,8 +45,11 @@ sealed interface Watching {
                 "programme=${if (programme == null) "none" else "<redacted>"})"
     }
 
-    /** An app in front that reports nothing it plays (Netflix and most others): only its name. */
-    data class App(val name: String) : Watching
+    /**
+     * An app in front that reports nothing it plays (Netflix and most others): only its name, and
+     * its [packageName] when the remote names one ([TitleLinks.isFilmOrSeries]).
+     */
+    data class App(val name: String, val packageName: String? = null) : Watching
 }
 
 /** The two languages the UI speaks; anything but French reads as English, as `values/` does. */
@@ -418,14 +426,60 @@ object TitleLinks {
     const val IMDB_PACKAGE: String = "com.imdb.mobile"
 
     /**
-     * The links offered: Trakt when its switch is on and [traktTarget] has somewhere to go,
-     * JustWatch and IMDb when their switches are on and a title is known.
+     * The links offered: none unless [isFilmOrSeries]; then Trakt when its switch is on and
+     * [traktTarget] has somewhere to go, JustWatch and IMDb when their switches are on and a title
+     * is known. Share is not a title link and is never gated here.
      */
     fun offered(watching: Watching?, trakt: Boolean, justWatch: Boolean, imdb: Boolean = false): Set<TitleLink> = buildSet {
+        if (!isFilmOrSeries(watching)) return@buildSet
         if (trakt && traktTarget(watching) != null) add(TitleLink.TRAKT)
         if (justWatch && searchTitle(watching) != null) add(TitleLink.JUSTWATCH)
         if (imdb && TitleLinks.imdb(watching) != null) add(TitleLink.IMDB)
     }
+
+    /**
+     * Whether what plays is a film or a series episode, the only things Trakt, JustWatch and IMDb
+     * know (Erwann, 2026-11-12, on dev.13: « Trakt dans YouTube ou IMDb, ça n'a pas de sens »).
+     * Cast's own word first, then the app in front:
+     * - an IMDb id from the artwork, a [Watching.Media.metadataType] of MOVIE (1) or TV_SHOW (2),
+     *   or an episode marker in the secondary ([Episode.parse]) says yes;
+     * - MUSIC_TRACK (3) or PHOTO (4) says no;
+     * - otherwise (GENERIC, 0, or no type) the app decides: yes on [FILM_APPS], no anywhere else,
+     *   YouTube, YouTube Music, Spotify and every unknown app included.
+     * A GENERIC item in a film app counts as a film: Cast's default type is GENERIC, and an app
+     * like Nuvio need not set another for its links to make sense. A tuner programme is kept as
+     * it was: the EPG says nothing about its kind, and it was offered before this rule.
+     */
+    fun isFilmOrSeries(watching: Watching?): Boolean = when (watching) {
+        is Watching.Media -> when {
+            watching.imdbId?.let { IMDB_ID.matches(it) } == true -> true
+            watching.metadataType == MOVIE || watching.metadataType == TV_SHOW -> true
+            Episode.parse(watching.secondary) != null -> true
+            watching.metadataType == MUSIC_TRACK || watching.metadataType == PHOTO -> false
+            else -> watching.appPackage in FILM_APPS
+        }
+        is Watching.App -> watching.packageName in FILM_APPS
+        is Watching.Channel -> true
+        null -> false
+    }
+
+    private const val MOVIE = 1
+    private const val TV_SHOW = 2
+    private const val MUSIC_TRACK = 3
+    private const val PHOTO = 4
+
+    /**
+     * Apps whose catalogue is films and series, by TV package. The ids come from
+     * [io.kud.tutti.protocol.atv.AppCatalog], so a package is spelt in one place; YouTube, YouTube
+     * Music, Spotify, Deezer, Twitch, VLC, Put.io and Molotov (live channels) stay off. Two more,
+     * outside the catalogue: Nuvio's GitHub build, `com.nuvio.tv` (AppCatalog's note on Nuvio), and
+     * Stremio for Android TV, `com.stremio.one`.
+     */
+    val FILM_APPS: Set<String> = listOf(
+        "netflix", "primevideo", "disney", "appletv", "canal", "max", "francetv", "tf1", "m6", "arte",
+        "paramount", "mubi", "crunchyroll", "jellyfin", "plex", "kodi", "nuvio",
+    ).map { AppCatalog.find(it)?.packageName ?: error("AppCatalog has no $it") }.toSet() +
+        setOf("com.nuvio.tv", "com.stremio.one")
 
     private fun encode(s: String): String = URLEncoder.encode(s.trim(), Charsets.UTF_8).replace("+", "%20")
 }

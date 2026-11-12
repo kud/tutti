@@ -43,6 +43,12 @@ data class CastNowPlaying(
     val seekSupport: CastRateSupport = CastRateSupport.UNKNOWN,
     /** The receiver app's id (an app, not a title): the speed picker remembers refusals per app. */
     val appId: String? = null,
+    /**
+     * Cast's `metadata.metadataType`: 0 generic, 1 movie, 2 TV show, 3 music track, 4 photo
+     * (https://developers.google.com/cast/docs/reference/web_receiver/cast.framework.messages#.MetadataType).
+     * A kind, not a title; null when the receiver sent none. [io.kud.tutti.protocol.share.TitleLinks.isFilmOrSeries] reads it.
+     */
+    val metadataType: Int? = null,
 ) {
     /**
      * Whether the reading itself holds together: a position, inside the duration when there is
@@ -167,6 +173,7 @@ internal data class MediaSnapshot(
     val secondary: String?,
     val duration: Double?,
     val imageUrl: String? = null,
+    val metadataType: Int? = null,
 )
 
 object CastNamespaces {
@@ -289,6 +296,7 @@ class CastStatusReducer {
                 ?: previous?.secondary,
             duration = mediaObj?.number("duration")?.takeIf { it > 0 } ?: previous?.duration.takeIf { mediaObj == null },
             imageUrl = CastArtwork.pick(metadata) ?: previous?.imageUrl,
+            metadataType = metadata?.int("metadataType") ?: previous?.metadataType,
         )
         media = snapshot
         lastHadTitle = snapshot.title != null
@@ -327,6 +335,7 @@ class CastStatusReducer {
                 imageUrl = snapshot.imageUrl,
                 rateSupport = CastSpeed.support(entry.long("supportedMediaCommands")),
                 seekSupport = CastSayAgain.seekSupport(entry.long("supportedMediaCommands")),
+                metadataType = snapshot.metadataType,
             ),
             sessionId,
         )

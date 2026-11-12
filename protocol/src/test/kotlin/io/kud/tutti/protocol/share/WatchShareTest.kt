@@ -3,6 +3,7 @@ package io.kud.tutti.protocol.share
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -101,14 +102,14 @@ class WatchShareTest {
 
     @Test
     fun `links show with their switch on and something to open`() {
-        val media = Watching.Media("Night Rail")
+        val media = Watching.Media("Night Rail", metadataType = 1)
         assertEquals(setOf(TitleLink.TRAKT, TitleLink.JUSTWATCH), TitleLinks.offered(media, trakt = true, justWatch = true))
         assertEquals(setOf(TitleLink.JUSTWATCH), TitleLinks.offered(media, trakt = false, justWatch = true))
         assertEquals(emptySet<TitleLink>(), TitleLinks.offered(media, trakt = false, justWatch = false))
         // An app that names nothing: Trakt still opens, at its own start; JustWatch has nothing to search.
-        assertEquals(setOf(TitleLink.TRAKT), TitleLinks.offered(Watching.App("Example Flix"), trakt = true, justWatch = true))
-        assertEquals(emptySet<TitleLink>(), TitleLinks.offered(Watching.App("Example Flix"), trakt = false, justWatch = true))
-        assertEquals(emptySet<TitleLink>(), TitleLinks.offered(Watching.App("  "), trakt = true, justWatch = true))
+        assertEquals(setOf(TitleLink.TRAKT), TitleLinks.offered(Watching.App("Example Flix", NETFLIX), trakt = true, justWatch = true))
+        assertEquals(emptySet<TitleLink>(), TitleLinks.offered(Watching.App("Example Flix", NETFLIX), trakt = false, justWatch = true))
+        assertEquals(emptySet<TitleLink>(), TitleLinks.offered(Watching.App("  ", NETFLIX), trakt = true, justWatch = true))
         assertEquals(emptySet<TitleLink>(), TitleLinks.offered(Watching.Channel("7", "Canal Exemple", null), trakt = true, justWatch = true))
         assertEquals(setOf(TitleLink.TRAKT), TitleLinks.offered(Watching.Channel("7", null, "Les Jardins du Nord"), trakt = true, justWatch = false))
         assertEquals(emptySet<TitleLink>(), TitleLinks.offered(null, trakt = true, justWatch = true))
@@ -223,9 +224,72 @@ class WatchShareTest {
 
     @Test
     fun `the imdb button is offered only when switched on and a title is known`() {
-        val media = Watching.Media("Night Rail")
+        val media = Watching.Media("Night Rail", metadataType = 2)
         assertEquals(setOf(TitleLink.IMDB), TitleLinks.offered(media, trakt = false, justWatch = false, imdb = true))
         assertEquals(emptySet<TitleLink>(), TitleLinks.offered(media, trakt = false, justWatch = false, imdb = false))
-        assertEquals(emptySet<TitleLink>(), TitleLinks.offered(Watching.App("Example Player"), trakt = false, justWatch = false, imdb = true))
+        assertEquals(emptySet<TitleLink>(), TitleLinks.offered(Watching.App("Example Player", NETFLIX), trakt = false, justWatch = false, imdb = true))
+    }
+
+    private val all = setOf(TitleLink.TRAKT, TitleLink.JUSTWATCH, TitleLink.IMDB)
+    private fun offeredAll(w: Watching?) = TitleLinks.offered(w, trakt = true, justWatch = true, imdb = true)
+
+    @Test
+    fun `a film or a series episode gets its links, from cast's own word`() {
+        assertEquals(all, offeredAll(Watching.Media("Night Rail", imdbId = "tt0000001")))
+        assertEquals(all, offeredAll(Watching.Media("Night Rail", metadataType = 1)))
+        assertEquals(all, offeredAll(Watching.Media("Night Rail", metadataType = 2)))
+        assertEquals(all, offeredAll(Watching.Media("Night Rail", secondary = "S1:E5 – The Long Platform")))
+        // Cast's word beats the app's: a film rented on YouTube is still a film.
+        assertEquals(all, offeredAll(Watching.Media("Night Rail", metadataType = 1, appPackage = YOUTUBE)))
+        // An IMDb id beats a music type: the artwork names the title for certain.
+        assertEquals(all, offeredAll(Watching.Media("Night Rail", metadataType = 3, imdbId = "tt0000001")))
+    }
+
+    @Test
+    fun `a generic item counts as a film only in a film or series app`() {
+        for (pkg in listOf(NETFLIX, "com.nuvio.app", "com.nuvio.tv", "com.stremio.one", "com.plexapp.android", "org.xbmc.kodi")) {
+            assertEquals(all, offeredAll(Watching.Media("Night Rail", metadataType = 0, appPackage = pkg)), pkg)
+            assertEquals(all, offeredAll(Watching.Media("Night Rail", appPackage = pkg)), pkg)
+        }
+        assertEquals(emptySet<TitleLink>(), offeredAll(Watching.Media("Night Rail", metadataType = 0, appPackage = "com.example.unknown")))
+        assertEquals(emptySet<TitleLink>(), offeredAll(Watching.Media("Night Rail")))
+    }
+
+    @Test
+    fun `youtube, music and photos never get title links, and share stays`() {
+        val music = listOf(YOUTUBE, "com.google.android.youtube.tvkids", "com.google.android.youtube.tvmusic", "com.spotify.tv.android", "deezer.android.app")
+        for (pkg in music) {
+            val clip = Watching.Media("Lemon Tart Week", secondary = "Kitchen Corner", app = "Example", metadataType = 0, appPackage = pkg)
+            assertEquals(emptySet<TitleLink>(), offeredAll(clip), pkg)
+            assertEquals(emptySet<TitleLink>(), offeredAll(Watching.App("Example", pkg)), pkg)
+            assertNotNull(WatchShare.text(clip, ShareLanguage.EN))
+            assertFalse(pkg in TitleLinks.FILM_APPS, pkg)
+        }
+        assertEquals(emptySet<TitleLink>(), offeredAll(Watching.Media("Night Rail", metadataType = 3, appPackage = NETFLIX)))
+        assertEquals(emptySet<TitleLink>(), offeredAll(Watching.Media("Night Rail", metadataType = 4, appPackage = NETFLIX)))
+        // A non-title IMDb id (a person's) is no signal.
+        assertEquals(emptySet<TitleLink>(), offeredAll(Watching.Media("Night Rail", imdbId = "nm0000001")))
+    }
+
+    @Test
+    fun `trakt home opens only with a film or series app in front`() {
+        assertEquals(setOf(TitleLink.TRAKT), offeredAll(Watching.App("Nuvio", "com.nuvio.app")))
+        assertEquals(emptySet<TitleLink>(), offeredAll(Watching.App("YouTube", YOUTUBE)))
+        assertEquals(emptySet<TitleLink>(), offeredAll(Watching.App("Example Player", "com.example.unknown")))
+        assertEquals(emptySet<TitleLink>(), offeredAll(Watching.App("Example Player")))
+    }
+
+    @Test
+    fun `the film apps all resolve through the catalogue`() {
+        assertTrue(NETFLIX in TitleLinks.FILM_APPS)
+        assertTrue("com.disney.disneyplus" in TitleLinks.FILM_APPS)
+        assertTrue("com.canal.android.canal" in TitleLinks.FILM_APPS)
+        assertTrue("tv.arte.plus7" in TitleLinks.FILM_APPS)
+        assertTrue("fr.francetv.pluzz" in TitleLinks.FILM_APPS)
+    }
+
+    private companion object {
+        const val NETFLIX = "com.netflix.ninja"
+        const val YOUTUBE = "com.google.android.youtube.tv"
     }
 }
