@@ -27,6 +27,9 @@ class WakeOnLanSender(private val context: Context, private val requireAccess: (
         var sent = false
         try {
             DatagramSocket().use { socket ->
+                // A DatagramSocket is created bound to a local port; Network.bindSocket accepts
+                // that (it pins the interface, not the address) as long as it is unconnected.
+                LanRoute.bind(socket)
                 socket.broadcast = true
                 repeat(BURSTS) { burst ->
                     for (target in targets) {
@@ -49,7 +52,8 @@ class WakeOnLanSender(private val context: Context, private val requireAccess: (
     /** The phone's own IPv4 address and prefix on the current network, to find the subnet's broadcast. */
     private fun phoneIpv4(): Pair<String, Int>? = runCatching {
         val connectivity = context.getSystemService(ConnectivityManager::class.java) ?: return null
-        val network = connectivity.activeNetwork ?: return null
+        // The LAN network's subnet, not the default's: over cellular the broadcast would be wrong.
+        val network = LanRoute.network ?: connectivity.activeNetwork ?: return null
         val link = connectivity.getLinkProperties(network) ?: return null
         link.linkAddresses.firstOrNull { it.address is Inet4Address }?.let { it.address.hostAddress.orEmpty() to it.prefixLength }
     }.getOrNull()

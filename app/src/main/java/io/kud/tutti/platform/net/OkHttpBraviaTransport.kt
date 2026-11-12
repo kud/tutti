@@ -14,16 +14,6 @@ import io.kud.tutti.protocol.net.MAX_PINS
 import io.kud.tutti.protocol.net.PinSet
 import io.kud.tutti.protocol.net.PublicKeyPin
 import io.kud.tutti.protocol.net.ServerIdentityPin
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import okhttp3.Call
-import okhttp3.EventListener
-import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
-import okhttp3.MediaType.Companion.toMediaTypeOrNull
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.Response
-import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.IOException
 import java.io.InterruptedIOException
 import java.net.ConnectException
@@ -32,8 +22,19 @@ import java.net.Proxy
 import java.security.SecureRandom
 import java.security.cert.X509Certificate
 import java.util.concurrent.TimeUnit
+import javax.net.SocketFactory
 import javax.net.ssl.SSLContext
 import javax.net.ssl.SSLException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import okhttp3.Call
+import okhttp3.EventListener
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.Response
 
 /**
  * BRAVIA REST over OkHttp, LAN only.
@@ -63,9 +64,10 @@ class OkHttpBraviaTransport internal constructor(
     private val checkHost: (String) -> Unit,
     private val readTimeoutMs: Long,
     private val requireAccess: () -> Unit = {},
+    private val socketFactory: SocketFactory = SocketFactory.getDefault(),
 ) : BraviaTransport {
     constructor(host: String, initialPin: ServerIdentityPin?, savePin: suspend (PublicKeyPin) -> Unit, requireAccess: () -> Unit) :
-        this(host, initialPin, savePin, HTTPS_PORT, HTTP_PORT, ::requireLan, READ_TIMEOUT_MS, requireAccess)
+        this(host, initialPin, savePin, HTTPS_PORT, HTTP_PORT, ::requireLan, READ_TIMEOUT_MS, requireAccess, LanRoute.socketFactory)
 
     @Volatile private var observedKeyPin: PublicKeyPin? = null
     @Volatile private var useHttp = false
@@ -93,6 +95,8 @@ class OkHttpBraviaTransport internal constructor(
             .retryOnConnectionFailure(false)
             // The TV is on the LAN: a system or app proxy must never see the PSK.
             .proxy(Proxy.NO_PROXY)
+            // On the LAN network, never the default (LanRoute): the factory reads it per socket.
+            .socketFactory(socketFactory)
             // Never follow a redirect: OkHttp keeps custom headers on one, so the PSK could
             // reach a host that is not the TV. A 3xx is an answer, reported as such.
             .followRedirects(false)

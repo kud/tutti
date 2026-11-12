@@ -38,14 +38,18 @@ class AndroidTcpConnector internal constructor(
     private val checkHost: (String) -> Unit,
     private val readTimeoutMs: Int,
     private val requireAccess: () -> Unit = {},
+    private val bind: (Socket) -> Unit = {},
 ) : TcpConnector {
-    @Inject constructor(localNetwork: LocalNetworkPermission) : this(::requireLan, BAR_READ_TIMEOUT_MS, localNetwork::require)
+    @Inject constructor(localNetwork: LocalNetworkPermission) :
+        this(::requireLan, BAR_READ_TIMEOUT_MS, localNetwork::require, { LanRoute.bind(it) })
 
     override suspend fun connect(host: String, port: Int): Connection = closingIfCancelled { opened -> withContext(Dispatchers.IO) {
         requireAccess()
         checkHost(host)
         val socket = Socket()
         try {
+            // On the LAN network, never the default: a default flipped to cellular cannot reach the bar (LanRoute).
+            bind(socket)
             socket.connect(InetSocketAddress(host, port), CONNECT_TIMEOUT_MS)
             socket.tcpNoDelay = true
             socket.keepAlive = true
@@ -73,8 +77,10 @@ class AndroidTlsConnector internal constructor(
     private val checkHost: (String) -> Unit,
     private val readTimeoutMs: Int,
     private val requireAccess: () -> Unit = {},
+    private val bind: (Socket) -> Unit = {},
 ) : TlsConnector {
-    @Inject constructor(localNetwork: LocalNetworkPermission) : this(::requireLan, TV_READ_TIMEOUT_MS, localNetwork::require)
+    @Inject constructor(localNetwork: LocalNetworkPermission) :
+        this(::requireLan, TV_READ_TIMEOUT_MS, localNetwork::require, { LanRoute.bind(it) })
 
     override suspend fun connect(
         host: String,
@@ -96,6 +102,7 @@ class AndroidTlsConnector internal constructor(
         }
         val raw = Socket()
         try {
+            bind(raw)
             raw.connect(InetSocketAddress(host, port), CONNECT_TIMEOUT_MS)
             raw.tcpNoDelay = true
             raw.soTimeout = readTimeoutMs

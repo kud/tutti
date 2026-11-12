@@ -154,6 +154,41 @@ class CastWatcherTest {
     }
 
     @Test
+    fun `a network change ends the backoff and does not double it`() = runTest {
+        val connector = FakeConnector(refuse = true)
+        val active = MutableStateFlow<String?>("192.168.0.20")
+        val (w, child) = watcher(connector, active) { _, _ -> error("not reached") }
+        runCurrent()
+        advanceTimeBy(CastBackoff.FIRST_MS + 1)
+        assertEquals(2, connector.hosts.size)
+        // Now waiting twice the first delay; the lan network comes back: one try at once.
+        connector.refuse = false
+        w.networkChanged(dropped = false)
+        runCurrent()
+        assertEquals(3, connector.hosts.size)
+        child.cancel()
+    }
+
+    @Test
+    fun `a session dropped by a network loss is retried at once, its socket closed`() = runTest {
+        val connector = FakeConnector()
+        val active = MutableStateFlow<String?>("192.168.0.20")
+        val (w, child) = watcher(connector, active) { connection, emit ->
+            emit(CastReport.Playing(playing))
+            // The fake session ends when its socket is closed, as a real read would.
+            while (!(connection as FakeConnection).closed) kotlinx.coroutines.delay(100)
+            CastEnd.Closed("SocketException")
+        }
+        runCurrent()
+        assertEquals(1, connector.hosts.size)
+        w.networkChanged(dropped = true)
+        advanceTimeBy(101)
+        assertTrue(connector.opened.first().closed)
+        assertEquals(2, connector.hosts.size)
+        child.cancel()
+    }
+
+    @Test
     fun `a healthy session that ends retries after the first delay`() = runTest {
         val connector = FakeConnector()
         val active = MutableStateFlow<String?>("192.168.0.20")

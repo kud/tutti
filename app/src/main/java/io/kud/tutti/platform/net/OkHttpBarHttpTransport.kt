@@ -1,17 +1,18 @@
 package io.kud.tutti.platform.net
 
 import io.kud.tutti.protocol.theatre.BarHttpKey
-import io.kud.tutti.protocol.theatre.BarHttpUnavailable
 import io.kud.tutti.protocol.theatre.BarHttpTransport
+import io.kud.tutti.protocol.theatre.BarHttpUnavailable
+import java.io.IOException
+import java.net.Proxy
+import java.util.concurrent.TimeUnit
+import javax.net.SocketFactory
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
-import java.io.IOException
-import java.net.Proxy
-import java.util.concurrent.TimeUnit
 
 /**
  * The bar's HTTP management plane (54545) over OkHttp: plain HTTP, so only ever to a private
@@ -24,8 +25,9 @@ class OkHttpBarHttpTransport internal constructor(
     private val port: Int,
     private val checkHost: (String) -> Unit,
     private val requireAccess: () -> Unit = {},
+    private val socketFactory: SocketFactory = SocketFactory.getDefault(),
 ) : BarHttpTransport {
-    constructor(host: String, requireAccess: () -> Unit) : this(host, BarHttpKey.PORT, ::requireLan, requireAccess)
+    constructor(host: String, requireAccess: () -> Unit) : this(host, BarHttpKey.PORT, ::requireLan, requireAccess, LanRoute.socketFactory)
 
     private val client: OkHttpClient by lazy {
         OkHttpClient.Builder()
@@ -37,6 +39,8 @@ class OkHttpBarHttpTransport internal constructor(
             .retryOnConnectionFailure(false)
             // LAN only: never through a system or app proxy.
             .proxy(Proxy.NO_PROXY)
+            // On the LAN network, never the default (LanRoute).
+            .socketFactory(socketFactory)
             .build()
     }
 

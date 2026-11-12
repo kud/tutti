@@ -28,8 +28,10 @@ class AndroidCastConnector internal constructor(
     private val checkHost: (String) -> Unit,
     private val readTimeoutMs: Int,
     private val requireAccess: () -> Unit = {},
+    private val bind: (Socket) -> Unit = {},
 ) : CastConnector {
-    @Inject constructor(localNetwork: LocalNetworkPermission) : this(::requireLan, CAST_READ_TIMEOUT_MS, localNetwork::require)
+    @Inject constructor(localNetwork: LocalNetworkPermission) :
+        this(::requireLan, CAST_READ_TIMEOUT_MS, localNetwork::require, { LanRoute.bind(it) })
 
     override suspend fun connect(host: String, port: Int): CastConnection = closingIfCancelled { opened -> withContext(Dispatchers.IO) {
         requireAccess()
@@ -39,6 +41,7 @@ class AndroidCastConnector internal constructor(
         context.init(null, arrayOf(recorder), SecureRandom())
         val raw = Socket()
         try {
+            bind(raw)
             raw.connect(InetSocketAddress(host, port), CONNECT_TIMEOUT_MS)
             raw.tcpNoDelay = true
             raw.soTimeout = readTimeoutMs
