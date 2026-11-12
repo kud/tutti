@@ -3275,6 +3275,10 @@ class TuttiController @Inject constructor(
         scope.launch { store.updatePrefs { it.copy(justWatchLink = enabled) } }
     }
 
+    fun setTitleDetails(enabled: Boolean) {
+        scope.launch { store.updatePrefs { it.copy(titleDetails = enabled) } }
+    }
+
     fun setPadMode(mode: PadMode) {
         scope.launch { store.updatePrefs { it.copy(padMode = mode) } }
     }

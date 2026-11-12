@@ -145,6 +145,8 @@ internal fun PlaybackSheet(
     appShortcuts: (@Composable () -> Unit)? = null,
     /** Share, and the optional Trakt and JustWatch searches ([WatchShareChips]), last in the sheet. */
     watchChips: (@Composable () -> Unit)? = null,
+    /** Cinemeta's details for the Cast item ([TitleDetailsSection]), under everything else; null when off. */
+    details: (@Composable (io.kud.tutti.protocol.cast.CastNowPlaying) -> Unit)? = null,
 ) {
     val shownCast = cast?.takeIf { castFits(showing) }
     TuttiSheet(onDismissRequest = onDismiss) {
@@ -225,6 +227,8 @@ internal fun PlaybackSheet(
                 // What's on, said elsewhere (Erwann, 2026-11-11): phone-side actions, so last and
                 // never in the down dress.
                 watchChips?.invoke()
+                // Reading, not control (Erwann, 2026-11-12): the title's details come last.
+                shownCast?.let { playing -> details?.invoke(playing) }
             }
         }
     }

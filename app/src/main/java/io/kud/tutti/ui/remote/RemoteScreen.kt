@@ -1066,6 +1066,7 @@ fun RemoteScreen(
                     justWatch = state.prefs.justWatchLink,
                 )
             },
+            details = if (state.prefs.titleDetails) { playing -> TitleDetailsSection(playing) } else null,
             appShortcuts = {
                 val showing = liveCard?.takeIf(::cardOpensPlayback) ?: opened
                 val reason = controlLinkReason(state.controlLink(Owner.TV), Owner.TV, state)

@@ -461,6 +461,14 @@ private fun RemotePage(state: TuttiUiState, controller: TuttiController, onEditL
             onCheckedChange = controller::setJustWatchLink,
             icon = R.drawable.ic_open_in_new,
         )
+        // Sends the IMDb id of what plays to Stremio's Cinemeta, so off until turned on (Erwann, 2026-11-12).
+        SwitchRow(
+            label = stringResource(R.string.settings_title_details),
+            supporting = stringResource(R.string.settings_title_details_detail),
+            checked = state.prefs.titleDetails,
+            onCheckedChange = controller::setTitleDetails,
+            icon = R.drawable.ic_info,
+        )
     }
 
     SettingsGroup(stringResource(R.string.settings_volume_title)) {

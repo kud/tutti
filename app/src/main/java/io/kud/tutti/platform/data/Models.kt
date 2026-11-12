@@ -87,6 +87,11 @@ data class AppPrefs(
     /** The playback sheet's JustWatch search button for the title playing (Erwann, 2026-11-11). Off by default. */
     val justWatchLink: Boolean = false,
     /**
+     * The playback sheet's Details from Cinemeta (Erwann, 2026-11-12). Off by default: it sends the
+     * IMDb id of what is playing to Stremio's server, so it is his to turn on, never ours.
+     */
+    val titleDetails: Boolean = false,
+    /**
      * Where a plain tap opens each app, by package name (Erwann, 2026-11-11: « aller directement à
      * souscription »): an app link from [io.kud.tutti.protocol.apps.AppDestinations]. Absent, the
      * app opens where it was. Set from the Apps sheet's long press, "Opens at…".
