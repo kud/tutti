@@ -48,7 +48,7 @@ class CastSayAgainTest {
     @Test fun `the help lasts thirty seconds or the replayed span`() {
         assertEquals(30_000L, CastSayAgain.holdMs(10, 1.0))
         assertEquals(63_000L, CastSayAgain.holdMs(30, 0.5))
-        assertEquals(30_000L, CastSayAgain.holdMs(30, 0.0))
+        assertEquals(33_000L, CastSayAgain.holdMs(30, 0.0), "no rate reported reads as normal speed")
     }
 
     @Test fun `requests name the session and use a dot in every locale`() {
