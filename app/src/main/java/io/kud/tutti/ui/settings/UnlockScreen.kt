@@ -60,7 +60,7 @@ val UnlockStatus.status: Status get() = when (this) {
     UnlockStatus.TODO -> Status.NOT_YET
     UnlockStatus.ATTENTION -> Status.NEEDS_YOU
     UnlockStatus.CHECKING -> Status.WORKING
-    UnlockStatus.BLOCKED, UnlockStatus.UNKNOWN, UnlockStatus.COMING -> Status.UNAVAILABLE
+    UnlockStatus.BLOCKED, UnlockStatus.UNKNOWN -> Status.UNAVAILABLE
 }
 
 @StringRes
@@ -71,7 +71,6 @@ fun statusWord(status: UnlockStatus): Int = when (status) {
     UnlockStatus.CHECKING -> R.string.unlock_status_checking
     UnlockStatus.BLOCKED -> R.string.unlock_status_blocked
     UnlockStatus.UNKNOWN -> R.string.unlock_status_unknown
-    UnlockStatus.COMING -> R.string.unlock_status_coming
 }
 
 @StringRes
@@ -81,7 +80,6 @@ fun unlockTitle(step: Unlock): Int = when (step) {
     Unlock.REMOTE_START -> R.string.unlock_start_title
     Unlock.SOUNDBAR -> R.string.unlock_bar_title
     Unlock.DEVELOPER -> R.string.unlock_dev_title
-    Unlock.SONY -> R.string.unlock_sony_title
 }
 
 @StringRes
@@ -91,7 +89,6 @@ private fun unlockGives(step: Unlock): Int = when (step) {
     Unlock.REMOTE_START -> R.string.unlock_start_gives
     Unlock.SOUNDBAR -> R.string.unlock_bar_gives
     Unlock.DEVELOPER -> R.string.unlock_dev_gives
-    Unlock.SONY -> R.string.unlock_sony_gives
 }
 
 @StringRes
@@ -100,7 +97,7 @@ private fun unlockHow(step: Unlock): Int? = when (step) {
     Unlock.IP_CONTROL -> R.string.unlock_ip_how
     Unlock.REMOTE_START -> R.string.unlock_start_how
     Unlock.SOUNDBAR -> R.string.unlock_bar_how
-    Unlock.DEVELOPER, Unlock.SONY -> null
+    Unlock.DEVELOPER -> null
 }
 
 @StringRes
@@ -108,7 +105,6 @@ private fun groupTitle(device: UnlockDevice): Int = when (device) {
     UnlockDevice.TV -> R.string.unlock_group_tv
     UnlockDevice.BAR -> R.string.unlock_group_bar
     UnlockDevice.TUTTI -> R.string.unlock_group_tutti
-    UnlockDevice.SONY -> R.string.unlock_group_sony
 }
 
 /**
@@ -276,7 +272,6 @@ private fun StepBody(
                 } else {
                     Primary(R.string.unlock_dev_action) { controller.setDeveloperMode(true) }
                 }
-                Unlock.SONY -> Unit
             }
         }
     }

@@ -4,14 +4,20 @@
     <string name="about_entry_detail">The approach, credits and version</string>
     <string name="about_title">About tutti</string>
     <string name="about_tagline">One remote for one living room.</string>
-    <string name="about_what">tutti is a remote for a Sony BRAVIA TV and a BRAVIA Theatre Bar, built to replace BRAVIA Connect day to day. Setup and calibration stay in BRAVIA Connect, and tutti opens it when you need it.</string>
+    <string name="about_what">tutti is a remote for a Sony BRAVIA TV and a BRAVIA Theatre Bar, built to replace BRAVIA Connect day to day.</string>
+    <!-- What tutti does and what it leaves to BRAVIA Connect, said once, here and nowhere else (Erwann, 2026-11-11). -->
+    <string name="about_scope">What tutti does</string>
+    <string name="about_does_title">In tutti</string>
+    <string name="about_does">The remote, inputs and apps, the TV’s picture and sound settings, the bar’s volume and sound, scenes, and the computer on the TV.</string>
+    <string name="about_stays_title">In BRAVIA Connect</string>
+    <string name="about_stays">Room calibration, Acoustic Center Sync and speaker placement, and anything that goes through a Sony account: tutti doesn’t sign in to Sony. It opens BRAVIA Connect when you need it.</string>
     <string name="about_approach">The approach</string>
     <string name="about_local_title">Local network only</string>
-    <string name="about_local">tutti talks to the TV and the bar over your home network. No account needed: without Sony sign-in, which is optional, nothing leaves the living room.</string>
+    <string name="about_local">tutti talks to the TV and the bar over your home network. No account needed: nothing leaves the living room.</string>
     <string name="about_pinned_title">TV identity checked</string>
     <string name="about_pinned">tutti remembers the TV’s secure identity. A renewed HTTPS certificate with the same key keeps working; a changed key is refused until you pair again.</string>
     <string name="about_secrets_title">Secrets stay on the phone</string>
-    <string name="about_secrets">Pairing keys and any Sony tokens are encrypted with an Android Keystore key and left out of backups.</string>
+    <string name="about_secrets">Pairing keys are encrypted with an Android Keystore key and left out of backups.</string>
     <string name="about_verified_title">Checked, never guessed</string>
     <string name="about_verified">Every protocol detail is verified before tutti relies on it.</string>
     <string name="about_colour_title">Not by colour alone</string>
