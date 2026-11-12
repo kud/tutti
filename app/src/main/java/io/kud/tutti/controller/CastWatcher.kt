@@ -94,6 +94,29 @@ class CastWatcher(
         return result
     }
 
+    private val seekRefusedBy = MutableStateFlow<Set<String>>(emptySet())
+
+    /** Receiver app ids that refused a SEEK this run: Say again? hides for them, as Speed does. */
+    val seekRefused: StateFlow<Set<String>> = seekRefusedBy.asStateFlow()
+
+    /** The package in front when Cast last heard, for the event log. */
+    val foreground: String? get() = lastForeground
+
+    /** The followed item's text tracks and which are on (ids only); empty with no session. */
+    val tracks: io.kud.tutti.protocol.cast.CastTracks get() = live?.tracks ?: io.kud.tutti.protocol.cast.CastTracks()
+
+    /** Seeks the app in front (Say again?, at a tap); remembers a refusal per app. */
+    suspend fun seek(currentTime: Double): CastSpeedResult {
+        val session = live ?: return CastSpeedResult.NoSession
+        val appId = session.appId
+        val result = session.seek(currentTime)
+        if (appId != null && result !is CastSpeedResult.Accepted && result !is CastSpeedResult.NoSession) seekRefusedBy.update { it + appId }
+        return result
+    }
+
+    /** Sets the active tracks of the item in front (Say again?'s captions and their restore). */
+    suspend fun setTracks(ids: List<Long>): CastSpeedResult = live?.setActiveTracks(ids) ?: CastSpeedResult.NoSession
+
     private val mutable = MutableStateFlow<CastNowPlaying?>(null)
     val nowPlaying: StateFlow<CastNowPlaying?> = mutable.asStateFlow()
 

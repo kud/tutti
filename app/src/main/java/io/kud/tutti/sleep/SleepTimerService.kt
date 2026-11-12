@@ -26,6 +26,9 @@ import io.kud.tutti.controller.Link
 import io.kud.tutti.controller.PowerTarget
 import io.kud.tutti.controller.TuttiController
 import io.kud.tutti.controller.VolumeSource
+import io.kud.tutti.platform.diagnostic.AppLog
+import io.kud.tutti.protocol.diagnostic.EventLog
+import io.kud.tutti.protocol.sleep.EpisodeEnd
 import io.kud.tutti.protocol.sleep.SleepFade
 import io.kud.tutti.protocol.sleep.SwitchOffAt
 import java.time.Instant
@@ -74,6 +77,11 @@ object SleepTimers {
         ContextCompat.startForegroundService(context, SleepTimerService.intent(context, SleepTimerService.ACTION_START).putExtra(SleepTimerService.EXTRA_MINUTES, minutes))
     }
 
+    /** Starts a timer ending with the Cast item playing ([EpisodeEnd]); the sheet offered it only when [EpisodeEnd.offered]. */
+    fun startEpisode(context: Context) {
+        ContextCompat.startForegroundService(context, SleepTimerService.intent(context, SleepTimerService.ACTION_START).putExtra(SleepTimerService.EXTRA_EPISODE, true))
+    }
+
     /** Starts a timer ending at a time of day the sheet already checked ([SwitchOffAt.plan]). */
     fun startAt(context: Context, endsAt: Long) {
         ContextCompat.startForegroundService(context, SleepTimerService.intent(context, SleepTimerService.ACTION_START).putExtra(SleepTimerService.EXTRA_ENDS_AT, endsAt))
@@ -113,6 +121,10 @@ class SleepTimerService : Service() {
     private var wakeLock: PowerManager.WakeLock? = null
     private var retained = false
 
+    /** The episode followed, while the timer aims at the end of a Cast item; null for a fixed end. */
+    private var episode: EpisodeEnd.Plan? = null
+    private var follow: Job? = null
+
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
@@ -122,6 +134,7 @@ class SleepTimerService : Service() {
 
     override fun onDestroy() {
         running = null
+        stopFollowing()
         scope.cancel()
         releaseHolds()
         super.onDestroy()
@@ -130,13 +143,21 @@ class SleepTimerService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_START -> {
-                val endsAt = startEnd(intent, System.currentTimeMillis()) ?: return stopNow()
+                val now = System.currentTimeMillis()
+                val plan = if (intent.getBooleanExtra(EXTRA_EPISODE, false)) {
+                    EpisodeEnd.start(controller.castNowPlaying.value, now) ?: return stopNow()
+                } else {
+                    null
+                }
+                val endsAt = plan?.endsAt ?: startEnd(intent, now) ?: return stopNow()
                 fade?.cancel()
+                stopFollowing()
                 releaseHolds()
                 val exact = SleepTimers.exactAllowed(this)
-                SleepTimers.set(SleepTimerState(endsAt, exact))
+                SleepTimers.set(SleepTimerState(endsAt, exact, episode = plan != null))
                 foreground()
                 schedule(endsAt)
+                if (plan != null) followEpisode(plan)
             }
             ACTION_WAKE -> {
                 val endsAt = intent.getLongExtra(EXTRA_ENDS_AT, 0L)
@@ -179,16 +200,78 @@ class SleepTimerService : Service() {
         }
         if (fade?.isActive == true) return
         holdForFade()
-        fade = scope.launch { runFade(timer.endsAt) }
+        fade = scope.launch {
+            if (episode != null) {
+                // Read Cast afresh before fading: the phone may have slept through a pause or a jump.
+                val woke = System.currentTimeMillis()
+                withTimeoutOrNull(CAST_WAIT_MS) { controller.castNowPlaying.first { it != null && it.readAtMillis >= woke - CAST_FRESH_MS } }
+                replanEpisode()
+            }
+            runFade()
+        }
     }
 
-    private suspend fun runFade(endsAt: Long) {
+    /**
+     * Follows the Cast item for an episode timer: every Cast change and every [FOLLOW_MS] while the
+     * process runs, and once more when the alarm wakes the fade. Cast keeps reading with the remote
+     * out of sight ([TuttiController.keepCast]) for as long as the timer runs.
+     */
+    private fun followEpisode(plan: EpisodeEnd.Plan) {
+        episode = plan
+        controller.keepCast(true)
+        AppLog.events.record(EventLog.Kind.CAST, "episode end: following, ${SleepFade.minutesLeft(System.currentTimeMillis(), plan.endsAt)} min left")
+        follow = scope.launch {
+            launch { controller.castNowPlaying.collect { replanEpisode() } }
+            while (true) {
+                delay(FOLLOW_MS)
+                replanEpisode()
+            }
+        }
+    }
+
+    private fun stopFollowing() {
+        follow?.cancel()
+        follow = null
+        if (episode != null) controller.keepCast(false)
+        episode = null
+    }
+
+    /** One re-read of the episode: moves the end and the alarm when the plan moved; logs only what changed. */
+    private fun replanEpisode() {
+        val plan = episode ?: return
+        val now = System.currentTimeMillis()
+        val step = EpisodeEnd.replan(plan, controller.castNowPlaying.value, now)
+        episode = step.plan
+        step.why?.let { AppLog.events.record(EventLog.Kind.CAST, EpisodeEnd.logLine(it, plan.endsAt, step.plan.endsAt, now)) }
+        if (step.plan.endsAt == plan.endsAt) return
+        SleepTimers.update { it?.copy(endsAt = step.plan.endsAt) }
+        // While fading the loop reads the new end itself; otherwise the alarm moves with it (a past
+        // fade start fires at once, which is how a sooner end starts the fade).
+        if (fade?.isActive != true) schedule(step.plan.endsAt)
+        foreground()
+    }
+
+    private suspend fun runFade() {
         while (true) {
+            if (episode != null) replanEpisode()
+            val endsAt = SleepTimers.state.value?.endsAt ?: return
             val now = System.currentTimeMillis()
             val s = controller.state.value
             val barOnline = s.links.bar == Link.ONLINE
             when (val step = sleepStep(now, endsAt, SleepTimers.state.value?.startVolume, s.volume, barOnline)) {
-                SleepStep.Wait -> Unit
+                SleepStep.Wait -> if (episode != null) {
+                    // An episode end moved out of the fade (a pause, a jump back): the level the fade
+                    // took goes back, and the timer waits for its new fade start.
+                    val start = SleepTimers.state.value?.startVolume
+                    SleepFade.restoreOnCancel(start, s.volume)?.takeIf { barOnline }?.let { controller.setVolume(it, VolumeSource.QUICK) }
+                    SleepTimers.update { it?.copy(startVolume = null) }
+                    releaseHolds()
+                    schedule(endsAt)
+                    foreground()
+                    return
+                } else {
+                    Unit
+                }
                 is SleepStep.Lower -> {
                     remember(step.startVolume)
                     // Lowering never meets the guard; the ceiling clamps as for any change.
@@ -240,6 +323,7 @@ class SleepTimerService : Service() {
     }
 
     private fun finish() {
+        stopFollowing()
         SleepTimers.set(null)
         releaseHolds()
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
@@ -310,6 +394,7 @@ class SleepTimerService : Service() {
         val tomorrow = SwitchOffAt.isTomorrow(Instant.now(), Instant.ofEpochMilli(timer.endsAt), ZoneId.systemDefault())
         val text = when {
             timer.fading(System.currentTimeMillis()) -> getString(R.string.gentle_off_fading)
+            timer.episode -> getString(R.string.gentle_off_episode_notification)
             !timer.exact -> getString(R.string.gentle_off_late)
             else -> getString(R.string.gentle_off_notification_text)
         }
@@ -346,6 +431,7 @@ class SleepTimerService : Service() {
         const val EXTRA_MINUTES = "minutes"
         const val EXTRA_ENDS_AT = "ends_at"
         const val EXTRA_EXACT = "exact"
+        const val EXTRA_EPISODE = "episode"
         const val CHANNEL_ID = "switch_off_timer"
         private const val NOTIFICATION_ID = 0x5A20
         private const val REQUEST_ALARM = 0x5A21
@@ -358,6 +444,13 @@ class SleepTimerService : Service() {
         private const val MIN_STEP_MS = 250L
         private const val LINK_WAIT_MS = 10_000L
         private const val FLUSH_MS = 2_000L
+
+        /** An episode timer re-reads Cast this often while the process runs (the session re-reads every 15 s). */
+        private const val FOLLOW_MS = 15_000L
+
+        /** At the fade's alarm, how long to wait for Cast to come back with a fresh reading. */
+        private const val CAST_WAIT_MS = 10_000L
+        private const val CAST_FRESH_MS = 2_000L
 
         @Volatile internal var running: SleepTimerService? = null
 

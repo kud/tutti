@@ -48,6 +48,8 @@ data class AppPrefs(
     val vibration: VibrationLevel? = null,
     /** The platform click on single key presses. Off by default: the TV is the sound in this room. */
     val keySounds: Boolean = false,
+    /** How far Say again? in Playback jumps back, seconds ([io.kud.tutti.protocol.cast.CastSayAgain.SECONDS]); synced. */
+    val sayAgainSeconds: Int = io.kud.tutti.protocol.cast.CastSayAgain.DEFAULT_SECONDS,
     val theme: ThemeMode = ThemeMode.SYSTEM,
     val trueBlack: Boolean = false,
     /** Apps left out of the Apps sheet and pickers, by package name. */

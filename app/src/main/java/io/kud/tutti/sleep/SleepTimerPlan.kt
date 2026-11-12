@@ -6,11 +6,14 @@ import io.kud.tutti.protocol.sleep.SleepFade
  * A running gentle switch-off timer (docs/architecture.md, "Gentle
  * switch-off timer"). [exact] is false when the phone refused exact alarms, so the UI says it may
  * switch off a few minutes late. [startVolume] is the bar's level when the fade began, null before.
+ * [episode] when the end follows the Cast item playing ([io.kud.tutti.protocol.sleep.EpisodeEnd]):
+ * [endsAt] then moves with pauses, jumps and rate changes.
  */
 data class SleepTimerState(
     val endsAt: Long,
     val exact: Boolean,
     val startVolume: Int? = null,
+    val episode: Boolean = false,
 ) {
     fun fading(now: Long): Boolean = SleepFade.phase(now, endsAt) != SleepFade.Phase.WAITING
 }

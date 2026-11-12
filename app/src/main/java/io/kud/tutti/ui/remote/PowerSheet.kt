@@ -129,6 +129,9 @@ fun PowerSheet(
     onGentleAt: (endsAt: Long) -> Unit = {},
     onGentleCancel: () -> Unit = {},
     onAllowExact: (() -> Unit)? = null,
+    /** Whether "End of episode" is offered ([io.kud.tutti.protocol.sleep.EpisodeEnd.offered]). */
+    episodeOffered: Boolean = false,
+    onGentleEpisode: () -> Unit = {},
 ) {
     // With the TV alone, "TV only" would imply a soundbar that isn't there.
     val solo = choices.none { it.target == PowerTarget.BAR }
@@ -187,7 +190,7 @@ fun PowerSheet(
                     val detail = sleep.reason ?: stringResource(R.string.power_sleep_detail)
                     PowerRow(R.drawable.ic_bedtime, stringResource(R.string.power_sleep), detail, enabled = sleep.reason == null, down = sleep.reason != null, onClick = onSleep)
                 }
-                if (gentle != null) GentleOff(gentle, now, exactAllowed, onGentle, onGentleAt, onGentleCancel, onAllowExact)
+                if (gentle != null) GentleOff(gentle, now, exactAllowed, onGentle, onGentleAt, onGentleCancel, onAllowExact, episodeOffered, onGentleEpisode)
             }
         }
     }
@@ -220,9 +223,23 @@ private fun GentleOff(
     onStartAt: (Long) -> Unit,
     onCancel: () -> Unit,
     onAllowExact: (() -> Unit)?,
+    episodeOffered: Boolean,
+    onStartEpisode: () -> Unit,
 ) {
     val context = LocalContext.current
     val running = row.running
+    if (running?.episode == true) {
+        // The end moves with the episode, so its time is "about"; the row says what it follows.
+        val at = android.text.format.DateFormat.getTimeFormat(context).format(java.util.Date(running.endsAt))
+        val left = stringResource(R.string.gentle_off_episode_left, at, gentleOffSpan(now, running.endsAt))
+        PowerRow(
+            R.drawable.ic_bedtime,
+            stringResource(R.string.gentle_off_episode_running),
+            if (running.exact) left else left + "\n" + stringResource(R.string.gentle_off_late),
+            onClick = onCancel,
+        )
+        return
+    }
     if (running != null) {
         val at = android.text.format.DateFormat.getTimeFormat(context).format(java.util.Date(running.endsAt))
         val left = stringResource(R.string.gentle_off_left, gentleOffSpan(now, running.endsAt))
@@ -264,6 +281,11 @@ private fun GentleOff(
             onClick = {},
         )
         if (row.reason == null) {
+            // Offered only while Cast reports an item with a known duration (Erwann, 2026-11-12:
+            // « Éteindre à la fin de l'épisode »), first since it is the one that knows the end.
+            if (episodeOffered) {
+                GentleChip(stringResource(R.string.gentle_off_episode), stringResource(R.string.gentle_off_episode_label), Modifier.fillMaxWidth(), onStartEpisode)
+            }
             // Four to a row, "At a time…" filling what the last row leaves (two slots for six durations).
             val rows = SleepFade.DURATIONS_MIN.chunked(GENTLE_PER_ROW)
             val timeLabel = stringResource(R.string.gentle_off_at_time_label)

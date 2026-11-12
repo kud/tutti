@@ -438,6 +438,9 @@ private fun RemotePage(state: TuttiUiState, controller: TuttiController, onEditL
         )
     }
 
+    // Say again? in Playback (2026-11-12): its one setting, how far back.
+    SayAgainSetting(state.prefs.sayAgainSeconds, controller::setSayAgainSeconds)
+
     SettingsGroup(stringResource(R.string.settings_volume_title)) {
         VolumeGuardRows(state.prefs, onChange = controller::setVolumeGuard)
     }
