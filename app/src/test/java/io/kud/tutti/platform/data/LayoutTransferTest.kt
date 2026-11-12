@@ -97,4 +97,28 @@ class LayoutTransferTest {
         }
         assertTrue(text.contains("\"tutti-layout\""))
     }
+
+    @Test
+    fun `per app destinations and pin links go out in the file and come back over this phone's`() {
+        val yt = "com.google.android.youtube.tv"
+        val subs = "https://www.youtube.com/feed/subscriptions"
+        val dock = DockConfig(slots = listOf(DockSlot(primary = DockAction.LaunchApp(yt, "YouTube", subs))), merged = true)
+        val out = LayoutTransfer.export(RemoteLayout(), dock, emptyList(), mapOf(yt to subs))
+        val read = LayoutCodec.decode(LayoutCodec.encode(out.file)) as LayoutRead.Ok
+        assertEquals(mapOf(yt to subs), read.file.appDestinations)
+
+        val here = mapOf("com.example.other" to "https://example.com/x", yt to "https://www.youtube.com/feed/history")
+        val back = LayoutTransfer.import(read.file, read.skipped, RemoteLayout(), emptyList(), here)
+        assertEquals(mapOf("com.example.other" to "https://example.com/x", yt to subs), back.destinations)
+        assertEquals(DockAction.LaunchApp(yt, "YouTube", subs), back.dock.slots.first { it.isSet }.primary)
+    }
+
+    @Test
+    fun `a refused destination in a file is dropped and the rest kept`() {
+        val text = LayoutCodec.encode(
+            io.kud.tutti.protocol.layout.LayoutFile(appDestinations = mapOf("com.google.android.youtube.tv" to "https://www.youtube.com/feed/subscriptions", "com.example.tv" to "https://example.com/a")),
+        ).replace("https://example.com/a", "file:///sdcard/x")
+        val read = LayoutCodec.decode(text) as LayoutRead.Ok
+        assertEquals(mapOf("com.google.android.youtube.tv" to "https://www.youtube.com/feed/subscriptions"), read.file.appDestinations)
+    }
 }
