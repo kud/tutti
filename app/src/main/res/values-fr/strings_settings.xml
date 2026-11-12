@@ -13,11 +13,8 @@
     <string name="settings_add_device">Ajouter un appareil</string>
     <string name="settings_add_bar">Ajouter la barre de son</string>
     <string name="settings_add_bar_detail">Seulement la barre : Contrôle externe dans BRAVIA Connect, puis son adresse</string>
-    <string name="settings_setup_again">Refaire la configuration</string>
-    <string name="settings_setup_again_detail">Associer la TV, puis ajouter la barre de son</string>
     <string name="settings_tv">TV</string>
     <string name="settings_bar">Barre de son</string>
-    <string name="settings_shortcuts">Raccourcis</string>
     <string name="settings_long_press">Appui long sur %1$s</string>
     <string name="settings_feedback">Retours</string>
     <string name="settings_vibration">Vibrations</string>
@@ -123,11 +120,8 @@
     <string name="tv_target_subwoofer_power">Alimentation du caisson</string>
     <string name="tv_device_model">Modèle</string>
     <string name="tv_device_generation">Génération de l’API</string>
-    <string name="settings_apps_shown">Apps affichées</string>
-    <string name="settings_apps_shown_detail">%1$d sur %2$d</string>
     <string name="settings_apps_shown_live">Voici les apps que votre TV indique. Désactivez celles que vous n’utilisez jamais.</string>
     <string name="settings_apps_shown_static">Sans le contrôle IP, la TV ne peut pas lister ses apps : voici la liste de tutti. Désactivez celles que vous n’avez pas.</string>
-    <string name="settings_apps_shown_done">Terminé</string>
     <string name="tv_section_brightness">Luminosité</string>
     <string name="tv_section_colour">Couleur</string>
     <string name="tv_section_white_balance">Balance des blancs</string>
@@ -241,16 +235,10 @@
         <item quantity="other">%1$d réglages</item>
     </plurals>
     <!-- Réglages par catégories (2026-10-26, étape 2) : les noms et lignes d’état du premier niveau. -->
-    <string name="settings_remote_dock">Télécommande et dock</string>
-    <string name="settings_display_feedback">Affichage et retours</string>
-    <string name="settings_display">Affichage</string>
-    <string name="settings_quick_access">Accès rapide</string>
     <string name="settings_desc_unlock">Les étapes de réglage et ce que chacune débloque</string>
     <string name="settings_desc_devices">TV, barre et ordinateurs : ajouter, associer, oublier</string>
     <string name="settings_desc_tv">Image, son et réglages propres à la TV</string>
     <string name="settings_desc_bar">Réglages de la barre, entrées masquées et calibrage</string>
-    <string name="settings_desc_remote">Épingles du dock, appuis longs et disposition</string>
-    <string name="settings_desc_display">Thème, pièce sombre, vibrations et sons</string>
     <string name="settings_desc_sync">Même disposition et réglages sur chaque téléphone</string>
     <string name="settings_desc_advanced">Mode développeur, diagnostics et détails techniques</string>
     <string name="dash_unlocks">Fonctions</string>
@@ -272,4 +260,42 @@
         <item quantity="one">il y a %d jour</item>
         <item quantity="other">il y a %d jours</item>
     </plurals>
+    <!-- Les en-têtes et pages des réglages, un sujet chacune (2026-11-12). -->
+    <string name="settings_section_everyday">Au quotidien</string>
+    <string name="settings_section_remote">La télécommande</string>
+    <string name="settings_section_devices">Appareils</string>
+    <string name="settings_section_sync">Synchronisation et sauvegarde</string>
+    <string name="settings_section_tutti">tutti</string>
+    <string name="settings_appearance">Apparence</string>
+    <string name="settings_volume_comfort">Confort du volume</string>
+    <string name="settings_lock_screen">Écran verrouillé et notification</string>
+    <string name="settings_long_presses">Appuis longs</string>
+    <string name="settings_apps">Apps</string>
+    <string name="settings_developer">Développeur</string>
+    <string name="settings_desc_appearance">Thème, noir pur et pièce sombre</string>
+    <string name="settings_desc_feedback">Vibrations et sons des touches</string>
+    <string name="settings_desc_volume">Une alerte avant que le volume monte trop</string>
+    <string name="settings_desc_lock_screen">Commandes multimédias et touches de volume du téléphone</string>
+    <string name="settings_desc_layout">Dock, bande de scènes et côté du pavé, sur la télécommande</string>
+    <string name="settings_desc_long_presses">Ce que fait un appui long sur Accueil, Retour, Lecture ou Entrée</string>
+    <string name="settings_desc_apps">Les apps affichées, et où chacune s’ouvre</string>
+    <string name="settings_desc_title_links">Des boutons pour chercher ce qui passe</string>
+    <string name="settings_desc_backup">Tous vos réglages dans un fichier, et retour</string>
+    <string name="settings_apps_none">Pas encore d’apps. Dès que tutti joint la TV, elles apparaissent ici.</string>
+    <string name="settings_app_hidden">Masquée</string>
+    <string name="settings_app_shown_switch">Afficher %1$s</string>
+    <string name="backup_title">Sauvegarde</string>
+    <string name="backup_all">Tous les réglages</string>
+    <string name="backup_export">Exporter les réglages</string>
+    <string name="backup_export_detail">Enregistrer dans un fichier tous les réglages qui voyagent : jamais les appareils, adresses ou clés</string>
+    <string name="backup_import">Importer des réglages</string>
+    <string name="backup_import_detail">Remplacer ces réglages par ceux d’un fichier</string>
+    <string name="backup_exported">Réglages enregistrés</string>
+    <string name="backup_imported">Réglages importés</string>
+    <string name="backup_not_ours">Ce n’est pas un fichier de réglages tutti</string>
+    <string name="backup_is_layout">C’est un fichier de disposition : utilisez « Importer une disposition » plus bas</string>
+    <string name="backup_newer">Ce fichier vient d’une version plus récente de tutti. Mettez tutti à jour, puis réessayez.</string>
+    <string name="backup_replace_title">Remplacer vos réglages ?</string>
+    <string name="backup_replace_body">Les réglages, la disposition, les scènes et les choix d’apps du fichier remplacent ceux de ce téléphone. Vos appareils et associations ne changent pas.</string>
+    <string name="backup_replace">Remplacer</string>
 </resources>

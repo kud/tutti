@@ -1,26 +1,32 @@
 package io.kud.tutti.ui.settings
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** Settings' top level: the categories in their order (2026-10-26, step 2). */
+/** Settings' top level: one topic per page, under five headers (2026-11-12). */
 class SettingsMenuTest {
     @Test
-    fun `nine rows, what tutti can do first and about last`() {
+    fun `sixteen rows under five headers, each row once, in the enum's order`() {
+        assertEquals(SettingsSection.entries, SettingsMenu.sections.map { it.first })
+        assertEquals(SettingsCategory.entries, SettingsMenu.sections.flatMap { it.second })
+        assertEquals(16, SettingsCategory.entries.size)
+        SettingsMenu.sections.forEach { (_, rows) -> assertTrue(rows.size in 2..4) }
+    }
+
+    @Test
+    fun `screens that existed before settings had pages, and remote layout, are not pages`() {
         assertEquals(
-            listOf(
-                SettingsCategory.UNLOCK, SettingsCategory.DEVICES, SettingsCategory.TV, SettingsCategory.SOUNDBAR,
-                SettingsCategory.REMOTE, SettingsCategory.DISPLAY, SettingsCategory.SYNC, SettingsCategory.ADVANCED, SettingsCategory.ABOUT,
+            SettingsCategory.entries.toSet() - setOf(
+                SettingsCategory.LAYOUT, SettingsCategory.TV, SettingsCategory.SOUNDBAR, SettingsCategory.UNLOCK, SettingsCategory.ABOUT,
             ),
-            SettingsCategory.entries,
+            SettingsMenu.pages,
         )
     }
 
     @Test
-    fun `only devices, remote, display, sync and advanced are pages of settings itself`() {
-        assertEquals(
-            setOf(SettingsCategory.DEVICES, SettingsCategory.REMOTE, SettingsCategory.DISPLAY, SettingsCategory.SYNC, SettingsCategory.ADVANCED),
-            SettingsMenu.pages,
-        )
+    fun `the page names older back stacks saved are still categories`() {
+        listOf("DEVICES", "DISPLAY", "SYNC", "ADVANCED").forEach { SettingsCategory.valueOf(it) }
+        assertTrue("REMOTE" in SettingsMenu.retired)
     }
 }

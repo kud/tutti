@@ -50,7 +50,7 @@ private fun Context.settingsSync(): SettingsSync =
 
 /** The singleton [SettingsSync], or null in a preview with no graph. */
 @Composable
-private fun rememberSettingsSync(): SettingsSync? {
+internal fun rememberSettingsSync(): SettingsSync? {
     val context = LocalContext.current
     return remember(context) { runCatching { context.settingsSync() }.getOrNull() }
 }

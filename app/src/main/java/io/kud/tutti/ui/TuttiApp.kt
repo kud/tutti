@@ -147,6 +147,8 @@ internal object ScreenKey {
         key == "scenes" -> Screen.Scenes
         key.startsWith("scene:") -> Screen.SceneEditor(key.removePrefix("scene:").ifEmpty { null })
         key == "settings" -> Screen.Settings
+        // A retired page (Remote & dock) lands on the list it was opened from.
+        key.removePrefix("settings:") in SettingsMenu.retired -> Screen.Settings
         key.startsWith("settings:") -> SettingsMenu.pages.firstOrNull { it.name == key.removePrefix("settings:") }?.let { Screen.SettingsPage(it) }
         key == "tv-settings" -> Screen.TvSettings
         key.startsWith("tv-settings:") -> TvPage.entries.firstOrNull { it.name == key.removePrefix("tv-settings:") }?.let { Screen.TvSettingsPage(it) }
@@ -163,7 +165,8 @@ internal object ScreenKey {
 
     /** The stack back from its keys; always starts on the remote. */
     fun stack(keys: List<String>): List<Screen> {
-        val screens = keys.mapNotNull(::screen)
+        // A retired key resolves to the Settings list it sat on: one Settings, not two.
+        val screens = keys.mapNotNull(::screen).fold(emptyList<Screen>()) { acc, s -> if (acc.lastOrNull() == s) acc else acc + s }
         return if (screens.firstOrNull() == Screen.Remote) screens else listOf(Screen.Remote) + screens.filter { it != Screen.Remote }
     }
 }
@@ -432,7 +435,12 @@ fun TuttiApp(
                         Screen.Settings -> SettingsScreen(
                             state = state,
                             onBack = ::pop,
-                            onOpen = { push(SettingsRoutes.category(it)) },
+                            onOpen = { category ->
+                                SettingsRoutes.category(category)?.let(::push) ?: run {
+                                    editingLayout = true
+                                    home()
+                                }
+                            },
                             onTile = { push(SettingsRoutes.tile(it, hasTv = state.devices.tv != null, hasBar = state.devices.bar != null)) },
                             onDashAction = { action ->
                                 if (action == DashAction.PAIR_TV) controller.resetPairing()
@@ -446,10 +454,6 @@ fun TuttiApp(
                             onBack = ::pop,
                             onOpenDiagnostic = { push(Screen.Diagnostic) },
                             hid = hid,
-                            onEditLayout = {
-                                editingLayout = true
-                                home()
-                            },
                             onPair = {
                                 controller.resetPairing()
                                 push(Screen.Onboarding(cancellable = true))

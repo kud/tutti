@@ -8,7 +8,6 @@
     <string name="unlock_intro">The remote works as soon as the TV is paired. Each step below is done once, on the TV or in BRAVIA Connect, and opens up more.</string>
     <string name="unlock_group_tv">TV</string>
     <string name="unlock_group_bar">Soundbar</string>
-    <string name="unlock_group_tutti">For the curious</string>
     <string name="unlock_unlocks">Unlocks</string>
     <string name="unlock_how">How</string>
     <string name="unlock_now">Now: %1$s</string>
@@ -48,10 +47,6 @@
     <string name="unlock_bar_action">Add the soundbar</string>
     <string name="unlock_bar_again">Set up the bar again</string>
 
-    <string name="unlock_dev_title">Developer mode</string>
-    <string name="unlock_dev_gives">Diagnostics, technical details for each connection, and Copy details under errors. The everyday app doesn’t need it.</string>
-    <string name="unlock_dev_action">Turn on developer mode</string>
-    <string name="unlock_dev_off">Turn it off</string>
 
 
     <!-- Nudges where a missing step blocks something. -->
@@ -60,7 +55,6 @@
     <string name="unlock_tv_settings_more">See everything tutti can do</string>
 
     <!-- Advanced (developer mode). -->
-    <string name="settings_advanced">Advanced</string>
     <string name="technical_title">Technical details</string>
     <string name="technical_entry_detail">Addresses, links, what the TV and the bar report</string>
     <string name="technical_tv">TV</string>

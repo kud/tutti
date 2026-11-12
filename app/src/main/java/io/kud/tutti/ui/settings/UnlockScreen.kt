@@ -79,7 +79,6 @@ fun unlockTitle(step: Unlock): Int = when (step) {
     Unlock.IP_CONTROL -> R.string.unlock_ip_title
     Unlock.REMOTE_START -> R.string.unlock_start_title
     Unlock.SOUNDBAR -> R.string.unlock_bar_title
-    Unlock.DEVELOPER -> R.string.unlock_dev_title
 }
 
 @StringRes
@@ -88,7 +87,6 @@ private fun unlockGives(step: Unlock): Int = when (step) {
     Unlock.IP_CONTROL -> R.string.unlock_ip_gives
     Unlock.REMOTE_START -> R.string.unlock_start_gives
     Unlock.SOUNDBAR -> R.string.unlock_bar_gives
-    Unlock.DEVELOPER -> R.string.unlock_dev_gives
 }
 
 @StringRes
@@ -97,14 +95,12 @@ private fun unlockHow(step: Unlock): Int? = when (step) {
     Unlock.IP_CONTROL -> R.string.unlock_ip_how
     Unlock.REMOTE_START -> R.string.unlock_start_how
     Unlock.SOUNDBAR -> R.string.unlock_bar_how
-    Unlock.DEVELOPER -> null
 }
 
 @StringRes
 private fun groupTitle(device: UnlockDevice): Int = when (device) {
     UnlockDevice.TV -> R.string.unlock_group_tv
     UnlockDevice.BAR -> R.string.unlock_group_bar
-    UnlockDevice.TUTTI -> R.string.unlock_group_tutti
 }
 
 /**
@@ -266,11 +262,6 @@ private fun StepBody(
                     UnlockStatus.TODO -> Primary(R.string.unlock_bar_action, onAddBar)
                     UnlockStatus.ATTENTION -> Primary(R.string.unlock_bar_again, onAddBar)
                     else -> Unit
-                }
-                Unlock.DEVELOPER -> if (status == UnlockStatus.DONE) {
-                    Quiet(R.string.unlock_dev_off) { controller.setDeveloperMode(false) }
-                } else {
-                    Primary(R.string.unlock_dev_action) { controller.setDeveloperMode(true) }
                 }
             }
         }

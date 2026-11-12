@@ -54,6 +54,7 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -127,8 +128,8 @@ fun SettingsScreen(
     )
     SettingsFrame(stringResource(R.string.settings_title), onBack) {
         Dashboard(tiles, onTile = onTile, onAction = onDashAction, modifier = Modifier.padding(top = 8.dp))
-        SettingsGroup(null, Modifier.padding(top = 8.dp)) {
-            for (category in SettingsCategory.entries) {
+        for ((section, categories) in SettingsMenu.sections) SettingsGroup(sectionTitle(section)) {
+            for (category in categories) {
                 SettingsRow(
                     title = categoryTitle(category),
                     icon = categoryIcon(category),
@@ -152,7 +153,6 @@ fun SettingsPageScreen(
     controller: TuttiController,
     onBack: () -> Unit,
     onOpenDiagnostic: () -> Unit,
-    onEditLayout: () -> Unit,
     onPair: () -> Unit,
     onAddBar: () -> Unit,
     onOpenTechnical: () -> Unit,
@@ -161,13 +161,26 @@ fun SettingsPageScreen(
 ) {
     SettingsFrame(categoryTitle(category), onBack) {
         when (category) {
+            SettingsCategory.DISPLAY -> AppearancePage(state, controller)
+            SettingsCategory.FEEDBACK -> SettingsGroup(null, Modifier.padding(top = 8.dp)) {
+                FeedbackRows(state.prefs, onVibration = controller::setVibration, onKeySounds = controller::setKeySounds)
+            }
+            SettingsCategory.VOLUME -> SettingsGroup(null, Modifier.padding(top = 8.dp)) {
+                VolumeGuardRows(state.prefs, onChange = controller::setVolumeGuard)
+            }
+            SettingsCategory.LOCK_SCREEN -> SettingsGroup(null, Modifier.padding(top = 8.dp)) {
+                QuickNotificationSetting(icon = R.drawable.ic_bolt)
+            }
+            SettingsCategory.LONG_PRESS -> LongPressPage(state, controller)
+            SettingsCategory.APPS -> AppsPage(state, controller)
+            SettingsCategory.TITLE_LINKS -> TitleLinksPage(state, controller)
             SettingsCategory.DEVICES -> DevicesPage(state, controller, onPair, onAddBar, hid)
-            SettingsCategory.REMOTE -> RemotePage(state, controller, onEditLayout)
-            SettingsCategory.DISPLAY -> DisplayPage(state, controller)
             SettingsCategory.SYNC -> SyncPage()
+            SettingsCategory.BACKUP -> BackupPage(state, controller)
             SettingsCategory.ADVANCED -> AdvancedPage(state, controller, onOpenDiagnostic, onOpenTechnical, onOpenEventLog)
-            // Their screens were there before Settings had categories (SettingsRoutes.category).
-            SettingsCategory.UNLOCK, SettingsCategory.TV, SettingsCategory.SOUNDBAR, SettingsCategory.ABOUT -> Unit
+            // Their screens were there before Settings had pages (SettingsRoutes.category); Remote
+            // layout puts the remote in edit mode.
+            SettingsCategory.LAYOUT, SettingsCategory.UNLOCK, SettingsCategory.TV, SettingsCategory.SOUNDBAR, SettingsCategory.ABOUT -> Unit
         }
     }
 }
@@ -195,29 +208,54 @@ private fun SettingsFrame(title: String, onBack: () -> Unit, content: @Composabl
 }
 
 @Composable
+private fun sectionTitle(section: SettingsSection): String = stringResource(
+    when (section) {
+        SettingsSection.EVERYDAY -> R.string.settings_section_everyday
+        SettingsSection.REMOTE -> R.string.settings_section_remote
+        SettingsSection.DEVICES -> R.string.settings_section_devices
+        SettingsSection.SYNC -> R.string.settings_section_sync
+        SettingsSection.TUTTI -> R.string.settings_section_tutti
+    },
+)
+
+@Composable
 private fun categoryTitle(category: SettingsCategory): String = stringResource(
     when (category) {
-        SettingsCategory.UNLOCK -> R.string.unlock_entry
+        SettingsCategory.DISPLAY -> R.string.settings_appearance
+        SettingsCategory.FEEDBACK -> R.string.settings_feedback
+        SettingsCategory.VOLUME -> R.string.settings_volume_comfort
+        SettingsCategory.LOCK_SCREEN -> R.string.settings_lock_screen
+        SettingsCategory.LAYOUT -> R.string.layout_entry
+        SettingsCategory.LONG_PRESS -> R.string.settings_long_presses
+        SettingsCategory.APPS -> R.string.settings_apps
+        SettingsCategory.TITLE_LINKS -> R.string.settings_title_links
         SettingsCategory.DEVICES -> R.string.settings_devices
         SettingsCategory.TV -> R.string.settings_tv
         SettingsCategory.SOUNDBAR -> R.string.settings_bar
-        SettingsCategory.REMOTE -> R.string.settings_remote_dock
-        SettingsCategory.DISPLAY -> R.string.settings_display_feedback
+        SettingsCategory.UNLOCK -> R.string.unlock_entry
         SettingsCategory.SYNC -> R.string.sync_title
-        SettingsCategory.ADVANCED -> R.string.settings_advanced
+        SettingsCategory.BACKUP -> R.string.backup_title
+        SettingsCategory.ADVANCED -> R.string.settings_developer
         SettingsCategory.ABOUT -> R.string.about_entry
     },
 )
 
 @androidx.annotation.DrawableRes
 private fun categoryIcon(category: SettingsCategory): Int = when (category) {
-    SettingsCategory.UNLOCK -> R.drawable.ic_unlock
+    SettingsCategory.DISPLAY -> R.drawable.ic_contrast
+    SettingsCategory.FEEDBACK -> R.drawable.ic_vibration
+    SettingsCategory.VOLUME -> R.drawable.ic_volume_up
+    SettingsCategory.LOCK_SCREEN -> R.drawable.ic_notifications
+    SettingsCategory.LAYOUT -> R.drawable.ic_edit
+    SettingsCategory.LONG_PRESS -> R.drawable.ic_dpad
+    SettingsCategory.APPS -> R.drawable.ic_apps
+    SettingsCategory.TITLE_LINKS -> R.drawable.ic_open_in_new
     SettingsCategory.DEVICES -> R.drawable.ic_laptop
     SettingsCategory.TV -> R.drawable.ic_tv
     SettingsCategory.SOUNDBAR -> R.drawable.ic_speaker
-    SettingsCategory.REMOTE -> R.drawable.ic_dpad
-    SettingsCategory.DISPLAY -> R.drawable.ic_contrast
+    SettingsCategory.UNLOCK -> R.drawable.ic_unlock
     SettingsCategory.SYNC -> R.drawable.ic_refresh
+    SettingsCategory.BACKUP -> R.drawable.ic_download
     SettingsCategory.ADVANCED -> R.drawable.ic_code
     SettingsCategory.ABOUT -> R.drawable.ic_info
 }
@@ -229,13 +267,20 @@ private fun categoryDescription(category: SettingsCategory): String = when (cate
     SettingsCategory.ABOUT -> aboutLine()
     else -> stringResource(
         when (category) {
-            SettingsCategory.UNLOCK -> R.string.settings_desc_unlock
+            SettingsCategory.DISPLAY -> R.string.settings_desc_appearance
+            SettingsCategory.FEEDBACK -> R.string.settings_desc_feedback
+            SettingsCategory.VOLUME -> R.string.settings_desc_volume
+            SettingsCategory.LOCK_SCREEN -> R.string.settings_desc_lock_screen
+            SettingsCategory.LAYOUT -> R.string.settings_desc_layout
+            SettingsCategory.LONG_PRESS -> R.string.settings_desc_long_presses
+            SettingsCategory.APPS -> R.string.settings_desc_apps
+            SettingsCategory.TITLE_LINKS -> R.string.settings_desc_title_links
             SettingsCategory.DEVICES -> R.string.settings_desc_devices
             SettingsCategory.TV -> R.string.settings_desc_tv
             SettingsCategory.SOUNDBAR -> R.string.settings_desc_bar
-            SettingsCategory.REMOTE -> R.string.settings_desc_remote
-            SettingsCategory.DISPLAY -> R.string.settings_desc_display
+            SettingsCategory.UNLOCK -> R.string.settings_desc_unlock
             SettingsCategory.SYNC -> R.string.settings_desc_sync
+            SettingsCategory.BACKUP -> R.string.settings_desc_backup
             SettingsCategory.ADVANCED -> R.string.settings_desc_advanced
             SettingsCategory.ABOUT -> R.string.about_entry_detail
         },
@@ -327,15 +372,7 @@ private fun DevicesPage(state: TuttiUiState, controller: TuttiController, onPair
                 trailing = { OpensChevron() },
             )
         }
-        if (tv != null) {
-            SettingsRow(
-                title = stringResource(R.string.settings_setup_again),
-                icon = R.drawable.ic_refresh,
-                detail = stringResource(R.string.settings_setup_again_detail),
-                onClick = onPair,
-                trailing = { OpensChevron() },
-            )
-        }
+        // No "Run setup again" (2026-11-12): Pair again on the TV's row and Add a device cover it.
     }
 
     if (tvBluetooth && targets != null && hid != null) {
@@ -380,21 +417,11 @@ private fun DevicesPage(state: TuttiUiState, controller: TuttiController, onPair
     }
 }
 
-/** Settings › Remote & dock: the dock's layout, a long press per button, the apps shown, the volume guard, media controls. */
+/** Settings › Long presses: what holding each row key does. */
 @Composable
-private fun RemotePage(state: TuttiUiState, controller: TuttiController, onEditLayout: () -> Unit) {
+private fun LongPressPage(state: TuttiUiState, controller: TuttiController) {
     var picker by remember { mutableStateOf<SecondaryButton?>(null) }
-    var appsDialog by remember { mutableStateOf(false) }
-
-    SettingsGroup(stringResource(R.string.settings_shortcuts)) {
-        LinkRow(
-            title = stringResource(R.string.layout_entry),
-            detail = stringResource(R.string.layout_entry_detail),
-            enabled = true,
-            onClick = onEditLayout,
-            icon = R.drawable.ic_edit,
-            opens = true,
-        )
+    SettingsGroup(null, Modifier.padding(top = 8.dp)) {
         for (button in SecondaryButton.entries) {
             val action = state.dock.longPress[button]
             LinkRow(
@@ -410,55 +437,6 @@ private fun RemotePage(state: TuttiUiState, controller: TuttiController, onEditL
                 },
             )
         }
-        LinkRow(
-            title = stringResource(R.string.settings_apps_shown),
-            detail = stringResource(R.string.settings_apps_shown_detail, state.visibleApps.size, state.apps.size),
-            enabled = state.apps.isNotEmpty(),
-            onClick = { appsDialog = true },
-            icon = R.drawable.ic_apps,
-        )
-    }
-
-    // Optional buttons in Playback that search the title playing (Erwann, 2026-11-11), each off
-    // by default: « tout le monde n'a pas forcément Trakt ». Share needs no switch: it is always there.
-    SettingsGroup(stringResource(R.string.settings_title_links)) {
-        SwitchRow(
-            label = stringResource(R.string.settings_trakt_link),
-            supporting = stringResource(R.string.settings_trakt_link_detail),
-            checked = state.prefs.traktLink,
-            onCheckedChange = controller::setTraktLink,
-            icon = R.drawable.ic_open_in_new,
-        )
-        SwitchRow(
-            label = stringResource(R.string.settings_justwatch_link),
-            supporting = stringResource(R.string.settings_justwatch_link_detail),
-            checked = state.prefs.justWatchLink,
-            onCheckedChange = controller::setJustWatchLink,
-            icon = R.drawable.ic_open_in_new,
-        )
-        SwitchRow(
-            label = stringResource(R.string.settings_imdb_link),
-            supporting = stringResource(R.string.settings_imdb_link_detail),
-            checked = state.prefs.imdbLink,
-            onCheckedChange = controller::setImdbLink,
-            icon = R.drawable.ic_open_in_new,
-        )
-    }
-
-    SettingsGroup(stringResource(R.string.settings_volume_title)) {
-        VolumeGuardRows(state.prefs, onChange = controller::setVolumeGuard)
-    }
-
-    SettingsGroup(stringResource(R.string.settings_quick_access)) {
-        QuickNotificationSetting(icon = R.drawable.ic_bolt)
-    }
-
-    SettingsGroup(stringResource(R.string.settings_layout_file)) {
-        LayoutTransferRows(state, controller)
-    }
-
-    if (appsDialog) {
-        AppsShownDialog(state, controller::setAppShown) { appsDialog = false }
     }
     picker?.let { button ->
         ActionPickerSheet(
@@ -475,10 +453,71 @@ private fun RemotePage(state: TuttiUiState, controller: TuttiController, onEditL
     }
 }
 
-/** Settings › Display & feedback: the theme, true black, dark room, vibration and key sounds. */
+/**
+ * Settings › Apps: one row per app tutti knows. The row opens where the app lands (the same sheet as
+ * the Apps sheet's long press); its switch, a separate target, shows or hides it. A hidden app
+ * says so in words, never by the switch alone.
+ */
 @Composable
-private fun DisplayPage(state: TuttiUiState, controller: TuttiController) {
-    SettingsGroup(stringResource(R.string.settings_display)) {
+private fun AppsPage(state: TuttiUiState, controller: TuttiController) {
+    var choosing by remember { mutableStateOf<String?>(null) }
+    Text(
+        stringResource(if (state.ipControl) R.string.settings_apps_shown_live else R.string.settings_apps_shown_static),
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(start = 32.dp, end = 32.dp, top = 8.dp),
+    )
+    SettingsGroup(null, Modifier.padding(top = 16.dp)) {
+        if (state.apps.isEmpty()) {
+            SettingsRow(title = stringResource(R.string.settings_apps_none))
+        }
+        for (app in state.apps) {
+            val shown = app.packageName !in state.prefs.hiddenApps
+            SettingsRow(
+                title = app.name,
+                detail = listOfNotNull(
+                    stringResource(R.string.settings_app_hidden).takeIf { !shown },
+                    stringResource(R.string.dest_opens_at_row, io.kud.tutti.ui.remote.destinationLabel(state.prefs.appDestinations[app.packageName])),
+                ).joinToString(" · "),
+                onClick = { choosing = app.packageName },
+                leading = { AppIcon(app.name, state.appIcons[app.packageName], packageName = app.packageName) },
+                trailing = {
+                    val label = stringResource(R.string.settings_app_shown_switch, app.name)
+                    Switch(
+                        checked = shown,
+                        onCheckedChange = { controller.setAppShown(app.packageName, it) },
+                        modifier = Modifier.semantics { contentDescription = label },
+                    )
+                },
+            )
+        }
+    }
+    choosing?.let { packageName ->
+        val app = state.apps.firstOrNull { it.packageName == packageName }
+        if (app == null) {
+            choosing = null
+        } else {
+            io.kud.tutti.ui.remote.DestinationPicker(
+                appName = app.name,
+                packageName = app.packageName,
+                current = state.prefs.appDestinations[app.packageName],
+                forPin = false,
+                appDefault = null,
+                onPick = { link ->
+                    controller.setAppDestination(app.packageName, link)
+                    choosing = null
+                },
+                onTry = controller::probeLink,
+                onDismiss = { choosing = null },
+            )
+        }
+    }
+}
+
+/** Settings › Appearance: the theme, true black and dark room. */
+@Composable
+private fun AppearancePage(state: TuttiUiState, controller: TuttiController) {
+    SettingsGroup(null, Modifier.padding(top = 8.dp)) {
         ThemeRow(state.prefs.theme, controller::setTheme)
         SwitchRow(
             label = stringResource(R.string.settings_true_black),
@@ -495,14 +534,10 @@ private fun DisplayPage(state: TuttiUiState, controller: TuttiController) {
             icon = R.drawable.ic_visibility_off,
         )
     }
-
-    SettingsGroup(stringResource(R.string.settings_feedback)) {
-        FeedbackRows(state.prefs, onVibration = controller::setVibration, onKeySounds = controller::setKeySounds)
-    }
 }
 
 /**
- * Settings › Advanced (Erwann, 2026-10-24: "une app de geek dans les options"): one switch, and
+ * Settings › Developer (the page keeps its key, ADVANCED; Erwann, 2026-10-24: "une app de geek dans les options"): one switch, and
  * with it on, every technical screen in one place. The reverse map's readouts and hidden options
  * land here as rows, never on the everyday screens.
  */
@@ -610,43 +645,6 @@ private fun ThemeRow(mode: ThemeMode, onChange: (ThemeMode) -> Unit) {
                 }
             }
         },
-    )
-}
-
-/** Every app tutti knows, each with a switch: hidden ones leave the Apps sheet and pickers. */
-@Composable
-private fun AppsShownDialog(state: TuttiUiState, onShown: (String, Boolean) -> Unit, onDismiss: () -> Unit) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.settings_apps_shown)) },
-        text = {
-            Column {
-                Text(
-                    stringResource(if (state.ipControl) R.string.settings_apps_shown_live else R.string.settings_apps_shown_static),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Spacer(Modifier.height(8.dp))
-                LazyColumn {
-                    items(state.apps, key = { it.packageName }) { app ->
-                        val shown = app.packageName !in state.prefs.hiddenApps
-                        Row(
-                            Modifier
-                                .fillMaxWidth()
-                                .toggleable(value = shown, role = Role.Switch) { onShown(app.packageName, it) }
-                                .padding(vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            AppIcon(app.name, state.appIcons[app.packageName], packageName = app.packageName)
-                            Spacer(Modifier.width(12.dp))
-                            Text(app.name, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-                            Switch(checked = shown, onCheckedChange = null)
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.settings_apps_shown_done)) } },
     )
 }
 
