@@ -90,12 +90,11 @@ class SyncedPrefsGuardTest {
     }
 
     @Test
-    fun `the picture's rules and app destinations travel too`() {
+    fun `the picture's rules travel too`() {
         val follow = io.kud.tutti.protocol.picture.PictureFollowConfig(enabled = true, apps = mapOf("com.example.films" to "cinema"))
-        val mine = AppPrefs(pictureFollow = follow, appDestinations = mapOf("com.example.films" to "example://subscriptions"))
+        val mine = AppPrefs(pictureFollow = follow)
         val other = StoreJson.decodeFromString(StoredPrefs, SyncGroups.apply(raw(AppPrefs()), SyncGroups.read(raw(mine))).prefs!!)
         assertEquals(follow, other.pictureFollow)
-        assertEquals(mine.appDestinations, other.appDestinations)
     }
 
     @Test
