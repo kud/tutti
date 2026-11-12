@@ -71,7 +71,7 @@ object LanRoute {
                 synchronized(link) {
                     val step = link.lanLost(network.networkHandle)
                     if (link.bound == null) LanRoute.network = null
-                    apply(step)
+                    follow(step)
                 }
             }
         }
