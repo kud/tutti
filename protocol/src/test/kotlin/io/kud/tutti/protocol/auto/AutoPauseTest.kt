@@ -69,21 +69,9 @@ class AutoPauseTest {
     }
 
     @Test
-    fun `face down and a call share one pause and resume after the last`() {
-        val down = AutoPause.begin(State(), Cause.FACE_DOWN, watching, at = 0)
-        assertIs<Decision.Pause>(down.decision)
-        val call = AutoPause.begin(down.state, Cause.CALL, watching, at = 10)
-        assertIs<Decision.Nothing>(call.decision)
-        val hungUp = AutoPause.end(call.state, Cause.CALL, watching, at = 20)
-        assertIs<Decision.Nothing>(hungUp.decision)
-        assertTrue(Cause.FACE_DOWN in hungUp.state.causes)
-        assertIs<Decision.Resume>(AutoPause.end(hungUp.state, Cause.FACE_DOWN, watching, at = 30).decision)
-    }
-
-    @Test
     fun `turning an option off drops its claim without playing`() {
-        val paused = AutoPause.begin(State(), Cause.FACE_DOWN, watching, at = 0).state
-        assertEquals(State(), AutoPause.drop(paused, Cause.FACE_DOWN))
+        val paused = AutoPause.begin(State(), Cause.CALL, watching, at = 0).state
+        assertEquals(State(), AutoPause.drop(paused, Cause.CALL))
     }
 
     @Test

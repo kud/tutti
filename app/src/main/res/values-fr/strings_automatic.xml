@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Réglages › Automatique (2026-11-12) : pause pendant les appels, écran retourné, un son qui suit l’heure. -->
+    <!-- Réglages › Automatique (2026-11-12) : pause pendant les appels, un son qui suit l’heure. -->
     <string name="auto_title">Automatique</string>
     <string name="auto_calls">Pause pendant les appels</string>
     <string name="auto_calls_summary">Quand votre téléphone sonne ou qu’un appel commence, la TV se met en pause. Après l’appel, la lecture reprend et la barre remonte doucement, si c’est tutti qui l’avait mise en pause et que la TV n’a pas changé.</string>
@@ -12,9 +12,6 @@
     <string name="auto_calls_missing">Activé, mais ce téléphone n’a pas encore autorisé tutti à voir les appels.</string>
     <string name="auto_allow">Autoriser</string>
     <string name="auto_open_settings">Ouvrir les paramètres</string>
-    <string name="auto_face_down">Retourner pour mettre en pause</string>
-    <string name="auto_face_down_summary">Avec tutti ouvert, posez le téléphone écran contre la table pour mettre la TV en pause, et reprenez-le pour relancer la lecture. Une vibration le confirme.</string>
-    <string name="auto_face_down_none">Ce téléphone n’a pas de capteur pour savoir dans quel sens il est posé.</string>
     <string name="auto_night">Un son qui suit l’heure</string>
     <string name="auto_night_off_summary">Nuit et Voix sur la barre, et un garde-fou du volume plus bas, entre deux heures que vous choisissez.</string>
     <string name="auto_night_summary">De %1$s à %2$s : Nuit et Voix activés, et le garde-fou du volume à %3$d au lieu de %4$d. Ensuite, tout revient comme avant, sauf ce que vous avez changé vous-même. S’applique dès que tutti est connecté à la barre.</string>

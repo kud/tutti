@@ -3283,11 +3283,6 @@ class TuttiController @Inject constructor(
         scope.launch { store.updatePrefs { it.copy(pauseForCalls = enabled) } }
     }
 
-    /** Settings › Automatic: face down pauses, picked up plays. */
-    fun setFaceDownPause(enabled: Boolean) {
-        scope.launch { store.updatePrefs { it.copy(faceDownPause = enabled) } }
-    }
-
     /** Settings › Automatic: sound that follows the hour; the window's start and end in minutes of the day. */
     fun setNightHours(transform: (io.kud.tutti.platform.data.NightHoursPrefs) -> io.kud.tutti.platform.data.NightHoursPrefs) {
         scope.launch { store.updatePrefs { it.copy(nightHours = transform(it.nightHours)) } }

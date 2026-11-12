@@ -98,8 +98,6 @@ data class AppPrefs(
      * permission on each phone; the choice syncs, the grant doesn't.
      */
     val pauseForCalls: Boolean = false,
-    /** Phone laid face down: pause; picked up: play again, while the remote is in front ([io.kud.tutti.protocol.auto.FaceDown]). */
-    val faceDownPause: Boolean = false,
     /** Sound that follows the hour: night mode, voice enhancement and a lower guard between two times ([io.kud.tutti.protocol.auto.NightHours]). */
     val nightHours: NightHoursPrefs = NightHoursPrefs(),
     /** The night window open on this phone, with what to put back at its end. Local: a timed state, like [tonightCap]. */

@@ -27,10 +27,8 @@
 
     <!-- Settings › Automatic (2026-11-12). The phone's call state, for "Pause during calls": asked
          when the option is turned on, never at start; tutti reads ringing / in a call / idle,
-         never a number. VIBRATE (normal, granted at install) is the face-down buzz, felt with the
-         screen on the table. -->
+         never a number. -->
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
-    <uses-permission android:name="android.permission.VIBRATE" />
 
     <!-- ===== quick access: permissions (begin) ===== -->
     <!-- Control notification (Android 13+ runtime permission, asked from QuickNotificationSetting). No foreground service. -->

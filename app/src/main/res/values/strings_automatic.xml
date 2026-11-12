@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Settings › Automatic (2026-11-12): pause during calls, face down to pause, sound that follows the hour. -->
+    <!-- Settings › Automatic (2026-11-12): pause during calls, sound that follows the hour. -->
     <string name="auto_title">Automatic</string>
     <string name="auto_calls">Pause during calls</string>
     <string name="auto_calls_summary">When your phone rings or a call starts, the TV pauses. After the call it plays again and the bar fades back in, if tutti paused it and the TV is still on it.</string>
@@ -12,9 +12,6 @@
     <string name="auto_calls_missing">On, but this phone hasn’t allowed tutti to see calls yet.</string>
     <string name="auto_allow">Allow</string>
     <string name="auto_open_settings">Open settings</string>
-    <string name="auto_face_down">Face down to pause</string>
-    <string name="auto_face_down_summary">With tutti open, lay the phone face down to pause the TV, and pick it up to play again. A buzz says it worked.</string>
-    <string name="auto_face_down_none">This phone has no sensor to tell which way it lies.</string>
     <string name="auto_night">Sound that follows the hour</string>
     <string name="auto_night_off_summary">Night and Voice on the bar and a lower volume guard, between two times you choose.</string>
     <string name="auto_night_summary">From %1$s to %2$s: Night and Voice on, and the volume guard at %3$d instead of %4$d. Afterwards everything goes back, except what you changed yourself. Applied whenever tutti is connected to the bar.</string>
