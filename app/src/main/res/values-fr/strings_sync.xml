@@ -29,7 +29,7 @@
     <string name="sync_synced">Synchronisé</string>
     <string name="sync_synced_list">La disposition de la télécommande et le dock, les appuis longs, les scènes, les profils d’apps, et les préférences : thème, retours, mode du pavé, apps masquées, noms des entrées de la barre, garde de volume et niveaux enregistrés, assombrissement du soir.</string>
     <string name="sync_local">Reste sur ce téléphone</string>
-    <string name="sync_local_list">Les appareils et leurs adresses, l’appairage de la TV et de la barre, la connexion Sony, les ordinateurs, la configuration, le mode développeur, les astuces déjà vues, le plafond de volume de ce soir. Appairez chaque téléphone avec la TV séparément.</string>
+    <string name="sync_local_list">Les appareils et leurs adresses, l’appairage de la TV et de la barre, les ordinateurs, la configuration, le mode développeur, les astuces déjà vues, le plafond de volume de ce soir. Appairez chaque téléphone avec la TV séparément.</string>
     <string name="sync_how">Quand deux téléphones changent la même chose</string>
     <string name="sync_how_detail">Le dernier changement l’emporte, partie par partie : la disposition, les scènes, les profils d’apps et les préférences voyagent chacun en entier.</string>
     <string name="sync_place_title">Où synchroniser</string>

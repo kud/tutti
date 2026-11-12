@@ -71,6 +71,11 @@ fun AboutScreen(onBack: () -> Unit, onWhatsNew: () -> Unit = {}) {
         Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(bottom = 32.dp)) {
             Header()
 
+            // The one place that says what tutti does and what stays in BRAVIA Connect (Erwann, 2026-11-11).
+            Heading(stringResource(R.string.about_scope))
+            InfoRow(R.string.about_does_title, R.string.about_does)
+            InfoRow(R.string.about_stays_title, R.string.about_stays)
+
             Heading(stringResource(R.string.about_approach))
             InfoRow(R.string.about_local_title, R.string.about_local)
             InfoRow(R.string.about_pinned_title, R.string.about_pinned)
