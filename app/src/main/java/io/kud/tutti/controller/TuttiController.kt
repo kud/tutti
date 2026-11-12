@@ -1,6 +1,7 @@
 package io.kud.tutti.controller
 
 import io.kud.tutti.protocol.apps.AppDestinations
+import io.kud.tutti.platform.data.AppPrefs
 import io.kud.tutti.platform.data.VibrationLevel
 import android.app.UiModeManager
 import android.content.Context
@@ -510,7 +511,7 @@ class TuttiController @Inject constructor(
         scope.launch {
             // The high-volume guard re-arms once the bar is below its line again, or once the bar's
             // link drops (a new session); a quick surface's notice goes with it.
-            state.map { Triple(it.volume, it.bar.connected, VolumeRules.threshold(it.prefs.volumeGuardLevel)) }.distinctUntilChanged().collect { (level, connected, line) ->
+            state.map { Triple(it.volume, it.bar.connected, guardLevel(it.prefs)) }.distinctUntilChanged().collect { (level, connected, line) ->
                 guard.update { g ->
                     val unlocked = connected && VolumeRules.stillUnlocked(g.unlocked, level, line)
                     val notice = g.notice && connected && (level == null || level >= line)
@@ -1339,7 +1340,7 @@ class TuttiController @Inject constructor(
             else -> null
         }
         val volume = volumeShown(e.overrides.volume, l.bar.liveLevel(TheatreFeature.VOLUME), s.prefs.lastBarVolume, l.bar.connected)
-        val guardState = VolumeGuardState(s.prefs.volumeGuard, VolumeRules.threshold(s.prefs.volumeGuardLevel), v.guard.unlocked)
+        val guardState = VolumeGuardState(s.prefs.volumeGuard, guardLevel(s.prefs), v.guard.unlocked)
         return TuttiUiState(
             loaded = true,
             devices = s.devices,
@@ -2269,7 +2270,7 @@ class TuttiController @Inject constructor(
         val ceiling = s.volumeCap ?: MAX_VOLUME
         // The newest level asked for, not the state's, which may lag a burst of presses by a frame.
         val current = overrides.value.volume ?: s.volume
-        val line = VolumeRules.threshold(s.prefs.volumeGuardLevel)
+        val line = guardLevel(s.prefs)
         val armed = VolumeGuardState(s.prefs.volumeGuard, line, guard.value.unlocked)
         when (val decision = VolumeRules.decide(current, level, ceiling, armed, source)) {
             is VolumeDecision.Send -> sendVolume(decision.level, ceiling, line)
@@ -2319,6 +2320,14 @@ class TuttiController @Inject constructor(
     }
 
     /** The high-volume guard's settings (Settings › Remote & dock). */
+    /**
+     * Where the guard's line is now: the day's level, or two thirds of it while a night window is
+     * open on this phone (sound that follows the hour; [io.kud.tutti.protocol.auto.NightHours.guardLine]).
+     */
+    private fun guardLevel(prefs: AppPrefs): Int = VolumeRules.threshold(
+        if (prefs.nightSession != null) io.kud.tutti.protocol.auto.NightHours.guardLine(prefs.volumeGuardLevel) else prefs.volumeGuardLevel,
+    )
+
     fun setVolumeGuard(enabled: Boolean, level: Int) {
         scope.launch { store.updatePrefs { it.copy(volumeGuard = enabled, volumeGuardLevel = VolumeRules.threshold(level)) } }
     }
@@ -3267,6 +3276,43 @@ class TuttiController @Inject constructor(
 
     fun setTrueBlack(enabled: Boolean) {
         scope.launch { store.updatePrefs { it.copy(trueBlack = enabled) } }
+    }
+
+    /** Settings › Automatic: pause for calls. The phone permission is asked by the row before this turns on. */
+    fun setPauseForCalls(enabled: Boolean) {
+        scope.launch { store.updatePrefs { it.copy(pauseForCalls = enabled) } }
+    }
+
+    /** Settings › Automatic: face down pauses, picked up plays. */
+    fun setFaceDownPause(enabled: Boolean) {
+        scope.launch { store.updatePrefs { it.copy(faceDownPause = enabled) } }
+    }
+
+    /** Settings › Automatic: sound that follows the hour; the window's start and end in minutes of the day. */
+    fun setNightHours(transform: (io.kud.tutti.platform.data.NightHoursPrefs) -> io.kud.tutti.platform.data.NightHoursPrefs) {
+        scope.launch { store.updatePrefs { it.copy(nightHours = transform(it.nightHours)) } }
+    }
+
+    /**
+     * After an automatic resume: the bar from [io.kud.tutti.protocol.auto.ResumeFade]'s low start
+     * back up to [target], clamped to the ceiling and never through the guard (it only ever returns
+     * to a level the bar was already at). A hand on the volume meanwhile wins: the fade stops at the
+     * first level it didn't send itself. Returns whether it ran to the end.
+     */
+    suspend fun fadeBarBackTo(target: Int): Boolean {
+        val ceiling = state.value.volumeCap ?: MAX_VOLUME
+        val levels = io.kud.tutti.protocol.auto.ResumeFade.levels(target.coerceAtMost(ceiling))
+        if (levels.isEmpty() || !theatre.state.value.connected) return false
+        var sent: Int? = null
+        for (level in levels) {
+            val now = overrides.value.volume ?: state.value.volume
+            if (sent != null && now != sent) return false
+            setOverride { it.copy(volume = level) }
+            volumeTarget.trySend(level)
+            sent = level
+            if (level != levels.last()) delay(io.kud.tutti.protocol.auto.ResumeFade.STEP_MS)
+        }
+        return true
     }
 
     fun setEveningDim(enabled: Boolean) {

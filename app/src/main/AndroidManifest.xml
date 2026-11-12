@@ -25,6 +25,13 @@
     <!-- The air-mouse pointer; the segment says so when there is none. -->
     <uses-feature android:name="android.hardware.sensor.gyroscope" android:required="false" />
 
+    <!-- Settings › Automatic (2026-11-12). The phone's call state, for "Pause during calls": asked
+         when the option is turned on, never at start; tutti reads ringing / in a call / idle,
+         never a number. VIBRATE (normal, granted at install) is the face-down buzz, felt with the
+         screen on the table. -->
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+
     <!-- ===== quick access: permissions (begin) ===== -->
     <!-- Control notification (Android 13+ runtime permission, asked from QuickNotificationSetting). No foreground service. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
@@ -162,6 +169,16 @@
             android:exported="true">
             <intent-filter>
                 <action android:name="android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Pause during calls: the system's call-state broadcast, still delivered to manifest
+             receivers; only the system can send it, and only to holders of READ_PHONE_STATE. -->
+        <receiver
+            android:name=".auto.CallStateReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.PHONE_STATE" />
             </intent-filter>
         </receiver>
     </application>

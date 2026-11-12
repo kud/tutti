@@ -442,6 +442,9 @@ private fun RemotePage(state: TuttiUiState, controller: TuttiController, onEditL
         VolumeGuardRows(state.prefs, onChange = controller::setVolumeGuard)
     }
 
+    // Settings › Automatic (2026-11-12): self-contained, so it moves as one group.
+    AutomaticGroup(state.prefs, controller)
+
     SettingsGroup(stringResource(R.string.settings_quick_access)) {
         QuickNotificationSetting(icon = R.drawable.ic_bolt)
     }

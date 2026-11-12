@@ -10,6 +10,7 @@ import javax.inject.Inject
 @HiltAndroidApp
 class TuttiApplication : Application() {
     @Inject lateinit var sync: SettingsSync
+    @Inject lateinit var nightHours: io.kud.tutti.auto.NightHoursRunner
 
     override fun onCreate() {
         super.onCreate()
@@ -19,5 +20,7 @@ class TuttiApplication : Application() {
         // didn't outlive, and another phone's change before any screen opens.
         sync.start()
         sync.request()
+        // Sound that follows the hour: watches the window for as long as the process runs.
+        nightHours.start()
     }
 }

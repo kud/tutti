@@ -27,10 +27,11 @@ internal object SyncGroups {
 
     /**
      * Preferences that stay on this phone: setup done, developer mode, the bar's last volume (a
-     * reading, not a setting), the one-time tips already shown, tonight's cap (a timed state), and
+     * reading, not a setting), the one-time tips already shown, tonight's cap and the open night window
+ * (timed states, each with what to put back), and
      * the layout, which travels in [REMOTE] with the dock.
      */
-    val LOCAL_PREFS = setOf("onboarded", "developerMode", "lastBarVolume", "hints", "tonightCap", "layout")
+    val LOCAL_PREFS = setOf("onboarded", "developerMode", "lastBarVolume", "hints", "tonightCap", "layout", "nightSession")
 
     /** The four stored strings, as DataStore holds them (null when never written). */
     data class Raw(val prefs: String?, val dock: String?, val scenes: String?, val profiles: String?)
