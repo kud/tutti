@@ -40,12 +40,6 @@
     <string name="settings_true_black_detail">Fully black background for OLED screens</string>
     <string name="settings_evening_dim">Dark room</string>
     <string name="settings_evening_dim_detail">From 8 pm, while the TV is on, tutti dims its own screen. Changing the brightness turns it off for the evening.</string>
-    <string name="settings_sony">Sony</string>
-    <string name="settings_sony_connection">Sony connection (experimental)</string>
-    <string name="settings_sony_unavailable">Not available</string>
-    <string name="settings_sony_disabled">Off</string>
-    <string name="settings_sony_signed_out">Signed out</string>
-    <string name="settings_sony_explain">Sony’s cloud channel is not documented well enough to implement without guessing. Local controls do not depend on it.</string>
     <string name="settings_bravia_connect">BRAVIA Connect</string>
     <string name="settings_recalibrate_detail">Calibration, Acoustic Center Sync and speaker placement stay in Sony’s app.</string>
     <string name="link_absent">not set up</string>

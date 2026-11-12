@@ -30,7 +30,7 @@
     <string name="sync_synced">Synced</string>
     <string name="sync_synced_list">Remote layout and dock, long presses, scenes, app profiles, and preferences: theme, feedback, pad mode, hidden apps, bar input names, volume guard and saved levels, evening dimming.</string>
     <string name="sync_local">Stays on this phone</string>
-    <string name="sync_local_list">Devices and their addresses, TV and bar pairings, the Sony sign-in, computers, setup, developer mode, one-time tips, tonight’s volume cap. Pair each phone with the TV on its own.</string>
+    <string name="sync_local_list">Devices and their addresses, TV and bar pairings, computers, setup, developer mode, one-time tips, tonight’s volume cap. Pair each phone with the TV on its own.</string>
     <string name="sync_how">When two phones change the same thing</string>
     <string name="sync_how_detail">The latest change wins, one part at a time: the layout, scenes, app profiles and preferences each travel whole.</string>
     <string name="sync_place_title">Where to sync</string>
