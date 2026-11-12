@@ -24,8 +24,10 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * When to try Cast again after a session ended (architecture § 7: never a tight loop).
@@ -128,6 +130,23 @@ class CastWatcher(
     /** Per host: no attempt before this time, and the ends in a row so far. */
     private val holds = mutableMapOf<String, Pair<Long, Int>>()
 
+    /** Bumped by [networkChanged]: a backoff waiting on it ends, and an end it caused is not a failure. */
+    private val network = MutableStateFlow(0)
+
+    /** The socket under the running session, so a lost LAN network can end it now, not on its read timeout. */
+    @Volatile private var liveConnection: CastConnection? = null
+
+    /**
+     * The LAN network the sockets ride came, went or changed (LanRoute). A session that ends
+     * because of it, and the failures on a network that is gone, say nothing about the TV: the
+     * backoff starts over and the next try is at once. With [dropped], the running session's
+     * socket belongs to the old network and is closed. Never called for a default-network flip.
+     */
+    fun networkChanged(dropped: Boolean) {
+        network.update { it + 1 }
+        if (dropped) liveConnection?.let { runCatching { it.close() } }
+    }
+
     init {
         scope.launch {
             var lastHost: String? = null
@@ -153,13 +172,20 @@ class CastWatcher(
 
     private suspend fun watch(host: String) {
         while (true) {
-            val (notBefore, failures) = holds[host] ?: (0L to 0)
+            val (notBefore, held) = holds[host] ?: (0L to 0)
+            var failures = held
             val wait = notBefore - clock()
-            if (wait > 0) delay(wait)
+            if (wait > 0) {
+                val seen = network.value
+                // A network change ends the wait: what failed on the old network proves nothing now.
+                if (withTimeoutOrNull(wait) { network.first { it != seen } } != null) failures = 0
+            }
+            val epoch = network.value
             val started = clock()
             event(CastLogLines.connecting())
             val end = try {
                 val connection = connector.connect(host)
+                liveConnection = connection
                 try {
                     var reported = false
                     val emit: (CastReport) -> Unit = {
@@ -180,6 +206,7 @@ class CastWatcher(
                         }
                     }
                 } finally {
+                    if (liveConnection === connection) liveConnection = null
                     connection.close()
                 }
             } catch (e: CancellationException) {
@@ -190,8 +217,15 @@ class CastWatcher(
                 fold { onReport(CastReport.Unknown, clock()) }
             }
             val healthy = end !is CastEnd.Untrusted && clock() - started >= CastBackoff.HEALTHY_MS
-            val count = if (healthy) 1 else failures + 1
-            val hold = CastBackoff.delayFor(end, count)
+            // Ended by a network change (dropped, or every connect timing out on a network that went):
+            // not the TV's fault, so no doubling, and one try at once on the network we have now.
+            val networkEnded = end !is CastEnd.Untrusted && network.value != epoch
+            val count = when {
+                networkEnded -> 0
+                healthy -> 1
+                else -> failures + 1
+            }
+            val hold = if (networkEnded) 0L else CastBackoff.delayFor(end, count)
             holds[host] = clock() + hold to count
             log("cast ended: $end, next try in ${hold / 1000} s")
             event(CastLogLines.ended(end, hold))

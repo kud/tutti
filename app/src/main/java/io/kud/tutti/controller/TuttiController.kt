@@ -4,8 +4,6 @@ import io.kud.tutti.protocol.apps.AppDestinations
 import io.kud.tutti.platform.data.VibrationLevel
 import android.app.UiModeManager
 import android.content.Context
-import android.net.ConnectivityManager
-import android.net.Network
 import android.os.Build
 import android.os.SystemClock
 import android.util.Log
@@ -22,6 +20,7 @@ import io.kud.tutti.platform.data.SecondaryButton
 import io.kud.tutti.platform.data.TvDevice
 import io.kud.tutti.platform.diagnostic.AppVersion
 import io.kud.tutti.platform.data.BarDevice
+import io.kud.tutti.platform.net.LanRoute
 import io.kud.tutti.platform.net.LocalNetworkPermission
 import io.kud.tutti.platform.net.LocalNetworkPermissionMissing
 import io.kud.tutti.platform.net.OkHttpBarHttpTransport
@@ -56,6 +55,7 @@ import io.kud.tutti.platform.diagnostic.AppLog
 import io.kud.tutti.protocol.diagnostic.EventLog
 import io.kud.tutti.protocol.diagnostic.IssueLink
 import io.kud.tutti.protocol.apps.LaunchRoute
+import io.kud.tutti.protocol.net.PollMisses
 import io.kud.tutti.protocol.net.ReconnectPace
 import io.kud.tutti.protocol.net.Redact
 import io.kud.tutti.protocol.net.other
@@ -562,35 +562,26 @@ class TuttiController @Inject constructor(
                 }
             }
         }
-        runCatching {
-            val connectivity = context.getSystemService(ConnectivityManager::class.java)
-            connectivity?.registerDefaultNetworkCallback(object : ConnectivityManager.NetworkCallback() {
-                // The first onAvailable is the network we start on: only a change after it drops links.
-                @Volatile private var current: Network? = null
-
-                override fun onAvailable(network: Network) {
-                    val before = current
-                    current = network
-                    if (before != null && before != network) dropLinks("the phone moved to another network")
-                    wake.tryEmit(Unit)
-                }
-
-                override fun onLost(network: Network) {
-                    if (current != network) return
-                    current = null
-                    dropLinks("the phone lost its network")
-                }
-            })
+        // Links ride the LAN network, not the default (LanRoute, LanLink): a default flip to
+        // cellular when Wi-Fi briefly loses validation used to drop every link and send the
+        // reconnects over cellular, where a private address times out until Wi-Fi is back.
+        LanRoute.start(context) { step ->
+            step.drop?.let { dropLinks(it) }
+            castWatcher.networkChanged(dropped = step.drop != null)
+            if (step.wake) wake.tryEmit(Unit)
         }
     }
 
     /**
-     * A socket opened on a network the phone has left is dead, but its read only says so after
+     * A socket opened on a LAN network the phone has left is dead, but its read only says so after
      * its timeout (20 s for the TV, 75 s for the bar). Drop both now; their loops reconnect on
      * the network the phone has, at once ([ReconnectPace]) or when [wake] ends their backoff.
+     * Cast closes its own ([CastWatcher.networkChanged]). Only [LanRoute] calls this: a change of
+     * default network never does.
      */
     private fun dropLinks(why: String) {
         Log.i(TAG, "links dropped: $why")
+        AppLog.events.record(EventLog.Kind.CONNECTION, "links dropped: $why")
         atv.disconnect()
         theatre.disconnect()
     }
@@ -1114,9 +1105,16 @@ class TuttiController @Inject constructor(
                     // A reconnect may follow installs made meanwhile: ask for the app list again.
                     tvWasActive = false
                     learnMac(client, device.host)
+                    // A missed poll is a blip until PollMisses says otherwise: only a transport miss
+                    // is tolerated; a pin mismatch or a refused cookie ends the loop at once.
+                    var misses = 0
                     while (scope.isActive) {
                         val started = SystemClock.elapsedRealtime()
-                        if (!refreshTv(client)) break
+                        val poll = refreshTv(client)
+                        if (poll == Poll.STOP) break
+                        misses = PollMisses.next(misses, answered = poll == Poll.ANSWERED)
+                        if (PollMisses.unreachable(misses)) break
+                        if (misses > 0) AppLog.events.record(EventLog.Kind.CONNECTION, "rest poll missed ($misses of ${PollMisses.TOLERATED} tolerated)")
                         if (psk == null && !keepCookieFresh(client)) break
                         awaitNextPoll(started)
                     }
@@ -1243,16 +1241,20 @@ class TuttiController @Inject constructor(
         tv.update { it.copy(pskRefused = refused) }
     }
 
-    /** False when the TV stopped answering. */
-    private suspend fun refreshTv(client: BraviaClient): Boolean {
+    /** How one poll went: answered, missed (no answer, worth another try), or a reason to stop. */
+    private enum class Poll { ANSWERED, MISSED, STOP }
+
+    /** [Poll.MISSED] when the TV did not answer; [Poll.STOP] on a pin mismatch or a refused cookie. */
+    private suspend fun refreshTv(client: BraviaClient): Poll {
         val power = when (val result = client.powerStatus()) {
             is BraviaResult.Ok -> result.value
             is BraviaResult.Failure -> when {
-                result.error is BraviaError.Transport || result.error == BraviaError.PinMismatch -> return false
+                result.error is BraviaError.Transport -> return Poll.MISSED
+                result.error == BraviaError.PinMismatch -> return Poll.STOP
                 // A refused cookie: renew it once, or stop polling until a new code.
                 result.error == BraviaError.Unauthorized && psk == null && ipCookie != null -> {
                     keepCookieFresh(client, refused = true)
-                    return false
+                    return Poll.STOP
                 }
                 else -> PowerStatus.UNKNOWN
             }
@@ -1299,7 +1301,7 @@ class TuttiController @Inject constructor(
             // Icons that failed are asked again on later polls, each on its own backoff ([IconBook]).
             scope.launch { fetchMissingIcons() }
         }
-        return true
+        return Poll.ANSWERED
     }
 
     // endregion
