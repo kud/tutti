@@ -39,6 +39,8 @@ data class CastNowPlaying(
     val imageUrl: String? = null,
     /** Whether the app says it takes a playback rate ([CastSpeed.support]). */
     val rateSupport: CastRateSupport = CastRateSupport.UNKNOWN,
+    /** Whether the app says it takes a SEEK ([CastSayAgain.seekSupport]): the Say again chip hides when it says no. */
+    val seekSupport: CastRateSupport = CastRateSupport.UNKNOWN,
     /** The receiver app's id (an app, not a title): the speed picker remembers refusals per app. */
     val appId: String? = null,
 ) {
@@ -324,6 +326,7 @@ class CastStatusReducer {
                 readAtMillis = nowMillis,
                 imageUrl = snapshot.imageUrl,
                 rateSupport = CastSpeed.support(entry.long("supportedMediaCommands")),
+                seekSupport = CastSayAgain.seekSupport(entry.long("supportedMediaCommands")),
             ),
             sessionId,
         )
