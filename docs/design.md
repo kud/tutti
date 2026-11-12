@@ -237,7 +237,7 @@ The rail drives the soundbar, `main.volumestep` on its own 0–100 scale (`Theat
 
 ## Automatic (Erwann, 2026-11-12)
 
-One group of its own in Settings, « Automatique », three switches, each off by default and each saying in its line what it does and when: « Pause pendant les appels » (asks for Android's phone permission only when turned on, after a dialog saying it reads ringing or in a call, never a number; synced on but not granted on this phone, the row says so and offers « Autoriser »), « Retourner pour mettre en pause » (while tutti is open; a buzz confirms, since the screen is on the table) and « Un son qui suit l'heure » (« À partir de » and « Jusqu'à » rows open the system time picker; the line names the hours, Nuit and Voix, and the guard's night line beside the day's). The mechanics are in architecture.md, « Automatic ».
+One group of its own in Settings, « Automatique », two switches, each off by default and each saying in its line what it does and when (a third, « Retourner pour mettre en pause », was dropped on 2026-11-12): « Pause pendant les appels » (asks for Android's phone permission only when turned on, after a dialog saying it reads ringing or in a call, never a number; synced on but not granted on this phone, the row says so and offers « Autoriser ») and « Un son qui suit l'heure » (« À partir de » and « Jusqu'à » rows open the system time picker; the line names the hours, Nuit and Voix, and the guard's night line beside the day's). The mechanics are in architecture.md, « Automatic ».
 
 ## Keyboard
 - Auto-open when the TV reports a focused text field (IME show request); the pad shrinks above, still live.

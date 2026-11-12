@@ -32,7 +32,7 @@ class EventLog(
         PICTURE("picture"),
         ERROR("error"),
 
-        /** Automatic: pauses for a call or face down, and the night hours (no titles, no apps). */
+        /** Automatic: pauses for a call, and the night hours (no titles, no apps). */
         AUTO("automatic"),
     }
 

@@ -3,23 +3,24 @@ package io.kud.tutti.protocol.auto
 import kotlinx.serialization.Serializable
 
 /**
- * Pausing the TV for the phone, and playing it again afterwards (Erwann, 2026-11-12): a call that
- * rings or starts, or the phone laid face down. Each is its own opt-in; both share this one ledger,
- * so a call that comes while the phone lies face down neither pauses twice nor resumes early.
+ * Pausing the TV for a phone call, and playing it again afterwards (Erwann, 2026-11-12): a call
+ * that rings or starts begins the pause, hanging up ends it.
  *
- * The rule the whole ledger keeps: **tutti only ever resumes what tutti paused.** It pauses only
- * when something is showing in an app (the TV on, an app in front that isn't the launcher, and
- * Cast, when it reports at all, not already paused); it resumes only when the last reason has gone,
- * the TV is still on the same app, and Cast (when it reported both times) still shows the same
- * item, paused. Anything else drops the claim and says why, so a decision is never left pending.
+ * The rule the ledger keeps: **tutti only ever resumes what tutti paused.** It pauses only when
+ * something is showing in an app (the TV on, an app in front that isn't the launcher, and Cast,
+ * when it reports at all, not already paused); it resumes only when the call has ended, the TV is
+ * still on the same app, and Cast (when it reported both times) still shows the same item, not
+ * playing. Anything else drops the claim and says why, so a decision is never left pending.
  *
  * The keys are the TV's own media keys, Pause and Play (Remote v2 126 and 127), never the
  * Play/Pause toggle: sent to a screen with nothing paused they do nothing, where a toggle would
  * start something. Pure: the caller passes the time and a [Snapshot] and sends what comes back.
+ * [Cause] keeps the ledger's shape (a set of reasons) so a second source can join without a
+ * migration; today the call is the only one.
  */
 object AutoPause {
     @Serializable
-    enum class Cause(val label: String) { CALL("call"), FACE_DOWN("face down") }
+    enum class Cause(val label: String) { CALL("call") }
 
     /**
      * What the TV shows now, as tutti knows it. [castPlaying] is null when Cast reports nothing (it
@@ -65,16 +66,16 @@ object AutoPause {
     const val KEY_PAUSE = 127
 
     /**
-     * Past this, a claim is stale: a call or a phone left face down for longer is not a pause to
+     * Past this, a claim is stale: a call that long is not a pause to
      * undo, and Play hours later would surprise more than help.
      */
     const val MAX_CLAIM_MS: Long = 3 * 60 * 60_000L
 
-    /** A reason to pause began ([cause]): a call rang or started, or the phone went face down. */
+    /** A reason to pause began ([cause]): a call rang or started. A second ring or answering is already counted. */
     fun begin(state: State, cause: Cause, now: Snapshot, at: Long): Step {
         if (cause in state.causes) return Step(state, Decision.Nothing("${cause.label}: already counted"))
         val causes = state.causes + cause
-        // Already paused by tutti for another reason: this one joins it, nothing to send.
+        // Already paused by tutti for another reason: this one joins it, nothing to send (unreachable with one source).
         if (state.claim != null) return Step(state.copy(causes = causes), Decision.Nothing("${cause.label}: already paused by tutti"))
         val why = pauseRefusal(now)
         if (why != null) return Step(state.copy(causes = causes), Decision.Nothing("${cause.label}: $why"))
@@ -82,7 +83,7 @@ object AutoPause {
         return Step(State(causes, claim), Decision.Pause("${cause.label}: pause"))
     }
 
-    /** A reason ended: the call hung up, or the phone picked up again. Resumes when it was the last. */
+    /** A reason ended: the call hung up. Resumes when it was the last. */
     fun end(state: State, cause: Cause, now: Snapshot, at: Long): Step {
         if (cause !in state.causes) return Step(state, Decision.Nothing("${cause.label}: nothing to end"))
         val causes = state.causes - cause

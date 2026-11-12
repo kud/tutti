@@ -4,8 +4,6 @@ import android.Manifest
 import android.app.TimePickerDialog
 import android.content.Context
 import android.content.Intent
-import android.hardware.Sensor
-import android.hardware.SensorManager
 import android.net.Uri
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -36,7 +34,7 @@ import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 
 /**
- * Settings › Automatic (Erwann, 2026-11-12): three opt-ins, each off by default, in one group that
+ * Settings › Automatic (Erwann, 2026-11-12): two opt-ins, each off by default, in one group that
  * stands on its own (the Settings pages are being reorganised; this drops in wherever it lands).
  * The choices sync with the rest of the preferences; the phone permission is this phone's own, so a
  * synced "on" without it says so and offers the grant.
@@ -45,7 +43,6 @@ import java.time.format.FormatStyle
 internal fun AutomaticGroup(prefs: AppPrefs, controller: TuttiController) {
     SettingsGroup(stringResource(R.string.auto_title)) {
         CallPauseRow(prefs.pauseForCalls, controller::setPauseForCalls)
-        FaceDownRow(prefs.faceDownPause, controller::setFaceDownPause)
         NightHoursRows(prefs, controller)
     }
 }
@@ -111,20 +108,6 @@ private fun CallPauseRow(enabled: Boolean, onChange: (Boolean) -> Unit) {
 }
 
 @Composable
-private fun FaceDownRow(enabled: Boolean, onChange: (Boolean) -> Unit) {
-    val context = LocalContext.current
-    val sensor = remember { hasGravity(context) }
-    SwitchRow(
-        label = stringResource(R.string.auto_face_down),
-        supporting = stringResource(R.string.auto_face_down_summary),
-        checked = enabled && sensor,
-        onCheckedChange = { if (sensor) onChange(it) },
-        reason = if (sensor) null else stringResource(R.string.auto_face_down_none),
-        icon = R.drawable.ic_smartphone,
-    )
-}
-
-@Composable
 private fun androidx.compose.foundation.layout.ColumnScope.NightHoursRows(prefs: AppPrefs, controller: TuttiController) {
     val context = LocalContext.current
     val window = prefs.nightHours
@@ -173,11 +156,6 @@ private fun pickTime(context: Context, minute: Int, onPicked: (Int) -> Unit) {
         minute % 60,
         android.text.format.DateFormat.is24HourFormat(context),
     ).show()
-}
-
-private fun hasGravity(context: Context): Boolean {
-    val sensors = context.getSystemService(SensorManager::class.java) ?: return false
-    return sensors.getDefaultSensor(Sensor.TYPE_GRAVITY) != null || sensors.getDefaultSensor(Sensor.TYPE_ACCELEROMETER) != null
 }
 
 private fun openAppSettings(context: Context) {

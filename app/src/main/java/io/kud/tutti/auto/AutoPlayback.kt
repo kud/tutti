@@ -17,7 +17,6 @@ import io.kud.tutti.platform.diagnostic.AppLog
 import io.kud.tutti.protocol.auto.AutoPause
 import io.kud.tutti.protocol.auto.AutoPause.Cause
 import io.kud.tutti.protocol.auto.AutoPause.Decision
-import io.kud.tutti.protocol.auto.FaceDown
 import io.kud.tutti.protocol.cast.CastPlayerState
 import io.kud.tutti.protocol.diagnostic.EventLog
 import kotlinx.coroutines.flow.first
@@ -30,10 +29,10 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Settings › Automatic, the two pauses (Erwann, 2026-11-12): a call ([onCall], from
- * [CallStateReceiver]) and the phone face down ([onFaceDown], from [FaceDownWatcher]). One ledger
- * for both ([AutoPause]), kept in its own small file on this phone so a call outlives the process
- * that heard it ring: Android may well stop that process before the call ends.
+ * Settings › Automatic, pause during calls (Erwann, 2026-11-12): [onCall], from
+ * [CallStateReceiver]. The ledger ([AutoPause]) is kept in its own small file on this phone so a
+ * call outlives the process that heard it ring: Android may well stop that process before the
+ * call ends.
  */
 @Singleton
 class AutoPlayback @Inject constructor(
@@ -45,9 +44,6 @@ class AutoPlayback @Inject constructor(
     private var ledger: AutoPause.State = runCatching {
         file.getString(KEY, null)?.let { json.decodeFromString(AutoPause.State.serializer(), it) }
     }.getOrNull() ?: AutoPause.State()
-
-    /** The face-down detector's state: kept here so it outlives the activity that feeds it. */
-    @Volatile var pose: FaceDown.State = FaceDown.State()
 
     /**
      * A call rang or went off-hook ([active]), or hung up. Holds the sessions while it decides, so a
@@ -63,13 +59,6 @@ class AutoPlayback @Inject constructor(
         if (!active && Cause.CALL !in ledger.causes) return
         held { if (active) begin(Cause.CALL) else end(Cause.CALL) }
     }
-
-    /** The phone went face down ([down]) or came up again; the remote is in front, so the link is live. */
-    suspend fun onFaceDown(down: Boolean): Decision =
-        if (down) begin(Cause.FACE_DOWN) else end(Cause.FACE_DOWN)
-
-    /** An option turned off: its reason goes, and nothing plays. */
-    suspend fun drop(cause: Cause) = lock.withLock { if (cause in ledger.causes) save(AutoPause.drop(ledger, cause)) }
 
     private suspend fun begin(cause: Cause): Decision = lock.withLock {
         val step = AutoPause.begin(ledger, cause, snapshot(controller.state.value), SystemClock.elapsedRealtime())

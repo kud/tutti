@@ -23,7 +23,6 @@ class SyncGroupsTest {
     fun automaticChoicesSyncAndTheOpenNightWindowStays() {
         val mine = AppPrefs(
             pauseForCalls = true,
-            faceDownPause = true,
             nightHours = NightHoursPrefs(enabled = true, start = 23 * 60, end = 6 * 60),
             nightSession = io.kud.tutti.protocol.auto.NightHours.Session(endsAt = 1L),
         )
@@ -32,7 +31,6 @@ class SyncGroupsTest {
         val other = SyncGroups.apply(raw(), mapOf("preferences" to prefs))
         val theirs = prefsOf(other)
         assertEquals(true, theirs.pauseForCalls)
-        assertEquals(true, theirs.faceDownPause)
         assertEquals(NightHoursPrefs(enabled = true, start = 23 * 60, end = 6 * 60), theirs.nightHours)
         assertEquals(null, theirs.nightSession)
     }
