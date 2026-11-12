@@ -6,6 +6,7 @@ import io.kud.tutti.protocol.details.CinemetaMeta
 import io.kud.tutti.protocol.details.CinemetaParser
 import io.kud.tutti.protocol.details.DetailsRequest
 import io.kud.tutti.protocol.details.TitleDetails
+import io.kud.tutti.protocol.privacy.NonFreeFeature
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -38,9 +39,10 @@ internal object CinemetaClient {
     /** Ids that found nothing this process: not asked again until it restarts. */
     private val failed = LruCache<String, Boolean>(32)
 
-    fun cached(request: DetailsRequest): TitleDetails? = metas.get(request.id)?.let { TitleDetails.of(it, request.episode) }
+    fun cached(request: DetailsRequest): TitleDetails? = if (!NonFreeGate.allows(NonFreeFeature.TITLE_DETAILS)) null else metas.get(request.id)?.let { TitleDetails.of(it, request.episode) }
 
     suspend fun load(request: DetailsRequest): TitleDetails? {
+        if (!NonFreeGate.allows(NonFreeFeature.TITLE_DETAILS)) return null
         metas.get(request.id)?.let { return TitleDetails.of(it, request.episode) }
         if (failed.get(request.id) != null) return null
         val meta = withContext(Dispatchers.IO) {

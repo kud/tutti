@@ -8,4 +8,13 @@
     <string name="details_cast">Distribution</string>
     <string name="settings_title_details">Détails du titre (Cinemeta)</string>
     <string name="settings_title_details_detail">Dans Lecture, affiche le synopsis, la distribution et la note. Envoie l\'identifiant IMDb de ce qui passe à Cinemeta, le catalogue de Stremio</string>
+    <string name="details_offer">Afficher ici la distribution et le synopsis ? Cela envoie l\'identifiant IMDb de ce qui passe à Cinemeta, le catalogue de Stremio.</string>
+    <string name="details_offer_enable">Afficher les détails</string>
+    <string name="details_offer_decline">Non merci</string>
+    <string name="settings_free_services">Services tiers</string>
+    <string name="settings_only_free">Services libres uniquement</string>
+    <string name="settings_only_free_detail">Coupe tout ce qui, ci-dessous, contacte ou ouvre un service qui n\'est ni libre ni l\'un de vos appareils. Le téléviseur et la barre de son ne sont jamais concernés</string>
+    <string name="settings_only_free_reason">Coupé tant que Services libres uniquement est activé</string>
+    <string name="settings_cast_artwork">Image Cast</string>
+    <string name="settings_cast_artwork_detail">Affiche l\'image de ce qui passe, récupérée auprès de l\'hébergeur que nomme le téléviseur : YouTube, Google, TMDB ou Stremio</string>
 </resources>

@@ -26,11 +26,20 @@ internal object SyncGroups {
     const val PROFILES = "profiles"
 
     /**
-     * Preferences that stay on this phone: setup done, developer mode, the bar's last volume (a
-     * reading, not a setting), the one-time tips already shown, tonight's cap (a timed state), and
-     * the layout, which travels in [REMOTE] with the dock.
+     * Preferences that stay on this phone, each with why; every other field of [AppPrefs] travels in
+     * [PREFERENCES] (Erwann, 2026-11-12: every option syncs, except what is sensitive or is this
+     * phone's own state). `SyncedPrefsGuardTest` fails on a field that is neither, or a stale entry.
+     * Nothing sensitive lives in [AppPrefs]: pairing material, the PSK, tokens and addresses are in
+     * the devices store and the Keystore-backed secure store, which never reach a sync group.
      */
-    val LOCAL_PREFS = setOf("onboarded", "developerMode", "lastBarVolume", "hints", "tonightCap", "layout")
+    val LOCAL_PREFS: Map<String, String> = mapOf(
+        "onboarded" to "setup done on this phone",
+        "developerMode" to "a per-phone diagnostic switch",
+        "lastBarVolume" to "a reading of the bar, not a setting",
+        "hints" to "the one-time tips this phone already showed",
+        "tonightCap" to "a timed state, set for tonight on this phone",
+        "layout" to "travels in REMOTE with the dock",
+    )
 
     /** The four stored strings, as DataStore holds them (null when never written). */
     data class Raw(val prefs: String?, val dock: String?, val scenes: String?, val profiles: String?)

@@ -1,5 +1,7 @@
 package io.kud.tutti.platform.data
 
+import io.kud.tutti.protocol.privacy.FreeServices
+import io.kud.tutti.protocol.privacy.NonFreeFeature
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -91,6 +93,20 @@ data class AppPrefs(
      * IMDb id of what is playing to Stremio's server, so it is his to turn on, never ours.
      */
     val titleDetails: Boolean = false,
+    /** The Details offer in Playback was declined ("No thanks"): never shown again. */
+    val titleDetailsOfferDeclined: Boolean = false,
+    /**
+     * Cast artwork from YouTube's, Google's, TMDB's or Stremio's image hosts (`CastArtwork.HOSTS`).
+     * Off by default since 2026-11-12 (Erwann: every non-free service is opt-in); the app's icon
+     * stands in, as it always did when there was no picture.
+     */
+    val castArtwork: Boolean = false,
+    /**
+     * "Only free services" (Erwann, 2026-11-12): on, every [NonFreeFeature] is off whatever its own
+     * switch says, and no offer shows. Off by default in both flavours: the switches above already
+     * start off, so this is the one-tap way to stay free, and to come back.
+     */
+    val onlyFreeServices: Boolean = false,
     /**
      * Where a plain tap opens each app, by package name (Erwann, 2026-11-11: « aller directement à
      * souscription »): an app link from [io.kud.tutti.protocol.apps.AppDestinations]. Absent, the
@@ -98,6 +114,17 @@ data class AppPrefs(
      */
     val appDestinations: Map<String, String> = emptyMap(),
 ) {
+    /** Whether this feature's own switch is on. Exhaustive: a new [NonFreeFeature] needs its switch here. */
+    fun optedIn(feature: NonFreeFeature): Boolean = when (feature) {
+        NonFreeFeature.CAST_ARTWORK -> castArtwork
+        NonFreeFeature.TITLE_DETAILS -> titleDetails
+        NonFreeFeature.TRAKT_LINK -> traktLink
+        NonFreeFeature.JUSTWATCH_LINK -> justWatchLink
+    }
+
+    /** The one gate every non-free feature asks (`FreeServices.allows`): its switch on, the master off. */
+    fun allows(feature: NonFreeFeature): Boolean = FreeServices.allows(onlyFreeServices, optedIn(feature))
+
     /** The old switch on reads as [VibrationLevel.ALL], off as [VibrationLevel.OFF]. */
     val vibrationLevel: VibrationLevel
         get() = vibration ?: if (haptics) VibrationLevel.ALL else VibrationLevel.OFF
