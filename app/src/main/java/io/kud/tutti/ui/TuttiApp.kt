@@ -398,115 +398,120 @@ fun TuttiApp(
                 .background(MaterialTheme.colorScheme.background)
                 .windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal)),
         ) {
+                val screenStates = rememberScreenStates(stack.map(ScreenKey::of))
                 AnimatedContent(
                     targetState = stack.last(),
                     transitionSpec = { screenTransition(forward, reducedMotion, slide) },
                     label = "screen",
                 ) { screen ->
-                    when (screen) {
-                        Screen.Remote -> RemoteScreen(
-                            state = state,
-                            controller = controller,
-                            target = target,
-                            onOpenScenes = { push(Screen.Scenes) },
-                            onOpenSettings = { push(Screen.Settings) },
-                            onEditScene = { push(Screen.SceneEditor(it)) },
-                            onConnectionStep = { step ->
-                                // IP control's home is its checklist step: the TV's menu path and tutti's
-                                // own field for the key; a computer's pairing is its row in Settings › Devices.
-                                if (step == ConnAction.PAIR_TV) controller.resetPairing()
-                                pushAll(SettingsRoutes.connectionStep(step))
-                            },
-                            editing = editingLayout,
-                            onEditingChange = { editingLayout = it },
-                            update = updateCue.newer,
-                            updateNotice = updateCue.notice,
-                            onUpdate = { updateSheet = true },
-                        )
-                        Screen.Scenes -> ScenesScreen(
-                            state = state,
-                            controller = controller,
-                            onBack = ::pop,
-                            onEdit = { push(Screen.SceneEditor(it)) },
-                        )
-                        is Screen.SceneEditor -> SceneEditorScreen(
-                            sceneId = screen.sceneId,
-                            state = state,
-                            controller = controller,
-                            onDone = ::pop,
-                        )
-                        Screen.Settings -> SettingsScreen(
-                            state = state,
-                            onBack = ::pop,
-                            onOpen = { category ->
-                                SettingsRoutes.category(category)?.let(::push) ?: run {
-                                    editingLayout = true
-                                    home()
-                                }
-                            },
-                            onTile = { push(SettingsRoutes.tile(it, hasTv = state.devices.tv != null, hasBar = state.devices.bar != null)) },
-                            onDashAction = { action ->
-                                if (action == DashAction.PAIR_TV) controller.resetPairing()
-                                push(SettingsRoutes.dashAction(action))
-                            },
-                        )
-                        is Screen.SettingsPage -> SettingsPageScreen(
-                            category = screen.category,
-                            state = state,
-                            controller = controller,
-                            onBack = ::pop,
-                            onOpenDiagnostic = { push(Screen.Diagnostic) },
-                            hid = hid,
-                            onPair = {
-                                controller.resetPairing()
-                                push(Screen.Onboarding(cancellable = true))
-                            },
-                            onAddBar = { push(Screen.Onboarding(barOnly = true, cancellable = true)) },
-                            onOpenTechnical = { push(Screen.Technical) },
-                            onOpenEventLog = { push(Screen.EventLog) },
-                        )
-                        Screen.TvSettings -> TvSettingsScreen(
-                            state = state,
-                            controller = controller,
-                            onBack = ::pop,
-                            onOpenPage = { push(Screen.TvSettingsPage(it)) },
-                            onOpenUnlock = { push(Screen.Unlock(io.kud.tutti.ui.settings.Unlock.IP_CONTROL)) },
-                        )
-                        is Screen.TvSettingsPage -> TvSettingsPageScreen(
-                            page = screen.page,
-                            state = state,
-                            controller = controller,
-                            onBack = ::pop,
-                            onOpenPage = { push(Screen.TvSettingsPage(it)) },
-                            onOpenUnlock = { push(Screen.Unlock(io.kud.tutti.ui.settings.Unlock.IP_CONTROL)) },
-                        )
-                        is Screen.Unlock -> UnlockScreen(
-                            state = state,
-                            controller = controller,
-                            focus = screen.focus,
-                            onBack = ::pop,
-                            onPair = { push(Screen.Onboarding(cancellable = true)) },
-                            onAddBar = { push(Screen.Onboarding(barOnly = true, cancellable = true)) },
-                        )
-                        Screen.Technical -> {
-                            val mismatches by controller.pinMismatches.collectAsState()
-                            TechnicalScreen(state = state, onOpen = controller::loadTechnical, onProbeLink = controller::probeLink, onBack = ::pop, pinMismatches = mismatches)
+                    // A Settings screen keeps its scroll while it is in the stack ([rememberScreenStates]).
+                    val body: @Composable () -> Unit = {
+                        when (screen) {
+                            Screen.Remote -> RemoteScreen(
+                                state = state,
+                                controller = controller,
+                                target = target,
+                                onOpenScenes = { push(Screen.Scenes) },
+                                onOpenSettings = { push(Screen.Settings) },
+                                onEditScene = { push(Screen.SceneEditor(it)) },
+                                onConnectionStep = { step ->
+                                    // IP control's home is its checklist step: the TV's menu path and tutti's
+                                    // own field for the key; a computer's pairing is its row in Settings › Devices.
+                                    if (step == ConnAction.PAIR_TV) controller.resetPairing()
+                                    pushAll(SettingsRoutes.connectionStep(step))
+                                },
+                                editing = editingLayout,
+                                onEditingChange = { editingLayout = it },
+                                update = updateCue.newer,
+                                updateNotice = updateCue.notice,
+                                onUpdate = { updateSheet = true },
+                            )
+                            Screen.Scenes -> ScenesScreen(
+                                state = state,
+                                controller = controller,
+                                onBack = ::pop,
+                                onEdit = { push(Screen.SceneEditor(it)) },
+                            )
+                            is Screen.SceneEditor -> SceneEditorScreen(
+                                sceneId = screen.sceneId,
+                                state = state,
+                                controller = controller,
+                                onDone = ::pop,
+                            )
+                            Screen.Settings -> SettingsScreen(
+                                state = state,
+                                onBack = ::pop,
+                                onOpen = { category ->
+                                    SettingsRoutes.category(category)?.let(::push) ?: run {
+                                        editingLayout = true
+                                        home()
+                                    }
+                                },
+                                onTile = { push(SettingsRoutes.tile(it, hasTv = state.devices.tv != null, hasBar = state.devices.bar != null)) },
+                                onDashAction = { action ->
+                                    if (action == DashAction.PAIR_TV) controller.resetPairing()
+                                    push(SettingsRoutes.dashAction(action))
+                                },
+                            )
+                            is Screen.SettingsPage -> SettingsPageScreen(
+                                category = screen.category,
+                                state = state,
+                                controller = controller,
+                                onBack = ::pop,
+                                onOpenDiagnostic = { push(Screen.Diagnostic) },
+                                hid = hid,
+                                onPair = {
+                                    controller.resetPairing()
+                                    push(Screen.Onboarding(cancellable = true))
+                                },
+                                onAddBar = { push(Screen.Onboarding(barOnly = true, cancellable = true)) },
+                                onOpenTechnical = { push(Screen.Technical) },
+                                onOpenEventLog = { push(Screen.EventLog) },
+                            )
+                            Screen.TvSettings -> TvSettingsScreen(
+                                state = state,
+                                controller = controller,
+                                onBack = ::pop,
+                                onOpenPage = { push(Screen.TvSettingsPage(it)) },
+                                onOpenUnlock = { push(Screen.Unlock(io.kud.tutti.ui.settings.Unlock.IP_CONTROL)) },
+                            )
+                            is Screen.TvSettingsPage -> TvSettingsPageScreen(
+                                page = screen.page,
+                                state = state,
+                                controller = controller,
+                                onBack = ::pop,
+                                onOpenPage = { push(Screen.TvSettingsPage(it)) },
+                                onOpenUnlock = { push(Screen.Unlock(io.kud.tutti.ui.settings.Unlock.IP_CONTROL)) },
+                            )
+                            is Screen.Unlock -> UnlockScreen(
+                                state = state,
+                                controller = controller,
+                                focus = screen.focus,
+                                onBack = ::pop,
+                                onPair = { push(Screen.Onboarding(cancellable = true)) },
+                                onAddBar = { push(Screen.Onboarding(barOnly = true, cancellable = true)) },
+                            )
+                            Screen.Technical -> {
+                                val mismatches by controller.pinMismatches.collectAsState()
+                                TechnicalScreen(state = state, onOpen = controller::loadTechnical, onProbeLink = controller::probeLink, onBack = ::pop, pinMismatches = mismatches)
+                            }
+                            Screen.BarSettings -> BarSettingsScreen(state = state, controller = controller, onBack = ::pop)
+                            Screen.Diagnostic -> DiagnosticScreen(diagnostics = diagnostics, onBack = ::pop)
+                            Screen.EventLog -> io.kud.tutti.ui.settings.EventLogScreen(onBack = ::pop)
+                            is Screen.Onboarding -> OnboardingScreen(
+                                state = state,
+                                controller = controller,
+                                discovery = discovery,
+                                barOnly = screen.barOnly,
+                                // The bar alone lands back on the remote, where it now plays (Erwann, 2026-10-24).
+                                onDone = if (screen.barOnly) ::home else ::pop,
+                                onCancel = if (screen.cancellable) ::pop else null,
+                            )
+                            Screen.About -> AboutScreen(onBack = ::pop, onWhatsNew = { push(Screen.WhatsNew) })
+                            Screen.WhatsNew -> io.kud.tutti.ui.about.WhatsNewScreen(onBack = ::pop)
                         }
-                        Screen.BarSettings -> BarSettingsScreen(state = state, controller = controller, onBack = ::pop)
-                        Screen.Diagnostic -> DiagnosticScreen(diagnostics = diagnostics, onBack = ::pop)
-                        Screen.EventLog -> io.kud.tutti.ui.settings.EventLogScreen(onBack = ::pop)
-                        is Screen.Onboarding -> OnboardingScreen(
-                            state = state,
-                            controller = controller,
-                            discovery = discovery,
-                            barOnly = screen.barOnly,
-                            // The bar alone lands back on the remote, where it now plays (Erwann, 2026-10-24).
-                            onDone = if (screen.barOnly) ::home else ::pop,
-                            onCancel = if (screen.cancellable) ::pop else null,
-                        )
-                        Screen.About -> AboutScreen(onBack = ::pop, onWhatsNew = { push(Screen.WhatsNew) })
-                        Screen.WhatsNew -> io.kud.tutti.ui.about.WhatsNewScreen(onBack = ::pop)
                     }
+                    if (keepsState(screen)) screenStates.SaveableStateProvider(ScreenKey.of(screen), body) else body()
                 }
             // The one-tap install, over whichever screen asked for it.
             if (updateSheet) io.kud.tutti.ui.about.UpdateNowSheet(onDismiss = { updateSheet = false })
