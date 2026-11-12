@@ -140,7 +140,7 @@ class ShowcaseRenders {
     @Test fun scenes() = shoot("5-scenes") { c, _, _ -> ScenesScreen(Fixture.home, c, onBack = {}, onEdit = {}) }
 
     @Test fun sync() = shoot("6-sync") { c, _, _ ->
-        SettingsPageScreen(SettingsCategory.SYNC, Fixture.home, c, onBack = {}, onOpenDiagnostic = {}, onEditLayout = {}, onPair = {}, onAddBar = {}, onOpenTechnical = {})
+        SettingsPageScreen(SettingsCategory.SYNC, Fixture.home, c, onBack = {}, onOpenDiagnostic = {}, onPair = {}, onAddBar = {}, onOpenTechnical = {})
     }
 
     @Test fun settings() = shoot("7-settings") { _, _, _ -> SettingsScreen(Fixture.settled, onBack = {}, onOpen = {}) }

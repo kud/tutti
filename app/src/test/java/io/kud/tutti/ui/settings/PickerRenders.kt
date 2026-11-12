@@ -79,7 +79,7 @@ class PickerRenders {
                 val activity = Robolectric.buildActivity(ComponentActivity::class.java).setup().get()
                 activity.setContent {
                     TuttiTheme(darkTheme = dark, dynamicColor = false) {
-                        SettingsPageScreen(category, state, controller, onBack = {}, onOpenDiagnostic = {}, onEditLayout = {}, onPair = {}, onAddBar = {}, onOpenTechnical = {})
+                        SettingsPageScreen(category, state, controller, onBack = {}, onOpenDiagnostic = {}, onPair = {}, onAddBar = {}, onOpenTechnical = {})
                     }
                 }
                 repeat(16) { shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(125)) }
