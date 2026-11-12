@@ -86,4 +86,31 @@ class SyncGroupsTest {
         // A file that says nothing about vibration keeps this phone's choice.
         assertEquals(VibrationLevel.ESSENTIALS, take("theme" to "DARK"))
     }
+
+    @Test
+    fun appDestinationsAndPinLinksTravelAndRefusedLinksAreDropped() {
+        val yt = "com.google.android.youtube.tv"
+        val subs = "https://www.youtube.com/feed/subscriptions"
+        val sender = raw(
+            AppPrefs(appDestinations = mapOf(yt to subs)),
+            DockConfig(slots = listOf(DockSlot(primary = DockAction.LaunchApp(yt, "YouTube", subs)))),
+        )
+        val groups = SyncGroups.read(sender)
+        val received = SyncGroups.apply(raw(), groups)
+        assertEquals(mapOf(yt to subs), prefsOf(received).appDestinations)
+        val dock = StoreJson.decodeFromString(DockConfig.serializer(), received.dock!!)
+        assertEquals(DockAction.LaunchApp(yt, "YouTube", subs), dock.slots.first().primary)
+
+        // A file written by hand: a refused default goes, a refused pin link goes, the pin stays.
+        val hostile = SyncGroups.read(
+            raw(
+                AppPrefs(appDestinations = mapOf(yt to "market://details?id=x", "com.example.tv" to "intent://x")),
+                DockConfig(slots = listOf(DockSlot(primary = DockAction.LaunchApp(yt, "YouTube", "javascript:alert(1)")))),
+            ),
+        )
+        val cleaned = SyncGroups.apply(raw(), hostile)
+        assertTrue(prefsOf(cleaned).appDestinations.isEmpty())
+        val pin = StoreJson.decodeFromString(DockConfig.serializer(), cleaned.dock!!).slots.first().primary
+        assertEquals(DockAction.LaunchApp(yt, "YouTube"), pin)
+    }
 }

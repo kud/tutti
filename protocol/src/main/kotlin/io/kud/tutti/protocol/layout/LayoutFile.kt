@@ -35,6 +35,11 @@ data class LayoutFile(
     val spare: List<FilePin> = emptyList(),
     /** Row key ([LONG_PRESS_KEYS]) to what its long press runs. */
     val longPress: Map<String, FileAction> = emptyMap(),
+    /**
+     * Where a plain tap opens each app, by package (2026-11-12: every option travels with the
+     * file): what a pin on "Same as the app" follows. A link [AppDestinations.accepts] refuses is dropped.
+     */
+    val appDestinations: Map<String, String> = emptyMap(),
 ) {
     companion object {
         const val FORMAT = "tutti-layout"
@@ -124,6 +129,7 @@ object LayoutCodec {
     private val json = Json { prettyPrint = true }
     private val strict = Json
 
+    private const val MAX_DESTINATIONS = 200
     private val PACKAGE = Regex("[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z0-9_]+)+")
     private val INPUT_URI = Regex("extInput:[a-z]+(\\?[A-Za-z0-9=&._-]{0,64})?")
     private val FEATURE_KEY = Regex("[a-z][a-z0-9._]{0,63}")
@@ -172,6 +178,12 @@ object LayoutCodec {
                 hand = root.str("hand")?.takeIf { it in setOf("left", "right") },
                 dockLabels = root.str("dockLabels")?.takeIf { it in setOf("icon", "both", "name") },
                 sceneStrip = (root["sceneStrip"] as? JsonPrimitive)?.takeIf { !it.isString }?.booleanOrNull,
+                appDestinations = (root["appDestinations"] as? JsonObject).orEmpty().entries
+                    .take(MAX_DESTINATIONS)
+                    .mapNotNull { (pkg, value) ->
+                        val link = (value as? JsonPrimitive)?.takeIf { it.isString }?.content
+                        if (link != null && pkg.length <= 255 && PACKAGE.matches(pkg) && AppDestinations.accepts(pkg, link)) pkg to link.trim() else null
+                    }.toMap(),
                 pins = pins.map { it?.takeIf(FilePin::isSet) },
                 spare = spare,
                 longPress = longPress,
@@ -247,6 +259,7 @@ object LayoutCodec {
         file.hand?.let { put("hand", it) }
         file.dockLabels?.let { put("dockLabels", it) }
         file.sceneStrip?.let { put("sceneStrip", it) }
+        if (file.appDestinations.isNotEmpty()) put("appDestinations", JsonObject(file.appDestinations.mapValues { JsonPrimitive(it.value) }))
         put("pins", buildJsonArray { List(LayoutFile.PLACES) { file.pins.getOrNull(it) }.forEach { add(it?.let(::pinJson) ?: JsonNull) } })
         put("spare", JsonArray(file.spare.filter { it.isSet }.take(LayoutFile.MAX_SPARE).map(::pinJson)))
         put("longPress", JsonObject(file.longPress.filterKeys { it in LayoutFile.LONG_PRESS_KEYS }.mapValues { actionJson(it.value) }))
