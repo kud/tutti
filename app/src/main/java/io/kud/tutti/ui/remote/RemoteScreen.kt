@@ -186,6 +186,7 @@ fun RemoteScreen(
     val recentApps by controller.recentApps.collectAsState()
     val castNowPlaying by controller.castNowPlaying.collectAsState()
     val castSpeedRefused by controller.castSpeedRefused.collectAsState()
+    val castSeekRefused by controller.castSeekRefused.collectAsState()
     LaunchedEffect(keyboardAsked) {
         if (!keyboardAsked) return@LaunchedEffect
         if (!input.open) input = InputRules.keyboardKey(input)
@@ -1007,6 +1008,12 @@ fun RemoteScreen(
                 haptics.click()
                 SleepTimers.cancel(context)
             },
+            episodeOffered = io.kud.tutti.protocol.sleep.EpisodeEnd.offered(castNowPlaying, gentleNow),
+            onGentleEpisode = {
+                haptics.select()
+                SleepTimers.startEpisode(context)
+                powerSheet = false
+            },
             onAllowExact = SleepTimers.exactSettings(context)?.let { page ->
                 {
                     runCatching { context.startActivity(page) }
@@ -1078,6 +1085,17 @@ fun RemoteScreen(
                 SpeedChip(shown, castSpeedRefused, controlLinkReason(state.controlLink(Owner.TV), Owner.TV, state), speedControl)
             },
             speedPicker = { shown -> SpeedPicker(shown, speedControl) { rate -> controller.setCastSpeed(rate) } },
+            sayAgainChip = { shown ->
+                SayAgainChip(
+                    cast = shown,
+                    refused = castSeekRefused,
+                    seconds = io.kud.tutti.protocol.cast.CastSayAgain.seconds(state.prefs.sayAgainSeconds),
+                    downReason = controlLinkReason(state.controlLink(Owner.TV), Owner.TV, state),
+                ) { seconds ->
+                    haptics.click()
+                    controller.sayAgain(seconds)
+                }
+            },
             watchChips = {
                 val showing = liveCard?.takeIf(::cardOpensPlayback) ?: opened
                 WatchShareChips(

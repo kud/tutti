@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Playback sheet: jump back with captions and voice enhancement for the replayed span (2026-11-12). -->
+    <string name="say_again">Say again?</string>
+    <string name="say_again_settings_group">Say again?</string>
+    <string name="say_again_settings">How far back</string>
+    <string name="say_again_settings_detail">Say again? in Playback goes back this far, then turns captions and the bar’s voice enhancement on until the line has played again, and puts both back as they were.</string>
+    <string name="say_again_seconds">%1$d s</string>
+    <string name="say_again_seconds_label">%1$d seconds</string>
+</resources>

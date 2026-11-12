@@ -394,6 +394,13 @@ class TuttiController @Inject constructor(
 
     private val remoteFront = MutableStateFlow(false)
 
+    /** Set by the switch-off timer while it follows an episode: Cast keeps reading with the remote out of sight. */
+    private val castKeep = MutableStateFlow(false)
+
+    fun keepCast(on: Boolean) {
+        castKeep.value = on
+    }
+
     /**
      * Set by the remote screen while it is in front: volume rocker and hardware keyboard go to
      * the devices, and Cast reads what the TV plays ([castNowPlaying]).
@@ -408,7 +415,7 @@ class TuttiController @Inject constructor(
         connector = cast,
         scope = scope,
         active = CastWatcher.activeFrom(
-            inFront = remoteFront,
+            inFront = combine(remoteFront, castKeep) { front, keep -> front || keep },
             host = store.devices.map { it.tv?.host }.distinctUntilChanged(),
             tvOn = state.map { it.powered == true }.distinctUntilChanged(),
         ),
@@ -438,6 +445,88 @@ class TuttiController @Inject constructor(
 
     /** Asks the Cast app in front to play at [rate] (the Playback sheet's Speed picker). */
     suspend fun setCastSpeed(rate: Double): io.kud.tutti.protocol.cast.CastSpeedResult = castWatcher.setSpeed(rate)
+
+    /** Receiver apps that refused a SEEK this run: Say again? hides for them. */
+    val castSeekRefused: StateFlow<Set<String>> get() = castWatcher.seekRefused
+
+    /** What the last Say again? turned on and must put back, while its hold runs. */
+    private var sayAgainHeld: io.kud.tutti.protocol.cast.CastSayAgain.Restore? = null
+    private var sayAgainJob: Job? = null
+
+    /**
+     * Say again? (Erwann, 2026-11-12, « Hein ? »): seeks the Cast app back [seconds], turns captions
+     * (Cast text tracks, when the status lists some) and the bar's voice enhancement on for the
+     * replayed span, then puts back exactly what it changed, unless he changed it himself meanwhile.
+     * The event log gets the app, package, seconds and outcomes, never a title or a position.
+     */
+    fun sayAgain(seconds: Int) {
+        scope.launch {
+            val cast = castWatcher.nowPlaying.value ?: return@launch
+            val at = cast.positionAt(System.currentTimeMillis()) ?: return@launch
+            val tracks = castWatcher.tracks
+            val bar = state.value.bar
+            val voiceOn = if (bar.connected) bar.isOn(TheatreFeature.VOICE) else null
+            val back = io.kud.tutti.protocol.cast.CastSayAgain.seconds(seconds)
+            val plan = io.kud.tutti.protocol.cast.CastSayAgain.plan(
+                at, back, cast.playbackRate, tracks, voiceOn, java.util.Locale.getDefault().language, sayAgainHeld,
+            )
+            val result = castWatcher.seek(plan.seekTo)
+            if (result !is io.kud.tutti.protocol.cast.CastSpeedResult.Accepted) {
+                AppLog.events.record(EventLog.Kind.CAST, io.kud.tutti.protocol.cast.CastSayAgain.logLine(cast.appId, castWatcher.foreground, back, result, "untouched", "untouched"))
+                return@launch
+            }
+            var restore = plan.restore
+            val captions = when {
+                plan.captions != null -> {
+                    val set = castWatcher.setTracks(plan.captions!!)
+                    if (set is io.kud.tutti.protocol.cast.CastSpeedResult.Accepted) {
+                        "on"
+                    } else {
+                        // Not ours to put back if it never went on.
+                        if (sayAgainHeld?.tracksSet == null) restore = restore.copy(tracksBefore = null, tracksSet = null)
+                        "refused"
+                    }
+                }
+                tracks.captionsOn -> "already on"
+                !tracks.known -> "no tracks listed"
+                else -> "no text track"
+            }
+            if (plan.voice) theatre.setToggle(TheatreFeature.VOICE, true)
+            val voice = when {
+                plan.voice -> "on"
+                voiceOn == true -> "already on"
+                else -> "bar unreported"
+            }
+            AppLog.events.record(EventLog.Kind.CAST, io.kud.tutti.protocol.cast.CastSayAgain.logLine(cast.appId, castWatcher.foreground, back, result, captions, voice))
+            sayAgainHeld = restore
+            sayAgainJob?.cancel()
+            sayAgainJob = scope.launch {
+                delay(plan.holdMs)
+                restoreSayAgain()
+            }
+        }
+    }
+
+    private suspend fun restoreSayAgain() {
+        val held = sayAgainHeld ?: return
+        sayAgainHeld = null
+        val tracks = io.kud.tutti.protocol.cast.CastSayAgain.restoreTracks(held, castWatcher.tracks)
+        val tracksResult = tracks?.let { castWatcher.setTracks(it) }
+        val bar = state.value.bar
+        val voice = io.kud.tutti.protocol.cast.CastSayAgain.restoreVoice(held, if (bar.connected) bar.isOn(TheatreFeature.VOICE) else null)
+        if (voice != null) theatre.setToggle(TheatreFeature.VOICE, voice)
+        val captionsWord = when {
+            tracksResult == null -> "left"
+            tracksResult is io.kud.tutti.protocol.cast.CastSpeedResult.Accepted -> "put back"
+            else -> "not put back"
+        }
+        AppLog.events.record(EventLog.Kind.CAST, "say again: captions $captionsWord, voice ${if (voice != null) "put back" else "left"}")
+    }
+
+    fun setSayAgainSeconds(seconds: Int) {
+        if (seconds !in io.kud.tutti.protocol.cast.CastSayAgain.SECONDS) return
+        scope.launch { store.updatePrefs { it.copy(sayAgainSeconds = seconds) } }
+    }
 
     /** Set while the keyboard mirror field has focus: printable hardware keys stay in the field. */
     @Volatile var typing: Boolean = false

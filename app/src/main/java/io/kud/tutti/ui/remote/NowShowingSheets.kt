@@ -151,6 +151,8 @@ internal fun PlaybackSheet(
     speedPicker: (@Composable (io.kud.tutti.protocol.cast.CastNowPlaying?) -> Unit)? = null,
     /** Cinemeta's details for the Cast item ([TitleDetailsSection]), under everything else; null when off. */
     details: (@Composable (io.kud.tutti.protocol.cast.CastNowPlaying) -> Unit)? = null,
+    /** Say again? ([SayAgainChip]), after Speed, given the Cast item shown. */
+    sayAgainChip: (@Composable (io.kud.tutti.protocol.cast.CastNowPlaying?) -> Unit)? = null,
 ) {
     val shownCast = cast?.takeIf { castFits(showing) }
     TuttiSheet(onDismissRequest = onDismiss) {
@@ -198,6 +200,7 @@ internal fun PlaybackSheet(
                 PlaybackChipRow(Modifier.fillMaxWidth()) {
                     for (code in PLAYBACK_TRACKS) KeyChip(code, downReason, onKey)
                     speedChip?.invoke(shownCast)
+                    sayAgainChip?.invoke(shownCast)
                 }
                 speedPicker?.invoke(shownCast)
                 // A timeline when Cast gives a trusted time, else the jog wheel (Erwann, 2026-10-28).
