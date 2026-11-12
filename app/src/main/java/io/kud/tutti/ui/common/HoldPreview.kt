@@ -149,6 +149,7 @@ const val HOLD_PREVIEW_DELAY_MS = RING_DELAY_MS
 
 private const val HOLD_AFTER_FIRE_MS = 100L
 private const val ENTER_MS = 120
+private const val LEAVE_SLACK_MS = 32L
 
 /** [enabled] false (no direct hold, or its device's link is down): no bubble is ever shown. */
 @Composable
@@ -224,9 +225,18 @@ fun Modifier.holdPreviewClickable(
  */
 @Composable
 fun HoldBubble(preview: HoldPreview, label: String, face: @Composable (tint: Color) -> Unit) {
-    val visible = remember { MutableTransitionState(false) }
-    visible.targetState = preview.shown
-    if (!visible.currentState && !visible.targetState) return
+    // The popup stays for the fade out, then leaves; a plain tap never reaches it.
+    val shown = preview.shown
+    var present by remember { mutableStateOf(false) }
+    LaunchedEffect(shown) {
+        if (shown) {
+            present = true
+        } else if (present) {
+            delay(Motion.FADE_OUT + LEAVE_SLACK_MS)
+            present = false
+        }
+    }
+    if (!shown && !present) return
     val reduced = LocalReducedMotion.current
     val density = LocalDensity.current
     val position = remember(density) {
@@ -242,6 +252,9 @@ fun HoldBubble(preview: HoldPreview, label: String, face: @Composable (tint: Col
     ) {
         val scheme = MaterialTheme.colorScheme
         val shape = RoundedCornerShape(20.dp)
+        // Starts hidden, so the first frame enters rather than appearing whole.
+        val visible = remember { MutableTransitionState(false) }
+        visible.targetState = shown
         AnimatedVisibility(
             visibleState = visible,
             enter = if (reduced) fadeIn(tween(ENTER_MS)) else fadeIn(tween(ENTER_MS)) + scaleIn(tween(ENTER_MS), initialScale = 0.9f),
