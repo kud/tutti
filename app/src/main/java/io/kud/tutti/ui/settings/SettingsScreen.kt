@@ -68,7 +68,6 @@ import io.kud.tutti.platform.data.SecondaryButton
 import io.kud.tutti.platform.data.ThemeMode
 import io.kud.tutti.platform.data.VibrationLevel
 import io.kud.tutti.protocol.bravia.TvSettingCatalog
-import io.kud.tutti.protocol.grpc.CloudPlaneState
 import io.kud.tutti.protocol.theatre.TheatreFeature
 import io.kud.tutti.quick.settings.QuickNotificationSetting
 import io.kud.tutti.ui.common.AppIcon
@@ -337,29 +336,6 @@ private fun DevicesPage(state: TuttiUiState, controller: TuttiController, onPair
                 trailing = { OpensChevron() },
             )
         }
-    }
-
-    SettingsGroup(stringResource(R.string.settings_sony)) {
-        // Not a control yet: a quiet statement of where it stands, not a greyed row.
-        SettingsRow(
-            title = stringResource(R.string.settings_sony_connection),
-            icon = R.drawable.ic_info,
-            detail = when (state.cloud) {
-                is CloudPlaneState.Unavailable -> stringResource(R.string.settings_sony_unavailable)
-                CloudPlaneState.Disabled -> stringResource(R.string.settings_sony_disabled)
-                CloudPlaneState.SignedOut -> stringResource(R.string.settings_sony_signed_out)
-                CloudPlaneState.Connecting -> stringResource(R.string.link_connecting)
-                is CloudPlaneState.Connected -> stringResource(R.string.link_online)
-            },
-            footer = {
-                Text(
-                    stringResource(R.string.settings_sony_explain),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 4.dp),
-                )
-            },
-        )
     }
 
     if (tvBluetooth && targets != null && hid != null) {

@@ -33,7 +33,7 @@ class StatusTest {
         assertEquals(Status.NOT_YET, UnlockStatus.TODO.status)
         assertEquals(Status.NEEDS_YOU, UnlockStatus.ATTENTION.status)
         assertEquals(Status.WORKING, UnlockStatus.CHECKING.status)
-        for (s in listOf(UnlockStatus.BLOCKED, UnlockStatus.UNKNOWN, UnlockStatus.COMING)) assertEquals(Status.UNAVAILABLE, s.status)
+        for (s in listOf(UnlockStatus.BLOCKED, UnlockStatus.UNKNOWN)) assertEquals(Status.UNAVAILABLE, s.status)
     }
 
     @Test fun `every setup status and link word lands on a status`() {
