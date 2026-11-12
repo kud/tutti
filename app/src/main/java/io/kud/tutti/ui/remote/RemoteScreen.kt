@@ -229,6 +229,8 @@ fun RemoteScreen(
     val messages = LocalMessages.current
     // The target engine (TargetController): the chip, the sheet and where each key goes.
     val targets by target.state.collectAsState()
+    // The inputs a computer set up in tutti is shown on: the input sheets give them a computer's glyph.
+    val computerInputs = targets.devices.filter { it.kind == DeviceKind.COMPUTER }.mapNotNull { it.hdmiInput }.toSet()
     var targetSheet by remember { mutableStateOf(false) }
     // The device pill opens « Connexions » (Erwann, 2026-10-25), no longer Settings directly.
     var connectionsSheet by remember { mutableStateOf(false) }
@@ -1207,6 +1209,7 @@ fun RemoteScreen(
                 tvPowered = tvPowered(state),
                 downReason = stringResource(R.string.power_sleep_down),
                 standbyReason = stringResource(R.string.power_sleep_standby),
+                computerInputs = computerInputs,
             ),
             // Picked like an app: it switches and the sheet goes, the card showing the input.
             onInput = { uri ->
@@ -1232,6 +1235,7 @@ fun RemoteScreen(
                 downReason = stringResource(R.string.power_sleep_down),
                 standbyReason = stringResource(R.string.power_sleep_standby),
                 unlistedReason = stringResource(R.string.tv_input_unlisted),
+                computerInputs = computerInputs,
             ),
             onInput = { uri ->
                 haptics.select()

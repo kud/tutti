@@ -1,5 +1,6 @@
 package io.kud.tutti.ui.remote
 
+import androidx.annotation.DrawableRes
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -33,10 +34,21 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.kud.tutti.R
 import io.kud.tutti.protocol.bravia.ExternalInput
+import io.kud.tutti.protocol.bravia.InputKind
+import io.kud.tutti.protocol.bravia.kind
 import io.kud.tutti.ui.settings.spoken
 
-/** One of the TV's inputs in the Apps sheet: its [name] in words, whether it is on screen, whether something is plugged in. */
-data class TvInputChip(val uri: String, val name: String, val current: Boolean, val connected: Boolean)
+/**
+ * One of the TV's inputs in the Apps sheet: its [name] in words, whether it is on screen, whether
+ * something is plugged in, and what it is as far as tutti can tell ([InputKind], for its glyph).
+ */
+data class TvInputChip(
+    val uri: String,
+    val name: String,
+    val current: Boolean,
+    val connected: Boolean,
+    val kind: InputKind = InputKind.PORT,
+)
 
 /** The Apps sheet's inputs row: the TV's inputs in its own order, and [reason] when a tap can't reach the TV now. */
 data class TvInputsRow(val inputs: List<TvInputChip>, val reason: String?)
@@ -47,7 +59,8 @@ data class TvInputsRow(val inputs: List<TvInputChip>, val reason: String?)
  * it, or before the TV answered, there is no row rather than a guessed "HDMI 1…4". Each is named
  * as the TV names it ([spoken]): the label the TV holds for it, which is the plugged-in device's
  * CEC name when it sent one, else the port's title. A switch rides IP control like the screen-off
- * row, so it goes down with REST and while the TV is on standby.
+ * row, so it goes down with REST and while the TV is on standby. [computerInputs] are the inputs
+ * a computer set up in tutti is shown on, which makes them a computer's whatever the TV says.
  */
 fun tvInputsRow(
     ipControl: Boolean,
@@ -57,9 +70,10 @@ fun tvInputsRow(
     tvPowered: Boolean?,
     downReason: String,
     standbyReason: String,
+    computerInputs: Set<String> = emptySet(),
 ): TvInputsRow? {
     if (!ipControl || inputs.isEmpty()) return null
-    val chips = inputs.map { TvInputChip(it.uri, it.spoken(), current = it.uri == currentUri, connected = it.connected) }
+    val chips = inputs.map { TvInputChip(it.uri, it.spoken(), current = it.uri == currentUri, connected = it.connected, kind = it.kind(computerInputs)) }
     val reason = when {
         !restOnline -> downReason
         tvPowered == false -> standbyReason
@@ -138,7 +152,7 @@ fun TvInputChips(row: TvInputsRow, onInput: (String) -> Unit, onPin: ((String, S
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Icon(
-                        painterResource(if (input.current) R.drawable.ic_check else R.drawable.ic_input),
+                        painterResource(if (input.current) R.drawable.ic_check else inputGlyph(input.kind)),
                         contentDescription = null,
                         tint = ink,
                         modifier = Modifier.size(18.dp),
@@ -149,4 +163,13 @@ fun TvInputChips(row: TvInputsRow, onInput: (String) -> Unit, onPin: ((String, S
             }
         }
     }
+}
+
+/** The glyph for an input of [kind]: the same glyphs the devices wear (the bar's speaker, a computer's laptop). */
+@DrawableRes
+internal fun inputGlyph(kind: InputKind): Int = when (kind) {
+    InputKind.COMPUTER -> R.drawable.ic_laptop
+    InputKind.SOUNDBAR -> R.drawable.ic_speaker
+    InputKind.GAME -> R.drawable.ic_game
+    InputKind.PORT -> R.drawable.ic_hdmi
 }
