@@ -77,7 +77,7 @@ internal object SyncGroups {
             }
             remote["dock"]?.let { element ->
                 runCatching { StoreJson.decodeFromJsonElement(DockConfig.serializer(), element) }.getOrNull()
-                    ?.let { dock = StoreJson.encodeToString(DockConfig.serializer(), it) }
+                    ?.let { dock = StoreJson.encodeToString(DockConfig.serializer(), it.safeLinks()) }
             }
         }
         // The scene list reader is forgiving (it skips what it can't read), so anything but a list is refused here.
@@ -90,7 +90,7 @@ internal object SyncGroups {
                 ?.let { SceneJson.encodeToString(profilesSerializer, it) }
         } ?: raw.profiles
         val prefsText = if (prefsChanged) {
-            StoreJson.encodeToString(AppPrefs.serializer(), StoreJson.decodeFromJsonElement(AppPrefs.serializer(), prefs))
+            StoreJson.encodeToString(AppPrefs.serializer(), StoreJson.decodeFromJsonElement(AppPrefs.serializer(), prefs).safeDestinations())
         } else {
             raw.prefs
         }

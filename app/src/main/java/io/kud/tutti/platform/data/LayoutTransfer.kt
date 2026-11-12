@@ -22,7 +22,7 @@ object LayoutTransfer {
     /** The file, and how many pins couldn't go in it (an input that isn't an `extInput:`, a scene gone). */
     data class Export(val file: LayoutFile, val leftOut: Int)
 
-    fun export(layout: RemoteLayout, dock: DockConfig, scenes: List<Scene>): Export {
+    fun export(layout: RemoteLayout, dock: DockConfig, scenes: List<Scene>, destinations: Map<String, String> = emptyMap()): Export {
         val names = scenes.associate { it.id to it.name }
         var leftOut = 0
         fun pin(slot: DockSlot): FilePin? {
@@ -45,6 +45,7 @@ object LayoutTransfer {
                 pins = pins,
                 spare = spare,
                 longPress = longPress,
+                appDestinations = destinations.safeDestinations(),
             ),
             leftOut,
         )
@@ -62,11 +63,18 @@ object LayoutTransfer {
     }
 
     /** What the import would write, and what it left out. Nothing is written until he says Replace. */
-    data class Import(val layout: RemoteLayout, val dock: DockConfig, val skipped: List<Skip>) {
+    /** [destinations]: this phone's per-app defaults with the file's laid over them. */
+    data class Import(val layout: RemoteLayout, val dock: DockConfig, val skipped: List<Skip>, val destinations: Map<String, String> = emptyMap()) {
         val pins: Int get() = dock.slots.count { it.isSet }
     }
 
-    fun import(file: LayoutFile, unread: List<Skipped>, current: RemoteLayout, scenes: List<Scene>): Import {
+    fun import(
+        file: LayoutFile,
+        unread: List<Skipped>,
+        current: RemoteLayout,
+        scenes: List<Scene>,
+        destinations: Map<String, String> = emptyMap(),
+    ): Import {
         val ids = scenes.associate { it.name.trim() to it.id }
         val skipped = unread.map {
             when (it) {
@@ -101,7 +109,12 @@ object LayoutTransfer {
             dockLabels = file.dockLabels?.let { DockLabels.valueOf(it.uppercase()) } ?: current.dockLabels,
             scenes = file.sceneStrip ?: current.scenes,
         )
-        return Import(layout, DockConfig(slots = places, longPress = longPress, merged = true, spare = spare), skipped)
+        return Import(
+            layout,
+            DockConfig(slots = places, longPress = longPress, merged = true, spare = spare).safeLinks(),
+            skipped,
+            destinations + file.appDestinations.safeDestinations(),
+        )
     }
 
     private fun FilePin.scenes(): List<String> = listOfNotNull(tap, hold).flatMap { it.scenes() }
