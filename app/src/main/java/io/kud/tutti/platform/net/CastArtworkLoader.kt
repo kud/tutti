@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.util.LruCache
 import io.kud.tutti.protocol.cast.CastArtwork
+import io.kud.tutti.protocol.privacy.NonFreeFeature
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -36,11 +37,16 @@ internal object CastArtworkLoader {
     /** URLs that already failed this process: not asked again until it restarts. */
     private val failed = LruCache<String, Boolean>(32)
 
-    fun cached(url: String): Bitmap? = bitmaps.get(url)
+    /**
+     * Only while [feature] is allowed (`NonFreeGate`): the Cast picture by default, Cinemeta's
+     * poster for the Details section. Off, nothing is fetched or even read from memory.
+     */
+    fun cached(url: String, feature: NonFreeFeature = NonFreeFeature.CAST_ARTWORK): Bitmap? =
+        if (NonFreeGate.allows(feature)) bitmaps.get(url) else null
 
     /** The artwork scaled down to about [widthPx] wide, or null for anything not allowed or not an image. */
-    suspend fun load(url: String, widthPx: Int): Bitmap? {
-        if (!CastArtwork.isAllowed(url) || failed.get(url) != null) return null
+    suspend fun load(url: String, widthPx: Int, feature: NonFreeFeature = NonFreeFeature.CAST_ARTWORK): Bitmap? {
+        if (!NonFreeGate.allows(feature) || !CastArtwork.isAllowed(url) || failed.get(url) != null) return null
         bitmaps.get(url)?.let { return it }
         val bitmap = withContext(Dispatchers.IO) { runCatching { fetch(url, widthPx) }.getOrNull() }
         if (bitmap == null) failed.put(url, true) else bitmaps.put(url, bitmap)

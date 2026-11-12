@@ -184,7 +184,7 @@ object CinemetaParser {
             id = expectedId,
             type = meta.text("type"),
             name = name,
-            year = meta.text("releaseInfo", 16) ?: meta.text("year", 16),
+            year = meta.text("releaseInfo", 16) ?: meta.text("year", 16) ?: meta.int("year")?.toString(),
             runtime = meta.text("runtime", 24),
             genres = genres,
             imdbRating = rating(meta["imdbRating"]),
@@ -218,7 +218,7 @@ object CinemetaParser {
 
     private fun JsonObject.text(key: String, max: Int = TitleDetails.MAX_NAME): String? {
         val primitive = this[key] as? JsonPrimitive ?: return null
-        if (!primitive.isString && primitive.contentOrNull == null) return null
+        if (!primitive.isString) return null
         return clean(primitive.contentOrNull, max)
     }
 

@@ -24,7 +24,7 @@ class SyncGroupsTest {
         val groups = SyncGroups.read(raw(AppPrefs(onboarded = true, developerMode = true, lastBarVolume = 12, theme = ThemeMode.DARK)))
         assertEquals(setOf("preferences", "remote", "scenes", "profiles"), groups.keys)
         val prefs = groups.getValue("preferences") as JsonObject
-        for (key in SyncGroups.LOCAL_PREFS) assertFalse("$key must stay on the phone", key in prefs)
+        for (key in SyncGroups.LOCAL_PREFS.keys) assertFalse("$key must stay on the phone", key in prefs)
         assertEquals(JsonPrimitive("DARK"), prefs["theme"])
         // No device, host or secret has a way in: the text never names one.
         val text = groups.values.joinToString { it.toString() }
