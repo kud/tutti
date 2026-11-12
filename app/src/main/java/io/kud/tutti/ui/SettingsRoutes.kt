@@ -12,17 +12,21 @@ import io.kud.tutti.ui.settings.Unlock
  */
 internal object SettingsRoutes {
 
-    /** The screen a top-level row opens. */
-    fun category(category: SettingsCategory): Screen = when (category) {
+    /**
+     * The screen a top-level row opens; null for Remote layout, whose row puts the remote itself in
+     * edit mode rather than opening a page about it.
+     */
+    fun category(category: SettingsCategory): Screen? = when (category) {
+        SettingsCategory.LAYOUT -> null
         SettingsCategory.UNLOCK -> Screen.Unlock()
         SettingsCategory.TV -> Screen.TvSettings
         SettingsCategory.SOUNDBAR -> Screen.BarSettings
         SettingsCategory.ABOUT -> Screen.About
-        SettingsCategory.DEVICES, SettingsCategory.REMOTE, SettingsCategory.DISPLAY, SettingsCategory.SYNC, SettingsCategory.ADVANCED -> Screen.SettingsPage(category)
+        else -> Screen.SettingsPage(category)
     }
 
     /** Settings, then [category]'s own screen on top of it. */
-    fun into(category: SettingsCategory): List<Screen> = listOf(Screen.Settings, category(category))
+    fun into(category: SettingsCategory): List<Screen> = listOfNotNull(Screen.Settings, category(category))
 
     /**
      * A next step of the Connections sheet the remote doesn't run itself: pairing the TV or adding

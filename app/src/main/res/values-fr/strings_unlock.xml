@@ -7,7 +7,6 @@
     <string name="unlock_intro">La télécommande marche dès que la TV est associée. Chaque étape ci-dessous se fait une fois, sur la TV ou dans BRAVIA Connect, et en ouvre davantage.</string>
     <string name="unlock_group_tv">TV</string>
     <string name="unlock_group_bar">Barre de son</string>
-    <string name="unlock_group_tutti">Pour les curieux</string>
     <string name="unlock_unlocks">Débloque</string>
     <string name="unlock_how">Comment</string>
     <string name="unlock_now">Pour l’instant : %1$s</string>
@@ -47,17 +46,12 @@
     <string name="unlock_bar_action">Ajouter la barre de son</string>
     <string name="unlock_bar_again">Reconfigurer la barre</string>
 
-    <string name="unlock_dev_title">Mode développeur</string>
-    <string name="unlock_dev_gives">Diagnostic, détails techniques de chaque connexion, et Copier les détails sous les erreurs. L’app de tous les jours n’en a pas besoin.</string>
-    <string name="unlock_dev_action">Activer le mode développeur</string>
-    <string name="unlock_dev_off">Le désactiver</string>
 
 
     <string name="unlock_show_how">Voir comment faire</string>
     <string name="intro_leave">Quitter la configuration</string>
     <string name="unlock_tv_settings_more">Voir tout ce que tutti sait faire</string>
 
-    <string name="settings_advanced">Avancé</string>
     <string name="technical_title">Détails techniques</string>
     <string name="technical_entry_detail">Adresses, connexions, ce que la TV et la barre indiquent</string>
     <string name="technical_tv">TV</string>

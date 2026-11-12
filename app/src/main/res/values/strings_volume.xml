@@ -36,7 +36,6 @@
     <string name="volume_guard_body">Go above %1$d? The volume will go to %2$d.</string>
     <string name="volume_guard_go">Go to %1$d</string>
     <string name="volume_guard_stay">Stay at %1$d</string>
-    <string name="settings_volume_title">Volume</string>
     <string name="settings_guard">High-volume guard</string>
     <string name="settings_guard_summary">Above %1$d, the app asks first; the widget, notification and Quick Settings stop there.</string>
     <string name="settings_guard_off_summary">Off: the volume goes up to the cap without asking.</string>

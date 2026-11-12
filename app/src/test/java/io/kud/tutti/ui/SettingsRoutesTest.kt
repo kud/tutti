@@ -17,6 +17,8 @@ class SettingsRoutesTest {
         assertEquals(Screen.BarSettings, SettingsRoutes.category(SettingsCategory.SOUNDBAR))
         assertEquals(Screen.About, SettingsRoutes.category(SettingsCategory.ABOUT))
         SettingsMenu.pages.forEach { assertEquals(Screen.SettingsPage(it), SettingsRoutes.category(it)) }
+        // Remote layout opens no page: the remote itself goes into edit mode.
+        assertEquals(null, SettingsRoutes.category(SettingsCategory.LAYOUT))
         // Every row's screen is different: no two categories land in the same place.
         assertEquals(SettingsCategory.entries.size, SettingsCategory.entries.map(SettingsRoutes::category).toSet().size)
     }

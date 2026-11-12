@@ -35,7 +35,6 @@
     <string name="volume_guard_body">Monter au-delà de %1$d ? Le volume passera à %2$d.</string>
     <string name="volume_guard_go">Monter à %1$d</string>
     <string name="volume_guard_stay">Rester à %1$d</string>
-    <string name="settings_volume_title">Volume</string>
     <string name="settings_guard">Garde-fou du volume</string>
     <string name="settings_guard_summary">Au-delà de %1$d, l’app vous demande d’abord ; le widget, la notification et les Réglages rapides s’y arrêtent.</string>
     <string name="settings_guard_off_summary">Désactivé : le volume monte jusqu’au plafond sans demander.</string>

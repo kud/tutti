@@ -6,7 +6,6 @@ import io.kud.tutti.controller.Links
 import io.kud.tutti.controller.TuttiUiState
 import io.kud.tutti.controller.TvSettingsState
 import io.kud.tutti.controller.TvState
-import io.kud.tutti.platform.data.AppPrefs
 import io.kud.tutti.platform.data.BarDevice
 import io.kud.tutti.platform.data.Devices
 import io.kud.tutti.platform.data.TvDevice
@@ -112,8 +111,6 @@ class UnlocksTest {
         assertEquals(4, summary.done)
         assertNull(summary.next)
         assertTrue(canWakeFromOff(all))
-        assertEquals(UnlockStatus.TODO, all.status(Unlock.DEVELOPER))
-        assertEquals(UnlockStatus.DONE, all.copy(prefs = AppPrefs(developerMode = true)).status(Unlock.DEVELOPER))
     }
 
     @Test

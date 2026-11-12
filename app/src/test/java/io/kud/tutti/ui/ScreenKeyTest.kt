@@ -36,4 +36,17 @@ class ScreenKeyTest {
             ScreenKey.stack(listOf("remote", "settings", "settings:DEVICES")),
         )
     }
+
+    /** Every `settings:` key a 0.3.x stack could hold (2026-11-12, the split into one page per topic). */
+    @Test
+    fun `every settings key an older tutti saved still resolves`() {
+        for (name in listOf("DEVICES", "DISPLAY", "SYNC", "ADVANCED")) {
+            assertEquals(Screen.SettingsPage(SettingsCategory.valueOf(name)), ScreenKey.screen("settings:$name"))
+        }
+        // Remote & dock split four ways: it lands on the list, once.
+        assertEquals(Screen.Settings, ScreenKey.screen("settings:REMOTE"))
+        assertEquals(listOf(Screen.Remote, Screen.Settings), ScreenKey.stack(listOf("remote", "settings", "settings:REMOTE")))
+        // The developer step left What tutti can do: its key opens the list, unfocused.
+        assertEquals(Screen.Unlock(null), ScreenKey.screen("unlock:DEVELOPER"))
+    }
 }

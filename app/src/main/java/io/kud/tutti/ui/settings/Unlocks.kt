@@ -23,8 +23,7 @@ enum class Unlock(val device: UnlockDevice, val optional: Boolean = false) {
     /** The bar's External control in BRAVIA Connect (TCP 33336): volume rail, Sound sheet, the bar's power. */
     SOUNDBAR(UnlockDevice.BAR),
 
-    /** Developer mode: diagnostics, technical details, Copy details under errors. For the curious. */
-    DEVELOPER(UnlockDevice.TUTTI, optional = true),
+    // Developer mode left this list (2026-11-12): its one switch lives in Settings › Developer.
 }
 
 /*
@@ -32,7 +31,7 @@ enum class Unlock(val device: UnlockDevice, val optional: Boolean = false) {
  * tutti yet, nothing to do" said what tutti can't do in a list of what to do. What tutti leaves to
  * Sony is said once, in About (Erwann, 2026-11-11). It comes back as a real step when it can be done.
  */
-enum class UnlockDevice { TV, BAR, TUTTI }
+enum class UnlockDevice { TV, BAR }
 
 /**
  * A step's state. Each one is drawn with its own glyph and word, never by colour alone
@@ -101,7 +100,6 @@ fun statusOf(step: Unlock, state: TuttiUiState): UnlockStatus {
                 Link.CONNECTING, Link.ABSENT -> UnlockStatus.CHECKING
             }
         }
-        Unlock.DEVELOPER -> if (state.prefs.developerMode) UnlockStatus.DONE else UnlockStatus.TODO
     }
 }
 

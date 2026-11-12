@@ -7,6 +7,7 @@ import android.provider.DocumentsContract
 import android.provider.OpenableColumns
 import dagger.hilt.android.qualifiers.ApplicationContext
 import io.kud.tutti.BuildConfig
+import io.kud.tutti.platform.data.SettingsBackup
 import io.kud.tutti.platform.data.SyncGroups
 import io.kud.tutti.platform.data.TuttiStore
 import io.kud.tutti.protocol.sync.SyncCodec
@@ -253,6 +254,20 @@ class SettingsSync @Inject constructor(
             // agreed, and the next sync reads the file again (the old bytes are then a stale read).
             else -> SyncProblem.WAITING
         }
+    }
+
+    /** Settings › Backup's file: this phone's groups as they stand ([SettingsBackup]). */
+    suspend fun backup(): String =
+        SettingsBackup.export(store.syncRaw.first(), BuildConfig.VERSION_NAME, System.currentTimeMillis())
+
+    /**
+     * Takes a backup's [groups] in, as a change made on this phone (sync, when on, carries it on),
+     * and returns the groups as they were, for Undo.
+     */
+    suspend fun restore(groups: Map<String, JsonElement>): Map<String, JsonElement> {
+        val before = SyncGroups.read(store.syncRaw.first())
+        store.applySynced(groups)
+        return before
     }
 
     /** This phone's groups, each stamped with when it last changed here. */

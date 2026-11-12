@@ -34,6 +34,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.kud.tutti.R
@@ -55,7 +57,8 @@ fun SettingsGroup(title: String?, modifier: Modifier = Modifier, content: @Compo
                 text = title,
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.padding(start = 32.dp, end = 32.dp, top = 24.dp, bottom = 8.dp),
+                // A header, for TalkBack's heading navigation (2026-11-12: Settings has five).
+                modifier = Modifier.padding(start = 32.dp, end = 32.dp, top = 24.dp, bottom = 8.dp).semantics { heading() },
             )
         }
         Column(
@@ -94,6 +97,8 @@ fun SettingsRow(
     role: Role? = null,
     footer: (@Composable () -> Unit)? = null,
     trailing: (@Composable () -> Unit)? = null,
+    /** Drawn in the icon's place when there is no [icon]: an app's own icon, say. */
+    leading: (@Composable () -> Unit)? = null,
 ) {
     val fade = Modifier.alpha(if (enabled) 1f else DISABLED_ALPHA)
     Row(
@@ -107,6 +112,9 @@ fun SettingsRow(
     ) {
         if (icon != null) {
             RowIcon(icon, fade)
+            Spacer(Modifier.width(16.dp))
+        } else if (leading != null) {
+            leading()
             Spacer(Modifier.width(16.dp))
         }
         Column(Modifier.weight(1f).then(fade)) {
