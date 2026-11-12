@@ -106,4 +106,14 @@
     <string name="devices_done_no_input">Choisissez-le comme cible sur la télécommande pour le piloter. Son clavier est réglé en %1$s : changez-le depuis sa ligne si besoin.</string>
     <string name="devices_done">Terminé</string>
     <string name="devices_save_failed">Impossible d’enregistrer l’ordinateur. Réessayez.</string>
+    <!-- L'image suit ce qui passe (PictureFollow, 2026-11-12) -->
+    <string name="picture_follow_group">L\'image suit ce qui passe</string>
+    <string name="picture_follow_title">Changer le mode d\'image selon l\'app</string>
+    <string name="picture_follow_line">tutti règle le mode d\'image de la TV pour chaque app ou entrée ci-dessous, et remet le précédent quand vous en sortez. Si vous changez le mode vous-même, tutti s\'arrête jusqu\'à la prochaine mise en veille de la TV.</string>
+    <string name="picture_follow_paused">En pause : le mode d\'image a été changé à la main. tutti reprend après la prochaine mise en veille de la TV.</string>
+    <string name="picture_follow_suggestions">Modes suggérés</string>
+    <string name="picture_follow_suggestions_line">Cinéma pour les apps de films et séries, Standard pour YouTube, si la TV les propose.</string>
+    <string name="picture_follow_waiting">En attente des modes d\'image de la TV…</string>
+    <string name="picture_follow_leave">Laisser tel quel</string>
+    <string name="picture_follow_suggested">Suggéré : %1$s</string>
 </resources>

@@ -29,6 +29,7 @@ class EventLog(
         KEY("key"),
         CONNECTION("connection"),
         CAST("cast"),
+        PICTURE("picture"),
         ERROR("error"),
     }
 

@@ -282,6 +282,7 @@ private fun PicturePage(state: TuttiUiState, controller: TuttiController, onOpen
         NothingNote()
     }
     UnavailableSwitch(unavailable, showUnavailable) { showUnavailable = it }
+    PictureFollowGroup(state, controller)
 }
 
 /** Everything past Picture's handful, on one screen: Sony's sections as headings, in its order. */
