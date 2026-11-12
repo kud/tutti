@@ -8,7 +8,6 @@
     <string name="unlock_group_tv">TV</string>
     <string name="unlock_group_bar">Barre de son</string>
     <string name="unlock_group_tutti">Pour les curieux</string>
-    <string name="unlock_group_sony">Compte Sony</string>
     <string name="unlock_unlocks">Débloque</string>
     <string name="unlock_how">Comment</string>
     <string name="unlock_now">Pour l’instant : %1$s</string>
@@ -21,7 +20,6 @@
     <string name="unlock_status_checking">Vérification…</string>
     <string name="unlock_status_blocked">Associez d’abord la TV</string>
     <string name="unlock_status_unknown">Impossible à lire d’ici</string>
-    <string name="unlock_status_coming">Plus tard</string>
 
     <string name="unlock_pair_title">Télécommande de la TV</string>
     <string name="unlock_pair_gives">La télécommande elle-même : pavé, touches, clavier, voix et l’app à l’écran.</string>
@@ -54,8 +52,6 @@
     <string name="unlock_dev_action">Activer le mode développeur</string>
     <string name="unlock_dev_off">Le désactiver</string>
 
-    <string name="unlock_sony_title">Connexion Sony</string>
-    <string name="unlock_sony_gives">Les réglages qui ne passent que par les serveurs de Sony. Pas encore dans tutti : rien à faire.</string>
 
     <string name="unlock_show_how">Voir comment faire</string>
     <string name="intro_leave">Quitter la configuration</string>
