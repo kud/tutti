@@ -31,6 +31,9 @@ class EventLog(
         CAST("cast"),
         PICTURE("picture"),
         ERROR("error"),
+
+        /** Automatic: pauses for a call or face down, and the night hours (no titles, no apps). */
+        AUTO("automatic"),
     }
 
     data class Entry(val atMillis: Long, val kind: Kind, val text: String)

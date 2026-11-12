@@ -81,6 +81,11 @@ class MainActivity : ComponentActivity() {
 
     @Inject lateinit var secure: SecureStore
 
+    @Inject lateinit var auto: io.kud.tutti.auto.AutoPlayback
+
+    /** Face down to pause: gravity is read only while the remote is in front (onStart to onStop). */
+    private val faceDown by lazy { io.kud.tutti.auto.FaceDownWatcher(this, auto, lifecycleScope) }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         val splash = installSplashScreen()
         enableEdgeToEdge()
@@ -186,6 +191,7 @@ class MainActivity : ComponentActivity() {
         // NEARBY_DEVICES group carrying it) arrives while there is no launcher callback to see it.
         controller.onLanPermissionGranted()
         target.appForeground(true)
+        faceDown.start()
         // Settings sync: watch for changes once, and merge with the file as the app comes to the front.
         sync.start()
         sync.request()
@@ -194,6 +200,7 @@ class MainActivity : ComponentActivity() {
     override fun onStop() {
         // The HID role is never held in the background.
         target.appForeground(false)
+        faceDown.stop()
         sync.flush()
         controller.release()
         super.onStop()

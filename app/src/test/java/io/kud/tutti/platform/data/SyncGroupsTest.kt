@@ -20,6 +20,24 @@ class SyncGroupsTest {
     private fun prefsOf(raw: SyncGroups.Raw) = StoreJson.decodeFromString(AppPrefs.serializer(), raw.prefs!!)
 
     @Test
+    fun automaticChoicesSyncAndTheOpenNightWindowStays() {
+        val mine = AppPrefs(
+            pauseForCalls = true,
+            faceDownPause = true,
+            nightHours = NightHoursPrefs(enabled = true, start = 23 * 60, end = 6 * 60),
+            nightSession = io.kud.tutti.protocol.auto.NightHours.Session(endsAt = 1L),
+        )
+        val prefs = SyncGroups.read(raw(mine)).getValue("preferences") as JsonObject
+        assertFalse("nightSession" in prefs)
+        val other = SyncGroups.apply(raw(), mapOf("preferences" to prefs))
+        val theirs = prefsOf(other)
+        assertEquals(true, theirs.pauseForCalls)
+        assertEquals(true, theirs.faceDownPause)
+        assertEquals(NightHoursPrefs(enabled = true, start = 23 * 60, end = 6 * 60), theirs.nightHours)
+        assertEquals(null, theirs.nightSession)
+    }
+
+    @Test
     fun carriesTheFourGroupsAndNothingPerPhone() {
         val groups = SyncGroups.read(raw(AppPrefs(onboarded = true, developerMode = true, lastBarVolume = 12, theme = ThemeMode.DARK)))
         assertEquals(setOf("preferences", "remote", "scenes", "profiles"), groups.keys)

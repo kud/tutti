@@ -123,6 +123,18 @@ data class AppPrefs(
     val appDestinations: Map<String, String> = emptyMap(),
     /** The picture follows what's on (Erwann, 2026-11-12): off by default, synced. Rules in `PictureFollow`. */
     val pictureFollow: io.kud.tutti.protocol.picture.PictureFollowConfig = io.kud.tutti.protocol.picture.PictureFollowConfig(),
+    /**
+     * Automatic (Erwann, 2026-11-12), each off by default: pause the TV while the phone rings or a
+     * call is on, and play it again after ([io.kud.tutti.protocol.auto.AutoPause]). Needs the phone
+     * permission on each phone; the choice syncs, the grant doesn't.
+     */
+    val pauseForCalls: Boolean = false,
+    /** Phone laid face down: pause; picked up: play again, while the remote is in front ([io.kud.tutti.protocol.auto.FaceDown]). */
+    val faceDownPause: Boolean = false,
+    /** Sound that follows the hour: night mode, voice enhancement and a lower guard between two times ([io.kud.tutti.protocol.auto.NightHours]). */
+    val nightHours: NightHoursPrefs = NightHoursPrefs(),
+    /** The night window open on this phone, with what to put back at its end. Local: a timed state, like [tonightCap]. */
+    val nightSession: io.kud.tutti.protocol.auto.NightHours.Session? = null,
 ) {
     /** Whether this feature's own switch is on. Exhaustive: a new [NonFreeFeature] needs its switch here. */
     fun optedIn(feature: NonFreeFeature): Boolean = when (feature) {
@@ -140,6 +152,14 @@ data class AppPrefs(
     val vibrationLevel: VibrationLevel
         get() = vibration ?: if (haptics) VibrationLevel.ALL else VibrationLevel.OFF
 }
+
+/** Sound that follows the hour: off by default, 22:00 to 07:00, in minutes of the day. */
+@Serializable
+data class NightHoursPrefs(
+    val enabled: Boolean = false,
+    val start: Int = io.kud.tutti.protocol.auto.NightHours.DEFAULT_START,
+    val end: Int = io.kud.tutti.protocol.auto.NightHours.DEFAULT_END,
+)
 
 /**
  * A ceiling on the bar's volume until [until] (wall-clock epoch ms), enforced like a scene's cap;

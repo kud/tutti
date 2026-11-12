@@ -38,6 +38,7 @@ internal object SyncGroups {
         "lastBarVolume" to "a reading of the bar, not a setting",
         "hints" to "the one-time tips this phone already showed",
         "tonightCap" to "a timed state, set for tonight on this phone",
+        "nightSession" to "a timed state: the night window open on this phone, with what to put back",
         "layout" to "travels in REMOTE with the dock",
     )
 
