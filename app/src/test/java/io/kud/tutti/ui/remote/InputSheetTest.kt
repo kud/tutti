@@ -3,6 +3,7 @@ package io.kud.tutti.ui.remote
 import io.kud.tutti.platform.data.SecondaryButton
 import io.kud.tutti.protocol.atv.V2Key
 import io.kud.tutti.protocol.bravia.ExternalInput
+import io.kud.tutti.protocol.bravia.InputKind
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -28,6 +29,17 @@ class InputSheetTest {
         assertEquals(listOf(true, false, true), shown.inputs.map { it.connected })
         assertNull(shown.reason)
         assertFalse(shown.down)
+    }
+
+    @Test
+    fun `every row knows what it is, a computer set up in tutti included, and the sheet agrees with the row`() {
+        val plain = sheet()
+        assertEquals(listOf(InputKind.GAME, InputKind.PORT, InputKind.PORT), plain.inputs.map { it.kind })
+        val withMac = tvInputSheet(
+            true, all, hdmi1.uri, true, true, "no ip", "down", "standby", "unlisted", computerInputs = setOf(hdmi3.uri),
+        )
+        assertEquals(listOf(InputKind.GAME, InputKind.PORT, InputKind.COMPUTER), withMac.inputs.map { it.kind })
+        assertEquals(tvInputsRow(true, all, hdmi1.uri, true, true, "down", "standby", setOf(hdmi3.uri))!!.inputs, withMac.inputs)
     }
 
     @Test

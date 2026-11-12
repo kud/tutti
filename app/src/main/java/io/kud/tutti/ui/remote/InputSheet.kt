@@ -40,6 +40,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.kud.tutti.R
 import io.kud.tutti.protocol.bravia.ExternalInput
+import io.kud.tutti.protocol.bravia.InputKind
 import io.kud.tutti.ui.common.PinnedHeader
 import io.kud.tutti.ui.common.TuttiSheet
 
@@ -70,9 +71,10 @@ fun tvInputSheet(
     downReason: String,
     standbyReason: String,
     unlistedReason: String,
+    computerInputs: Set<String> = emptySet(),
 ): TvInputSheet {
     if (!ipControl) return TvInputSheet(emptyList(), noIpReason)
-    val row = tvInputsRow(ipControl, inputs, currentUri, restOnline, tvPowered, downReason, standbyReason)
+    val row = tvInputsRow(ipControl, inputs, currentUri, restOnline, tvPowered, downReason, standbyReason, computerInputs)
     if (row != null) return TvInputSheet(row.inputs, row.reason)
     val reason = when {
         !restOnline -> downReason
@@ -86,9 +88,12 @@ fun tvInputSheet(
  * The Input button's tap (Erwann, 2026-10-26): tutti's input chooser, a `TuttiSheet` titled "TV
  * input". On a phone the inputs read better as a vertical list of large rows than as the Apps
  * sheet's sideways chips: every name shows whole, the thumb doesn't hunt sideways, and there is
- * room to say each input's state in words. The rows are the Power sheet's (64 dp, 16 dp corners)
- * with no glyph per row, since one would repeat down the list (design.md, Visual): the current
- * input wears a tick and "Current input", an empty port "Nothing connected", never colour alone.
+ * room to say each input's state in words. The rows are the Power sheet's (64 dp, 16 dp corners),
+ * each led by its glyph in the same 40 dp tile as "Open the TV's input menu" below them, chosen by
+ * what the input is ([InputKind], [inputGlyph]; Erwann, 2026-11-12, on dev.13: « Bizarre sans
+ * icône », the names had sat indented behind an empty tick slot). The current input wears a tick
+ * at the row's end, an inverted tile and "Current input"; an empty port "Nothing connected" and a
+ * quieter tile; never colour alone.
  * A tap switches and closes the sheet; a long press pins the input to the dock. Down, the reason
  * sits above the rows, which take the dashed dress and can't be tapped. Below a rule, "Open the
  * TV's input menu" sends the TV's Input key and closes, as every menu key in a sheet does
@@ -204,11 +209,24 @@ private fun InputRow(
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // The tick's place is kept on every row, so the names line up whichever is current.
-        Box(Modifier.size(24.dp), contentAlignment = Alignment.Center) {
-            if (input.current) {
-                Icon(painterResource(R.drawable.ic_check), contentDescription = null, tint = ink, modifier = Modifier.size(22.dp))
-            }
+        // The tile is the bottom row's (PowerRow): 40 dp, 12 dp corners, a 22 dp glyph. The current
+        // row's own fill is that tile's colour, so there it turns over, which reads by lightness.
+        val tile = when {
+            down -> null
+            input.current -> MaterialTheme.colorScheme.onSecondaryContainer
+            !input.connected -> MaterialTheme.colorScheme.surfaceContainerHighest
+            else -> MaterialTheme.colorScheme.secondaryContainer
+        }
+        val glyphTint = when {
+            down || !input.connected -> MaterialTheme.colorScheme.onSurfaceVariant
+            input.current -> MaterialTheme.colorScheme.secondaryContainer
+            else -> MaterialTheme.colorScheme.onSecondaryContainer
+        }
+        Box(
+            Modifier.size(40.dp).then(if (tile != null) Modifier.background(tile, RoundedCornerShape(12.dp)) else Modifier),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(painterResource(inputGlyph(input.kind)), contentDescription = null, tint = glyphTint, modifier = Modifier.size(22.dp))
         }
         Spacer(Modifier.width(16.dp))
         Column(Modifier.weight(1f)) {
@@ -216,6 +234,10 @@ private fun InputRow(
             if (detail != null) {
                 Text(detail, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
             }
+        }
+        if (input.current) {
+            Spacer(Modifier.width(12.dp))
+            Icon(painterResource(R.drawable.ic_check), contentDescription = null, tint = ink, modifier = Modifier.size(22.dp))
         }
     }
 }
