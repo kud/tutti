@@ -81,7 +81,8 @@ class CastSession(
     /** The media session the app in front last reported: what a media command has to name. */
     @Volatile private var mediaSessionId: Long? = null
 
-    private class Pending(val requestId: Int, val rate: Double, val answer: CompletableDeferred<CastSpeedResult>)
+    /** One media command awaiting its reply; [classify] reads a media message as the answer, or null when it isn't. */
+    private class Pending(val requestId: Int, val classify: (kotlinx.serialization.json.JsonObject) -> CastSpeedResult?, val answer: CompletableDeferred<CastSpeedResult>)
 
     @Volatile private var pending: Pending? = null
 
@@ -94,15 +95,39 @@ class CastSession(
      * a new one supersedes an unanswered one, which reads as [CastSpeedResult.NoAnswer].
      */
     suspend fun setPlaybackRate(rate: Double): CastSpeedResult {
+        return command({ payload, id -> CastSpeed.classify(payload, id, rate) }) { session, id -> CastSpeed.request(session, id, rate) }
+    }
+
+    /** The text tracks the followed item lists and which are on (ids only), for Say again. */
+    @Volatile var tracks: CastTracks = CastTracks()
+        private set
+
+    /** Seeks the app in front to [currentTime] seconds (Say again, at a tap only; architecture § 7). */
+    suspend fun seek(currentTime: Double): CastSpeedResult =
+        command(CastSayAgain::classify) { session, id -> CastSayAgain.seekRequest(session, id, currentTime) }
+
+    /** Sets the active tracks of the item in front (Say again's captions, and putting them back). */
+    suspend fun setActiveTracks(ids: List<Long>): CastSpeedResult =
+        command(CastSayAgain::classify) { session, id -> CastSayAgain.tracksRequest(session, id, ids) }
+
+    /**
+     * Sends one media command to the app whose status we follow, naming its media session, after
+     * device auth, and waits up to [CastSpeed.ANSWER_MS] for its reply. One at a time: a new one
+     * supersedes an unanswered one, which reads as [CastSpeedResult.NoAnswer].
+     */
+    private suspend fun command(
+        classify: (kotlinx.serialization.json.JsonObject, Int) -> CastSpeedResult?,
+        request: (Long, Int) -> String,
+    ): CastSpeedResult {
         val target = app ?: return CastSpeedResult.NoSession
         val session = mediaSessionId ?: return CastSpeedResult.NoSession
         if (!verified) return CastSpeedResult.NoSession
         val id = requestId.incrementAndGet()
-        val ask = Pending(id, rate, CompletableDeferred())
+        val ask = Pending(id, { classify(it, id) }, CompletableDeferred())
         pending?.answer?.complete(CastSpeedResult.NoAnswer)
         pending = ask
         return try {
-            send(text(target.transportId, CastNamespaces.MEDIA, CastSpeed.request(session, id, rate)))
+            send(text(target.transportId, CastNamespaces.MEDIA, request(session, id)))
             withTimeoutOrNull(CastSpeed.ANSWER_MS) { ask.answer.await() } ?: CastSpeedResult.NoAnswer
         } catch (e: CancellationException) {
             throw e
@@ -194,9 +219,14 @@ class CastSession(
             }
             CastNamespaces.RECEIVER -> if (CastStatusParser.type(payload) == "RECEIVER_STATUS") onReceiverStatus(payload)
             CastNamespaces.MEDIA -> if (m.source_id == app?.transportId) {
-                pending?.let { ask -> CastSpeed.classify(payload, ask.requestId, ask.rate)?.let(ask.answer::complete) }
+                pending?.let { ask -> ask.classify(payload)?.let(ask.answer::complete) }
                 if (CastStatusParser.type(payload) != "MEDIA_STATUS") return null
-                CastSpeed.mediaSessionId(payload)?.let { mediaSessionId = it }
+                CastSpeed.mediaSessionId(payload)?.let {
+                    // Another media session: its tracks are its own.
+                    if (it != mediaSessionId) tracks = CastTracks()
+                    mediaSessionId = it
+                }
+                tracks = CastSayAgain.tracks(payload, tracks)
                 val report = reducer.report(payload, clock()).withApp(app?.appId)
                 reducer.lastReading?.let(onReading)
                 val line = CastLogLines.media(reducer.lastReading, reducer.lastHadTitle, report, reducer.lastArtwork)
@@ -213,6 +243,7 @@ class CastSession(
                 onEvent(CastLogLines.transportClosed(app))
                 app = null
                 mediaSessionId = null
+                tracks = CastTracks()
                 lastMediaLine = null
                 reducer.reset()
                 lastReport = CastReport.Unknown
@@ -233,6 +264,7 @@ class CastSession(
         onEvent(CastLogLines.app(current, next))
         app = next
         mediaSessionId = null
+        tracks = CastTracks()
         lastMediaLine = null
         askLogged = false
         reducer.reset()
