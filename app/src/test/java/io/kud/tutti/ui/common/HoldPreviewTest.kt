@@ -9,6 +9,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.test.isPopup
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performTouchInput
@@ -82,13 +83,20 @@ class HoldPreviewTest {
 
     private fun up() = rule.onNodeWithTag("pin").performTouchInput { up() }
 
-    private fun advance(ms: Long) = rule.mainClock.advanceTimeBy(ms)
+    private fun advance(ms: Long) {
+        rule.mainClock.advanceTimeBy(ms)
+        // The bubble's popup is its own window: let it attach and compose.
+        rule.waitForIdle()
+    }
+
+    private fun popups() = rule.onAllNodes(isPopup()).fetchSemanticsNodes().size
 
     @Test
     fun aQuickTapShowsAndPlaysNothingNew() {
         pin()
         down()
         advance(190)
+        assertEquals(0, popups())
         up()
         advance(500)
         assertEquals(1, clicks)
@@ -104,9 +112,11 @@ class HoldPreviewTest {
         down()
         advance(250)
         assertTrue(preview.shown)
+        assertEquals(1, popups())
         assertTrue(faces > 0)
         up()
         advance(500)
+        assertEquals("the bubble has faded and left", 0, popups())
         assertEquals(1, clicks)
         assertEquals(0, holds)
         assertFalse(preview.shown)
