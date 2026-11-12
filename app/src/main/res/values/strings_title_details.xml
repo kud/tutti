@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="details_label">Details</string>
+    <!-- The rating is IMDb's, relayed by Cinemeta: always say whose it is. -->
+    <string name="details_imdb_rating">IMDb rating %1$s/10</string>
+    <string name="details_director">Directed by %1$s</string>
+    <string name="details_episode">Season %1$d, episode %2$d</string>
+    <string name="details_cast">Cast</string>
+    <string name="settings_title_details">Title details (Cinemeta)</string>
+    <string name="settings_title_details_detail">In Playback, shows the synopsis, cast and rating. Sends the IMDb id of what\'s playing to Cinemeta, Stremio\'s catalogue</string>
+</resources>
