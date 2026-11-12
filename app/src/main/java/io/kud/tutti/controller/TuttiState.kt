@@ -145,6 +145,8 @@ data class TvState(
     val apps: List<TvApp> = emptyList(),
     val capabilities: Capabilities = Capabilities.EMPTY,
     val pictureMode: String? = null,
+    /** The picture modes the TV offers now (its `pictureMode` candidates), from the same poll; empty until read. */
+    val pictureModes: List<String> = emptyList(),
     val settings: TvSettingsState = TvSettingsState(),
 )
 

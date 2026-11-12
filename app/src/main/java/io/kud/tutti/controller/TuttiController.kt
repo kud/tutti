@@ -100,6 +100,10 @@ import io.kud.tutti.protocol.scenes.Scene
 import io.kud.tutti.protocol.scenes.SceneActuator
 import io.kud.tutti.protocol.scenes.SceneEngine
 import io.kud.tutti.protocol.scenes.SceneKey
+import io.kud.tutti.protocol.picture.PictureContext
+import io.kud.tutti.protocol.picture.PictureFollow
+import io.kud.tutti.protocol.picture.PictureFollowConfig
+import io.kud.tutti.protocol.picture.PictureFollowState
 import io.kud.tutti.protocol.scenes.SceneMatch
 import io.kud.tutti.protocol.scenes.SceneRunner
 import io.kud.tutti.protocol.scenes.SceneStep
@@ -454,6 +458,13 @@ class TuttiController @Inject constructor(
      */
     private val appHistory = MutableStateFlow(AppHistory())
 
+    /** The picture-follows state ([followPicture]); declared before `init` for the same reason. */
+    private val mutablePictureFollow = MutableStateFlow(PictureFollowState())
+    private val pictureFollowLock = Mutex()
+
+    /** Where the picture-follows rules stand (holding, paused by hand), for Settings' line. */
+    val pictureFollow: StateFlow<PictureFollowState> = mutablePictureFollow
+
     init {
         AppLog.events.known = ::knownSecrets
         // Each plane's connection changes, for the developer event log.
@@ -526,6 +537,33 @@ class TuttiController @Inject constructor(
                 if (left > 0) delay(left)
                 capClock.update { it + 1 }
                 store.updatePrefs { prefs -> if (prefs.tonightCap == cap) prefs.copy(tonightCap = null) else prefs }
+            }
+        }
+        scope.launch {
+            // The picture follows what's on (PictureFollow): the app from Remote v2, an external
+            // input from REST's source, re-run once the poll has read the mode and the TV's list.
+            combine(
+                atv.state.map { it.currentApp }.distinctUntilChanged(),
+                tv.map { Triple(it.playing?.uri, it.pictureMode != null, it.pictureModes) }.distinctUntilChanged(),
+                store.prefs.map { it.pictureFollow }.distinctUntilChanged(),
+                combine(store.profiles, store.scenes) { profiles, scenes -> pictureSceneApps(profiles, scenes) }.distinctUntilChanged(),
+            ) { app, (source, _, modes), config, sceneApps -> PictureFollowInput(PictureFollow.contextOf(source, app), config, modes, sceneApps) }
+                .distinctUntilChanged()
+                .collect { input ->
+                    followPicture { state ->
+                        PictureFollow.onContext(state, input.config, input.context, tv.value.pictureMode, input.modes, SystemClock.elapsedRealtime(), input.sceneApps)
+                    }
+                }
+        }
+        scope.launch {
+            // A mode tutti did not set is his: PictureFollow stops until standby.
+            tv.map { it.pictureMode }.distinctUntilChanged().collect { mode ->
+                followPicture { PictureFollow.onObserved(it, mode, SystemClock.elapsedRealtime()) }
+            }
+        }
+        scope.launch {
+            tv.map { it.power }.distinctUntilChanged().collect { power ->
+                if (power == PowerStatus.STANDBY) pictureFollowLock.withLock { mutablePictureFollow.update(PictureFollow::onStandby) }
             }
         }
         scope.launch {
@@ -1269,11 +1307,13 @@ class TuttiController @Inject constructor(
         val playing = playingResult?.getOrNull()
         judgePsk(playingResult)
         val input = playing?.uri
-        val pictureMode = if (active && caps.supports(BraviaService.VIDEO, "getPictureQualitySettings")) {
-            client.pictureSettings("pictureMode").getOrNull()?.firstOrNull { it.target == "pictureMode" }?.currentValue
+        val pictureSetting = if (active && caps.supports(BraviaService.VIDEO, "getPictureQualitySettings")) {
+            client.pictureSettings("pictureMode").getOrNull()?.firstOrNull { it.target == "pictureMode" }
         } else {
             null
         }
+        val pictureMode = pictureSetting?.currentValue
+        val pictureModes = pictureSetting?.candidates?.filter { it.isAvailable }?.map { it.value }?.takeIf { it.isNotEmpty() }
         val current = tv.value
         val now = SystemClock.elapsedRealtime()
         // The input list rides this poll ([TvPollRules.inputsDue]): CEC names and what is plugged in
@@ -1293,7 +1333,7 @@ class TuttiController @Inject constructor(
         val fetched = appsResult?.getOrNull()
         // A failed or empty answer keeps the list we had.
         val apps = fetched?.takeIf { it.isNotEmpty() } ?: current.apps
-        tv.update { it.copy(power = power, input = input ?: it.input, playing = playing, pictureMode = pictureMode ?: it.pictureMode, inputs = inputs, apps = apps) }
+        tv.update { it.copy(power = power, input = input ?: it.input, playing = playing, pictureMode = pictureMode ?: it.pictureMode, pictureModes = pictureModes ?: it.pictureModes, inputs = inputs, apps = apps) }
         if (apps != current.apps) {
             // New or changed apps go into the library, whose icon pass then fetches what is missing.
             scope.launch { rememberApps(apps) }
@@ -2578,6 +2618,44 @@ class TuttiController @Inject constructor(
     }
 
     private val actuator: SceneActuator by lazy { SceneActuatorImpl() }
+
+    private data class PictureFollowInput(
+        val context: PictureContext,
+        val config: PictureFollowConfig,
+        val modes: List<String>,
+        val sceneApps: Set<String>,
+    )
+
+    /** Apps whose per-app profile runs a scene that sets the picture mode: that scene owns their picture. */
+    private fun pictureSceneApps(profiles: List<AppProfile>, scenes: List<io.kud.tutti.protocol.scenes.Scene>): Set<String> =
+        profiles.filter { profile -> scenes.firstOrNull { it.id == profile.sceneId }?.settings?.containsKey(SceneKey.PICTURE_MODE) == true }
+            .map { it.appPackage }
+            .toSet()
+
+    /**
+     * One [PictureFollow] step at a time: the next state, its developer log line (modes only,
+     * never the app or input), then its write through IP control. A failed write puts the state
+     * back as it was, since the TV still shows what it showed.
+     */
+    private suspend fun followPicture(step: (PictureFollowState) -> PictureFollow.Step) = pictureFollowLock.withLock {
+        val before = mutablePictureFollow.value
+        val next = step(before)
+        mutablePictureFollow.value = next.state
+        next.log?.let { AppLog.events.record(EventLog.Kind.PICTURE, it) }
+        val write = next.write ?: return@withLock
+        val ok = bravia?.setPictureSetting("pictureMode", write.mode) is BraviaResult.Ok
+        if (ok) {
+            tv.update { it.copy(pictureMode = write.mode) }
+        } else {
+            val failed = PictureFollow.onWriteFailed(before, write)
+            mutablePictureFollow.value = failed.state
+            failed.log?.let { AppLog.events.record(EventLog.Kind.PICTURE, it) }
+        }
+    }
+
+    fun updatePictureFollow(transform: (PictureFollowConfig) -> PictureFollowConfig) {
+        scope.launch { store.updatePrefs { it.copy(pictureFollow = transform(it.pictureFollow)) } }
+    }
 
     private inner class SceneActuatorImpl : SceneActuator {
         override suspend fun perform(step: SceneStep): Boolean = when (step) {

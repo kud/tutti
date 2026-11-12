@@ -94,6 +94,8 @@ data class AppPrefs(
      * app opens where it was. Set from the Apps sheet's long press, "Opens at…".
      */
     val appDestinations: Map<String, String> = emptyMap(),
+    /** The picture follows what's on (Erwann, 2026-11-12): off by default, synced. Rules in `PictureFollow`. */
+    val pictureFollow: io.kud.tutti.protocol.picture.PictureFollowConfig = io.kud.tutti.protocol.picture.PictureFollowConfig(),
 ) {
     /** The old switch on reads as [VibrationLevel.ALL], off as [VibrationLevel.OFF]. */
     val vibrationLevel: VibrationLevel

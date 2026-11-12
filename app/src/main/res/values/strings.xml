@@ -105,4 +105,14 @@
     <string name="devices_done_no_input">Choose it as the target on the remote to control it. Its keyboard is set to %1$s: change it from its row if needed.</string>
     <string name="devices_done">Done</string>
     <string name="devices_save_failed">Couldn\'t save the computer. Try again.</string>
+    <!-- The picture follows what's on (PictureFollow, 2026-11-12) -->
+    <string name="picture_follow_group">Picture follows what\'s on</string>
+    <string name="picture_follow_title">Change the picture mode by app</string>
+    <string name="picture_follow_line">tutti sets the TV\'s picture mode for each app or input below, and puts the previous one back when you leave. Change the mode yourself and tutti stops until the TV goes to standby.</string>
+    <string name="picture_follow_paused">Paused: the picture mode was changed by hand. tutti resumes after the TV\'s next standby.</string>
+    <string name="picture_follow_suggestions">Suggested modes</string>
+    <string name="picture_follow_suggestions_line">Cinema for film and series apps, Standard for YouTube, when the TV offers them.</string>
+    <string name="picture_follow_waiting">Waiting for the TV\'s picture modes…</string>
+    <string name="picture_follow_leave">Leave as it is</string>
+    <string name="picture_follow_suggested">Suggested: %1$s</string>
 </resources>
