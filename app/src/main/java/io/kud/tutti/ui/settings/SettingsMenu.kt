@@ -10,9 +10,9 @@ enum class SettingsCategory {
     DISPLAY, FEEDBACK, VOLUME, AUTOMATIC,
     LAYOUT, LONG_PRESS, APPS, LOCK_SCREEN,
     PLAYBACK, THIRD_PARTY,
-    DEVICES, TV, SOUNDBAR, UNLOCK,
+    DEVICES, TV, SOUNDBAR,
     SYNC, BACKUP,
-    ADVANCED, ABOUT,
+    UNLOCK, ADVANCED, ABOUT,
 }
 
 /**
@@ -38,9 +38,11 @@ internal object SettingsMenu {
         SettingsSection.EVERYDAY to listOf(SettingsCategory.DISPLAY, SettingsCategory.FEEDBACK, SettingsCategory.VOLUME, SettingsCategory.AUTOMATIC),
         SettingsSection.REMOTE to listOf(SettingsCategory.LAYOUT, SettingsCategory.LONG_PRESS, SettingsCategory.APPS, SettingsCategory.LOCK_SCREEN),
         SettingsSection.PLAYBACK to listOf(SettingsCategory.PLAYBACK, SettingsCategory.THIRD_PARTY),
-        SettingsSection.DEVICES to listOf(SettingsCategory.DEVICES, SettingsCategory.TV, SettingsCategory.SOUNDBAR, SettingsCategory.UNLOCK),
+        SettingsSection.DEVICES to listOf(SettingsCategory.DEVICES, SettingsCategory.TV, SettingsCategory.SOUNDBAR),
         SettingsSection.SYNC to listOf(SettingsCategory.SYNC, SettingsCategory.BACKUP),
-        SettingsSection.TUTTI to listOf(SettingsCategory.ADVANCED, SettingsCategory.ABOUT),
+        // What tutti can do is about the app, not one device (Erwann, 2026-11-12): it leads, as the
+        // row people come back to; Developer's depth and About's facts follow.
+        SettingsSection.TUTTI to listOf(SettingsCategory.UNLOCK, SettingsCategory.ADVANCED, SettingsCategory.ABOUT),
     )
 
     /**

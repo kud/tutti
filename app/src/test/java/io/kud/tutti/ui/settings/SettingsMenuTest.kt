@@ -24,6 +24,14 @@ class SettingsMenuTest {
     }
 
     @Test
+    fun `what tutti can do leads the tutti header, and devices keeps the three devices`() {
+        val rows = SettingsMenu.sections.toMap()
+        assertEquals(listOf(SettingsCategory.UNLOCK, SettingsCategory.ADVANCED, SettingsCategory.ABOUT), rows[SettingsSection.TUTTI])
+        assertEquals(listOf(SettingsCategory.DEVICES, SettingsCategory.TV, SettingsCategory.SOUNDBAR), rows[SettingsSection.DEVICES])
+        assertEquals("UNLOCK", SettingsCategory.UNLOCK.name)
+    }
+
+    @Test
     fun `screens that existed before settings had pages, and remote layout, are not pages`() {
         assertEquals(
             SettingsCategory.entries.toSet() - setOf(
