@@ -1082,6 +1082,7 @@ fun RemoteScreen(
                     watchingAt = { now -> watchingOf(showing, castNowPlaying, now) },
                     trakt = state.prefs.traktLink,
                     justWatch = state.prefs.justWatchLink,
+                    imdb = state.prefs.imdbLink,
                 )
             },
             appShortcuts = {

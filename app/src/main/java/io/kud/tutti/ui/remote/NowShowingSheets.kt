@@ -143,7 +143,7 @@ internal fun PlaybackSheet(
     cast: io.kud.tutti.protocol.cast.CastNowPlaying? = null,
     onScrub: ((Int) -> Unit)? = null,
     appShortcuts: (@Composable () -> Unit)? = null,
-    /** Share, and the optional Trakt and JustWatch searches ([WatchShareChips]), last in the sheet. */
+    /** Share, and the optional Trakt, JustWatch and IMDb links ([WatchShareChips]), last in the sheet. */
     watchChips: (@Composable () -> Unit)? = null,
     /** The Speed chip ([SpeedChip]), beside Captions and Audio track, given the Cast item shown. */
     speedChip: (@Composable (io.kud.tutti.protocol.cast.CastNowPlaying?) -> Unit)? = null,

@@ -15,7 +15,8 @@ sealed interface Watching {
      * Something Cast reports by name: [title], its artist or channel ([secondary]), the app it
      * plays in when the TV names one ([app]), and where it is, in whole seconds, when that can be
      * trusted ([positionSec]; [durationSec] is null for live content). [videoId] is a YouTube video
-     * id, only from [WatchShare.youTubeVideoId].
+     * id, only from [WatchShare.youTubeVideoId]; [imdbId] an IMDb id, only from
+     * [io.kud.tutti.protocol.cast.CastArtwork.imdbId].
      */
     data class Media(
         val title: String,
@@ -24,10 +25,12 @@ sealed interface Watching {
         val positionSec: Long? = null,
         val durationSec: Long? = null,
         val videoId: String? = null,
+        val imdbId: String? = null,
     ) : Watching {
         override fun toString(): String =
             "Watching.Media(title=<redacted>, secondary=${if (secondary == null) "none" else "<redacted>"}, " +
-                "app=$app, position=$positionSec, duration=$durationSec, video=${if (videoId == null) "none" else "<redacted>"})"
+                "app=$app, position=$positionSec, duration=$durationSec, video=${if (videoId == null) "none" else "<redacted>"}, " +
+                "imdb=${if (imdbId == null) "none" else "<redacted>"})"
     }
 
     /** The TV's own tuner: the channel's [number] and [name], and the [programme] when the EPG names it. */
@@ -181,9 +184,8 @@ object WatchShare {
 /**
  * A season and episode, read only from a marker at the very start of a Cast secondary: "S1:E5"
  * (Nuvio's form) or "S01E05", then the end, a space or a separator. Nothing else is read as one, so
- * a secondary without a marker is never guessed at. Kept for a future exact-episode Trakt link;
- * today's link still searches the series title, since an episode URL needs Trakt's slug, which
- * tutti does not know.
+ * a secondary without a marker is never guessed at. With the series' IMDb id it names Trakt Web's
+ * exact episode page ([TitleLinks.traktEpisode]).
  */
 data class Episode(val season: Int, val episode: Int) {
     val label: String get() = "S$season:E$episode"
@@ -213,12 +215,15 @@ data class Episode(val season: Int, val episode: Int) {
  */
 sealed interface TraktTarget {
     /**
-     * A title is known: Trakt's search on it ([TitleLinks.trakt]). For an episode that is the
-     * series title, never the episode's name; [episode] is what the Cast secondary's marker says,
-     * when it says one.
+     * A title is known. For an episode [title] is the series title, never the episode's name;
+     * [episode] is what the Cast secondary's marker says, when it says one, and [imdbId] the IMDb
+     * id the artwork carries, when it carries one (the series' for an episode). With the id Trakt
+     * opens on the title itself, without it on a search for [title] ([TitleLinks.traktSteps]).
      */
-    data class Search(val title: String, val episode: Episode? = null) : TraktTarget {
-        override fun toString(): String = "TraktTarget.Search(title=<redacted>, episode=${if (episode == null) "none" else "<redacted>"})"
+    data class Search(val title: String, val episode: Episode? = null, val imdbId: String? = null) : TraktTarget {
+        override fun toString(): String =
+            "TraktTarget.Search(title=<redacted>, episode=${if (episode == null) "none" else "<redacted>"}, " +
+                "imdb=${if (imdbId == null) "none" else "<redacted>"})"
     }
 
     /**
@@ -235,6 +240,15 @@ sealed interface TraktStep {
     /** A VIEW of [url] addressed to the Trakt app's package, so no browser can take it. */
     data class AppLink(val url: String) : TraktStep {
         override fun toString(): String = "TraktStep.AppLink(<redacted>)"
+    }
+
+    /**
+     * The Trakt app's own search on [query]: an `ACTION_PROCESS_TEXT` of plain text addressed to its
+     * package, which its main activity takes (its "Search" text-selection action) and answers by
+     * opening Search with the query filled in.
+     */
+    data class AppSearch(val query: String) : TraktStep {
+        override fun toString(): String = "TraktStep.AppSearch(<redacted>)"
     }
 
     /** The Trakt app's launch intent, at its own start. */
@@ -314,7 +328,10 @@ object TitleLinks {
      */
     fun traktTarget(watching: Watching?): TraktTarget? {
         val title = searchTitle(watching)
-        if (title != null) return TraktTarget.Search(title, (watching as? Watching.Media)?.let { Episode.parse(it.secondary) })
+        if (title != null) {
+            val media = watching as? Watching.Media
+            return TraktTarget.Search(title, media?.let { Episode.parse(it.secondary) }, media?.imdbId?.takeIf { IMDB_ID.matches(it) })
+        }
         return if (watching is Watching.App && watching.name.isNotBlank()) TraktTarget.Home else null
     }
 
@@ -330,29 +347,87 @@ object TitleLinks {
     const val TRAKT_HOME: String = "https://app.trakt.tv/"
 
     /**
-     * How the phone opens [target], first step that works wins. Which links the Trakt app
-     * (`tv.trakt.trakt`, the Play listing "trakt.TV Time To Watch") handles is not published: both
-     * hosts' `/.well-known/assetlinks.json` delegate `handle_all_urls` to it, yet a search link
-     * opened Firefox on Erwann's phone with the app installed (2026-11-11). So the app is asked for
-     * the link by package first ([TraktStep.AppLink]: the phone resolves it, and an app that does
-     * not handle it is skipped, never guessed into), then launched at its start, and the web is
-     * the last resort, used only without the app.
+     * `https://www.imdb.com/title/<id>/`, IMDb's own page for the title, and the link the Trakt app
+     * takes to open it there ([traktSteps]): Trakt's main activity takes IMDb
+     * title links (`imdb.com`, `www.`, `m.`, path `/title/tt…`), looks the id up and opens the film,
+     * show or episode it names (trakt/trakt-android `app/src/main/AndroidManifest.xml` and
+     * `core/applinks/model/ImdbLink.kt`, `ResolveImdbLinkUseCase`, since #395, 2026-09-30; read
+     * 2026-11-12). As a Trakt step it is never sent without the Trakt package, so the IMDb app or
+     * a browser never gets it.
+     */
+    fun imdbTitle(imdbId: String): String? = imdbId.takeIf { IMDB_ID.matches(it) }?.let { "https://www.imdb.com/title/$it/" }
+
+    /**
+     * Trakt Web's page for one episode, by the series' IMDb id in the slug's place:
+     * `https://app.trakt.tv/shows/<tt id>/seasons/<s>/episodes/<e>`. Checked 2026-11-12 with
+     * Black Bird (`tt4301160`), no key: as a crawler, `/shows/tt4301160` renders "Black Bird" and
+     * `/shows/tt4301160/seasons/1/episodes/6` renders "You Promised", its sixth episode; a browser
+     * gets a 307 to `/shows/tt4301160?view=episode&season=1&episode=6`, the show page with that
+     * episode open (trakt/trakt-web `routes/shows/[slug]/seasons/[season]/episodes/[episode]/+page.ts`).
+     * Trakt's API, which the page reads, takes an IMDb id wherever it takes a slug.
+     */
+    fun traktEpisode(imdbId: String, episode: Episode): String? =
+        imdbId.takeIf { IMDB_ID.matches(it) }?.let { "${TRAKT_HOME}shows/$it/seasons/${episode.season}/episodes/${episode.episode}" }
+
+    /**
+     * How the phone opens [target], first step that works wins. What the Trakt app
+     * (`tv.trakt.trakt`) takes was read in its source, trakt/trakt-android at f41cf1c (3.28.0,
+     * 2026-11-12), `app/src/main/AndroidManifest.xml` and `MainIntentHandler.kt`:
+     * - `https://app.trakt.tv/` links only under `/shows/`, `/movies/`, `/people/`, `/comments/`
+     *   (since #399, 2026-09-28), and only their slug: `/shows/<slug>/seasons/…` opens the show, not
+     *   the episode. No `/search`, which is why the old search link reached only the app's start.
+     * - IMDb title links, resolved to the title ([imdbTitle]).
+     * - `ACTION_PROCESS_TEXT`, opening its Search on the text ([TraktStep.AppSearch]).
+     * No link reaches an episode inside the app without the episode's own IMDb id, which Cast
+     * never names, so with an id the app opens on the series (or the film), and the web, used only
+     * without the app, on the exact episode when the marker names one.
      */
     fun traktSteps(target: TraktTarget): List<TraktStep> = when (target) {
-        is TraktTarget.Search -> trakt(target.title).let { listOf(TraktStep.AppLink(it), TraktStep.LaunchApp, TraktStep.Web(it)) }
+        is TraktTarget.Search -> {
+            val imdb = target.imdbId?.let { imdbTitle(it) }
+            val exact = target.imdbId?.let { id -> target.episode?.let { traktEpisode(id, it) } }
+            listOfNotNull(
+                imdb?.let { TraktStep.AppLink(it) },
+                TraktStep.AppSearch(target.title.trim()),
+                TraktStep.LaunchApp,
+                TraktStep.Web(exact ?: trakt(target.title)),
+            )
+        }
         TraktTarget.Home -> listOf(TraktStep.LaunchApp, TraktStep.Web(TRAKT_HOME))
     }
 
+    private val IMDB_ID = Regex("^tt\\d{5,10}$")
+
+    /**
+     * The IMDb button's page (Erwann, 2026-11-12: « Elle est où la connexion avec IMDb »): the
+     * title's own page ([imdbTitle]) when the artwork carries its IMDb id (for an episode, the
+     * series'), else IMDb's search on the title, `https://www.imdb.com/find/?q=<title>` (the form
+     * IMDb's own search box submits; imdb.com answers a scripted fetch with a 202 bot challenge, so
+     * neither page could be fetched from here, 2026-11-12). Null when no title is known.
+     */
+    fun imdb(watching: Watching?): String? {
+        val title = searchTitle(watching) ?: return null
+        val id = (watching as? Watching.Media)?.imdbId?.let { imdbTitle(it) }
+        return id ?: "https://www.imdb.com/find/?q=${URLEncoder.encode(title, Charsets.UTF_8)}"
+    }
+
+    /**
+     * The IMDb app (`com.imdb.mobile`), asked for [imdb]'s page by package first, so the page opens
+     * there when it is installed and takes the link; else the browser.
+     */
+    const val IMDB_PACKAGE: String = "com.imdb.mobile"
+
     /**
      * The links offered: Trakt when its switch is on and [traktTarget] has somewhere to go,
-     * JustWatch when its switch is on and a title is known.
+     * JustWatch and IMDb when their switches are on and a title is known.
      */
-    fun offered(watching: Watching?, trakt: Boolean, justWatch: Boolean): Set<TitleLink> = buildSet {
+    fun offered(watching: Watching?, trakt: Boolean, justWatch: Boolean, imdb: Boolean = false): Set<TitleLink> = buildSet {
         if (trakt && traktTarget(watching) != null) add(TitleLink.TRAKT)
         if (justWatch && searchTitle(watching) != null) add(TitleLink.JUSTWATCH)
+        if (imdb && this.imdb(watching) != null) add(TitleLink.IMDB)
     }
 
     private fun encode(s: String): String = URLEncoder.encode(s.trim(), Charsets.UTF_8).replace("+", "%20")
 }
 
-enum class TitleLink { TRAKT, JUSTWATCH }
+enum class TitleLink { TRAKT, JUSTWATCH, IMDB }

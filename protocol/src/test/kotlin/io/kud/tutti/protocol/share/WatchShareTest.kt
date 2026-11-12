@@ -104,14 +104,14 @@ class WatchShareTest {
         val media = Watching.Media("Night Rail")
         assertEquals(setOf(TitleLink.TRAKT, TitleLink.JUSTWATCH), TitleLinks.offered(media, trakt = true, justWatch = true))
         assertEquals(setOf(TitleLink.JUSTWATCH), TitleLinks.offered(media, trakt = false, justWatch = true))
-        assertEquals(emptySet(), TitleLinks.offered(media, trakt = false, justWatch = false))
+        assertEquals(emptySet<TitleLink>(), TitleLinks.offered(media, trakt = false, justWatch = false))
         // An app that names nothing: Trakt still opens, at its own start; JustWatch has nothing to search.
         assertEquals(setOf(TitleLink.TRAKT), TitleLinks.offered(Watching.App("Example Flix"), trakt = true, justWatch = true))
-        assertEquals(emptySet(), TitleLinks.offered(Watching.App("Example Flix"), trakt = false, justWatch = true))
-        assertEquals(emptySet(), TitleLinks.offered(Watching.App("  "), trakt = true, justWatch = true))
-        assertEquals(emptySet(), TitleLinks.offered(Watching.Channel("7", "Canal Exemple", null), trakt = true, justWatch = true))
+        assertEquals(emptySet<TitleLink>(), TitleLinks.offered(Watching.App("Example Flix"), trakt = false, justWatch = true))
+        assertEquals(emptySet<TitleLink>(), TitleLinks.offered(Watching.App("  "), trakt = true, justWatch = true))
+        assertEquals(emptySet<TitleLink>(), TitleLinks.offered(Watching.Channel("7", "Canal Exemple", null), trakt = true, justWatch = true))
         assertEquals(setOf(TitleLink.TRAKT), TitleLinks.offered(Watching.Channel("7", null, "Les Jardins du Nord"), trakt = true, justWatch = false))
-        assertEquals(emptySet(), TitleLinks.offered(null, trakt = true, justWatch = true))
+        assertEquals(emptySet<TitleLink>(), TitleLinks.offered(null, trakt = true, justWatch = true))
     }
 
     @Test
@@ -157,13 +157,75 @@ class WatchShareTest {
     }
 
     @Test
-    fun `an episode searches trakt for its series title and asks the app first`() {
-        val status = Watching.Media("Black Bird", secondary = "S1:E5 – The Place I Lie", app = "Nuvio")
+    fun `without an imdb id an episode searches its series title in the app first`() {
+        val status = Watching.Media("Night Rail", secondary = "S1:E5 – The Long Platform", app = "Example Player")
         val target = TitleLinks.traktTarget(status)
-        assertEquals(TraktTarget.Search("Black Bird", Episode(1, 5)), target)
-        val url = "https://app.trakt.tv/search?m=media&q=Black+Bird"
-        assertEquals(listOf(TraktStep.AppLink(url), TraktStep.LaunchApp, TraktStep.Web(url)), TitleLinks.traktSteps(target!!))
+        assertEquals(TraktTarget.Search("Night Rail", Episode(1, 5)), target)
+        val url = "https://app.trakt.tv/search?m=media&q=Night+Rail"
+        assertEquals(listOf(TraktStep.AppSearch("Night Rail"), TraktStep.LaunchApp, TraktStep.Web(url)), TitleLinks.traktSteps(target!!))
         assertEquals(listOf(TraktStep.LaunchApp, TraktStep.Web("https://app.trakt.tv/")), TitleLinks.traktSteps(TraktTarget.Home))
-        assertFalse("Black" in TraktStep.Web(url).toString())
+        assertFalse("Night" in TraktStep.Web(url).toString())
+        assertFalse("Night" in TraktStep.AppSearch("Night Rail").toString())
+    }
+
+    @Test
+    fun `with an imdb id an episode opens the title in the app and the exact episode on the web`() {
+        val status = Watching.Media("Night Rail", secondary = "S2:E6 – Last Stop", imdbId = "tt0000001")
+        val target = TitleLinks.traktTarget(status)
+        assertEquals(TraktTarget.Search("Night Rail", Episode(2, 6), "tt0000001"), target)
+        assertEquals(
+            listOf(
+                TraktStep.AppLink("https://www.imdb.com/title/tt0000001/"),
+                TraktStep.AppSearch("Night Rail"),
+                TraktStep.LaunchApp,
+                TraktStep.Web("https://app.trakt.tv/shows/tt0000001/seasons/2/episodes/6"),
+            ),
+            TitleLinks.traktSteps(target!!),
+        )
+        assertFalse("tt0000001" in target.toString())
+        assertFalse("tt0000001" in status.toString())
+        assertFalse("tt0000001" in TraktStep.AppLink("https://www.imdb.com/title/tt0000001/").toString())
+    }
+
+    @Test
+    fun `with an imdb id and no episode the web falls back to the search`() {
+        val target = TitleLinks.traktTarget(Watching.Media("Night Rail", imdbId = "tt0000001"))!!
+        assertEquals(
+            listOf(
+                TraktStep.AppLink("https://www.imdb.com/title/tt0000001/"),
+                TraktStep.AppSearch("Night Rail"),
+                TraktStep.LaunchApp,
+                TraktStep.Web("https://app.trakt.tv/search?m=media&q=Night+Rail"),
+            ),
+            TitleLinks.traktSteps(target),
+        )
+    }
+
+    @Test
+    fun `a malformed imdb id is never put in a link`() {
+        val target = TitleLinks.traktTarget(Watching.Media("Night Rail", secondary = "S1:E1", imdbId = "tt1/../x"))!!
+        assertEquals(TraktTarget.Search("Night Rail", Episode(1, 1)), target)
+        assertNull(TitleLinks.imdbTitle("nm0000001"))
+        assertNull(TitleLinks.traktEpisode("tt12", Episode(1, 1)))
+        assertEquals("https://app.trakt.tv/shows/tt0000001/seasons/0/episodes/2", TitleLinks.traktEpisode("tt0000001", Episode(0, 2)))
+    }
+
+    @Test
+    fun `imdb opens the title page when the id is known, else its search`() {
+        assertEquals("https://www.imdb.com/title/tt0000001/", TitleLinks.imdb(Watching.Media("Night Rail", secondary = "S1:E2", imdbId = "tt0000001")))
+        assertEquals("https://www.imdb.com/find/?q=Night+Rail", TitleLinks.imdb(Watching.Media("Night Rail", secondary = "S1:E2")))
+        assertEquals("https://www.imdb.com/find/?q=Night+Rail", TitleLinks.imdb(Watching.Media("Night Rail", imdbId = "nm0000001")))
+        assertEquals("https://www.imdb.com/find/?q=The+News+%26+More", TitleLinks.imdb(Watching.Channel("1", "Example One", "The News & More")))
+        assertNull(TitleLinks.imdb(Watching.App("Example Player")))
+        assertNull(TitleLinks.imdb(Watching.Channel("1", "Example One")))
+        assertNull(TitleLinks.imdb(null))
+    }
+
+    @Test
+    fun `the imdb button is offered only when switched on and a title is known`() {
+        val media = Watching.Media("Night Rail")
+        assertEquals(setOf(TitleLink.IMDB), TitleLinks.offered(media, trakt = false, justWatch = false, imdb = true))
+        assertEquals(emptySet<TitleLink>(), TitleLinks.offered(media, trakt = false, justWatch = false, imdb = false))
+        assertEquals(emptySet<TitleLink>(), TitleLinks.offered(Watching.App("Example Player"), trakt = false, justWatch = false, imdb = true))
     }
 }

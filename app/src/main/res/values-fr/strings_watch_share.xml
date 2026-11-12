@@ -6,9 +6,12 @@
     <string name="watch_share_title">Partager ce qui passe</string>
     <string name="watch_trakt">Trakt</string>
     <string name="watch_justwatch">JustWatch</string>
+    <string name="watch_imdb">IMDb</string>
     <string name="settings_title_links">Liens vers le titre</string>
     <string name="settings_trakt_link">Bouton Trakt</string>
-    <string name="settings_trakt_link_detail">Dans Lecture, cherche dans Trakt ce qui passe quand tutti connaît le titre, sinon ouvre Trakt lui-même</string>
+    <string name="settings_trakt_link_detail">Dans Lecture, ouvre Trakt sur ce qui passe quand tutti connaît le titre, sinon Trakt lui-même</string>
     <string name="settings_justwatch_link">Bouton JustWatch</string>
     <string name="settings_justwatch_link_detail">Dans Lecture, ouvre une recherche JustWatch sur ce qui passe, pour votre pays</string>
+    <string name="settings_imdb_link">Bouton IMDb</string>
+    <string name="settings_imdb_link_detail">Dans Lecture, ouvre IMDb sur ce qui passe : sa propre page quand tutti la connaît, sinon une recherche</string>
 </resources>

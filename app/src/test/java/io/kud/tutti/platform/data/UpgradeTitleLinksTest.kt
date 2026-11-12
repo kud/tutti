@@ -43,6 +43,7 @@ class UpgradeTitleLinksTest {
         assertKept(read)
         assertFalse(read.traktLink)
         assertFalse(read.justWatchLink)
+        assertFalse(read.imdbLink)
 
         tutti.edit { it[prefsKey] = StoreJson.encodeToString(AppPrefs.serializer(), read.copy(traktLink = true)) }
         val written = tutti.data.first()[prefsKey]!!
@@ -57,6 +58,13 @@ class UpgradeTitleLinksTest {
         assertKept(last)
         assertFalse(last.traktLink)
         assertTrue(last.justWatchLink)
+        assertFalse(last.imdbLink)
+
+        tutti.edit { it[prefsKey] = StoreJson.encodeToString(AppPrefs.serializer(), last.copy(imdbLink = true)) }
+        val imdb = decode(tutti.data.first()[prefsKey]!!)
+        assertKept(imdb)
+        assertTrue(imdb.imdbLink)
+        assertTrue(imdb.justWatchLink)
     }
 
     @Test
@@ -64,6 +72,7 @@ class UpgradeTitleLinksTest {
         val prefs = decode("{}")
         assertFalse(prefs.traktLink)
         assertFalse(prefs.justWatchLink)
+        assertFalse(prefs.imdbLink)
     }
 
     private fun assertKept(prefs: AppPrefs) {

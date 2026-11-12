@@ -52,6 +52,20 @@ object CastArtwork {
      */
     fun of(playing: CastNowPlaying?): String? = playing?.imageUrl?.takeIf { isAllowed(it) }
 
+    /**
+     * The IMDb id a Cinemeta artwork URL embeds, or null: exactly
+     * `https://images.metahub.space/<poster|background|logo>/<small|medium|large>/tt<digits>/img`,
+     * the shape Cinemeta's metas name (see [HOSTS]). For an episode, Nuvio shows the series'
+     * artwork, so the id is the series'. A `image.tmdb.org` URL carries a file hash, not an id, and
+     * anything looser than that exact shape is not evidence of one. Viewing data, like the URL.
+     */
+    fun imdbId(url: String?): String? {
+        if (!isAllowed(url)) return null
+        return METAHUB.matchEntire(url!!.trim())?.groupValues?.get(1)
+    }
+
+    private val METAHUB = Regex("""^https://images\.metahub\.space/(?:poster|background|logo)/(?:small|medium|large)/(tt\d{5,10})/img$""")
+
     /** The first allowed `images[].url` of a media `metadata` object, or null. */
     fun pick(metadata: JsonObject?): String? {
         val images = metadata?.get("images") as? JsonArray ?: return null

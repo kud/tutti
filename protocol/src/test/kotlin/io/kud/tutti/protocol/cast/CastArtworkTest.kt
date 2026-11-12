@@ -88,4 +88,18 @@ class CastArtworkTest {
         assertFalse("SAMPLEID01" in now.toString())
         assertTrue("image=<redacted>" in now.toString())
     }
+
+    @Test
+    fun `an imdb id is read only from a cinemeta artwork url of the exact shape`() {
+        assertEquals("tt0000001", CastArtwork.imdbId("https://images.metahub.space/poster/small/tt0000001/img"))
+        assertEquals("tt0000001", CastArtwork.imdbId("https://images.metahub.space/background/medium/tt0000001/img"))
+        assertEquals("tt0000001", CastArtwork.imdbId("https://images.metahub.space/logo/large/tt0000001/img"))
+        assertNull(CastArtwork.imdbId(null))
+        assertNull(CastArtwork.imdbId("https://image.tmdb.org/t/p/w500/abc.jpg"))
+        assertNull(CastArtwork.imdbId("http://images.metahub.space/poster/small/tt0000001/img"))
+        assertNull(CastArtwork.imdbId("https://images.metahub.space/poster/huge/tt0000001/img"))
+        assertNull(CastArtwork.imdbId("https://images.metahub.space/poster/small/tt0000001/img?x=1"))
+        assertNull(CastArtwork.imdbId("https://images.metahub.space/poster/small/nm0000001/img"))
+        assertNull(CastArtwork.imdbId("https://evil.example/images.metahub.space/poster/small/tt0000001/img"))
+    }
 }

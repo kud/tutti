@@ -6,9 +6,12 @@
     <string name="watch_share_title">Share what\'s on</string>
     <string name="watch_trakt">Trakt</string>
     <string name="watch_justwatch">JustWatch</string>
+    <string name="watch_imdb">IMDb</string>
     <string name="settings_title_links">Title links</string>
     <string name="settings_trakt_link">Trakt button</string>
-    <string name="settings_trakt_link_detail">In Playback, searches Trakt for what\'s playing when tutti knows the title, else opens Trakt itself</string>
+    <string name="settings_trakt_link_detail">In Playback, opens Trakt on what\'s playing when tutti knows the title, else Trakt itself</string>
     <string name="settings_justwatch_link">JustWatch button</string>
     <string name="settings_justwatch_link_detail">In Playback, opens a JustWatch search for what\'s playing, for your country</string>
+    <string name="settings_imdb_link">IMDb button</string>
+    <string name="settings_imdb_link_detail">In Playback, opens IMDb on what\'s playing: its own page when tutti knows it, else a search</string>
 </resources>

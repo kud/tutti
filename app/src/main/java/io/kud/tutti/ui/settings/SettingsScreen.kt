@@ -436,6 +436,13 @@ private fun RemotePage(state: TuttiUiState, controller: TuttiController, onEditL
             onCheckedChange = controller::setJustWatchLink,
             icon = R.drawable.ic_open_in_new,
         )
+        SwitchRow(
+            label = stringResource(R.string.settings_imdb_link),
+            supporting = stringResource(R.string.settings_imdb_link_detail),
+            checked = state.prefs.imdbLink,
+            onCheckedChange = controller::setImdbLink,
+            icon = R.drawable.ic_open_in_new,
+        )
     }
 
     SettingsGroup(stringResource(R.string.settings_volume_title)) {
