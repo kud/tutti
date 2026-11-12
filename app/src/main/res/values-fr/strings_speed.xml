@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The Playback sheet's Speed chip and picker: Cast playback rate. -->
+<resources>
+    <string name="playback_speed">Vitesse</string>
+    <string name="playback_speed_at">Vitesse %1$s</string>
+    <string name="playback_speed_rate">%1$s×</string>
+    <string name="playback_speed_picker">Vitesse de lecture</string>
+    <string name="playback_speed_asking">Demande à la TV…</string>
+    <string name="playback_speed_refused">Cette app ne permet pas de changer la vitesse.</string>
+    <string name="playback_speed_no_session">Rien ne passe par Cast en ce moment.</string>
+</resources>

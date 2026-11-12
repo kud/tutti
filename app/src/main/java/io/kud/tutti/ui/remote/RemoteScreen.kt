@@ -183,6 +183,7 @@ fun RemoteScreen(
     val keyboardAsked by controller.keyboardAsked.collectAsState()
     val recentApps by controller.recentApps.collectAsState()
     val castNowPlaying by controller.castNowPlaying.collectAsState()
+    val castSpeedRefused by controller.castSpeedRefused.collectAsState()
     LaunchedEffect(keyboardAsked) {
         if (!keyboardAsked) return@LaunchedEffect
         if (!input.open) input = InputRules.keyboardKey(input)
@@ -1057,6 +1058,8 @@ fun RemoteScreen(
     val liveCard = heldCardShowing(state)
     val keysPinner = rememberDockPinner(state, controller)
     playbackFor?.let { opened ->
+        // Per opening: a refusal said in the picker goes with the sheet.
+        val speedControl = rememberSpeedControl()
         PlaybackSheet(
             showing = liveCard?.takeIf(::cardOpensPlayback) ?: opened,
             tvName = state.devices.tv?.name.orEmpty(),
@@ -1069,6 +1072,10 @@ fun RemoteScreen(
             onDismiss = { playbackFor = null },
             cast = castNowPlaying,
             onScrub = { code -> sendKey(code) },
+            speedChip = { shown ->
+                SpeedChip(shown, castSpeedRefused, controlLinkReason(state.controlLink(Owner.TV), Owner.TV, state), speedControl)
+            },
+            speedPicker = { shown -> SpeedPicker(shown, speedControl) { rate -> controller.setCastSpeed(rate) } },
             watchChips = {
                 val showing = liveCard?.takeIf(::cardOpensPlayback) ?: opened
                 WatchShareChips(
