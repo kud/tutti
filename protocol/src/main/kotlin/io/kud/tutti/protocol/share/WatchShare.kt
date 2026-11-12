@@ -424,7 +424,7 @@ object TitleLinks {
     fun offered(watching: Watching?, trakt: Boolean, justWatch: Boolean, imdb: Boolean = false): Set<TitleLink> = buildSet {
         if (trakt && traktTarget(watching) != null) add(TitleLink.TRAKT)
         if (justWatch && searchTitle(watching) != null) add(TitleLink.JUSTWATCH)
-        if (imdb && this.imdb(watching) != null) add(TitleLink.IMDB)
+        if (imdb && TitleLinks.imdb(watching) != null) add(TitleLink.IMDB)
     }
 
     private fun encode(s: String): String = URLEncoder.encode(s.trim(), Charsets.UTF_8).replace("+", "%20")
