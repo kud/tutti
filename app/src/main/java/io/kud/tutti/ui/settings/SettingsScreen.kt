@@ -168,9 +168,12 @@ fun SettingsPageScreen(
             SettingsCategory.VOLUME -> SettingsGroup(null, Modifier.padding(top = 8.dp)) {
                 VolumeGuardRows(state.prefs, onChange = controller::setVolumeGuard)
             }
+            SettingsCategory.AUTOMATIC -> AutomaticGroup(state.prefs, controller)
             SettingsCategory.LOCK_SCREEN -> SettingsGroup(null, Modifier.padding(top = 8.dp)) {
                 QuickNotificationSetting(icon = R.drawable.ic_bolt)
             }
+            // Say again? is a Playback button, so its one setting sits on the Playback page.
+            SettingsCategory.PLAYBACK -> SayAgainSetting(state.prefs.sayAgainSeconds, controller::setSayAgainSeconds)
             SettingsCategory.LONG_PRESS -> LongPressPage(state, controller)
             SettingsCategory.APPS -> AppsPage(state, controller)
             SettingsCategory.THIRD_PARTY -> ThirdPartyPage(state, controller)
@@ -212,6 +215,7 @@ private fun sectionTitle(section: SettingsSection): String = stringResource(
     when (section) {
         SettingsSection.EVERYDAY -> R.string.settings_section_everyday
         SettingsSection.REMOTE -> R.string.settings_section_remote
+        SettingsSection.PLAYBACK -> R.string.settings_section_playback
         SettingsSection.DEVICES -> R.string.settings_section_devices
         SettingsSection.SYNC -> R.string.settings_section_sync
         SettingsSection.TUTTI -> R.string.settings_section_tutti
@@ -224,7 +228,9 @@ private fun categoryTitle(category: SettingsCategory): String = stringResource(
         SettingsCategory.DISPLAY -> R.string.settings_appearance
         SettingsCategory.FEEDBACK -> R.string.settings_feedback
         SettingsCategory.VOLUME -> R.string.settings_volume_comfort
+        SettingsCategory.AUTOMATIC -> R.string.auto_title
         SettingsCategory.LOCK_SCREEN -> R.string.settings_lock_screen
+        SettingsCategory.PLAYBACK -> R.string.settings_playback
         SettingsCategory.LAYOUT -> R.string.layout_entry
         SettingsCategory.LONG_PRESS -> R.string.settings_long_presses
         SettingsCategory.APPS -> R.string.settings_apps
@@ -245,7 +251,9 @@ private fun categoryIcon(category: SettingsCategory): Int = when (category) {
     SettingsCategory.DISPLAY -> R.drawable.ic_contrast
     SettingsCategory.FEEDBACK -> R.drawable.ic_vibration
     SettingsCategory.VOLUME -> R.drawable.ic_volume_up
+    SettingsCategory.AUTOMATIC -> R.drawable.ic_bedtime
     SettingsCategory.LOCK_SCREEN -> R.drawable.ic_notifications
+    SettingsCategory.PLAYBACK -> R.drawable.ic_replay
     SettingsCategory.LAYOUT -> R.drawable.ic_edit
     SettingsCategory.LONG_PRESS -> R.drawable.ic_dpad
     SettingsCategory.APPS -> R.drawable.ic_apps
@@ -270,7 +278,9 @@ private fun categoryDescription(category: SettingsCategory): String = when (cate
             SettingsCategory.DISPLAY -> R.string.settings_desc_appearance
             SettingsCategory.FEEDBACK -> R.string.settings_desc_feedback
             SettingsCategory.VOLUME -> R.string.settings_desc_volume
+            SettingsCategory.AUTOMATIC -> R.string.settings_desc_automatic
             SettingsCategory.LOCK_SCREEN -> R.string.settings_desc_lock_screen
+            SettingsCategory.PLAYBACK -> R.string.settings_desc_playback
             SettingsCategory.LAYOUT -> R.string.settings_desc_layout
             SettingsCategory.LONG_PRESS -> R.string.settings_desc_long_presses
             SettingsCategory.APPS -> R.string.settings_desc_apps

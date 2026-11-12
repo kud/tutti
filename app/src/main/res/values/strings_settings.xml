@@ -260,6 +260,10 @@
     <!-- Settings' headers and pages, one topic each (2026-11-12). -->
     <string name="settings_section_everyday">Everyday</string>
     <string name="settings_section_remote">The remote</string>
+    <string name="settings_section_playback">What’s playing</string>
+    <string name="settings_playback">Playback</string>
+    <string name="settings_desc_playback">How far back Say again? goes</string>
+    <string name="settings_desc_automatic">Pause during calls, and sound that follows the hour</string>
     <string name="settings_section_devices">Devices</string>
     <string name="settings_section_sync">Sync &amp; backup</string>
     <string name="settings_section_tutti">tutti</string>

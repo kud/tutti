@@ -263,6 +263,10 @@
     <!-- Les en-têtes et pages des réglages, un sujet chacune (2026-11-12). -->
     <string name="settings_section_everyday">Au quotidien</string>
     <string name="settings_section_remote">La télécommande</string>
+    <string name="settings_section_playback">En lecture</string>
+    <string name="settings_playback">Lecture</string>
+    <string name="settings_desc_playback">Jusqu’où « Hein ? » revient en arrière</string>
+    <string name="settings_desc_automatic">Pause pendant les appels, et un son qui suit l’heure</string>
     <string name="settings_section_devices">Appareils</string>
     <string name="settings_section_sync">Synchronisation et sauvegarde</string>
     <string name="settings_section_tutti">tutti</string>

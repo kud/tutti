@@ -4,14 +4,23 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** Settings' top level: one topic per page, under five headers (2026-11-12). */
+/** Settings' top level: one topic per page, under six headers (2026-11-12). */
 class SettingsMenuTest {
     @Test
-    fun `sixteen rows under five headers, each row once, in the enum's order`() {
+    fun `eighteen rows under six headers, each row once, in the enum's order`() {
         assertEquals(SettingsSection.entries, SettingsMenu.sections.map { it.first })
         assertEquals(SettingsCategory.entries, SettingsMenu.sections.flatMap { it.second })
-        assertEquals(16, SettingsCategory.entries.size)
+        assertEquals(18, SettingsCategory.entries.size)
         SettingsMenu.sections.forEach { (_, rows) -> assertTrue(rows.size in 2..4) }
+    }
+
+    @Test
+    fun `automatic is everyday, and say again's page sits with the other playback page`() {
+        val under = SettingsMenu.sections.flatMap { (section, rows) -> rows.map { it to section } }.toMap()
+        assertEquals(SettingsSection.EVERYDAY, under[SettingsCategory.AUTOMATIC])
+        assertEquals(SettingsSection.PLAYBACK, under[SettingsCategory.PLAYBACK])
+        assertEquals(SettingsSection.PLAYBACK, under[SettingsCategory.THIRD_PARTY])
+        assertEquals(SettingsSection.REMOTE, under[SettingsCategory.LOCK_SCREEN])
     }
 
     @Test

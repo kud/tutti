@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="say_again">Pardon ?</string>
-    <string name="say_again_settings_group">Pardon ?</string>
+    <string name="say_again">Hein ?</string>
+    <string name="say_again_settings_group">Hein ?</string>
     <string name="say_again_settings">Retour en arrière</string>
-    <string name="say_again_settings_detail">« Pardon ? » dans Lecture revient d’autant en arrière, active les sous-titres et la voix renforcée de la barre le temps de réentendre la réplique, puis remet les deux comme ils étaient.</string>
+    <string name="say_again_settings_detail">« Hein ? » dans Lecture revient d’autant en arrière, active les sous-titres et la voix renforcée de la barre le temps de réentendre la réplique, puis remet les deux comme ils étaient.</string>
     <string name="say_again_seconds">%1$d s</string>
     <string name="say_again_seconds_label">%1$d secondes</string>
 </resources>
