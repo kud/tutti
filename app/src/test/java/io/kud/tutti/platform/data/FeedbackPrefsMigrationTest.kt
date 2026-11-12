@@ -38,4 +38,22 @@ class FeedbackPrefsMigrationTest {
         assertEquals(VibrationLevel.ESSENTIALS, back.vibrationLevel)
         assertEquals(true, back.keySounds)
     }
+
+    /**
+     * The Vibration switch and its "Vibrate for" menu became one Off · Essentials · Everything row
+     * (2026-11-12). Every pair the two controls could have stored lands on exactly the segment the
+     * old screen showed: the switch off is Off, on with no level is Everything, on with a level is it.
+     */
+    @Test
+    fun `every stored switch and level lands on one of the three segments`() {
+        val cases = mapOf(
+            """{"haptics":false,"vibration":"OFF"}""" to VibrationLevel.OFF,
+            """{"haptics":false}""" to VibrationLevel.OFF,
+            """{"haptics":true}""" to VibrationLevel.ALL,
+            """{"haptics":true,"vibration":"ALL"}""" to VibrationLevel.ALL,
+            """{"haptics":true,"vibration":"ESSENTIALS"}""" to VibrationLevel.ESSENTIALS,
+            """{}""" to VibrationLevel.ALL,
+        )
+        for ((json, level) in cases) assertEquals(json, level, read(json).vibrationLevel)
+    }
 }

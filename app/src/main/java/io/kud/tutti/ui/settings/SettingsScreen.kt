@@ -72,10 +72,9 @@ import io.kud.tutti.protocol.grpc.CloudPlaneState
 import io.kud.tutti.protocol.theatre.TheatreFeature
 import io.kud.tutti.quick.settings.QuickNotificationSetting
 import io.kud.tutti.ui.common.AppIcon
-import io.kud.tutti.ui.common.ChoiceRow
+import io.kud.tutti.ui.common.OptionsRow
 import io.kud.tutti.ui.common.OpensChevron
 import io.kud.tutti.ui.common.ProblemNote
-import io.kud.tutti.ui.common.RevealRow
 import io.kud.tutti.ui.common.SettingsGroup
 import io.kud.tutti.ui.common.SettingsRow
 import io.kud.tutti.ui.common.SwitchRow
@@ -672,8 +671,9 @@ private fun AppsShownDialog(state: TuttiUiState, onShown: (String, Boolean) -> U
  * Vibration and key sounds (the spec, Erwann's decisions of 2026-10-23). tutti follows Android
  * and never overrides it: when the system's touch vibration or touch sounds are off, the row keeps
  * tutti's own switch but says it is inactive (warning glyph and words, never colour alone) and
- * carries the way to Android's settings, read again each time the screen resumes. The level is a
- * menu row rather than a segmented button, whose second label wrapped (2026-10-23).
+ * carries the way to Android's settings, read again each time the screen resumes. Vibration is one
+ * row of three segments, Off · Essentials · Everything (2026-11-12, after the separate "Vibrate for"
+ * menu opened a row too high on dev.6); the stored level was already one value, so nothing migrates.
  */
 @Composable
 private fun FeedbackRows(prefs: AppPrefs, onVibration: (VibrationLevel) -> Unit, onKeySounds: (Boolean) -> Unit) {
@@ -694,32 +694,29 @@ private fun FeedbackRows(prefs: AppPrefs, onVibration: (VibrationLevel) -> Unit,
         customActions = listOf(CustomAccessibilityAction(openLabel) { openSystem(); true })
     }
     val level = prefs.vibrationLevel
-    Column {
-        SwitchRow(
-            label = stringResource(R.string.settings_vibration),
-            supporting = stringResource(R.string.settings_vibration_detail),
-            notice = stringResource(R.string.settings_vibration_system_off).takeIf { !system.vibration },
-            checked = level != VibrationLevel.OFF,
-            onCheckedChange = { onVibration(if (it) VibrationLevel.ALL else VibrationLevel.OFF) },
-            icon = R.drawable.ic_vibration,
-            modifier = if (system.vibration) Modifier else openAction,
-            footer = if (system.vibration) null else ({ OpenSystemLink(openLabel, openSystem) }),
-        )
-        RevealRow(visible = system.vibration && level != VibrationLevel.OFF) {
-            val options = listOf(
-                VibrationLevel.ALL to stringResource(R.string.settings_vibration_all),
-                VibrationLevel.ESSENTIALS to stringResource(R.string.settings_vibration_essentials),
-            )
-            ChoiceRow(
-                label = stringResource(R.string.settings_vibration_level),
-                valueLabel = options.firstOrNull { it.first == level }?.second ?: options.first().second,
-                options = options,
-                onSelect = onVibration,
-                icon = R.drawable.ic_tune,
-                modifier = Modifier.padding(top = 2.dp),
-            )
-        }
-    }
+    val levels = listOf(
+        VibrationLevel.OFF to stringResource(R.string.settings_vibration_off),
+        VibrationLevel.ESSENTIALS to stringResource(R.string.settings_vibration_essentials),
+        VibrationLevel.ALL to stringResource(R.string.settings_vibration_all),
+    )
+    OptionsRow(
+        label = stringResource(R.string.settings_vibration),
+        selected = level,
+        valueLabel = levels.first { it.first == level }.second,
+        options = levels,
+        onSelect = onVibration,
+        supporting = stringResource(
+            when (level) {
+                VibrationLevel.OFF -> R.string.settings_vibration_detail_off
+                VibrationLevel.ESSENTIALS -> R.string.settings_vibration_detail_essentials
+                VibrationLevel.ALL -> R.string.settings_vibration_detail
+            },
+        ),
+        notice = stringResource(R.string.settings_vibration_system_off).takeIf { !system.vibration },
+        icon = R.drawable.ic_vibration,
+        modifier = if (system.vibration) Modifier else openAction,
+        footer = if (system.vibration) null else ({ OpenSystemLink(openLabel, openSystem) }),
+    )
     SwitchRow(
         label = stringResource(R.string.settings_key_sounds),
         supporting = stringResource(R.string.settings_key_sounds_detail),

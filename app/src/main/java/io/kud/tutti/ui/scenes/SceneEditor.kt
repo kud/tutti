@@ -325,12 +325,14 @@ fun SceneEditorScreen(
                 valueLabel = launchApp?.let(::appName) ?: stringResource(R.string.editor_none),
                 options = apps,
                 onSelect = { launchApp = it },
+                selected = launchApp,
             )
             ChoiceRow(
                 label = stringResource(R.string.editor_profile),
                 valueLabel = profile?.let { stringResource(R.string.editor_profile_value, appName(it)) } ?: stringResource(R.string.editor_none),
                 options = apps,
                 onSelect = { profile = it },
+                selected = profile,
             )
 
             SectionTitle(stringResource(R.string.editor_dock))

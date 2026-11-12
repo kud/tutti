@@ -29,7 +29,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -44,12 +43,28 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.semantics.Role
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.runtime.saveable.rememberSaveable
 import io.kud.tutti.R
 
 /**
- * A settings row that opens a menu of options. [reason] greys it and says why. [refused] options
- * stay listed and tappable (a retry), marked with the warning glyph and the word, and the row
- * says which value the bar refused. [onPin] lets a long press on an option pin it to the dock.
+ * A settings row whose options are too many or too long for segments: a tap opens a [ChoiceSheet]
+ * of radio rows, never a floating menu (Erwann, 2026-11-12, on dev.6: the "Vibrate for" menu opened
+ * at the far left, a row too high, over the row above; « On doit revoir ça partout »). Short lists
+ * go through [OptionsRow], which picks segments when they fit and this row when they don't.
+ * [selected] puts the tick on the current option; when null it is the option named [valueLabel].
+ * [reason] greys the row and says why. [refused] options stay listed and tappable (a retry),
+ * marked with the warning glyph and the word, and the row says which value the bar refused.
+ * [onPin] lets a long press on an option pin it to the dock.
  */
 @Composable
 fun <T> ChoiceRow(
@@ -63,48 +78,123 @@ fun <T> ChoiceRow(
     refused: Set<T> = emptySet(),
     onPin: ((T, String) -> Unit)? = null,
     canPin: (T) -> Boolean = { true },
+    selected: T? = null,
 ) {
-    var expanded by remember { mutableStateOf(false) }
-    val pinLabel = stringResource(R.string.pin_to_dock)
-    val pinFeedback = rememberFeedback()
-    val refusedWord = stringResource(R.string.choice_refused)
+    var open by rememberSaveable { mutableStateOf(false) }
     val refusedNote = options.filter { it.first in refused }.joinToString { it.second }.ifEmpty { null }
         ?.let { stringResource(R.string.choice_refused_note, it) }
-    Box(modifier.fillMaxWidth()) {
-        SettingsRow(
+    SettingsRow(
+        title = label,
+        detail = reason ?: valueLabel,
+        notice = if (reason == null) refusedNote?.let { "$valueLabel · $it" } else null,
+        icon = icon,
+        enabled = reason == null && options.isNotEmpty(),
+        onClick = { open = true },
+        role = Role.Button,
+        modifier = modifier,
+    )
+    if (open) {
+        ChoiceSheet(
             title = label,
-            detail = reason ?: valueLabel,
-            notice = if (reason == null) refusedNote?.let { "$valueLabel · $it" } else null,
-            icon = icon,
-            enabled = reason == null && options.isNotEmpty(),
-            onClick = { expanded = true },
+            selected = selected ?: options.firstOrNull { it.second == valueLabel }?.first,
+            options = options,
+            onSelect = {
+                open = false
+                onSelect(it)
+            },
+            onDismiss = { open = false },
+            refused = refused,
+            onPin = onPin,
+            canPin = canPin,
         )
-        TuttiMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            for ((value, text) in options) {
-                val isRefused = value in refused
-                DropdownMenuItem(
-                    text = { Text(if (isRefused) "$text · $refusedWord" else text) },
-                    leadingIcon = if (isRefused) {
-                        { Icon(painterResource(R.drawable.ic_warning), contentDescription = null) }
-                    } else {
-                        null
-                    },
-                    onClick = {
-                        expanded = false
-                        onSelect(value)
-                    },
-                    // A value's menu would have one row, so its long press is "Pin to dock" itself
-                    // (design.md, gestures). Only offered where the caller can pin that value.
-                    modifier = if (onPin != null && canPin(value)) {
-                        Modifier.holdForMenu(pinLabel, RectangleShape) {
-                            pinFeedback.longPress()
-                            expanded = false
-                            onPin(value, text)
-                        }
-                    } else {
-                        Modifier
-                    },
+    }
+}
+
+/**
+ * Every list of choices in tutti that doesn't fit segments: a [TuttiSheet] titled with the
+ * setting, one radio row per option. The chosen row carries the tick and its name in semibold, so
+ * it never rests on colour; TalkBack hears each row as a radio button, selected or not. A refused
+ * option wears the warning glyph and the word. Choosing closes the sheet; a long press pins an
+ * option where [onPin] allows it (design.md, gestures: a value's menu would have one row).
+ */
+@Composable
+fun <T> ChoiceSheet(
+    title: String,
+    selected: T?,
+    options: List<Pair<T, String>>,
+    onSelect: (T) -> Unit,
+    onDismiss: () -> Unit,
+    refused: Set<T> = emptySet(),
+    onPin: ((T, String) -> Unit)? = null,
+    canPin: (T) -> Boolean = { true },
+) {
+    val feedback = rememberFeedback()
+    val pinLabel = stringResource(R.string.pin_to_dock)
+    val refusedWord = stringResource(R.string.choice_refused)
+    TuttiSheet(onDismissRequest = onDismiss) {
+        val scroll = rememberScrollState()
+        PinnedHeader(
+            scrolled = scroll.canScrollBackward,
+            modifier = Modifier.fillMaxWidth(),
+            header = {
+                Text(
+                    title,
+                    style = MaterialTheme.typography.headlineSmall,
+                    modifier = Modifier.semantics { heading() }.padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
                 )
+            },
+        ) {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(scroll)
+                    .selectableGroup()
+                    .padding(bottom = 16.dp),
+            ) {
+                for ((value, text) in options) {
+                    val chosen = value == selected
+                    val isRefused = value in refused
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .selectable(
+                                selected = chosen,
+                                role = Role.RadioButton,
+                                onClick = {
+                                    if (!chosen) feedback.select()
+                                    onSelect(value)
+                                },
+                            )
+                            .then(
+                                if (onPin != null && canPin(value)) {
+                                    Modifier.holdForMenu(pinLabel, RectangleShape) {
+                                        feedback.longPress()
+                                        onDismiss()
+                                        onPin(value, text)
+                                    }
+                                } else {
+                                    Modifier
+                                },
+                            )
+                            .heightIn(min = 56.dp)
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Box(Modifier.size(24.dp), contentAlignment = Alignment.Center) {
+                            when {
+                                chosen -> Icon(painterResource(R.drawable.ic_check), contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                                isRefused -> Icon(painterResource(R.drawable.ic_warning), contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                        Spacer(Modifier.width(16.dp))
+                        Text(
+                            if (isRefused) "$text · $refusedWord" else text,
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = if (chosen) FontWeight.SemiBold else FontWeight.Normal,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                }
             }
         }
     }
@@ -157,7 +247,8 @@ fun SwitchRow(
 }
 
 /**
- * Every pop-up menu in tutti: the theme's medium shape (12 dp, the corners the rows and cards use)
+ * Every pop-up menu of actions in tutti (⋮, a long press's menu), never a list of values to choose
+ * from, which is [OptionsRow] or [ChoiceSheet]: the theme's medium shape (12 dp, the corners the rows and cards use)
  * on a raised tonal surface, rather than Material's 4 dp default, which read as a system popup.
  */
 @Composable
@@ -198,6 +289,11 @@ fun <T> OptionsRow(
     reason: String? = null,
     onPin: ((T, String) -> Unit)? = null,
     canPin: (T) -> Boolean = { true },
+    supporting: String? = null,
+    notice: String? = null,
+    @DrawableRes icon: Int? = null,
+    refused: Set<T> = emptySet(),
+    footer: (@Composable () -> Unit)? = null,
 ) {
     BoxWithConstraints(modifier.fillMaxWidth()) {
         val style = MaterialTheme.typography.labelMedium
@@ -222,9 +318,21 @@ fun <T> OptionsRow(
             }
         }
         if (lines == null) {
-            ChoiceRow(label, valueLabel, options, onSelect, reason = reason, onPin = onPin, canPin = canPin)
+            ChoiceRow(
+                label, valueLabel, options, onSelect,
+                reason = reason, icon = icon, refused = refused, onPin = onPin, canPin = canPin, selected = selected,
+            )
         } else {
-            Segments(label, selected, options, onSelect, reason, onPin, canPin, textWidth, lines, style)
+            val refusedNote = options.filter { it.first in refused }.joinToString { it.second }.ifEmpty { null }
+                ?.let { stringResource(R.string.choice_refused_note, it) }
+            Segments(
+                label, selected, options, onSelect, reason, onPin, canPin, textWidth, lines, style,
+                detail = supporting,
+                notice = notice ?: refusedNote,
+                icon = icon,
+                refused = refused,
+                footer = footer,
+            )
         }
     }
 }
@@ -242,10 +350,17 @@ private fun <T> Segments(
     textWidth: Dp,
     lines: Int,
     style: TextStyle,
+    detail: String?,
+    notice: String?,
+    @DrawableRes icon: Int?,
+    refused: Set<T>,
+    footer: (@Composable () -> Unit)?,
 ) {
     val feedback = rememberFeedback()
     val pinLabel = stringResource(R.string.pin_to_dock)
-    val described = if (reason == null) label else "$label, $reason"
+    val refusedWord = stringResource(R.string.choice_refused)
+    val said = reason ?: notice ?: detail
+    val described = if (said == null) label else "$label, $said"
     Column(
         Modifier
             .fillMaxWidth()
@@ -253,15 +368,32 @@ private fun <T> Segments(
             .padding(horizontal = ROW_PADDING, vertical = 12.dp),
     ) {
         val fade = Modifier.alpha(if (reason == null) 1f else DISABLED_ALPHA)
-        // The name and reason are said once, as the row's description, not again as loose text.
-        Text(label, style = MaterialTheme.typography.bodyLarge, modifier = fade.clearAndSetSemantics {})
-        if (reason != null) {
-            Text(
-                reason,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = fade.clearAndSetSemantics {},
-            )
+        // The name and its line are said once, as the row's description, not again as loose text.
+        // The header wears a settings row's dress (icon, name, line, notice), the segments under it.
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (icon != null) {
+                RowIcon(icon, fade)
+                Spacer(Modifier.width(16.dp))
+            }
+            Column(Modifier.weight(1f)) {
+                Text(label, style = MaterialTheme.typography.bodyLarge, modifier = fade.clearAndSetSemantics {})
+                when {
+                    reason != null -> Text(
+                        reason,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = fade.clearAndSetSemantics {},
+                    )
+                    notice != null -> Box(Modifier.clearAndSetSemantics {}) { Notice(notice) }
+                    detail != null -> Text(
+                        detail,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.clearAndSetSemantics {},
+                    )
+                }
+                footer?.invoke()
+            }
         }
         SingleChoiceSegmentedButtonRow(
             Modifier
@@ -271,6 +403,7 @@ private fun <T> Segments(
         ) {
             options.forEachIndexed { index, (value, text) ->
                 val chosen = value == selected
+                val isRefused = value in refused
                 val shape = SegmentedButtonDefaults.itemShape(index, options.size)
                 SegmentedButton(
                     selected = chosen,
@@ -286,6 +419,7 @@ private fun <T> Segments(
                     icon = {},
                     modifier = Modifier
                         .heightIn(min = 48.dp)
+                        .semantics { if (isRefused) stateDescription = refusedWord }
                         .then(
                             if (onPin != null && canPin(value)) {
                                 Modifier.holdForMenu(pinLabel, shape, enabled = reason == null, onRefused = feedback::bump) { onPin(value, text) }
@@ -297,9 +431,19 @@ private fun <T> Segments(
                     // Wider than Material's padded slot: the name may use the segment's inset too.
                     Column(Modifier.requiredWidth(textWidth), horizontalAlignment = Alignment.CenterHorizontally) {
                         Box(Modifier.size(SegmentedButtonDefaults.IconSize)) {
-                            if (chosen) Icon(painterResource(R.drawable.ic_check), contentDescription = null, modifier = Modifier.size(SegmentedButtonDefaults.IconSize))
+                            when {
+                                chosen -> Icon(painterResource(R.drawable.ic_check), contentDescription = null, modifier = Modifier.size(SegmentedButtonDefaults.IconSize))
+                                isRefused -> Icon(painterResource(R.drawable.ic_warning), contentDescription = null, modifier = Modifier.size(SegmentedButtonDefaults.IconSize))
+                            }
                         }
-                        Text(text, style = style, textAlign = TextAlign.Center, minLines = lines, maxLines = lines)
+                        Text(
+                            text,
+                            style = style,
+                            fontWeight = if (chosen) FontWeight.SemiBold else null,
+                            textAlign = TextAlign.Center,
+                            minLines = lines,
+                            maxLines = lines,
+                        )
                     }
                 }
             }

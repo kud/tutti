@@ -29,7 +29,7 @@ import io.kud.tutti.controller.TuttiUiState
 import io.kud.tutti.protocol.theatre.FeatureKind
 import io.kud.tutti.protocol.theatre.TheatreFeature
 import io.kud.tutti.ui.common.barValueLabel
-import io.kud.tutti.ui.common.ChoiceRow
+import io.kud.tutti.ui.common.OptionsRow
 import io.kud.tutti.ui.common.LocalRowSurface
 import io.kud.tutti.ui.common.SettingsGroup
 import io.kud.tutti.ui.common.SwitchRow
@@ -162,8 +162,10 @@ private fun Toggle(state: TuttiUiState, controller: TuttiController, feature: Th
 @Composable
 private fun Choice(state: TuttiUiState, controller: TuttiController, feature: TheatreFeature) {
     val kind = feature.kind as? FeatureKind.Choice ?: return
-    ChoiceRow(
+    // Segments where the names fit (Auto · On · Off), else the choice sheet (Erwann, 2026-11-12).
+    OptionsRow(
         label = stringResource(featureLabel(feature)),
+        selected = state.bar.value(feature),
         valueLabel = optionLabel(state.bar.value(feature)),
         options = kind.options.map { it to optionLabel(it) },
         onSelect = { controller.setBarChoice(feature, it) },

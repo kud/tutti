@@ -158,7 +158,7 @@ fun OpensChevron() {
 }
 
 /**
- * A row that comes and goes with another setting (the vibration level under Vibration): it grows
+ * A row that comes and goes with another setting (the guard's limit under Volume guard): it grows
  * and fades so the card doesn't jump; under reduced motion it only fades (2026-10-23).
  */
 @Composable
@@ -172,7 +172,7 @@ fun ColumnScope.RevealRow(visible: Boolean, content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun RowIcon(@DrawableRes icon: Int, modifier: Modifier) {
+internal fun RowIcon(@DrawableRes icon: Int, modifier: Modifier) {
     Box(
         modifier.size(40.dp).clip(CircleShape).background(MaterialTheme.colorScheme.secondaryContainer),
         contentAlignment = Alignment.Center,
@@ -182,7 +182,7 @@ private fun RowIcon(@DrawableRes icon: Int, modifier: Modifier) {
 }
 
 @Composable
-private fun Notice(text: String) {
+internal fun Notice(text: String) {
     Row(verticalAlignment = Alignment.Top) {
         Icon(
             painterResource(R.drawable.ic_warning),
