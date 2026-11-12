@@ -60,4 +60,30 @@ class SyncGroupsTest {
         val after = SyncGroups.apply(raw(), theirs)
         assertEquals(theirs, SyncGroups.read(after))
     }
+
+    @Test
+    fun theVibrationChoiceTravels() {
+        val prefs = SyncGroups.read(raw(AppPrefs(vibration = VibrationLevel.ESSENTIALS, haptics = true))).getValue("preferences") as JsonObject
+        assertEquals(JsonPrimitive("ESSENTIALS"), prefs["vibration"])
+        val after = prefsOf(SyncGroups.apply(raw(AppPrefs(vibration = VibrationLevel.ALL)), mapOf("preferences" to prefs)))
+        assertEquals(VibrationLevel.ESSENTIALS, after.vibrationLevel)
+    }
+
+    /** Files written before the single Off · Essentials · Everything choice (2026-11-12). */
+    @Test
+    fun anOlderFilesSwitchAndLevelLandOnTheSingleChoice() {
+        fun take(vararg synced: Pair<String, String>, mine: AppPrefs = AppPrefs(vibration = VibrationLevel.ESSENTIALS)): VibrationLevel {
+            val group = JsonObject(synced.associate { (k, v) -> k to (if (v == "true" || v == "false") JsonPrimitive(v.toBoolean()) else JsonPrimitive(v)) })
+            return prefsOf(SyncGroups.apply(raw(mine), mapOf("preferences" to group))).vibrationLevel
+        }
+        // The switch alone, from before the level existed: it decides, whatever this phone had.
+        assertEquals(VibrationLevel.OFF, take("haptics" to "false"))
+        assertEquals(VibrationLevel.ALL, take("haptics" to "true"))
+        // The switch with its level, as the two-row screen wrote them.
+        assertEquals(VibrationLevel.OFF, take("haptics" to "false", "vibration" to "OFF"))
+        assertEquals(VibrationLevel.ESSENTIALS, take("haptics" to "true", "vibration" to "ESSENTIALS", mine = AppPrefs(vibration = VibrationLevel.OFF)))
+        assertEquals(VibrationLevel.ALL, take("haptics" to "true", "vibration" to "ALL"))
+        // A file that says nothing about vibration keeps this phone's choice.
+        assertEquals(VibrationLevel.ESSENTIALS, take("theme" to "DARK"))
+    }
 }

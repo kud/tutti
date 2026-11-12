@@ -63,8 +63,12 @@ internal object SyncGroups {
         var dock = raw.dock
 
         (incoming[PREFERENCES] as? JsonObject)?.let { synced ->
-            // A key the other phone doesn't know (an older tutti) keeps this phone's value.
-            val next = JsonObject(prefs + synced.filterKeys { it !in LOCAL_PREFS })
+            // A key the other phone doesn't know (an older tutti) keeps this phone's value, except
+            // the vibration level: a file from before it carries only the old switch, and this
+            // phone's level would then outrank it (Off · Essentials · Everything is one choice
+            // since 2026-11-12, read from both through `AppPrefs.vibrationLevel`).
+            val base = if ("haptics" in synced && "vibration" !in synced) JsonObject(prefs - "vibration") else prefs
+            val next = JsonObject(base + synced.filterKeys { it !in LOCAL_PREFS })
             if (decodes(next, AppPrefs.serializer(), StoreJson)) {
                 prefs = next
                 prefsChanged = true
