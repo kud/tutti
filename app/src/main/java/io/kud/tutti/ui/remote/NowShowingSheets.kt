@@ -145,6 +145,10 @@ internal fun PlaybackSheet(
     appShortcuts: (@Composable () -> Unit)? = null,
     /** Share, and the optional Trakt and JustWatch searches ([WatchShareChips]), last in the sheet. */
     watchChips: (@Composable () -> Unit)? = null,
+    /** The Speed chip ([SpeedChip]), beside Captions and Audio track, given the Cast item shown. */
+    speedChip: (@Composable (io.kud.tutti.protocol.cast.CastNowPlaying?) -> Unit)? = null,
+    /** Its picker ([SpeedPicker]), under the chips. */
+    speedPicker: (@Composable (io.kud.tutti.protocol.cast.CastNowPlaying?) -> Unit)? = null,
 ) {
     val shownCast = cast?.takeIf { castFits(showing) }
     TuttiSheet(onDismissRequest = onDismiss) {
@@ -191,7 +195,9 @@ internal fun PlaybackSheet(
                 // de son ici ? »): Voice and Night live in the Sound sheet.
                 PlaybackChipRow(Modifier.fillMaxWidth()) {
                     for (code in PLAYBACK_TRACKS) KeyChip(code, downReason, onKey)
+                    speedChip?.invoke(shownCast)
                 }
+                speedPicker?.invoke(shownCast)
                 // A timeline when Cast gives a trusted time, else the jog wheel (Erwann, 2026-10-28).
                 // Fade through on a switch, never every second: the key is the kind, not the time.
                 onScrub?.let { send ->

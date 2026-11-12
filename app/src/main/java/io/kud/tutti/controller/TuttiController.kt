@@ -428,6 +428,12 @@ class TuttiController @Inject constructor(
      */
     val castNowPlaying: StateFlow<io.kud.tutti.protocol.cast.CastNowPlaying?> get() = castWatcher.nowPlaying
 
+    /** Receiver apps that said no to a playback rate this run: the Speed chip hides for them. */
+    val castSpeedRefused: StateFlow<Set<String>> get() = castWatcher.speedRefused
+
+    /** Asks the Cast app in front to play at [rate] (the Playback sheet's Speed picker). */
+    suspend fun setCastSpeed(rate: Double): io.kud.tutti.protocol.cast.CastSpeedResult = castWatcher.setSpeed(rate)
+
     /** Set while the keyboard mirror field has focus: printable hardware keys stay in the field. */
     @Volatile var typing: Boolean = false
 

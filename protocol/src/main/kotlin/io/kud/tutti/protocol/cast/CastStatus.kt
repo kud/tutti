@@ -37,6 +37,10 @@ data class CastNowPlaying(
      * status names none on an allowed host. Viewing data like the title: never logged.
      */
     val imageUrl: String? = null,
+    /** Whether the app says it takes a playback rate ([CastSpeed.support]). */
+    val rateSupport: CastRateSupport = CastRateSupport.UNKNOWN,
+    /** The receiver app's id (an app, not a title): the speed picker remembers refusals per app. */
+    val appId: String? = null,
 ) {
     /**
      * Whether the reading itself holds together: a position, inside the duration when there is
@@ -302,6 +306,7 @@ class CastStatusReducer {
                 playbackRate = entry.number("playbackRate")?.takeIf { it > 0 } ?: 1.0,
                 readAtMillis = nowMillis,
                 imageUrl = snapshot.imageUrl,
+                rateSupport = CastSpeed.support(entry.long("supportedMediaCommands")),
             ),
             sessionId,
         )

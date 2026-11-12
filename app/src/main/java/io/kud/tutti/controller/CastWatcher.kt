@@ -10,6 +10,8 @@ import io.kud.tutti.protocol.cast.CastNowPlaying
 import io.kud.tutti.protocol.cast.CastReading
 import io.kud.tutti.protocol.cast.CastReport
 import io.kud.tutti.protocol.cast.CastSession
+import io.kud.tutti.protocol.cast.CastSpeed
+import io.kud.tutti.protocol.cast.CastSpeedResult
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -22,6 +24,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
@@ -62,15 +65,35 @@ class CastWatcher(
     /** Time to ready of a session, ms: from the connect to its first status read (device auth passed). */
     private val onReady: (Long) -> Unit = {},
     /** The raw numbers of each media status, for the diagnostic; never a title. */
-    onReading: (CastReading) -> Unit = {},
+    private val onReading: (CastReading) -> Unit = {},
     /** What the other planes say about the TV ([CastHold.onContext]). */
     context: Flow<CastContext> = emptyFlow(),
     /** Lines for developer mode's event log ([CastLogLines]): states and packages, never viewing data. */
     private val event: (String) -> Unit = {},
-    private val runSession: suspend (CastConnection, (CastReport) -> Unit) -> CastEnd = { connection, emit ->
-        CastSession(connection, emit, onReading = onReading, onEvent = event).run()
-    },
+    /** Tests replace the session; null runs a real [CastSession], which [setSpeed] can then reach. */
+    private val runSession: (suspend (CastConnection, (CastReport) -> Unit) -> CastEnd)? = null,
 ) {
+    /** The session running now, for the one command tutti sends: a picked playback rate. */
+    @Volatile private var live: CastSession? = null
+
+    private val refused = MutableStateFlow<Set<String>>(emptySet())
+
+    /**
+     * Receiver app ids that refused or ignored a playback rate since tutti started: the Speed
+     * chip stays hidden for them (it asked once and the app said no; asking again won't change it).
+     */
+    val speedRefused: StateFlow<Set<String>> = refused.asStateFlow()
+
+    /** Asks the app in front for [rate], logs how it went (app and package, never a title), and remembers a refusal. */
+    suspend fun setSpeed(rate: Double): CastSpeedResult {
+        val session = live ?: return CastSpeedResult.NoSession.also { event(CastSpeed.logLine(null, lastForeground, rate, it)) }
+        val appId = session.appId
+        val result = session.setPlaybackRate(rate)
+        event(CastSpeed.logLine(appId, lastForeground, rate, result))
+        if (appId != null && result !is CastSpeedResult.Accepted && result !is CastSpeedResult.NoSession) refused.update { it + appId }
+        return result
+    }
+
     private val mutable = MutableStateFlow<CastNowPlaying?>(null)
     val nowPlaying: StateFlow<CastNowPlaying?> = mutable.asStateFlow()
 
@@ -139,13 +162,22 @@ class CastWatcher(
                 val connection = connector.connect(host)
                 try {
                     var reported = false
-                    runSession(connection) {
+                    val emit: (CastReport) -> Unit = {
                         if (!reported) {
                             reported = true
                             onReady(clock() - started)
                             event(CastLogLines.ready(clock() - started))
                         }
                         fold { onReport(it, clock()) }
+                    }
+                    runSession?.invoke(connection, emit) ?: run {
+                        val session = CastSession(connection, emit, onReading = onReading, onEvent = event)
+                        live = session
+                        try {
+                            session.run()
+                        } finally {
+                            if (live === session) live = null
+                        }
                     }
                 } finally {
                     connection.close()

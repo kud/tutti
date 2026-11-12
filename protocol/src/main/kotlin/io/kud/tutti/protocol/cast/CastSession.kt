@@ -3,11 +3,13 @@ package io.kud.tutti.protocol.cast
 import io.kud.tutti.protocol.cast.proto.CastMessage
 import io.kud.tutti.protocol.net.Connection
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withTimeoutOrNull
 import java.security.SecureRandom
 import java.security.cert.X509Certificate
 
@@ -39,8 +41,9 @@ sealed interface CastEnd {
 }
 
 /**
- * One read-only Cast session: device auth, then receiver status, then the media status of
- * the app in front, through its transportId. It never sends a media command. Updates go to
+ * One Cast session: device auth, then receiver status, then the media status of the app in
+ * front, through its transportId. The one media command it sends is a playback rate the user
+ * picked ([setPlaybackRate], 2026-11-12); nothing else, and never on its own. Updates go to
  * [onReport]: [CastReport.Playing] with an item, [CastReport.Stopped] when the receiver confirms
  * it is over, and [CastReport.Unknown] for silence (connecting, a closed transport, an empty
  * status, the session's end), which [CastHold] rides out rather than showing nothing at once.
@@ -74,6 +77,41 @@ class CastSession(
 
     /** Whether "asking the receiver again" is already in the log since the last app change. */
     @Volatile private var askLogged = false
+
+    /** The media session the app in front last reported: what a media command has to name. */
+    @Volatile private var mediaSessionId: Long? = null
+
+    private class Pending(val requestId: Int, val rate: Double, val answer: CompletableDeferred<CastSpeedResult>)
+
+    @Volatile private var pending: Pending? = null
+
+    /** The receiver app in front, for the speed log and per-app memory. */
+    val appId: String? get() = app?.appId
+
+    /**
+     * Asks the app in front to play at [rate], naming the media session its last status gave, and
+     * waits up to [CastSpeed.ANSWER_MS] for the reply ([CastSpeed.classify]). One request at a time:
+     * a new one supersedes an unanswered one, which reads as [CastSpeedResult.NoAnswer].
+     */
+    suspend fun setPlaybackRate(rate: Double): CastSpeedResult {
+        val target = app ?: return CastSpeedResult.NoSession
+        val session = mediaSessionId ?: return CastSpeedResult.NoSession
+        if (!verified) return CastSpeedResult.NoSession
+        val id = requestId.incrementAndGet()
+        val ask = Pending(id, rate, CompletableDeferred())
+        pending?.answer?.complete(CastSpeedResult.NoAnswer)
+        pending = ask
+        return try {
+            send(text(target.transportId, CastNamespaces.MEDIA, CastSpeed.request(session, id, rate)))
+            withTimeoutOrNull(CastSpeed.ANSWER_MS) { ask.answer.await() } ?: CastSpeedResult.NoAnswer
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            CastSpeedResult.NoAnswer
+        } finally {
+            if (pending === ask) pending = null
+        }
+    }
 
     /** Runs until the connection ends; the caller closes it on cancellation. */
     suspend fun run(): CastEnd = coroutineScope {
@@ -155,8 +193,11 @@ class CastSession(
                 send(text(m.source_id, CastNamespaces.HEARTBEAT, """{"type":"PONG"}"""))
             }
             CastNamespaces.RECEIVER -> if (CastStatusParser.type(payload) == "RECEIVER_STATUS") onReceiverStatus(payload)
-            CastNamespaces.MEDIA -> if (CastStatusParser.type(payload) == "MEDIA_STATUS" && m.source_id == app?.transportId) {
-                val report = reducer.report(payload, clock())
+            CastNamespaces.MEDIA -> if (m.source_id == app?.transportId) {
+                pending?.let { ask -> CastSpeed.classify(payload, ask.requestId, ask.rate)?.let(ask.answer::complete) }
+                if (CastStatusParser.type(payload) != "MEDIA_STATUS") return null
+                CastSpeed.mediaSessionId(payload)?.let { mediaSessionId = it }
+                val report = reducer.report(payload, clock()).withApp(app?.appId)
                 reducer.lastReading?.let(onReading)
                 val line = CastLogLines.media(reducer.lastReading, reducer.lastHadTitle, report)
                 if (line != lastMediaLine) {
@@ -171,6 +212,7 @@ class CastSession(
             CastNamespaces.CONNECTION -> if (CastStatusParser.type(payload) == "CLOSE" && m.source_id == app?.transportId) {
                 onEvent(CastLogLines.transportClosed(app))
                 app = null
+                mediaSessionId = null
                 lastMediaLine = null
                 reducer.reset()
                 lastReport = CastReport.Unknown
@@ -190,6 +232,7 @@ class CastSession(
         if (next?.transportId == current?.transportId) return
         onEvent(CastLogLines.app(current, next))
         app = next
+        mediaSessionId = null
         lastMediaLine = null
         askLogged = false
         reducer.reset()
@@ -205,6 +248,9 @@ class CastSession(
             mediaStatus(next)
         }
     }
+
+    private fun CastReport.withApp(appId: String?): CastReport =
+        if (this is CastReport.Playing) CastReport.Playing(nowPlaying.copy(appId = appId)) else this
 
     private suspend fun receiverStatus() {
         send(text(RECEIVER, CastNamespaces.RECEIVER, """{"type":"GET_STATUS","requestId":${requestId.incrementAndGet()}}"""))
