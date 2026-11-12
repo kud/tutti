@@ -8,7 +8,7 @@ package io.kud.tutti.ui.settings
  */
 enum class SettingsCategory {
     DISPLAY, FEEDBACK, VOLUME, LOCK_SCREEN,
-    LAYOUT, LONG_PRESS, APPS, TITLE_LINKS,
+    LAYOUT, LONG_PRESS, APPS, THIRD_PARTY,
     DEVICES, TV, SOUNDBAR, UNLOCK,
     SYNC, BACKUP,
     ADVANCED, ABOUT,
@@ -26,12 +26,11 @@ internal object SettingsMenu {
 
     /**
      * Each header and its rows, in order. A page added later joins its header here and gets its
-     * own file (Title links is [TitleLinksPage], so a "Third-party services" page can take its
-     * place under The remote without touching the rest).
+     * own file (Third-party services is [ThirdPartyPage], which took Title links' place).
      */
     val sections: List<Pair<SettingsSection, List<SettingsCategory>>> = listOf(
         SettingsSection.EVERYDAY to listOf(SettingsCategory.DISPLAY, SettingsCategory.FEEDBACK, SettingsCategory.VOLUME, SettingsCategory.LOCK_SCREEN),
-        SettingsSection.REMOTE to listOf(SettingsCategory.LAYOUT, SettingsCategory.LONG_PRESS, SettingsCategory.APPS, SettingsCategory.TITLE_LINKS),
+        SettingsSection.REMOTE to listOf(SettingsCategory.LAYOUT, SettingsCategory.LONG_PRESS, SettingsCategory.APPS, SettingsCategory.THIRD_PARTY),
         SettingsSection.DEVICES to listOf(SettingsCategory.DEVICES, SettingsCategory.TV, SettingsCategory.SOUNDBAR, SettingsCategory.UNLOCK),
         SettingsSection.SYNC to listOf(SettingsCategory.SYNC, SettingsCategory.BACKUP),
         SettingsSection.TUTTI to listOf(SettingsCategory.ADVANCED, SettingsCategory.ABOUT),
@@ -51,4 +50,10 @@ internal object SettingsMenu {
      * dropped without a word.
      */
     val retired: Set<String> = setOf("REMOTE")
+
+    /**
+     * Pages whose key changed, to the page that took their place: Title links became Third-party
+     * services (2026-11-12) with its three switches, so a back stack holding it lands there.
+     */
+    val renamed: Map<String, SettingsCategory> = mapOf("TITLE_LINKS" to SettingsCategory.THIRD_PARTY)
 }

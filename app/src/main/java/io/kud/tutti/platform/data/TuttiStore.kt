@@ -47,7 +47,7 @@ class TuttiStore @Inject constructor(
 
     /** The TV and the bar as the rest of the app reads them: a view of [deviceList]. */
     val devices: Flow<Devices> = deviceList.map(DeviceViews::legacy).distinctUntilChanged()
-    val prefs: Flow<AppPrefs> = field(PREFS, AppPrefs.serializer(), StoreJson) { AppPrefs() }
+    val prefs: Flow<AppPrefs> = field(PREFS, StoredPrefs, StoreJson) { AppPrefs() }
     /** The dock, with the round row he had joined in once (2026-10-29; [DockConfig.normalised]). */
     val dock: Flow<DockConfig> = field(DOCK, DockConfig.serializer(), StoreJson) { DockConfig() }
         .combine(prefs.map { it.layout }) { dock, layout -> dock.normalised(layout) }
@@ -91,7 +91,7 @@ class TuttiStore @Inject constructor(
         // order the hand draws the row ([DockConfig.normalised]), so swapping the pad's side flipped
         // the dock (Erwann, 2026-10-30). Writing it once, as it stands, fixes it before the hand moves.
         updateDock { it }
-        update(PREFS, AppPrefs.serializer(), StoreJson, AppPrefs(), transform)
+        update(PREFS, StoredPrefs, StoreJson, AppPrefs(), transform)
     }
 
     suspend fun updateDock(transform: (DockConfig) -> DockConfig) {

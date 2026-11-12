@@ -173,7 +173,7 @@ fun SettingsPageScreen(
             }
             SettingsCategory.LONG_PRESS -> LongPressPage(state, controller)
             SettingsCategory.APPS -> AppsPage(state, controller)
-            SettingsCategory.TITLE_LINKS -> TitleLinksPage(state, controller)
+            SettingsCategory.THIRD_PARTY -> ThirdPartyPage(state, controller)
             SettingsCategory.DEVICES -> DevicesPage(state, controller, onPair, onAddBar, hid)
             SettingsCategory.SYNC -> SyncPage()
             SettingsCategory.BACKUP -> BackupPage(state, controller)
@@ -228,7 +228,7 @@ private fun categoryTitle(category: SettingsCategory): String = stringResource(
         SettingsCategory.LAYOUT -> R.string.layout_entry
         SettingsCategory.LONG_PRESS -> R.string.settings_long_presses
         SettingsCategory.APPS -> R.string.settings_apps
-        SettingsCategory.TITLE_LINKS -> R.string.settings_title_links
+        SettingsCategory.THIRD_PARTY -> R.string.settings_free_services
         SettingsCategory.DEVICES -> R.string.settings_devices
         SettingsCategory.TV -> R.string.settings_tv
         SettingsCategory.SOUNDBAR -> R.string.settings_bar
@@ -249,7 +249,7 @@ private fun categoryIcon(category: SettingsCategory): Int = when (category) {
     SettingsCategory.LAYOUT -> R.drawable.ic_edit
     SettingsCategory.LONG_PRESS -> R.drawable.ic_dpad
     SettingsCategory.APPS -> R.drawable.ic_apps
-    SettingsCategory.TITLE_LINKS -> R.drawable.ic_open_in_new
+    SettingsCategory.THIRD_PARTY -> R.drawable.ic_open_in_new
     SettingsCategory.DEVICES -> R.drawable.ic_laptop
     SettingsCategory.TV -> R.drawable.ic_tv
     SettingsCategory.SOUNDBAR -> R.drawable.ic_speaker
@@ -274,7 +274,7 @@ private fun categoryDescription(category: SettingsCategory): String = when (cate
             SettingsCategory.LAYOUT -> R.string.settings_desc_layout
             SettingsCategory.LONG_PRESS -> R.string.settings_desc_long_presses
             SettingsCategory.APPS -> R.string.settings_desc_apps
-            SettingsCategory.TITLE_LINKS -> R.string.settings_desc_title_links
+            SettingsCategory.THIRD_PARTY -> R.string.settings_desc_third_party
             SettingsCategory.DEVICES -> R.string.settings_desc_devices
             SettingsCategory.TV -> R.string.settings_desc_tv
             SettingsCategory.SOUNDBAR -> R.string.settings_desc_bar

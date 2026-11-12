@@ -279,7 +279,7 @@
     <string name="settings_desc_layout">Dock, bande de scènes et côté du pavé, sur la télécommande</string>
     <string name="settings_desc_long_presses">Ce que fait un appui long sur Accueil, Retour, Lecture ou Entrée</string>
     <string name="settings_desc_apps">Les apps affichées, et où chacune s’ouvre</string>
-    <string name="settings_desc_title_links">Des boutons pour chercher ce qui passe</string>
+    <string name="settings_desc_third_party">Images, détails et boutons d’autres services</string>
     <string name="settings_desc_backup">Tous vos réglages dans un fichier, et retour</string>
     <string name="settings_apps_none">Pas encore d’apps. Dès que tutti joint la TV, elles apparaissent ici.</string>
     <string name="settings_app_hidden">Masquée</string>

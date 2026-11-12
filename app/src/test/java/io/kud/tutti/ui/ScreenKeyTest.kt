@@ -46,6 +46,13 @@ class ScreenKeyTest {
         // Remote & dock split four ways: it lands on the list, once.
         assertEquals(Screen.Settings, ScreenKey.screen("settings:REMOTE"))
         assertEquals(listOf(Screen.Remote, Screen.Settings), ScreenKey.stack(listOf("remote", "settings", "settings:REMOTE")))
+        // Title links became Third-party services (2026-11-12): its key opens the page that took its row.
+        assertEquals(Screen.SettingsPage(SettingsCategory.THIRD_PARTY), ScreenKey.screen("settings:TITLE_LINKS"))
+        assertEquals(
+            listOf(Screen.Remote, Screen.Settings, Screen.SettingsPage(SettingsCategory.THIRD_PARTY)),
+            ScreenKey.stack(listOf("remote", "settings", "settings:TITLE_LINKS")),
+        )
+        assertEquals("settings:THIRD_PARTY", ScreenKey.of(Screen.SettingsPage(SettingsCategory.THIRD_PARTY)))
         // The developer step left What tutti can do: its key opens the list, unfocused.
         assertEquals(Screen.Unlock(null), ScreenKey.screen("unlock:DEVELOPER"))
     }

@@ -38,6 +38,7 @@ class SyncedPrefsGuardTest {
         val mine = AppPrefs(
             traktLink = true,
             justWatchLink = true,
+            imdbLink = true,
             titleDetails = true,
             titleDetailsOfferDeclined = true,
             castArtwork = true,
@@ -48,10 +49,10 @@ class SyncedPrefsGuardTest {
             SyncGroups.apply(raw(AppPrefs()), SyncGroups.read(raw(mine))).prefs!!,
         )
         assertTrue(other.traktLink && other.justWatchLink && other.titleDetails && other.titleDetailsOfferDeclined)
-        assertTrue(other.castArtwork && other.onlyFreeServices)
+        assertTrue(other.castArtwork && other.onlyFreeServices && other.imdbLink)
         // And back off again: an off travels like an on.
         val back = StoreJson.decodeFromString(AppPrefs.serializer(), SyncGroups.apply(raw(other), SyncGroups.read(raw(AppPrefs()))).prefs!!)
-        assertFalse(back.titleDetails || back.castArtwork || back.onlyFreeServices || back.traktLink)
+        assertFalse(back.titleDetails || back.castArtwork || back.onlyFreeServices || back.traktLink || back.imdbLink)
     }
 
     @Test
@@ -70,7 +71,7 @@ class SyncedPrefsGuardTest {
         val fresh = AppPrefs()
         assertFalse(fresh.onlyFreeServices)
         for (feature in NonFreeFeature.entries) assertFalse(feature.name, fresh.allows(feature))
-        val all = AppPrefs(traktLink = true, justWatchLink = true, titleDetails = true, castArtwork = true)
+        val all = AppPrefs(traktLink = true, justWatchLink = true, imdbLink = true, titleDetails = true, castArtwork = true)
         for (feature in NonFreeFeature.entries) assertTrue(feature.name, all.allows(feature))
         val strict = all.copy(onlyFreeServices = true)
         for (feature in NonFreeFeature.entries) assertFalse(feature.name, strict.allows(feature))
@@ -78,11 +79,42 @@ class SyncedPrefsGuardTest {
     }
 
     @Test
-    fun `prefs stored before these switches read them all off`() {
+    fun `prefs stored before these switches read them off, but Cast artwork stays as it was`() {
         val before = """{"theme":"DARK","traktLink":true,"eveningDim":true,"onboarded":true}"""
-        val p = StoreJson.decodeFromString(AppPrefs.serializer(), before)
+        val p = StoreJson.decodeFromString(StoredPrefs, before)
         assertTrue(p.traktLink && p.eveningDim && p.onboarded)
         assertEquals(ThemeMode.DARK, p.theme)
-        assertFalse(p.titleDetails || p.titleDetailsOfferDeclined || p.castArtwork || p.onlyFreeServices)
+        assertFalse(p.titleDetails || p.titleDetailsOfferDeclined || p.onlyFreeServices || p.imdbLink)
+        // It was on unconditionally before its switch: an install that set up keeps it.
+        assertTrue(p.castArtwork)
+    }
+
+    @Test
+    fun `the picture's rules and app destinations travel too`() {
+        val follow = io.kud.tutti.protocol.picture.PictureFollowConfig(enabled = true, apps = mapOf("com.example.films" to "cinema"))
+        val mine = AppPrefs(pictureFollow = follow, appDestinations = mapOf("com.example.films" to "example://subscriptions"))
+        val other = StoreJson.decodeFromString(StoredPrefs, SyncGroups.apply(raw(AppPrefs()), SyncGroups.read(raw(mine))).prefs!!)
+        assertEquals(follow, other.pictureFollow)
+        assertEquals(mine.appDestinations, other.appDestinations)
+    }
+
+    @Test
+    fun `a backup file carries every synced preference, the new switches included`() {
+        val mine = AppPrefs(
+            imdbLink = true,
+            traktLink = true,
+            titleDetails = true,
+            castArtwork = true,
+            onlyFreeServices = true,
+            pictureFollow = io.kud.tutti.protocol.picture.PictureFollowConfig(enabled = true),
+        )
+        val file = SettingsBackup.export(raw(mine), writtenBy = "Example phone", at = 1L)
+        val read = SettingsBackup.read(file) as SettingsBackup.Read.Ok
+        val restored = StoreJson.decodeFromString(StoredPrefs, SyncGroups.apply(raw(AppPrefs()), read.groups).prefs!!)
+        assertTrue(restored.imdbLink && restored.traktLink && restored.titleDetails && restored.castArtwork && restored.onlyFreeServices)
+        assertTrue(restored.pictureFollow.enabled)
+        // Every field the guard says is synced is in the file.
+        val inFile = (read.groups.getValue(SyncGroups.PREFERENCES) as JsonObject).keys
+        for (field in fields - SyncGroups.LOCAL_PREFS.keys) assertTrue("$field is missing from the backup", field in inFile)
     }
 }

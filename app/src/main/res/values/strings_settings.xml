@@ -276,7 +276,7 @@
     <string name="settings_desc_layout">Dock, scenes strip and pad side, on the remote itself</string>
     <string name="settings_desc_long_presses">What holding Home, Back, Play or Input does</string>
     <string name="settings_desc_apps">Which apps show, and where each one opens</string>
-    <string name="settings_desc_title_links">Buttons that look up what’s playing</string>
+    <string name="settings_desc_third_party">Artwork, details and buttons from other services</string>
     <string name="settings_desc_backup">All your settings in a file, and back</string>
     <string name="settings_apps_none">No apps yet. Once tutti reaches the TV, they appear here.</string>
     <string name="settings_app_hidden">Hidden</string>

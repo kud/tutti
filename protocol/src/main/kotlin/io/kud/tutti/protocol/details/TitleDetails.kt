@@ -36,16 +36,10 @@ object Cinemeta {
     const val MAX_BYTES = 2 * 1024 * 1024
 
     /**
-     * `https://images.metahub.space/<kind>/<size>/<imdb id>/img`, exactly: the shape Cinemeta's metas
-     * name (CastArtwork's doc). Anything looser is not evidence of an id.
+     * The IMDb id a Cinemeta artwork URL embeds, or null when the URL is not exactly that shape:
+     * [CastArtwork.imdbId], the one metahub parser, which the IMDb title link reads too.
      */
-    private val METAHUB = Regex("""^https://images\.metahub\.space/(?:poster|background|logo)/(?:small|medium|large)/(tt\d{5,10})/img$""")
-
-    /** The IMDb id a Cinemeta artwork URL embeds, or null when the URL is not exactly that shape. */
-    fun idFrom(artworkUrl: String?): String? {
-        if (artworkUrl == null || !CastArtwork.isAllowed(artworkUrl)) return null
-        return METAHUB.matchEntire(artworkUrl.trim())?.groupValues?.get(1)
-    }
+    fun idFrom(artworkUrl: String?): String? = CastArtwork.imdbId(artworkUrl)
 
     /**
      * Which catalogues to ask, in order. An episode line in the Cast secondary means a series (and

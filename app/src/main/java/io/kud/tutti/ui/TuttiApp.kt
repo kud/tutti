@@ -149,6 +149,9 @@ internal object ScreenKey {
         key == "settings" -> Screen.Settings
         // A retired page (Remote & dock) lands on the list it was opened from.
         key.removePrefix("settings:") in SettingsMenu.retired -> Screen.Settings
+        // A renamed page (Title links) opens the page that took its place.
+        key.startsWith("settings:") && key.removePrefix("settings:") in SettingsMenu.renamed ->
+            Screen.SettingsPage(SettingsMenu.renamed.getValue(key.removePrefix("settings:")))
         key.startsWith("settings:") -> SettingsMenu.pages.firstOrNull { it.name == key.removePrefix("settings:") }?.let { Screen.SettingsPage(it) }
         key == "tv-settings" -> Screen.TvSettings
         key.startsWith("tv-settings:") -> TvPage.entries.firstOrNull { it.name == key.removePrefix("tv-settings:") }?.let { Screen.TvSettingsPage(it) }

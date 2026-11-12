@@ -5,6 +5,11 @@ import io.kud.tutti.protocol.privacy.NonFreeFeature
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.JsonTransformingSerializer
+import kotlinx.serialization.json.booleanOrNull
 
 @Serializable
 data class TvDevice(
@@ -99,8 +104,9 @@ data class AppPrefs(
     val titleDetailsOfferDeclined: Boolean = false,
     /**
      * Cast artwork from YouTube's, Google's, TMDB's or Stremio's image hosts (`CastArtwork.HOSTS`).
-     * Off by default since 2026-11-12 (Erwann: every non-free service is opt-in); the app's icon
-     * stands in, as it always did when there was no picture.
+     * Off by default for a new install since 2026-11-12 (Erwann: every non-free service is opt-in);
+     * the app's icon stands in, as it always did when there was no picture. An install that set up
+     * before the switch existed had it on unconditionally and keeps it on ([StoredPrefs]).
      */
     val castArtwork: Boolean = false,
     /**
@@ -124,6 +130,7 @@ data class AppPrefs(
         NonFreeFeature.TITLE_DETAILS -> titleDetails
         NonFreeFeature.TRAKT_LINK -> traktLink
         NonFreeFeature.JUSTWATCH_LINK -> justWatchLink
+        NonFreeFeature.IMDB_LINK -> imdbLink
     }
 
     /** The one gate every non-free feature asks (`FreeServices.allows`): its switch on, the master off. */
@@ -568,6 +575,24 @@ data class DockConfig(
             val pins = slots.filter { it.isSet }
             return if (pins.size <= ROW) keys + List(ROW - keys.size) { DockSlot() } + pins else keys + pins
         }
+    }
+}
+
+/**
+ * [AppPrefs] as the store and settings sync read and write it: the generated serializer plus the
+ * upgrades a plain default can't express, because they depend on what else is stored. Every read of
+ * the stored `prefs` goes through this, never through `AppPrefs.serializer()` alone.
+ *
+ * - `castArtwork` (2026-11-12, conductor's call for Erwann, who keeps asking for more metadata): the
+ *   artwork was on unconditionally before the switch, so prefs stored by an install that finished
+ *   setup (`onboarded`) and never wrote the field read it on. A fresh install reads the default, off,
+ *   and from then on the field is always written (`encodeDefaults`), so the rule never fires twice.
+ */
+internal object StoredPrefs : JsonTransformingSerializer<AppPrefs>(AppPrefs.serializer()) {
+    override fun transformDeserialize(element: JsonElement): JsonElement {
+        val stored = element as? JsonObject ?: return element
+        val onboarded = (stored["onboarded"] as? JsonPrimitive)?.booleanOrNull == true
+        return if (onboarded && "castArtwork" !in stored) JsonObject(stored + ("castArtwork" to JsonPrimitive(true))) else stored
     }
 }
 

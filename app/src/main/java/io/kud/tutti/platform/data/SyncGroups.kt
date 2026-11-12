@@ -78,7 +78,7 @@ internal object SyncGroups {
             // since 2026-11-12, read from both through `AppPrefs.vibrationLevel`).
             val base = if ("haptics" in synced && "vibration" !in synced) JsonObject(prefs - "vibration") else prefs
             val next = JsonObject(base + synced.filterKeys { it !in LOCAL_PREFS })
-            if (decodes(next, AppPrefs.serializer(), StoreJson)) {
+            if (decodes(next, StoredPrefs, StoreJson)) {
                 prefs = next
                 prefsChanged = true
             }
@@ -103,7 +103,7 @@ internal object SyncGroups {
                 ?.let { SceneJson.encodeToString(profilesSerializer, it) }
         } ?: raw.profiles
         val prefsText = if (prefsChanged) {
-            StoreJson.encodeToString(AppPrefs.serializer(), StoreJson.decodeFromJsonElement(AppPrefs.serializer(), prefs).safeDestinations())
+            StoreJson.encodeToString(StoredPrefs, StoreJson.decodeFromJsonElement(StoredPrefs, prefs).safeDestinations())
         } else {
             raw.prefs
         }
@@ -111,8 +111,8 @@ internal object SyncGroups {
     }
 
     private fun prefsObject(text: String?): JsonObject {
-        val prefs = decode(text, AppPrefs.serializer(), StoreJson) ?: AppPrefs()
-        return StoreJson.encodeToJsonElement(AppPrefs.serializer(), prefs).jsonObject
+        val prefs = decode(text, StoredPrefs, StoreJson) ?: AppPrefs()
+        return StoreJson.encodeToJsonElement(StoredPrefs, prefs).jsonObject
     }
 
     private fun <T> decode(text: String?, serializer: KSerializer<T>, json: Json): T? =

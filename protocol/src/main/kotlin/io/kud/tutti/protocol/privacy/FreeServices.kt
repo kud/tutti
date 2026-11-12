@@ -32,6 +32,9 @@ enum class NonFreeFeature(
 
     /** A JustWatch search for the title, opened in the browser. */
     JUSTWATCH_LINK("the title, in a JustWatch search link the person taps", tuttiConnects = false),
+
+    /** The title's IMDb page, opened in the browser or the IMDb app. */
+    IMDB_LINK("the IMDb id of what is playing, in an imdb.com link the person taps", tuttiConnects = false),
 }
 
 object FreeServices {
