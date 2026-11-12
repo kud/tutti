@@ -10,7 +10,6 @@ import io.kud.tutti.platform.data.AppPrefs
 import io.kud.tutti.platform.data.BarDevice
 import io.kud.tutti.platform.data.Devices
 import io.kud.tutti.platform.data.TvDevice
-import io.kud.tutti.protocol.grpc.CloudPlaneState
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -101,7 +100,7 @@ class UnlocksTest {
     }
 
     @Test
-    fun `developer mode and Sony sign-in never count towards the everyday summary`() {
+    fun `developer mode never counts towards the everyday summary`() {
         val all = TuttiUiState(
             devices = Devices(tv = tv.copy(mac = "00:00:00:00:00:00"), bar = bar),
             links = Links(tv = Link.ONLINE, rest = Link.ONLINE, bar = Link.ONLINE),
@@ -114,9 +113,7 @@ class UnlocksTest {
         assertNull(summary.next)
         assertTrue(canWakeFromOff(all))
         assertEquals(UnlockStatus.TODO, all.status(Unlock.DEVELOPER))
-        assertEquals(UnlockStatus.COMING, all.status(Unlock.SONY))
         assertEquals(UnlockStatus.DONE, all.copy(prefs = AppPrefs(developerMode = true)).status(Unlock.DEVELOPER))
-        assertEquals(UnlockStatus.DONE, all.copy(cloud = CloudPlaneState.Connected(sessionExpiresAtMillis = 0)).status(Unlock.SONY))
     }
 
     @Test

@@ -38,12 +38,6 @@
     <string name="settings_true_black_detail">Fond entièrement noir pour les écrans OLED</string>
     <string name="settings_evening_dim">Salle obscure</string>
     <string name="settings_evening_dim_detail">Dès 20 h, quand la TV est allumée, tutti assombrit son propre écran. Changer la luminosité le désactive pour la soirée.</string>
-    <string name="settings_sony">Sony</string>
-    <string name="settings_sony_connection">Connexion Sony (expérimental)</string>
-    <string name="settings_sony_unavailable">Non disponible</string>
-    <string name="settings_sony_disabled">Désactivée</string>
-    <string name="settings_sony_signed_out">Déconnectée</string>
-    <string name="settings_sony_explain">Le canal cloud de Sony n’est pas assez documenté pour être implémenté sans deviner. Les commandes locales n’en dépendent pas.</string>
     <string name="settings_bravia_connect">BRAVIA Connect</string>
     <string name="settings_recalibrate_detail">Calibration, Acoustic Center Sync et placement des enceintes restent dans l’app de Sony.</string>
     <string name="link_absent">à configurer</string>

@@ -3,7 +3,6 @@ package io.kud.tutti.ui.settings
 import io.kud.tutti.controller.IpCodeStatus
 import io.kud.tutti.controller.Link
 import io.kud.tutti.controller.TuttiUiState
-import io.kud.tutti.protocol.grpc.CloudPlaneState
 
 /**
  * What tutti can do, and what unlocks more (Erwann, 2026-10-24: "assister l'utilisateur pour lui
@@ -26,17 +25,19 @@ enum class Unlock(val device: UnlockDevice, val optional: Boolean = false) {
 
     /** Developer mode: diagnostics, technical details, Copy details under errors. For the curious. */
     DEVELOPER(UnlockDevice.TUTTI, optional = true),
-
-    /** Sony sign-in for the cloud plane. Not built yet: shown as coming, with nothing to do. */
-    SONY(UnlockDevice.SONY, optional = true),
 }
 
-enum class UnlockDevice { TV, BAR, TUTTI, SONY }
+/*
+ * No Sony sign-in step: the cloud plane isn't built, and a step whose only content was "not in
+ * tutti yet, nothing to do" said what tutti can't do in a list of what to do. What tutti leaves to
+ * Sony is said once, in About (Erwann, 2026-11-11). It comes back as a real step when it can be done.
+ */
+enum class UnlockDevice { TV, BAR, TUTTI }
 
 /**
  * A step's state. Each one is drawn with its own glyph and word, never by colour alone
  * (Erwann is colourblind): done ✓, not yet ○, needs a look ⚠, checking ↻, waiting on an
- * earlier step 🔒, can't tell ?, coming ⏲.
+ * earlier step 🔒, can't tell ?.
  */
 enum class UnlockStatus {
     DONE,
@@ -51,7 +52,6 @@ enum class UnlockStatus {
 
     /** tutti can't read it from here; the steps say how to check on the TV. */
     UNKNOWN,
-    COMING,
     ;
 
     /** Settled and working: nothing to do. */
@@ -102,7 +102,6 @@ fun statusOf(step: Unlock, state: TuttiUiState): UnlockStatus {
             }
         }
         Unlock.DEVELOPER -> if (state.prefs.developerMode) UnlockStatus.DONE else UnlockStatus.TODO
-        Unlock.SONY -> if (state.cloud is CloudPlaneState.Connected) UnlockStatus.DONE else UnlockStatus.COMING
     }
 }
 
