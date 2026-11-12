@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="details_label">Détails</string>
+    <!-- La note est celle d'IMDb, relayée par Cinemeta : toujours dire à qui elle est. -->
+    <string name="details_imdb_rating">Note IMDb %1$s/10</string>
+    <string name="details_director">Réalisation : %1$s</string>
+    <string name="details_episode">Saison %1$d, épisode %2$d</string>
+    <string name="details_cast">Distribution</string>
+    <string name="settings_title_details">Détails du titre (Cinemeta)</string>
+    <string name="settings_title_details_detail">Dans Lecture, affiche le synopsis, la distribution et la note. Envoie l\'identifiant IMDb de ce qui passe à Cinemeta, le catalogue de Stremio</string>
+</resources>

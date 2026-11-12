@@ -1085,6 +1085,7 @@ fun RemoteScreen(
                     imdb = state.prefs.imdbLink,
                 )
             },
+            details = if (state.prefs.titleDetails) { playing -> TitleDetailsSection(playing) } else null,
             appShortcuts = {
                 val showing = liveCard?.takeIf(::cardOpensPlayback) ?: opened
                 val reason = controlLinkReason(state.controlLink(Owner.TV), Owner.TV, state)

@@ -3365,6 +3365,10 @@ class TuttiController @Inject constructor(
         scope.launch { store.updatePrefs { it.copy(imdbLink = enabled) } }
     }
 
+    fun setTitleDetails(enabled: Boolean) {
+        scope.launch { store.updatePrefs { it.copy(titleDetails = enabled) } }
+    }
+
     fun setPadMode(mode: PadMode) {
         scope.launch { store.updatePrefs { it.copy(padMode = mode) } }
     }
