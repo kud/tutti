@@ -512,6 +512,8 @@ class TuttiController @Inject constructor(
                 }
             }
         }
+        // The network edge's gate for third-party services follows the settings (NonFreeGate).
+        scope.launch { store.prefs.collect { io.kud.tutti.platform.net.NonFreeGate.update(it) } }
         scope.launch {
             // A cap for tonight ends on time, and is then forgotten.
             store.prefs.map { it.tonightCap }.distinctUntilChanged().collectLatest { cap ->
@@ -3277,6 +3279,19 @@ class TuttiController @Inject constructor(
 
     fun setTitleDetails(enabled: Boolean) {
         scope.launch { store.updatePrefs { it.copy(titleDetails = enabled) } }
+    }
+
+    /** The Details offer's "No thanks": gone for good, on every synced phone. */
+    fun declineTitleDetailsOffer() {
+        scope.launch { store.updatePrefs { it.copy(titleDetailsOfferDeclined = true) } }
+    }
+
+    fun setCastArtwork(enabled: Boolean) {
+        scope.launch { store.updatePrefs { it.copy(castArtwork = enabled) } }
+    }
+
+    fun setOnlyFreeServices(enabled: Boolean) {
+        scope.launch { store.updatePrefs { it.copy(onlyFreeServices = enabled) } }
     }
 
     fun setPadMode(mode: PadMode) {

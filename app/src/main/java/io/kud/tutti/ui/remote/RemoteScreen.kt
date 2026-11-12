@@ -1,5 +1,7 @@
 package io.kud.tutti.ui.remote
 
+import io.kud.tutti.protocol.privacy.FreeServices
+import io.kud.tutti.protocol.privacy.NonFreeFeature
 import io.kud.tutti.platform.data.RowButton
 import io.kud.tutti.sleep.SleepTimers
 import io.kud.tutti.sleep.gentleOffRow
@@ -1062,11 +1064,16 @@ fun RemoteScreen(
                 val showing = liveCard?.takeIf(::cardOpensPlayback) ?: opened
                 WatchShareChips(
                     watchingAt = { now -> watchingOf(showing, castNowPlaying, now) },
-                    trakt = state.prefs.traktLink,
-                    justWatch = state.prefs.justWatchLink,
+                    trakt = state.prefs.allows(NonFreeFeature.TRAKT_LINK),
+                    justWatch = state.prefs.allows(NonFreeFeature.JUSTWATCH_LINK),
                 )
             },
-            details = if (state.prefs.titleDetails) { playing -> TitleDetailsSection(playing) } else null,
+            details = when {
+                state.prefs.allows(NonFreeFeature.TITLE_DETAILS) -> { playing -> TitleDetailsSection(playing) }
+                FreeServices.offers(state.prefs.onlyFreeServices, state.prefs.titleDetails, state.prefs.titleDetailsOfferDeclined) ->
+                    { playing -> TitleDetailsOffer(playing, onEnable = { controller.setTitleDetails(true) }, onDecline = controller::declineTitleDetailsOffer) }
+                else -> null
+            },
             appShortcuts = {
                 val showing = liveCard?.takeIf(::cardOpensPlayback) ?: opened
                 val reason = controlLinkReason(state.controlLink(Owner.TV), Owner.TV, state)

@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -32,6 +33,7 @@ import io.kud.tutti.platform.net.CinemetaClient
 import io.kud.tutti.protocol.cast.CastNowPlaying
 import io.kud.tutti.protocol.details.Cinemeta
 import io.kud.tutti.protocol.details.TitleDetails
+import io.kud.tutti.protocol.privacy.NonFreeFeature
 
 /**
  * The playback sheet's "Details" (Erwann, 2026-11-12: « le plus de métadata quand je lis un film »),
@@ -48,6 +50,31 @@ internal fun TitleDetailsSection(cast: CastNowPlaying) {
     }
     val shown = details?.takeUnless { it.isEmpty } ?: return
     TitleDetailsBody(shown)
+}
+
+/**
+ * Where Details would help but is off (Erwann, 2026-11-12: « je veux vraiment être friendly avec les
+ * utilisateurs sur ce sujet »): one quiet line, only for a title Cinemeta could answer, saying what
+ * is sent and to whom, with Enable and No thanks of equal weight. Enable turns on Details alone;
+ * No thanks is for good. Never shown under "Only free services" (`FreeServices.offers`).
+ */
+@Composable
+internal fun TitleDetailsOffer(cast: CastNowPlaying, onEnable: () -> Unit, onDecline: () -> Unit) {
+    Cinemeta.requestFor(cast) ?: return
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text(stringResource(R.string.details_offer), style = MaterialTheme.typography.bodyMedium)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = onDecline, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.details_offer_decline)) }
+            OutlinedButton(onClick = onEnable, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.details_offer_enable)) }
+        }
+    }
 }
 
 @Composable
@@ -122,8 +149,8 @@ private fun factsLine(details: TitleDetails): String? =
 @Composable
 private fun Poster(url: String) {
     val widthPx = with(LocalDensity.current) { 72.dp.roundToPx() }
-    val art by produceState(CastArtworkLoader.cached(url), url, widthPx) {
-        value = CastArtworkLoader.load(url, widthPx)
+    val art by produceState(CastArtworkLoader.cached(url, NonFreeFeature.TITLE_DETAILS), url, widthPx) {
+        value = CastArtworkLoader.load(url, widthPx, NonFreeFeature.TITLE_DETAILS)
     }
     val bitmap = art ?: return
     Image(

@@ -8,4 +8,13 @@
     <string name="details_cast">Cast</string>
     <string name="settings_title_details">Title details (Cinemeta)</string>
     <string name="settings_title_details_detail">In Playback, shows the synopsis, cast and rating. Sends the IMDb id of what\'s playing to Cinemeta, Stremio\'s catalogue</string>
+    <string name="details_offer">Show the cast and synopsis here? This sends the IMDb id of what\'s playing to Cinemeta, Stremio\'s catalogue.</string>
+    <string name="details_offer_enable">Show details</string>
+    <string name="details_offer_decline">No thanks</string>
+    <string name="settings_free_services">Third-party services</string>
+    <string name="settings_only_free">Only free services</string>
+    <string name="settings_only_free_detail">Turns off everything below that reaches or opens a service that isn\'t free software or your own devices. Your TV and soundbar are never affected</string>
+    <string name="settings_only_free_reason">Off while Only free services is on</string>
+    <string name="settings_cast_artwork">Cast artwork</string>
+    <string name="settings_cast_artwork_detail">Shows the picture of what\'s playing. Fetches it from the image host the TV names: YouTube, Google, TMDB or Stremio</string>
 </resources>

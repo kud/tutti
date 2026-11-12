@@ -22,6 +22,9 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import io.kud.tutti.platform.net.CastArtworkLoader
+import io.kud.tutti.platform.net.NonFreeGate
+import io.kud.tutti.protocol.privacy.NonFreeFeature
+import androidx.compose.runtime.collectAsState
 import io.kud.tutti.protocol.cast.CastNowPlaying
 import io.kud.tutti.quick.notification.MediaArt
 import io.kud.tutti.ui.common.LocalReducedMotion
@@ -48,7 +51,9 @@ internal fun CastLead(
     cast: CastNowPlaying?,
     description: String? = null,
 ) {
-    val url = leadArtwork(showing, cast)
+    // Off unless "Cast artwork" is on and "Only free services" off; flipping it re-asks at once.
+    val artworkOn = NonFreeFeature.CAST_ARTWORK in NonFreeGate.allowed.collectAsState().value
+    val url = leadArtwork(showing, cast)?.takeIf { artworkOn }
     val widthPx = with(LocalDensity.current) { (size * MediaArt.WIDE_ASPECT).roundToPx() }
     val art by produceState(url?.let { CastArtworkLoader.cached(it) }, url, widthPx) {
         value = url?.let { CastArtworkLoader.load(it, widthPx) }

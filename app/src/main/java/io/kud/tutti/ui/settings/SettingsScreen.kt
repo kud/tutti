@@ -444,6 +444,29 @@ private fun RemotePage(state: TuttiUiState, controller: TuttiController, onEditL
         )
     }
 
+    // Every non-free service is opt-in, and one switch turns them all off (Erwann, 2026-11-12:
+    // « avoir un bouton qui permet de réactiver facilement, service libre uniquement »). The master
+    // leads, so it is found first and flipped back as easily; each row under it keeps its own value.
+    val onlyFree = state.prefs.onlyFreeServices
+    val freeReason = stringResource(R.string.settings_only_free_reason).takeIf { onlyFree }
+    SettingsGroup(stringResource(R.string.settings_free_services)) {
+        SwitchRow(
+            label = stringResource(R.string.settings_only_free),
+            supporting = stringResource(R.string.settings_only_free_detail),
+            checked = onlyFree,
+            onCheckedChange = controller::setOnlyFreeServices,
+            icon = R.drawable.ic_info,
+        )
+        SwitchRow(
+            label = stringResource(R.string.settings_cast_artwork),
+            supporting = stringResource(R.string.settings_cast_artwork_detail),
+            reason = freeReason,
+            checked = state.prefs.castArtwork,
+            onCheckedChange = controller::setCastArtwork,
+            icon = R.drawable.ic_movie,
+        )
+    }
+
     // Optional buttons in Playback that search the title playing (Erwann, 2026-11-11), each off
     // by default: « tout le monde n'a pas forcément Trakt ». Share needs no switch: it is always there.
     SettingsGroup(stringResource(R.string.settings_title_links)) {
@@ -451,6 +474,7 @@ private fun RemotePage(state: TuttiUiState, controller: TuttiController, onEditL
             label = stringResource(R.string.settings_trakt_link),
             supporting = stringResource(R.string.settings_trakt_link_detail),
             checked = state.prefs.traktLink,
+            reason = freeReason,
             onCheckedChange = controller::setTraktLink,
             icon = R.drawable.ic_open_in_new,
         )
@@ -458,6 +482,7 @@ private fun RemotePage(state: TuttiUiState, controller: TuttiController, onEditL
             label = stringResource(R.string.settings_justwatch_link),
             supporting = stringResource(R.string.settings_justwatch_link_detail),
             checked = state.prefs.justWatchLink,
+            reason = freeReason,
             onCheckedChange = controller::setJustWatchLink,
             icon = R.drawable.ic_open_in_new,
         )
@@ -466,6 +491,7 @@ private fun RemotePage(state: TuttiUiState, controller: TuttiController, onEditL
             label = stringResource(R.string.settings_title_details),
             supporting = stringResource(R.string.settings_title_details_detail),
             checked = state.prefs.titleDetails,
+            reason = freeReason,
             onCheckedChange = controller::setTitleDetails,
             icon = R.drawable.ic_info,
         )
