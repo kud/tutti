@@ -91,7 +91,7 @@ internal fun LayoutTransferRows(state: TuttiUiState, controller: TuttiController
                 LayoutRead.NotALayout -> messages?.show(notOurs, MessageKind.PROBLEM)
                 LayoutRead.TooLarge -> messages?.show(tooLarge, MessageKind.PROBLEM)
                 is LayoutRead.FromTheFuture -> messages?.show(future, MessageKind.PROBLEM)
-                is LayoutRead.Ok -> incoming = LayoutTransfer.import(result.file, result.skipped, state.prefs.layout, state.scenes.map { it.scene })
+                is LayoutRead.Ok -> incoming = LayoutTransfer.import(result.file, result.skipped, state.prefs.layout, state.scenes.map { it.scene }, state.prefs.appDestinations)
             }
         }
     }
@@ -101,7 +101,7 @@ internal fun LayoutTransferRows(state: TuttiUiState, controller: TuttiController
         detail = stringResource(R.string.layout_export_detail),
         enabled = true,
         onClick = {
-            outgoing = LayoutTransfer.export(state.prefs.layout, state.dock, state.scenes.map { it.scene })
+            outgoing = LayoutTransfer.export(state.prefs.layout, state.dock, state.scenes.map { it.scene }, state.prefs.appDestinations)
             create.launch("tutti-layout-${LocalDate.now()}.json")
         },
         icon = R.drawable.ic_download,
@@ -120,9 +120,10 @@ internal fun LayoutTransferRows(state: TuttiUiState, controller: TuttiController
             plan = plan,
             onReplace = {
                 val before = state.prefs.layout to state.dock
-                controller.replaceLayout(plan.layout, plan.dock)
+                val destinationsBefore = state.prefs.appDestinations
+                controller.replaceLayout(plan.layout, plan.dock, plan.destinations)
                 incoming = null
-                messages?.show(imported, actionLabel = undo, onAction = { controller.replaceLayout(before.first, before.second) })
+                messages?.show(imported, actionLabel = undo, onAction = { controller.replaceLayout(before.first, before.second, destinationsBefore) })
             },
             onDismiss = { incoming = null },
         )
