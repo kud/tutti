@@ -44,7 +44,7 @@ class SettingsBackupTest {
     @Test
     fun `nothing that stays on this phone is in the file`() {
         val text = SettingsBackup.export(raw(AppPrefs(onboarded = true, developerMode = true, lastBarVolume = 31)), null, 1L)
-        for (local in SyncGroups.LOCAL_PREFS - "layout") assertFalse(local, "\"$local\"" in text)
+        for (local in SyncGroups.LOCAL_PREFS.keys - "layout") assertFalse(local, "\"$local\"" in text)
         for (word in listOf("psk", "token", "host", "deviceId", "mac\"", "pairing", "certificate")) {
             assertFalse(word, text.contains(word, ignoreCase = true))
         }
