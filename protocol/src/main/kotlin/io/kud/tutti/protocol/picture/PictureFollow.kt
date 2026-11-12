@@ -138,7 +138,9 @@ object PictureFollow {
     ): Step {
         if (!config.enabled) return off(state)
         if (state.paused) return Step(state)
-        if (context == PictureContext.PassThrough || context == PictureContext.Unknown) return Step(state)
+        val passing = context == PictureContext.PassThrough || context == PictureContext.Unknown ||
+            (context is PictureContext.App && context.packageName in AppHistory.PASS_THROUGH)
+        if (passing) return Step(state)
         // Without a reading there is nothing to give back later: wait for the poll.
         if (current == null) return Step(state)
         val target = modeFor(config, context, candidates, sceneApps)
