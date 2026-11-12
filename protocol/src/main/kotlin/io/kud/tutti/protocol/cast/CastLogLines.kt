@@ -28,10 +28,11 @@ object CastLogLines {
     fun askReceiver(): String = "no media app known, asking the receiver again"
 
     /**
-     * One media status: "PLAYING, title yes, position yes, duration yes, answer, same session:
-     * playing". [hadTitle] says a title was there, never what it was.
+     * One media status: "PLAYING, title yes, position yes, duration yes, images yes, first image
+     * allowed yes, answer, same session: playing". [hadTitle] and [artwork] say what was there and
+     * whether the image passed [CastArtwork.isAllowed], never the title or the URL.
      */
-    fun media(reading: CastReading?, hadTitle: Boolean, report: CastReport): String {
+    fun media(reading: CastReading?, hadTitle: Boolean, report: CastReport, artwork: CastArtworkSeen? = null): String {
         val outcome = when (report) {
             is CastReport.Playing -> "playing"
             CastReport.Stopped -> "stopped"
@@ -43,6 +44,8 @@ object CastLogLines {
             "title ${yes(hadTitle)}",
             "position ${yes(reading.currentTime != null)}",
             if (reading.mediaIncluded) "duration ${yes(reading.duration != null)}" else "no media",
+            "images ${yes(artwork?.listed == true)}",
+            "first image allowed ${yes(artwork?.firstAllowed == true)}",
             if (reading.answer) "answer" else "unasked",
             if (reading.sameSession) "same session" else "new session",
         ).joinToString() + ": $outcome"

@@ -207,6 +207,18 @@ class CastStatusTest {
         assertEquals("Sample Show", shown?.title)
         assertEquals("Sample Episode", shown?.secondary, "the series is the title, so it is not repeated below it")
         assertTrue(reducer.lastHadTitle)
+        assertEquals(CastArtworkSeen(listed = false, firstAllowed = false), reducer.lastArtwork)
+
+        // The log learns that an image was listed and whether its host passed, never the URL.
+        val pictured = CastStatusReducer()
+        fun withImage(url: String) = json(
+            """{"type":"MEDIA_STATUS","status":[{"mediaSessionId":6,"playerState":"PLAYING","currentTime":1,
+              "media":{"metadata":{"title":"Sample Title","images":[{"url":"$url"}]}}}]}""",
+        )
+        pictured.report(withImage("https://image.tmdb.org/t/p/w500/sample.jpg"), 1_000)
+        assertEquals(CastArtworkSeen(listed = true, firstAllowed = true), pictured.lastArtwork)
+        pictured.report(withImage("https://cdn.example/sample.jpg"), 2_000)
+        assertEquals(CastArtworkSeen(listed = true, firstAllowed = false), pictured.lastArtwork)
 
         // With its own title, the series stays the secondary line as before.
         val titled = CastStatusReducer().report(json(

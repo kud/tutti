@@ -151,6 +151,9 @@ data class CastApp(val appId: String, val transportId: String, val sessionId: St
     override fun toString(): String = "CastApp(appId=$appId)"
 }
 
+/** What one media status said about artwork, for the event log: presence and verdict, never the URL. */
+data class CastArtworkSeen(val listed: Boolean, val firstAllowed: Boolean)
+
 /** One media session's last known fields; [CastStatusReducer] merges partial updates into it. */
 internal data class MediaSnapshot(
     val mediaSessionId: Long?,
@@ -215,12 +218,20 @@ class CastStatusReducer {
     var lastHadTitle: Boolean = false
         private set
 
+    /**
+     * Whether the last status's own metadata listed `images`, and whether [CastArtwork.isAllowed]
+     * took the first one. Booleans for the event log, never the URL; null after an empty status.
+     */
+    var lastArtwork: CastArtworkSeen? = null
+        private set
+
     /** The media session of the last item reported playing; an IDLE from another one is a confirmed end. */
     private var shownSessionId: Long? = null
 
     fun reset() {
         media = null
         lastHadTitle = false
+        lastArtwork = null
         lastSessionId = null
         anchor = null
         shownSessionId = null
@@ -240,6 +251,7 @@ class CastStatusReducer {
             media = null
             lastReading = null
             lastHadTitle = false
+            lastArtwork = null
             anchor = null
             return CastReport.Unknown
         }
@@ -274,6 +286,11 @@ class CastStatusReducer {
         )
         media = snapshot
         lastHadTitle = snapshot.title != null
+        val images = metadata?.get("images") as? JsonArray
+        lastArtwork = CastArtworkSeen(
+            listed = !images.isNullOrEmpty(),
+            firstAllowed = CastArtwork.isAllowed((images?.firstOrNull() as? JsonObject)?.string("url")?.trim()),
+        )
         val state = when (rawState) {
             "PLAYING" -> CastPlayerState.PLAYING
             "PAUSED" -> CastPlayerState.PAUSED

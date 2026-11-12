@@ -158,7 +158,7 @@ class CastSession(
             CastNamespaces.MEDIA -> if (CastStatusParser.type(payload) == "MEDIA_STATUS" && m.source_id == app?.transportId) {
                 val report = reducer.report(payload, clock())
                 reducer.lastReading?.let(onReading)
-                val line = CastLogLines.media(reducer.lastReading, reducer.lastHadTitle, report)
+                val line = CastLogLines.media(reducer.lastReading, reducer.lastHadTitle, report, reducer.lastArtwork)
                 if (line != lastMediaLine) {
                     lastMediaLine = line
                     onEvent(line)

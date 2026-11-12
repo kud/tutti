@@ -227,7 +227,7 @@ class CastSessionTest {
         assertEquals(
             listOf(
                 "media app APP1 in front",
-                "PAUSED, title yes, position yes, duration yes, answer, same session: playing",
+                "PAUSED, title yes, position yes, duration yes, images yes, first image allowed yes, answer, same session: playing",
                 "media status empty: unknown",
                 "media app APP1: transport closed, asking the receiver again",
             ),

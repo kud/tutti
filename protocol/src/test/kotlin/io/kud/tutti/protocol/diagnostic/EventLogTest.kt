@@ -1,6 +1,7 @@
 package io.kud.tutti.protocol.diagnostic
 
 import io.kud.tutti.protocol.cast.CastApp
+import io.kud.tutti.protocol.cast.CastArtworkSeen
 import io.kud.tutti.protocol.cast.CastEnd
 import io.kud.tutti.protocol.cast.CastHold
 import io.kud.tutti.protocol.cast.CastLogLines
@@ -75,7 +76,7 @@ class LogScrubberTest {
             CastLogLines.ready(1_250),
             CastLogLines.app(null, app),
             CastLogLines.app(app, app.copy(transportId = "transport-0a0b0c")),
-            CastLogLines.media(reading, hadTitle = true, report = CastReport.Playing(shown)),
+            CastLogLines.media(reading, hadTitle = true, report = CastReport.Playing(shown), artwork = CastArtworkSeen(listed = true, firstAllowed = false)),
             CastLogLines.media(null, hadTitle = false, report = CastReport.Unknown),
             CastLogLines.transportClosed(app),
             CastLogLines.clearedBy(CastHold.ClearReason.FOREGROUND, "com.example.player"),
@@ -86,7 +87,7 @@ class LogScrubberTest {
         for (leak in listOf("Sample Show", "S1:E5", "Sample Episode", "tmdb", "sample.jpg", "transport-", "session-1a2b3c", "812.4", "2589")) {
             assertFalse(leak in text, "$leak leaked: $text")
         }
-        assertTrue("cast: PLAYING, title yes, position yes, duration yes, unasked, same session: playing" in text, text)
+        assertTrue("cast: PLAYING, title yes, position yes, duration yes, images yes, first image allowed no, unasked, same session: playing" in text, text)
         assertTrue("com.example.player in front" in text, "the package in front is kept: $text")
     }
 
