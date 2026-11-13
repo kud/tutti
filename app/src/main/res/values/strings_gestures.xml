@@ -102,6 +102,7 @@
     <string name="shortcut_keyboard">Keyboard</string>
     <string name="shortcut_keyboard_long">Type on the TV</string>
     <string name="shortcut_scene_long">Apply %1$s</string>
+    <string name="shortcut_app_long">Open %1$s on the TV</string>
     <!-- The one-time hint bubble (GestureHintBubble): the gesture's own title, then its sentence. -->
     <string name="hint_title">Tip: %1$s</string>
     <string name="hint_close">Close the tip</string>

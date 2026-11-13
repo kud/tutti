@@ -2806,6 +2806,18 @@ class TuttiController @Inject constructor(
         scope.launch { perform(action) }
     }
 
+    /**
+     * A launcher shortcut's app: launched as its dock pin launches it, the pin's "Opens on"
+     * destination included, read from the dock now rather than carried in the intent. An app no
+     * longer pinned (a shortcut pinned to the home screen outlives the pin) opens at its default.
+     */
+    fun launchPinnedApp(packageName: String) {
+        val pin = state.value.dock.slots.firstNotNullOfOrNull { slot ->
+            (slot.primary as? DockAction.LaunchApp)?.takeIf { it.packageName == packageName }
+        }
+        run(pin ?: DockAction.LaunchApp(packageName, packageName))
+    }
+
     private suspend fun perform(action: DockAction) {
         when (action) {
             is DockAction.LaunchApp -> requestLaunch(

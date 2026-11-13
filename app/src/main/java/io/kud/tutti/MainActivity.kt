@@ -4,17 +4,24 @@ import android.content.Intent
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import io.kud.tutti.platform.data.TuttiStore
 import io.kud.tutti.platform.display.EveningDimmer
+import io.kud.tutti.platform.shortcuts.ACTION_APP
 import io.kud.tutti.platform.shortcuts.ACTION_KEYBOARD
 import io.kud.tutti.platform.shortcuts.ACTION_SCENE
+import io.kud.tutti.platform.shortcuts.EXTRA_PACKAGE
 import io.kud.tutti.platform.shortcuts.EXTRA_SCENE_ID
 import io.kud.tutti.platform.shortcuts.EXTRA_TOKEN
 import io.kud.tutti.platform.shortcuts.ShortcutGuard
 import io.kud.tutti.platform.security.SecureStore
 import io.kud.tutti.platform.shortcuts.publishLauncherShortcuts
+import io.kud.tutti.platform.shortcuts.shortcutIdFor
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.unit.dp
@@ -36,6 +43,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dagger.hilt.android.AndroidEntryPoint
@@ -94,12 +102,18 @@ class MainActivity : ComponentActivity() {
         val intro = LaunchIntro(LaunchIntro.kindFor(restored = savedInstanceState != null))
         splash.setOnExitAnimationListener(intro::takeOver)
         if (savedInstanceState == null) handleShortcut(intent)
-        // The launcher's shortcuts follow his scenes (gesture audit item 10).
+        // The launcher's shortcuts follow his dock's apps and his scenes (gesture audit item 10;
+        // Erwann, 2026-11-13). Only once the stores have loaded, so a default dock never flashes.
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
-                // Scene shortcuts carry this install's token; without a readable one, none are rewritten.
+                // App and scene shortcuts carry this install's token; without a readable one, none are rewritten.
                 val token = runCatching { secure.shortcutToken() }.getOrNull() ?: return@repeatOnLifecycle
-                store.scenes.distinctUntilChanged().collect { publishLauncherShortcuts(this@MainActivity, it, token) }
+                combine(
+                    store.scenes,
+                    controller.state.filter { it.loaded }.map { it.dock to it.appIcons },
+                ) { scenes, (dock, icons) -> Triple(dock, scenes, icons) }
+                    .distinctUntilChanged()
+                    .collectLatest { (dock, scenes, icons) -> publishLauncherShortcuts(this@MainActivity, dock, scenes, icons, token) }
             }
         }
         // "Salle obscure": the window dims in the evening while the TV is on, only while in front.
@@ -163,7 +177,18 @@ class MainActivity : ComponentActivity() {
      * opens the app, silently. Read off the intent here, before the token check suspends.
      */
     private fun handleShortcut(intent: Intent?) {
+        shortcutIdFor(intent?.action, intent?.getStringExtra(EXTRA_SCENE_ID), intent?.getStringExtra(EXTRA_PACKAGE))
+            ?.let { id -> runCatching { ShortcutManagerCompat.reportShortcutUsed(this, id) } }
         when (intent?.action) {
+            ACTION_APP -> {
+                val packageName = intent.getStringExtra(EXTRA_PACKAGE)
+                val presented = intent.getStringExtra(EXTRA_TOKEN)
+                if (packageName.isNullOrBlank() || presented.isNullOrBlank()) return
+                lifecycleScope.launch {
+                    val expected = runCatching { secure.shortcutToken() }.getOrNull()
+                    ShortcutGuard.appToRun(ACTION_APP, packageName, presented, expected)?.let(controller::launchPinnedApp)
+                }
+            }
             ACTION_SCENE -> {
                 val sceneId = intent.getStringExtra(EXTRA_SCENE_ID)
                 val presented = intent.getStringExtra(EXTRA_TOKEN)

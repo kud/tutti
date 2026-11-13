@@ -40,7 +40,20 @@ object ShortcutGuard {
         return sceneId.takeIf { accepts(expected, presented) }
     }
 
+    /**
+     * The TV package to launch for an [ACTION_APP] carrying the right token and a plausible package
+     * name (letters, digits, `_` and dots, as Android allows), else null. A launch only opens an app,
+     * but it also wakes the TV: the same token as a scene, for the same reason.
+     */
+    fun appToRun(action: String?, packageName: String?, presented: String?, expected: String?): String? {
+        if (action != ACTION_APP) return null
+        if (packageName.isNullOrBlank() || packageName.length > MAX_PACKAGE || !PACKAGE.matches(packageName)) return null
+        return packageName.takeIf { accepts(expected, presented) }
+    }
+
     private const val TOKEN_BYTES = 32
+    private const val MAX_PACKAGE = 255
+    private val PACKAGE = Regex("[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z0-9_]+)+")
 }
 
 const val EXTRA_TOKEN = "io.kud.tutti.extra.TOKEN"

@@ -55,4 +55,16 @@ class ShortcutGuardTest {
         assertTrue(ShortcutGuard.accepts(a, a))
         assertFalse(ShortcutGuard.accepts(a, b))
     }
+
+    @Test
+    fun anAppRunsOnlyWithTheTokenAndAPackageName() {
+        assertEquals("com.google.android.youtube.tv", ShortcutGuard.appToRun(ACTION_APP, "com.google.android.youtube.tv", token, token))
+        assertNull(ShortcutGuard.appToRun(ACTION_APP, "com.google.android.youtube.tv", "forged", token))
+        assertNull(ShortcutGuard.appToRun(ACTION_APP, "com.google.android.youtube.tv", token, null))
+        assertNull(ShortcutGuard.appToRun(ACTION_SCENE, "com.google.android.youtube.tv", token, token))
+        assertNull(ShortcutGuard.appToRun(ACTION_APP, "", token, token))
+        assertNull(ShortcutGuard.appToRun(ACTION_APP, "youtube", token, token))
+        assertNull(ShortcutGuard.appToRun(ACTION_APP, "com.example/../x", token, token))
+        assertNull(ShortcutGuard.appToRun(ACTION_APP, "a." + "b".repeat(300), token, token))
+    }
 }
