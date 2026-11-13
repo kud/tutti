@@ -1,24 +1,37 @@
 package io.kud.tutti.ui.remote
 
 import android.content.ActivityNotFoundException
+import android.content.ClipData
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
+import android.net.Uri
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.core.content.FileProvider
 import androidx.core.net.toUri
 import io.kud.tutti.R
+import io.kud.tutti.platform.net.CastArtworkLoader
 import io.kud.tutti.protocol.cast.CastArtwork
 import io.kud.tutti.protocol.cast.CastNowPlaying
+import io.kud.tutti.protocol.share.ShareArtwork
 import io.kud.tutti.protocol.share.ShareLanguage
 import io.kud.tutti.protocol.share.TitleLink
 import io.kud.tutti.protocol.share.TitleLinks
 import io.kud.tutti.protocol.share.TraktStep
 import io.kud.tutti.protocol.share.WatchShare
 import io.kud.tutti.protocol.share.Watching
+import java.io.File
 import java.util.Locale
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * What the card shows, as [Watching]: the Cast item when Cast names one (with the app in front's
@@ -55,11 +68,21 @@ internal fun watchingOf(showing: CardShowing, cast: CastNowPlaying?, nowMillis: 
  * front, opens Trakt itself ([io.kud.tutti.protocol.share.TraktTarget]). All of them act
  * on the phone, so they stay live with the TV's link down. Nothing leaves the phone but through
  * the share sheet or the link he taps, and nothing here is logged: titles are viewing data.
+ *
+ * Share sends the card's artwork with the sentence when the card may show it ([artworkAt], the
+ * same gate and hosts as the card: [ShareArtwork]), else the sentence alone, as before.
  */
 @Composable
-internal fun WatchShareChips(watchingAt: (nowMillis: Long) -> Watching?, trakt: Boolean, justWatch: Boolean, imdb: Boolean) {
+internal fun WatchShareChips(
+    watchingAt: (nowMillis: Long) -> Watching?,
+    artworkAt: () -> String?,
+    trakt: Boolean,
+    justWatch: Boolean,
+    imdb: Boolean,
+) {
     val watching = watchingAt(System.currentTimeMillis()) ?: return
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     // The UI's own language, as resolved from values/ and values-fr/, not the phone's.
     val language = ShareLanguage.of(stringResource(R.string.watch_share_language))
     val text = WatchShare.text(watching, language)
@@ -72,7 +95,11 @@ internal fun WatchShareChips(watchingAt: (nowMillis: Long) -> Watching?, trakt: 
             ActionChip(R.drawable.ic_share, stringResource(R.string.watch_share), null) {
                 // Read again at the tap, so the sentence says where it is now, not when the sheet opened.
                 val fresh = watchingAt(System.currentTimeMillis())?.let { WatchShare.text(it, language) } ?: text
-                shareText(context, fresh, chooserTitle)
+                val candidates = ShareArtwork.candidates(artworkAt())
+                scope.launch {
+                    val image = runCatching { artworkFile(context, scope, candidates) }.getOrNull()
+                    share(context, fresh, chooserTitle, image)
+                }
             }
         }
         val traktTo = TitleLinks.traktTarget(watching)
@@ -96,8 +123,47 @@ internal fun WatchShareChips(watchingAt: (nowMillis: Long) -> Watching?, trakt: 
     }
 }
 
-private fun shareText(context: Context, text: String, chooserTitle: String) {
-    val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text)
+/**
+ * The artwork for a share, written to `cache/share/` and offered through the share FileProvider,
+ * or null (no candidate, the gate shut, nothing decoded in time, any failure). The folder is
+ * emptied first, every time, so the last share's picture never outlives the next tap; it sits in
+ * the cache, which backup never takes. Nothing here logs: the picture is viewing data.
+ */
+private suspend fun artworkFile(context: Context, scope: CoroutineScope, candidates: List<String>): Uri? {
+    val dir = File(context.cacheDir, ShareArtwork.DIR)
+    withContext(Dispatchers.IO) { dir.listFiles()?.forEach { it.delete() } }
+    if (candidates.isEmpty()) return null
+    // Started on the screen's scope, not this one, so a load the wait gives up on still finishes
+    // and its picture is in memory for the next share.
+    val loads = candidates.map { url -> scope.async { CastArtworkLoader.load(url, ShareArtwork.WIDTH_PX) } }
+    val bitmap = ShareArtwork.pick(loads) ?: return null
+    val file = withContext(Dispatchers.IO) {
+        if (!dir.isDirectory && !dir.mkdirs()) return@withContext null
+        val out = File(dir, ShareArtwork.FILE_NAME)
+        val written = out.outputStream().use { bitmap.compress(Bitmap.CompressFormat.JPEG, 90, it) }
+        out.takeIf { written }
+    } ?: return null
+    return FileProvider.getUriForFile(context, "${context.packageName}$SHARE_AUTHORITY_SUFFIX", file)
+}
+
+/** Matches the `<provider>` in the manifest (`${applicationId}.share`). */
+private const val SHARE_AUTHORITY_SUFFIX = ".share"
+
+/**
+ * The sentence, with the artwork when there is one: `image/jpeg`, the picture as EXTRA_STREAM and
+ * as ClipData (so the chooser previews it, Android 10 and up, and the grant reaches the target),
+ * the sentence as EXTRA_TEXT. Without one, plain text, as before.
+ */
+private fun share(context: Context, text: String, chooserTitle: String, image: Uri?) {
+    val send = Intent(Intent.ACTION_SEND).putExtra(Intent.EXTRA_TEXT, text)
+    if (image != null) {
+        send.setType(ShareArtwork.MIME_TYPE)
+            .putExtra(Intent.EXTRA_STREAM, image)
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        send.clipData = ClipData.newUri(context.contentResolver, chooserTitle, image)
+    } else {
+        send.setType("text/plain")
+    }
     try {
         context.startActivity(Intent.createChooser(send, chooserTitle).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     } catch (_: ActivityNotFoundException) {
