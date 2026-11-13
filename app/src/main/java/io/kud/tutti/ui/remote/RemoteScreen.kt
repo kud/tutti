@@ -1102,6 +1102,7 @@ fun RemoteScreen(
                 val showing = liveCard?.takeIf(::cardOpensPlayback) ?: opened
                 WatchShareChips(
                     watchingAt = { now -> watchingOf(showing, castNowPlaying, now) },
+                    artworkAt = { leadArtwork(showing, castNowPlaying) },
                     trakt = state.prefs.allows(NonFreeFeature.TRAKT_LINK),
                     justWatch = state.prefs.allows(NonFreeFeature.JUSTWATCH_LINK),
                     imdb = state.prefs.allows(NonFreeFeature.IMDB_LINK),
