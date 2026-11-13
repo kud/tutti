@@ -1,6 +1,26 @@
+AntiFeatures:
+  NonFreeAssets:
+    en-US: App buttons show third-party app logos and icons (some taken from 
+      Google Play) to identify the app a button opens; they are not under a free
+      licence.
+    fr-FR: Les boutons d’applis affichent des logos et icônes d’applis tierces 
+      (certains tirés de Google Play) pour reconnaître l’appli ouverte ; ils ne 
+      sont pas sous licence libre.
+  NonFreeNet:
+    en-US: 'Optional and off by default, each behind its own switch and all off under
+      “Only free services”: Title details sends the IMDb id of what is playing to
+      Stremio’s Cinemeta, and Cast artwork fetches the picture the TV names from YouTube,
+      Google, TMDB or Stremio image hosts. The Trakt, JustWatch and IMDb buttons open
+      those sites when tapped.'
+    fr-FR: 'Facultatif et désactivé par défaut, chacun derrière son interrupteur et
+      tous coupés par « Services libres uniquement » : les détails du titre envoient
+      l’identifiant IMDb de ce qui passe à Cinemeta (Stremio), et l’image Cast est
+      récupérée auprès des hébergeurs d’images de YouTube, Google, TMDB ou Stremio.
+      Les boutons Trakt, JustWatch et IMDb ouvrent ces sites quand on les touche.'
 Categories:
   - Connectivity
   - Multimedia
+  - Remote Controller
 License: MIT
 AuthorName: Erwann Mest
 SourceCode: https://github.com/kud/tutti
@@ -11,14 +31,6 @@ AutoName: tutti
 
 RepoType: git
 Repo: https://github.com/kud/tutti.git
-
-AntiFeatures:
-  NonFreeAssets:
-    en-US: App buttons show third-party app logos and icons (some taken from Google Play) to identify the app a button opens; they are not under a free licence.
-    fr-FR: Les boutons d’applis affichent des logos et icônes d’applis tierces (certains tirés de Google Play) pour reconnaître l’appli ouverte ; ils ne sont pas sous licence libre.
-  NonFreeNet:
-    en-US: Optional and off by default, each behind its own switch and all off under “Only free services”: Title details sends the IMDb id of what is playing to Stremio’s Cinemeta, and Cast artwork fetches the picture the TV names from YouTube, Google, TMDB or Stremio image hosts. The Trakt, JustWatch and IMDb buttons open those sites when tapped.
-    fr-FR: Facultatif et désactivé par défaut, chacun derrière son interrupteur et tous coupés par « Services libres uniquement » : les détails du titre envoient l’identifiant IMDb de ce qui passe à Cinemeta (Stremio), et l’image Cast est récupérée auprès des hébergeurs d’images de YouTube, Google, TMDB ou Stremio. Les boutons Trakt, JustWatch et IMDb ouvrent ces sites quand on les touche.
 
 Builds:
   - versionName: 0.3.0
