@@ -33,17 +33,17 @@ RepoType: git
 Repo: https://github.com/kud/tutti.git
 
 Builds:
-  - versionName: 0.3.0
-    versionCode: 300099
-    commit: 283e2691854d43e45030e8ae56bb6d08c2a3505a
+  - versionName: 0.3.1
+    versionCode: 300199
+    commit: 97a19b53a520e01e3db6f1eb50e0b916154be508
     subdir: app
     gradle:
       - fdroid
     gradleprops:
-      - tutti.versionName=0.3.0
-      - tutti.versionCode=300099
+      - tutti.versionName=0.3.1
+      - tutti.versionCode=300199
 
 AutoUpdateMode: None
 UpdateCheckMode: Tags ^v[0-9]+\.[0-9]+\.[0-9]+$
-CurrentVersion: 0.3.0
-CurrentVersionCode: 300099
+CurrentVersion: 0.3.1
+CurrentVersionCode: 300199
