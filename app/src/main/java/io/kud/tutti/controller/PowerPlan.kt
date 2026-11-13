@@ -57,3 +57,12 @@ fun powerPlan(
  */
 fun shortPress(hasTv: Boolean, tvPowered: Boolean?, barPowered: Boolean?): Pair<PowerTarget, Boolean> =
     if (hasTv) PowerTarget.TV to (tvPowered != true) else PowerTarget.BAR to (barPowered != true)
+
+/**
+ * Whether a pinned key (a Dock pin, a macro step) runs as a wake rather than a key: a short Power
+ * while the TV's remote link is down. The key alone would be dropped (no buffer, 2026-11-07), so a
+ * Power pin used to do nothing exactly when it was the one pin still lit; now it wakes the TV like
+ * the Power button and the card's "Turn on the TV". In reach, it stays the TV's own key.
+ */
+fun wakesInstead(keyCode: Int, long: Boolean, remoteReady: Boolean): Boolean =
+    keyCode == io.kud.tutti.protocol.atv.V2Key.POWER && !long && !remoteReady

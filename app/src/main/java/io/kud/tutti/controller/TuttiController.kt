@@ -2828,7 +2828,13 @@ class TuttiController @Inject constructor(
             is DockAction.ToggleBar -> TheatreFeature.fromKey(action.featureKey)?.let { toggleBar(it) }
             is DockAction.RunScene -> applyScene(action.sceneId)
             is DockAction.SetBar -> setBarValue(action.featureKey, action.value)
-            is DockAction.Key -> sendTvKey(action.keyCode, action.long)
+            // A Power pin (or macro step) is a wake while the TV is out of reach, as the Power button
+            // is: the key alone would be dropped (no buffer), and waking it is the one thing that helps.
+            is DockAction.Key -> if (wakesInstead(action.keyCode, action.long, atv.state.value.ready)) {
+                startPower(PowerTarget.TV, on = true)
+            } else {
+                sendTvKey(action.keyCode, action.long)
+            }
             is DockAction.Ircc -> {
                 val result = bravia?.sendIrcc(action.code)
                 if (result !is BraviaResult.Ok) actionFailed("shortcut: IRCC key", outcomeOf(result))

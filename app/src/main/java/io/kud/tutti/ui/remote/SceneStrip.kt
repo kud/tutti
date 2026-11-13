@@ -1,5 +1,6 @@
 package io.kud.tutti.ui.remote
 
+import io.kud.tutti.ui.motion.linkFade
 import io.kud.tutti.ui.motion.snappyOrFade
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
@@ -12,6 +13,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.graphicsLayer
 import io.kud.tutti.ui.common.PressStyle
+import io.kud.tutti.ui.common.LocalChipNudge
+import io.kud.tutti.ui.common.downFill
+import io.kud.tutti.ui.common.downInk
 import io.kud.tutti.ui.common.rememberFeedback
 import io.kud.tutti.ui.common.rememberPress
 import io.kud.tutti.ui.common.rememberTuttiIndication
@@ -41,6 +45,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import io.kud.tutti.ui.common.TuttiMenu
 import androidx.compose.ui.Alignment
@@ -81,6 +86,12 @@ fun SceneStrip(
     undoSceneId: String? = null,
     onUndo: () -> Unit = {},
     onPin: ((String) -> Unit)? = null,
+    /**
+     * Why a scene can't run now, or null when it can: one of the devices it needs is down
+     * ([sceneOwners], [controlLinkReason]). Such a pill fades like a down key and its tap is
+     * refused with a bump and the chip nudged; its menu's Edit and Pin stay.
+     */
+    downReason: @Composable (io.kud.tutti.protocol.scenes.Scene) -> String? = { null },
 ) {
     LazyRow(
         modifier = modifier,
@@ -91,6 +102,7 @@ fun SceneStrip(
             val id = ui.scene.id
             SceneWithMenu(
                 ui = ui,
+                downReason = downReason(ui.scene),
                 undoable = id == undoSceneId,
                 onApply = { onApply(id) },
                 onUndo = onUndo,
@@ -115,6 +127,7 @@ fun sceneMenu(undoable: Boolean, canPin: Boolean): List<SceneMenuRow> = buildLis
 @Composable
 private fun SceneWithMenu(
     ui: SceneUi,
+    downReason: String?,
     undoable: Boolean,
     onApply: () -> Unit,
     onUndo: () -> Unit,
@@ -123,7 +136,18 @@ private fun SceneWithMenu(
 ) {
     var menu by remember { mutableStateOf(false) }
     val haptics = io.kud.tutti.ui.common.rememberHaptics()
+    val nudge = LocalChipNudge.current
     val rows = sceneMenu(undoable, onPin != null)
+    // Down, Apply (the tap, the menu row, the TalkBack action) is the dock's refusal: a bump, the
+    // chip nudged to say why, nothing sent.
+    val apply: () -> Unit = if (downReason != null) {
+        {
+            haptics.bump()
+            nudge.poke()
+        }
+    } else {
+        onApply
+    }
     val labels = rows.associateWith { row ->
         when (row) {
             SceneMenuRow.UNDO -> stringResource(R.string.scene_undo_menu)
@@ -136,7 +160,7 @@ private fun SceneWithMenu(
         menu = false
         when (row) {
             SceneMenuRow.UNDO -> onUndo()
-            SceneMenuRow.APPLY -> onApply()
+            SceneMenuRow.APPLY -> apply()
             SceneMenuRow.EDIT -> onEdit()
             SceneMenuRow.PIN -> onPin?.invoke()
         }
@@ -144,7 +168,8 @@ private fun SceneWithMenu(
     Box {
         ScenePill(
             ui,
-            onClick = onApply,
+            onClick = apply,
+            downReason = downReason,
             onLongClick = {
                 haptics.longPress()
                 menu = true
@@ -152,6 +177,7 @@ private fun SceneWithMenu(
             longClickLabel = stringResource(R.string.scene_options),
             // TalkBack: the tap applies; every other row is a named action, so nothing needs the long press.
             modifier = Modifier.semantics {
+                downReason?.let { stateDescription = it }
                 customActions = rows.filter { it != SceneMenuRow.APPLY }.map { row ->
                     CustomAccessibilityAction(labels.getValue(row)) { run(row); true }
                 }
@@ -207,25 +233,34 @@ fun SceneStepTicks(progress: Float?) {
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun ScenePill(ui: SceneUi, onClick: () -> Unit, onLongClick: () -> Unit, modifier: Modifier = Modifier, longClickLabel: String? = null) {
+fun ScenePill(
+    ui: SceneUi,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    longClickLabel: String? = null,
+    /** Non-null when a device the scene needs is down: the pill wears the down dress ([downFill]). */
+    downReason: String? = null,
+) {
+    val down = downReason != null
     val seed = Color(ui.scene.color)
     val tonal = tonalOf(seed)
-    val container by animateColorAsState(
-        when (ui.status) {
-            SceneStatus.ACTIVE -> seed
-            SceneStatus.MODIFIED -> MaterialTheme.colorScheme.surfaceContainer
-            SceneStatus.IDLE -> tonal
-        },
-        snappyOrFade(),
-        label = "pill",
-    )
-    val content = if (ui.status == SceneStatus.ACTIVE) contentOn(seed) else MaterialTheme.colorScheme.onSurface
+    val rest = when (ui.status) {
+        SceneStatus.ACTIVE -> seed
+        SceneStatus.MODIFIED -> MaterialTheme.colorScheme.surfaceContainer
+        SceneStatus.IDLE -> tonal
+    }
+    val container by animateColorAsState(if (down) downFill(rest) else rest, if (down) linkFade(true) else snappyOrFade(), label = "pill")
+    val ink = if (ui.status == SceneStatus.ACTIVE) contentOn(seed) else MaterialTheme.colorScheme.onSurface
+    val content = if (down) downInk(ink) else ink
     val progress by animateFloatAsState(ui.progress ?: 0f, snappyOrFade(), label = "progress")
     val shape = RoundedCornerShape(percent = 50)
     val failed = ui.failure != null && ui.progress == null
     val interaction = remember { MutableInteractionSource() }
     val feedback = rememberFeedback()
-    val press = rememberPress(interaction, PressStyle.TILE, onDown = feedback::click)
+    val isDown by androidx.compose.runtime.rememberUpdatedState(down)
+    // Down, the tap's own refusal is the bump (the caller's): no click on top of it.
+    val press = rememberPress(interaction, PressStyle.TILE, onDown = { if (!isDown) feedback.click() })
     // The long press opens the editor: the same ring as the segments and tiles (rule 1).
     val ring = rememberLongPressProgress(interaction, enabled = true)
     val ringColour = MaterialTheme.colorScheme.onSurface

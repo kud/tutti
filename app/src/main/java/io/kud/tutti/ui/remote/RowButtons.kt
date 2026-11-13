@@ -167,12 +167,14 @@ fun LiveRowButton(
                 stateDescription = controlLinkReason(bar, Owner.BAR, state) ?: if (muted) stringResource(R.string.volume_muted) else null,
             )
         }
-        // Input is a door, like Apps (Erwann, 2026-10-26): a tap opens tutti's input chooser, which
-        // says in words why it can't switch, so the key never wears the down dress and always opens.
-        // Its long press is a key's, the TV's own input menu by default (RowGestures), and like every
-        // TV key's it is refused with a bump and the reason while the TV's link is down.
+        // Input opens tutti's input chooser (Erwann, 2026-10-26), whose every row is a TV input: with
+        // the TV's link down none of them can switch, so the key goes down with the TV like every TV
+        // key, its tap a bump and the chip nudged (Erwann on dev.15, 2026-11-13: « Pourquoi certains
+        // boutons ne sont pas désactivés vu la situation ? »). It was a door that always opened; that
+        // opened onto a list of dead rows. Its long press is a key's, refused with the rest.
         RowButton.INPUT -> {
             val secondary = SecondaryButton.INPUT
+            val inputs = state.controlLink(Owner.TV_EITHER)
             TonalRoundButton(
                 icon = rowButtonIcon(button),
                 contentDescription = rowButtonLabel(button),
@@ -187,6 +189,9 @@ fun LiveRowButton(
                 },
                 onLongClickLabel = state.dock.longPress[secondary]?.let { actionLabel(it, state) }
                     ?: rowDefault(secondary)?.let { stringResource(it.label) },
+                // Its rows switch over IP control: down only when neither of the TV's planes answers.
+                unreachable = inputs.down,
+                stateDescription = controlLinkReason(inputs, Owner.TV_EITHER, state),
                 size = size,
                 modifier = modifier,
                 pinLabel = pinLabel,
