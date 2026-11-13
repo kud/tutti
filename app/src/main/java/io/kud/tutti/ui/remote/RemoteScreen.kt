@@ -652,6 +652,10 @@ fun RemoteScreen(
                             controller.undoLastScene()
                         },
                         onPin = { pinningScene = it },
+                        // A scene needs every device it touches (sceneOwners): the dock's rule.
+                        downReason = { scene ->
+                            state.downOwner(sceneOwners(scene))?.let { (owner, link) -> controlLinkReason(link, owner, state) }
+                        },
                         modifier = Modifier.padding(vertical = 4.dp),
                     )
                 }

@@ -295,11 +295,11 @@ private fun PinTile(
     val secondary = slot.secondary
     // The click plays on down; the command waits for release, since a long press means another.
     val feedback = rememberFeedback()
-    // The remote's one rule (controlLink): a pin goes down with the device it talks to, and only that
-    // one. Power keys, scenes and macros wake or mix devices, so they never do.
-    val owner = dockOwner(slot.primary)
-    val link = state.controlLink(owner)
-    val reason = controlLinkReason(link, owner, state)
+    // The remote's one rule (controlLink): a pin goes down with the devices it talks to, and only
+    // those. A Power key wakes the TV, so it never does; a scene or a macro needs each of its devices.
+    val down = state.pinDown(slot.primary)
+    val link = down?.second ?: ControlLink.NORMAL
+    val reason = down?.let { (owner, why) -> controlLinkReason(why, owner, state) }
     val isDown by rememberUpdatedState(link.down)
     val nudge = LocalChipNudge.current
     val press = rememberPressSource { if (!isDown) feedback.click() }
@@ -346,7 +346,7 @@ private fun PinTile(
     // § Gestures, Erwann 2026-11-11); its edit lives under ⋮ › Edit dock. A pin without one keeps
     // the ring alone and opens its editor. A secondary whose device is down shows no bubble, and the
     // hold is refused with a bump and the chip nudged, as a tap on a down pin is.
-    val secondaryDown = secondary != null && state.controlLink(dockOwner(secondary)).down
+    val secondaryDown = secondary != null && state.pinDown(secondary) != null
     val preview = rememberHoldPreview(press.interaction, enabled = secondary != null && !secondaryDown)
     val ring = rememberLongPressProgress(press.interaction, enabled = secondary == null)
     val dress = pinDress(LocalDockLabels.current, label)

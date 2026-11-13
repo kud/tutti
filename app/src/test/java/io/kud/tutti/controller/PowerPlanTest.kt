@@ -55,4 +55,15 @@ class PowerPlanTest {
         assertEquals(PowerTarget.BAR to false, shortPress(hasTv = false, tvPowered = null, barPowered = true))
         assertEquals(PowerTarget.BAR to true, shortPress(hasTv = false, tvPowered = null, barPowered = null))
     }
+
+    @Test
+    fun aPinnedPowerWakesOnlyWhileTheRemoteLinkIsDown() {
+        val power = io.kud.tutti.protocol.atv.V2Key.POWER
+        assertTrue(wakesInstead(power, long = false, remoteReady = false))
+        // In reach it stays the TV's own key: nothing changes with everything online.
+        assertFalse(wakesInstead(power, long = false, remoteReady = true))
+        // A long press is the TV's own power menu, never a wake; other keys are never a wake.
+        assertFalse(wakesInstead(power, long = true, remoteReady = false))
+        assertFalse(wakesInstead(io.kud.tutti.protocol.atv.V2Key.HOME, long = false, remoteReady = false))
+    }
 }
