@@ -40,6 +40,35 @@ data class Release(
 }
 
 object ReleaseNotes {
+    private val v0_3_1 = Release(
+        version = AppVersion(0, 3, 1, null),
+        headline = R.string.whats_new_0_3_1_headline,
+        new = listOf(
+            ReleaseNote(R.drawable.ic_subtitles, R.string.whats_new_0_3_1_say_again, R.string.whats_new_0_3_1_say_again_detail),
+            ReleaseNote(R.drawable.ic_bedtime, R.string.whats_new_0_3_1_episode, R.string.whats_new_0_3_1_episode_detail),
+            ReleaseNote(R.drawable.ic_call, R.string.whats_new_0_3_1_calls, R.string.whats_new_0_3_1_calls_detail),
+            ReleaseNote(R.drawable.ic_volume_up, R.string.whats_new_0_3_1_night, R.string.whats_new_0_3_1_night_detail),
+            ReleaseNote(R.drawable.ic_contrast, R.string.whats_new_0_3_1_picture, R.string.whats_new_0_3_1_picture_detail),
+            ReleaseNote(R.drawable.ic_share, R.string.whats_new_0_3_1_share, R.string.whats_new_0_3_1_share_detail),
+            ReleaseNote(R.drawable.ic_article, R.string.whats_new_0_3_1_details, R.string.whats_new_0_3_1_details_detail),
+            ReleaseNote(R.drawable.ic_link, R.string.whats_new_0_3_1_destinations, R.string.whats_new_0_3_1_destinations_detail),
+            ReleaseNote(R.drawable.ic_folder, R.string.whats_new_0_3_1_backup, R.string.whats_new_0_3_1_backup_detail),
+        ),
+        better = listOf(
+            ReleaseNote(R.drawable.ic_settings, R.string.whats_new_0_3_1_settings, R.string.whats_new_0_3_1_settings_detail),
+            ReleaseNote(R.drawable.ic_visibility_off, R.string.whats_new_0_3_1_privacy, R.string.whats_new_0_3_1_privacy_detail),
+            ReleaseNote(R.drawable.ic_movie, R.string.whats_new_0_3_1_artwork, R.string.whats_new_0_3_1_artwork_detail),
+            ReleaseNote(R.drawable.ic_info, R.string.whats_new_0_3_1_hold, R.string.whats_new_0_3_1_hold_detail),
+            ReleaseNote(R.drawable.ic_lock, R.string.whats_new_0_3_1_trust, R.string.whats_new_0_3_1_trust_detail),
+        ),
+        fixed = listOf(
+            ReleaseNote(R.drawable.ic_dpad, R.string.whats_new_0_3_1_dpad, R.string.whats_new_0_3_1_dpad_detail),
+            ReleaseNote(R.drawable.ic_keyboard, R.string.whats_new_0_3_1_typing, R.string.whats_new_0_3_1_typing_detail),
+            ReleaseNote(R.drawable.ic_refresh, R.string.whats_new_0_3_1_wifi, R.string.whats_new_0_3_1_wifi_detail),
+            ReleaseNote(R.drawable.ic_input, R.string.whats_new_0_3_1_inputs, R.string.whats_new_0_3_1_inputs_detail),
+        ),
+    )
+
     private val v0_3_0 = Release(
         version = AppVersion(0, 3, 0, null),
         headline = R.string.whats_new_0_3_0_headline,
@@ -65,7 +94,7 @@ object ReleaseNotes {
     )
 
     /** Newest first. A release joins the top of the list, with its `docs/releases` file. */
-    val all: List<Release> = listOf(v0_3_0)
+    val all: List<Release> = listOf(v0_3_1, v0_3_0)
 
     val latest: Release get() = all.first()
 

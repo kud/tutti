@@ -39,4 +39,43 @@
     <string name="whats_new_0_3_0_crash_detail">Les ouvrir sur Nuvio pouvait fermer tutti. Ce n’est plus le cas.</string>
     <string name="whats_new_0_3_0_names">Les apps de la TV, par leur nom</string>
     <string name="whats_new_0_3_0_names_detail">La carte de ce qui passe nomme aussi les apps intégrées à la TV, pas seulement celles que tutti connaît déjà.</string>
+
+    <!-- 0.3.1 -->
+    <string name="whats_new_0_3_1_headline">« Hein ? » et l’extinction en fin d’épisode dans Lecture, une pause pendant les appels et des réglages avec une page par sujet.</string>
+    <string name="whats_new_0_3_1_say_again">Hein ?</string>
+    <string name="whats_new_0_3_1_say_again_detail">Dans Lecture, « Hein ? » revient quelques secondes en arrière et active les sous-titres et la voix renforcée de la barre le temps de réentendre la réplique, puis remet les deux comme avant.</string>
+    <string name="whats_new_0_3_1_episode">Éteindre à la fin de l’épisode</string>
+    <string name="whats_new_0_3_1_episode_detail">Depuis Marche / arrêt ou Lecture, la TV et la barre de son s’éteignent quand ce que vous castez se termine, en baissant le son sur ses deux dernières minutes. L’extinction peut aussi attendre une heure précise.</string>
+    <string name="whats_new_0_3_1_calls">Une pause pendant les appels</string>
+    <string name="whats_new_0_3_1_calls_detail">Dans Réglages › Automatique, la TV peut se mettre en pause quand le téléphone sonne ou qu’un appel commence, et reprendre une fois l’appel terminé.</string>
+    <string name="whats_new_0_3_1_night">Des soirées plus calmes</string>
+    <string name="whats_new_0_3_1_night_detail">Entre deux heures de votre choix, la barre de son passe en Nuit et Voix avec une limite de volume plus basse, puis tout revient comme avant.</string>
+    <string name="whats_new_0_3_1_picture">Le mode d’image selon l’app</string>
+    <string name="whats_new_0_3_1_picture_detail">Le mode d’image de la TV peut changer avec l’app ou l’entrée à l’écran.</string>
+    <string name="whats_new_0_3_1_share">Partager ce qui passe</string>
+    <string name="whats_new_0_3_1_share_detail">Partagez le titre en cours, avec sa pochette. Des boutons facultatifs l’ouvrent sur Trakt, JustWatch ou IMDb.</string>
+    <string name="whats_new_0_3_1_details">Détails du titre</string>
+    <string name="whats_new_0_3_1_details_detail">Si vous l’activez, Lecture affiche le synopsis, la distribution et la note de ce qui passe, depuis Cinemeta.</string>
+    <string name="whats_new_0_3_1_destinations">Ouvrir une app où vous voulez</string>
+    <string name="whats_new_0_3_1_destinations_detail">Une épingle du dock peut ouvrir son app sur une page ou un lien de votre choix, plutôt que là où elle en était.</string>
+    <string name="whats_new_0_3_1_backup">Sauvegarder vos réglages</string>
+    <string name="whats_new_0_3_1_backup_detail">Enregistrez vos réglages dans un fichier et restaurez-les. Les appareils, les adresses et les clés n’y figurent jamais.</string>
+    <string name="whats_new_0_3_1_settings">Une page par sujet</string>
+    <string name="whats_new_0_3_1_settings_detail">Les réglages ont une page par sujet, Automatique et « Hein ? » compris, et vous retrouvez votre place en revenant.</string>
+    <string name="whats_new_0_3_1_privacy">Les services tiers au même endroit</string>
+    <string name="whats_new_0_3_1_privacy_detail">Tout ce qui contacte un service autre que votre TV et votre barre de son est réuni sur une page. Les nouveaux sont désactivés au départ, et « Services libres uniquement » les coupe tous.</string>
+    <string name="whats_new_0_3_1_artwork">L’image d’abord</string>
+    <string name="whats_new_0_3_1_artwork_detail">La carte compacte commence par l’image de ce qui passe, et les affiches sont montrées en entier.</string>
+    <string name="whats_new_0_3_1_hold">Savoir ce que fait un appui long</string>
+    <string name="whats_new_0_3_1_hold_detail">Un appui long sur une épingle du dock nomme son action dans une bulle avant qu’elle ne parte.</string>
+    <string name="whats_new_0_3_1_trust">Une nouvelle identité de TV en un geste</string>
+    <string name="whats_new_0_3_1_trust_detail">Quand la TV présente une seconde identité, vous lui faites confiance d’un geste au lieu de l’appairer à nouveau.</string>
+    <string name="whats_new_0_3_1_dpad">Maintenir une flèche</string>
+    <string name="whats_new_0_3_1_dpad_detail">Maintenir une flèche du pavé la maintient sur la TV, sans file de répétitions en retard.</string>
+    <string name="whats_new_0_3_1_typing">Écrire sur la TV</string>
+    <string name="whats_new_0_3_1_typing_detail">Le texte envoyé à la TV arrive à temps et dans l’ordre, avec le curseur après le dernier caractère.</string>
+    <string name="whats_new_0_3_1_wifi">Stable en Wi-Fi</string>
+    <string name="whats_new_0_3_1_wifi_detail">Quand le Wi-Fi flanche un instant, tutti y reste au lieu de chercher la TV par les données mobiles et de perdre le lien.</string>
+    <string name="whats_new_0_3_1_inputs">Une icône pour chaque entrée</string>
+    <string name="whats_new_0_3_1_inputs_detail">La liste des entrées montre chacune avec son icône.</string>
 </resources>

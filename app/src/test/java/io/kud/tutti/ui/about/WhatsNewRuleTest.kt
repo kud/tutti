@@ -13,6 +13,7 @@ import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
 class WhatsNewRuleTest {
+    private val v031 = AppVersion(0, 3, 1, null)
     private val v030 = AppVersion(0, 3, 0, null)
     private val v023 = AppVersion(0, 2, 3, null)
 
@@ -48,8 +49,11 @@ class WhatsNewRuleTest {
     @Test
     fun aTestBuildCarriesItsReleasesNotes() {
         assertEquals(v030, ReleaseNotes.forInstalled(AppVersion(0, 3, 0, 4))?.version)
-        assertEquals(v030, ReleaseNotes.forInstalled(AppVersion(0, 3, 1, 2))?.version)
         assertEquals(v030, ReleaseNotes.forInstalled(v030)?.version)
+        assertEquals(v031, ReleaseNotes.forInstalled(AppVersion(0, 3, 1, 2))?.version)
+        assertEquals(v031, ReleaseNotes.forInstalled(v031)?.version)
+        // A test build of a release with no notes yet carries the last ones.
+        assertEquals(v031, ReleaseNotes.forInstalled(AppVersion(0, 3, 2, 1))?.version)
         // An older build has no notes of its own here, and an unknown version none at all.
         assertNull(ReleaseNotes.forInstalled(v023))
         assertNull(ReleaseNotes.forInstalled(null))
@@ -64,9 +68,10 @@ class WhatsNewRuleTest {
 
     @Test
     fun theFdroidBuildLeavesOutTheUpdatersChanges() {
-        val full = ReleaseNotes.latest.forBuild(carriesUpdater = true)
-        val fdroid = ReleaseNotes.latest.forBuild(carriesUpdater = false)
         val all = { r: Release -> r.new + r.better + r.fixed }
+        val release = ReleaseNotes.all.first { r -> all(r).any { it.updaterOnly } }
+        val full = release.forBuild(carriesUpdater = true)
+        val fdroid = release.forBuild(carriesUpdater = false)
         // Probe: there is something to leave out, so the check below can fail.
         assertTrue(all(full).any { it.updaterOnly })
         assertFalse(all(fdroid).any { it.updaterOnly })

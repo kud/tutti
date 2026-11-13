@@ -40,4 +40,43 @@
     <string name="whats_new_0_3_0_crash_detail">Opening them over Nuvio could close tutti. Not any more.</string>
     <string name="whats_new_0_3_0_names">The TV’s own apps, by name</string>
     <string name="whats_new_0_3_0_names_detail">The now-showing card names the TV’s built-in apps too, not only the ones tutti already knows.</string>
+
+    <!-- 0.3.1 -->
+    <string name="whats_new_0_3_1_headline">Say again? and an end-of-episode switch-off in Playback, a pause for phone calls, and Settings with a page for each topic.</string>
+    <string name="whats_new_0_3_1_say_again">Say again?</string>
+    <string name="whats_new_0_3_1_say_again_detail">In Playback, Say again? goes back a few seconds and turns on captions and the bar’s voice enhancement until the line has played again, then puts both back.</string>
+    <string name="whats_new_0_3_1_episode">Switch off at the end of the episode</string>
+    <string name="whats_new_0_3_1_episode_detail">From Power or Playback, the TV and the soundbar switch off when what you cast ends, fading the sound over its last two minutes. A switch-off can also wait for a time of day.</string>
+    <string name="whats_new_0_3_1_calls">A pause for phone calls</string>
+    <string name="whats_new_0_3_1_calls_detail">In Settings › Automatic, the TV can pause when the phone rings or a call starts, and play again once the call ends.</string>
+    <string name="whats_new_0_3_1_night">Quieter evenings</string>
+    <string name="whats_new_0_3_1_night_detail">Between two times you choose, the soundbar switches to Night and Voice and keeps a lower volume guard, then everything goes back.</string>
+    <string name="whats_new_0_3_1_picture">Picture mode by app</string>
+    <string name="whats_new_0_3_1_picture_detail">The TV’s picture mode can change with the app or input on screen.</string>
+    <string name="whats_new_0_3_1_share">Share what’s on</string>
+    <string name="whats_new_0_3_1_share_detail">Share the title playing, with its cover art. Optional buttons open it on Trakt, JustWatch or IMDb.</string>
+    <string name="whats_new_0_3_1_details">Title details</string>
+    <string name="whats_new_0_3_1_details_detail">If you turn it on, Playback shows the synopsis, cast and rating of what’s playing, from Cinemeta.</string>
+    <string name="whats_new_0_3_1_destinations">Open an app where you want</string>
+    <string name="whats_new_0_3_1_destinations_detail">A dock pin can open its app at a page or link you choose, rather than where it was last time.</string>
+    <string name="whats_new_0_3_1_backup">Back up your settings</string>
+    <string name="whats_new_0_3_1_backup_detail">Save your settings to a file and bring them back. Devices, addresses and keys are never in it.</string>
+    <string name="whats_new_0_3_1_settings">A page for each topic</string>
+    <string name="whats_new_0_3_1_settings_detail">Settings has one page per topic, Automatic and Say again? included, and keeps your place when you come back.</string>
+    <string name="whats_new_0_3_1_privacy">Third-party services in one place</string>
+    <string name="whats_new_0_3_1_privacy_detail">Everything that reaches a service beyond your TV and soundbar sits on one page. New ones start off, and Only free services turns them all off.</string>
+    <string name="whats_new_0_3_1_artwork">Artwork first</string>
+    <string name="whats_new_0_3_1_artwork_detail">The compact card leads with the artwork of what’s playing, and posters are shown whole.</string>
+    <string name="whats_new_0_3_1_hold">Know what a long press does</string>
+    <string name="whats_new_0_3_1_hold_detail">Holding a dock pin names its action in a bubble before it fires.</string>
+    <string name="whats_new_0_3_1_trust">A new TV identity in one tap</string>
+    <string name="whats_new_0_3_1_trust_detail">When the TV shows a second identity, you trust it in one tap instead of pairing again.</string>
+    <string name="whats_new_0_3_1_dpad">Holding an arrow</string>
+    <string name="whats_new_0_3_1_dpad_detail">Holding a d-pad arrow now holds it on the TV, without a backlog of repeats.</string>
+    <string name="whats_new_0_3_1_typing">Typing on the TV</string>
+    <string name="whats_new_0_3_1_typing_detail">Text sent to the TV arrives on time and in order, with the cursor after the last character.</string>
+    <string name="whats_new_0_3_1_wifi">Steady over Wi-Fi</string>
+    <string name="whats_new_0_3_1_wifi_detail">When Wi-Fi falters for a moment, tutti stays on it rather than trying the TV over mobile data and dropping the link.</string>
+    <string name="whats_new_0_3_1_inputs">An icon for every input</string>
+    <string name="whats_new_0_3_1_inputs_detail">The inputs sheet shows each input with its icon.</string>
 </resources>
