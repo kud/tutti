@@ -22,6 +22,8 @@
     <string name="update_failed_github_code">GitHub answered with an error (%1$d). Try again later.</string>
     <string name="update_failed_github">GitHub answered with an error. Try again later.</string>
     <string name="update_failed_feed">GitHub’s answer couldn’t be read. Try again later.</string>
+    <!-- A failed check's way out to the releases page in the browser (2026-11-15). -->
+    <string name="update_open_releases">See the releases on GitHub</string>
     <string name="update_failed_download">The download stopped before the end. Try again.</string>
     <string name="update_failed_digest">The file didn’t match what GitHub announced, so it was deleted.</string>
     <string name="update_failed_package">The file isn’t a newer build of this app, so it was deleted.</string>

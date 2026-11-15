@@ -9,7 +9,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -27,6 +30,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
@@ -42,6 +46,7 @@ import io.kud.tutti.platform.update.UpdateProblem
 import io.kud.tutti.platform.update.UpdateState
 import io.kud.tutti.platform.update.Updater
 import io.kud.tutti.protocol.update.AppVersion
+import io.kud.tutti.protocol.update.ReleaseFeed
 import io.kud.tutti.protocol.update.UpdateChannel
 import io.kud.tutti.protocol.update.UpdateCue
 import io.kud.tutti.ui.common.SwitchRow
@@ -214,7 +219,6 @@ private fun statusText(state: UpdateState): String = when (state) {
 @Composable
 private fun UpdateSheet(updater: Updater, state: UpdateState, onDismiss: () -> Unit) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
     // Back from Android's "Install unknown apps" page: carry on if it was allowed.
     LifecycleResumeEffect(state) {
         if (state is UpdateState.NeedsPermission && context.packageManager.canRequestPackageInstalls()) {
@@ -222,71 +226,89 @@ private fun UpdateSheet(updater: Updater, state: UpdateState, onDismiss: () -> U
         }
         onPauseOrDispose { }
     }
-    TuttiSheet(onDismissRequest = onDismiss) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp)) {
-            Text(
-                stringResource(R.string.update_title),
-                style = MaterialTheme.typography.titleLarge,
-                modifier = Modifier.semantics { heading() },
-            )
+    TuttiSheet(onDismissRequest = onDismiss) { UpdateSheetBody(updater, state, onDismiss) }
+}
+
+/**
+ * Whether a failure is one the app can't fix by itself: GitHub out of reach, refusing, or answering
+ * with something unreadable. Those get a way out to the releases page (2026-11-15); a download,
+ * digest or install failure keeps to "Try again", since the app still holds what to retry.
+ */
+internal fun UpdateProblem.offersReleasesPage(): Boolean = when (this) {
+    UpdateProblem.NETWORK, UpdateProblem.RATE_LIMITED, UpdateProblem.GITHUB_ERROR, UpdateProblem.FEED -> true
+    UpdateProblem.DOWNLOAD, UpdateProblem.DIGEST, UpdateProblem.PACKAGE, UpdateProblem.INSTALL -> false
+}
+
+/** The sheet's content, apart from the sheet itself so a render test can draw it. */
+@Composable
+internal fun UpdateSheetBody(updater: Updater, state: UpdateState, onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp)) {
+        Text(
+            stringResource(R.string.update_title),
+            style = MaterialTheme.typography.titleLarge,
+            modifier = Modifier.semantics { heading() },
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            stringResource(R.string.update_installed, updater.installed),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(16.dp))
+        // The state, as a sentence TalkBack reads when it changes.
+        Text(
+            statusText(state),
+            style = MaterialTheme.typography.bodyLarge,
+            modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+        )
+        if (state is UpdateState.NeedsPermission) {
             Spacer(Modifier.height(4.dp))
             Text(
-                stringResource(R.string.update_installed, updater.installed),
+                stringResource(R.string.update_permission_detail),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            Spacer(Modifier.height(16.dp))
-            // The state, as a sentence TalkBack reads when it changes.
-            Text(
-                statusText(state),
-                style = MaterialTheme.typography.bodyLarge,
-                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
-            )
-            if (state is UpdateState.NeedsPermission) {
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    stringResource(R.string.update_permission_detail),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+        }
+        if (state is UpdateState.Downloading || state is UpdateState.Checking) {
+            Spacer(Modifier.height(12.dp))
+            val percent = (state as? UpdateState.Downloading)?.percent
+            if (percent != null) {
+                LinearProgressIndicator(progress = { percent / 100f }, modifier = Modifier.fillMaxWidth())
+            } else {
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
             }
-            if (state is UpdateState.Downloading || state is UpdateState.Checking) {
-                Spacer(Modifier.height(12.dp))
-                val percent = (state as? UpdateState.Downloading)?.percent
-                if (percent != null) {
-                    LinearProgressIndicator(progress = { percent / 100f }, modifier = Modifier.fillMaxWidth())
-                } else {
-                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                }
-            }
-            Spacer(Modifier.height(20.dp))
-            when (state) {
-                is UpdateState.Available -> {
-                    Button(
-                        onClick = { scope.launch { updater.downloadAndInstall(state.update) } },
-                        modifier = Modifier.fillMaxWidth(),
-                    ) { Text(stringResource(R.string.update_download_install)) }
-                    // "Later" sets this build aside: the remote's dot goes, the ⋮ row and About keep it.
-                    TextButton(
-                        onClick = {
-                            updater.setAside(state.update.version)
-                            onDismiss()
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                    ) { Text(stringResource(R.string.update_later)) }
-                }
-                is UpdateState.NeedsPermission -> Button(
+        }
+        Spacer(Modifier.height(20.dp))
+        when (state) {
+            is UpdateState.Available -> {
+                Button(
+                    onClick = { scope.launch { updater.downloadAndInstall(state.update) } },
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text(stringResource(R.string.update_download_install)) }
+                // "Later" sets this build aside: the remote's dot goes, the ⋮ row and About keep it.
+                TextButton(
                     onClick = {
-                        try {
-                            context.startActivity(updater.permissionIntent())
-                        } catch (_: ActivityNotFoundException) {
-                            // No such settings page on this phone: the install itself will ask.
-                            updater.install(state.update)
-                        }
+                        updater.setAside(state.update.version)
+                        onDismiss()
                     },
                     modifier = Modifier.fillMaxWidth(),
-                ) { Text(stringResource(R.string.update_permission_open)) }
-                is UpdateState.Failed -> OutlinedButton(
+                ) { Text(stringResource(R.string.update_later)) }
+            }
+            is UpdateState.NeedsPermission -> Button(
+                onClick = {
+                    try {
+                        context.startActivity(updater.permissionIntent())
+                    } catch (_: ActivityNotFoundException) {
+                        // No such settings page on this phone: the install itself will ask.
+                        updater.install(state.update)
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text(stringResource(R.string.update_permission_open)) }
+            is UpdateState.Failed -> {
+                OutlinedButton(
                     onClick = {
                         val update = state.update
                         if (update != null && state.problem == UpdateProblem.INSTALL) {
@@ -297,19 +319,31 @@ private fun UpdateSheet(updater: Updater, state: UpdateState, onDismiss: () -> U
                     },
                     modifier = Modifier.fillMaxWidth(),
                 ) { Text(stringResource(R.string.update_try_again)) }
-                UpdateState.UpToDate, UpdateState.Idle -> OutlinedButton(
-                    onClick = { scope.launch { updater.check() } },
-                    modifier = Modifier.fillMaxWidth(),
-                ) { Text(stringResource(R.string.update_check)) }
-                else -> Unit
+                // The way out when the app can't get the list itself (Erwann, 2026-11-15): the
+                // releases page in the browser, marked as leaving the app like About's source row.
+                if (state.problem.offersReleasesPage()) {
+                    TextButton(
+                        onClick = { openInBrowser(context, ReleaseFeed.PAGE) },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(stringResource(R.string.update_open_releases))
+                        Spacer(Modifier.width(8.dp))
+                        Icon(painterResource(R.drawable.ic_open), contentDescription = null, modifier = Modifier.size(18.dp))
+                    }
+                }
             }
-            Spacer(Modifier.height(16.dp))
-            Text(
-                stringResource(R.string.update_note),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Spacer(Modifier.height(16.dp))
+            UpdateState.UpToDate, UpdateState.Idle -> OutlinedButton(
+                onClick = { scope.launch { updater.check() } },
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text(stringResource(R.string.update_check)) }
+            else -> Unit
         }
+        Spacer(Modifier.height(16.dp))
+        Text(
+            stringResource(R.string.update_note),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(16.dp))
     }
 }

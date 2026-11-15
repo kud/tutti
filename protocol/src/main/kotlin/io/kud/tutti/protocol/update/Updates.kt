@@ -85,6 +85,12 @@ object ReleaseFeed {
     const val OWNER_REPO = "kud/tutti"
     const val URL = "https://api.github.com/repos/$OWNER_REPO/releases?per_page=30"
 
+    /**
+     * The releases page, opened in the browser when a check fails for a reason the app can't fix
+     * (2026-11-15), so the person can look and download for themselves. Never fetched by the app.
+     */
+    const val PAGE = "https://github.com/$OWNER_REPO/releases"
+
     @Serializable
     private data class WireAsset(
         val name: String,
