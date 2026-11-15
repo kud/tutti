@@ -294,7 +294,7 @@ object TitleLinks {
      * was not found in Trakt Web's code (checked 2026-11-11), so an episode searches as media too,
      * on its series title alone ([TraktTarget.Search.title]).
      */
-    fun trakt(title: String): String = "${TRAKT_HOME}search?m=media&q=${URLEncoder.encode(title.trim(), Charsets.UTF_8)}"
+    fun trakt(title: String): String = "${TRAKT_HOME}search?m=media&q=${URLEncoder.encode(title.trim(), Charsets.UTF_8.name())}"
 
     /**
      * JustWatch's search, which lives under a country path with a localised word (checked
@@ -416,7 +416,7 @@ object TitleLinks {
     fun imdb(watching: Watching?): String? {
         val title = searchTitle(watching) ?: return null
         val id = (watching as? Watching.Media)?.imdbId?.let { imdbTitle(it) }
-        return id ?: "https://www.imdb.com/find/?q=${URLEncoder.encode(title, Charsets.UTF_8)}"
+        return id ?: "https://www.imdb.com/find/?q=${URLEncoder.encode(title, Charsets.UTF_8.name())}"
     }
 
     /**
@@ -481,7 +481,7 @@ object TitleLinks {
     ).map { AppCatalog.find(it)?.packageName ?: error("AppCatalog has no $it") }.toSet() +
         setOf("com.nuvio.tv", "com.stremio.one")
 
-    private fun encode(s: String): String = URLEncoder.encode(s.trim(), Charsets.UTF_8).replace("+", "%20")
+    private fun encode(s: String): String = URLEncoder.encode(s.trim(), Charsets.UTF_8.name()).replace("+", "%20")
 }
 
 enum class TitleLink { TRAKT, JUSTWATCH, IMDB }
