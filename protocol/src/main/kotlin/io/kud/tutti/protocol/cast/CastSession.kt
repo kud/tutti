@@ -158,6 +158,12 @@ class CastSession(
                         val target = app
                         if (target != null) {
                             mediaStatus(target)
+                            // The app in front can change without the receiver telling us: an app
+                            // opened from the TV's own remote is not always pushed to a sender that
+                            // only listens, and a known app's status then keeps reading its old
+                            // transport. One small question per refresh finds the new one; the
+                            // same transport changes nothing ([onReceiverStatus]).
+                            receiverStatus()
                         } else {
                             if (!askLogged) onEvent(CastLogLines.askReceiver())
                             askLogged = true

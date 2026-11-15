@@ -208,6 +208,48 @@ class CastSessionTest {
         run.cancel()
     }
 
+    @Test fun `with a media app known, the refresh also asks the receiver and follows an app it never pushed`() = runTest {
+        val tv = FakeCast()
+        val reports = mutableListOf<CastReport>()
+        val session = CastSession(tv, { reports += it }, clock = { NOW + testScheduler.currentTime }, nonce = CastFixtures.nonce(), roots = listOf(CastFixtures.root))
+        val run = async { session.run() }
+        runCurrent()
+        tv.deliver(CastFraming.binary(CastSession.RECEIVER, CastSession.SENDER, CastDeviceAuth.NAMESPACE, CastFixtures.reply()))
+        tv.deliver(fromTv(CastSession.RECEIVER, CastNamespaces.RECEIVER, app("APP1", "t-1")))
+        tv.deliver(fromTv("t-1", CastNamespaces.MEDIA, episode))
+        runCurrent()
+        assertEquals("Sample Show", reports.last().nowPlaying?.title)
+        fun receiverGets() = tv.sent.count { it.namespace == CastNamespaces.RECEIVER && it.payload_utf8?.contains("GET_STATUS") == true }
+        val before = receiverGets()
+
+        // Another app came to the front from the TV's own remote and the receiver pushed nothing.
+        testScheduler.advanceTimeBy(CastSession.REFRESH_MS + 1)
+        runCurrent()
+        assertEquals(before + 1, receiverGets(), "the refresh asks the receiver even with an app known")
+
+        tv.deliver(fromTv(CastSession.RECEIVER, CastNamespaces.RECEIVER, app("APP2", "t-2")))
+        runCurrent()
+        assertEquals(CastReport.Stopped, reports.last(), "another app in front ends the old item")
+        val follow = tv.sent.takeLast(2)
+        assertEquals(listOf("t-2", "t-2"), follow.map { it.destination_id })
+        assertEquals(listOf(CastNamespaces.CONNECTION, CastNamespaces.MEDIA), follow.map { it.namespace })
+        tv.deliver(fromTv("t-2", CastNamespaces.MEDIA,
+            """{"type":"MEDIA_STATUS","status":[{"mediaSessionId":3,"playerState":"PLAYING","currentTime":5,"media":{"duration":60,"metadata":{"title":"Other Title"}}}]}"""))
+        runCurrent()
+        assertEquals("Other Title", reports.last().nowPlaying?.title)
+
+        // The same app on the same transport, asked again, changes nothing.
+        val sentBefore = tv.sent.size
+        tv.deliver(fromTv(CastSession.RECEIVER, CastNamespaces.RECEIVER, app("APP2", "t-2")))
+        runCurrent()
+        assertEquals(sentBefore, tv.sent.size)
+        assertEquals("Other Title", reports.last().nowPlaying?.title)
+
+        tv.close()
+        run.await()
+        run.cancel()
+    }
+
     @Test fun `the event log lines carry states and presence, never the title, episode, image or stream`() = runTest {
         val tv = FakeCast()
         val lines = mutableListOf<String>()
