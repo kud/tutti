@@ -21,6 +21,7 @@
     <string name="update_failed_github_code">GitHub a répondu par une erreur (%1$d). Réessayez plus tard.</string>
     <string name="update_failed_github">GitHub a répondu par une erreur. Réessayez plus tard.</string>
     <string name="update_failed_feed">La réponse de GitHub est illisible. Réessayez plus tard.</string>
+    <string name="update_open_releases">Voir les versions sur GitHub</string>
     <string name="update_failed_download">Le téléchargement s’est interrompu avant la fin. Réessayez.</string>
     <string name="update_failed_digest">Le fichier ne correspond pas à celui annoncé par GitHub : il a été supprimé.</string>
     <string name="update_failed_package">Ce fichier n’est pas une version plus récente de cette app : il a été supprimé.</string>

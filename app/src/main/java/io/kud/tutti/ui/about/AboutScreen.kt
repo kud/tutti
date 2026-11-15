@@ -192,7 +192,7 @@ private fun WhatsNewRow(onClick: () -> Unit) {
 }
 
 /** A Custom Tab when a browser offers one, any browser otherwise, nothing if there is none. */
-private fun openInBrowser(context: Context, url: String) {
+internal fun openInBrowser(context: Context, url: String) {
     val uri = url.toUri()
     try {
         CustomTabsIntent.Builder().setShowTitle(true).build().launchUrl(context, uri)
