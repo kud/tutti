@@ -18,6 +18,7 @@ import io.kud.tutti.platform.data.BarDevice
 import io.kud.tutti.platform.data.Devices
 import io.kud.tutti.platform.data.DockAction
 import io.kud.tutti.platform.data.DockConfig
+import io.kud.tutti.platform.data.DockLabels
 import io.kud.tutti.platform.data.DockSlot
 import io.kud.tutti.platform.data.TuttiStore
 import io.kud.tutti.platform.data.TvDevice
@@ -26,6 +27,7 @@ import io.kud.tutti.platform.net.LocalNetworkPermission
 import io.kud.tutti.platform.security.ClientIdentityStore
 import io.kud.tutti.platform.security.SecretCipher
 import io.kud.tutti.platform.security.SecureStore
+import io.kud.tutti.protocol.apps.AppShortcut
 import io.kud.tutti.protocol.atv.RemoteState
 import io.kud.tutti.protocol.bravia.PowerStatus
 import io.kud.tutti.protocol.cast.CastConnector
@@ -50,7 +52,8 @@ import java.time.Duration
 
 /**
  * The remote with the TV out of reach and the bar connected, beside the same room all up, to judge
- * the down dress. Invented fixtures: private-range addresses, the app's default device names.
+ * the down dress, in the dock's default dress and in icons only, with YouTube pinned to its
+ * Subscriptions tab so a destination badge is in the row. Invented fixtures: private-range addresses, the app's default device names.
  * Skipped unless `TUTTI_RENDERS` names an output folder:
  *
  *     TUTTI_RENDERS=<dir> ./gradlew --offline :app:testGithubDebugUnitTest --tests '*DownDressRenders*'
@@ -66,6 +69,12 @@ class DownDressRenders {
     @Test fun unreachable() = shoot("remote-tv-unreachable", Fixture.unreachable)
 
     @Test fun connected() = shoot("remote-connected", Fixture.online)
+
+    // Icons only, the dress where a destination badge overhangs the face with no name beside it:
+    // the down fade once clipped it (2026-11-15).
+    @Test fun unreachableIcons() = shoot("remote-tv-unreachable-icons", Fixture.unreachable.iconsOnly())
+
+    @Test fun connectedIcons() = shoot("remote-connected-icons", Fixture.online.iconsOnly())
 
     private fun shoot(name: String, state: TuttiUiState) {
         val dir = out
@@ -117,6 +126,8 @@ class DownDressRenders {
         return controller to TargetController(context, controller, store, secure, HidLink(context))
     }
 
+    private fun TuttiUiState.iconsOnly() = copy(prefs = prefs.copy(layout = prefs.layout.copy(dockLabels = DockLabels.ICON)))
+
     private object Fixture {
         private val bar = TheatreState(
             connected = true,
@@ -135,7 +146,7 @@ class DownDressRenders {
             devices = Devices(TvDevice(host = "192.168.1.40"), BarDevice(host = "192.168.1.41")),
             dock = DockConfig(
                 slots = DockConfig.DEFAULT_SLOTS + listOf(
-                    DockSlot(DockAction.LaunchApp("com.google.android.youtube.tv", "YouTube")),
+                    DockSlot(DockAction.LaunchApp("com.google.android.youtube.tv", "YouTube", AppShortcut.SUBSCRIPTIONS.link)),
                     DockSlot(DockAction.LaunchApp("com.netflix.ninja", "Netflix")),
                 ),
             ),
