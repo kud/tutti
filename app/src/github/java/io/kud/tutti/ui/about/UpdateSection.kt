@@ -1,6 +1,7 @@
 package io.kud.tutti.ui.about
 
 import android.content.ActivityNotFoundException
+import android.text.format.DateFormat
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -46,6 +47,7 @@ import io.kud.tutti.protocol.update.UpdateCue
 import io.kud.tutti.ui.common.SwitchRow
 import io.kud.tutti.ui.common.LocalMessages
 import io.kud.tutti.ui.common.TuttiSheet
+import java.util.Date
 import kotlinx.coroutines.launch
 
 /**
@@ -195,6 +197,11 @@ private fun statusText(state: UpdateState): String = when (state) {
     is UpdateState.Installing -> stringResource(R.string.update_installing)
     is UpdateState.Failed -> when (state.problem) {
         UpdateProblem.NETWORK -> stringResource(R.string.update_failed_network)
+        UpdateProblem.RATE_LIMITED -> state.retryAtMs?.let { at ->
+            stringResource(R.string.update_failed_rate_limited_until, DateFormat.getTimeFormat(LocalContext.current).format(Date(at)))
+        } ?: stringResource(R.string.update_failed_rate_limited)
+        UpdateProblem.GITHUB_ERROR -> state.httpCode?.let { stringResource(R.string.update_failed_github_code, it) }
+            ?: stringResource(R.string.update_failed_github)
         UpdateProblem.FEED -> stringResource(R.string.update_failed_feed)
         UpdateProblem.DOWNLOAD -> stringResource(R.string.update_failed_download)
         UpdateProblem.DIGEST -> stringResource(R.string.update_failed_digest)

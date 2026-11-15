@@ -15,6 +15,7 @@ import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import io.kud.tutti.BuildConfig
+import io.kud.tutti.protocol.update.ApiRefusal
 import io.kud.tutti.protocol.update.AppVersion
 import io.kud.tutti.protocol.update.CheckSchedule
 import io.kud.tutti.protocol.update.Flavour
@@ -41,8 +42,12 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
 
-/** Why a step failed, each said in words by the About screen (never colour alone). */
-enum class UpdateProblem { NETWORK, FEED, DOWNLOAD, DIGEST, PACKAGE, INSTALL }
+/**
+ * Why a step failed, each said in words by the About screen (never colour alone). [NETWORK] is a
+ * connection that failed; [RATE_LIMITED] and [GITHUB_ERROR] are GitHub answering, but not with the
+ * list (2026-11-15: a rate limit read as "Couldn't reach GitHub" on a phone that was online).
+ */
+enum class UpdateProblem { NETWORK, RATE_LIMITED, GITHUB_ERROR, FEED, DOWNLOAD, DIGEST, PACKAGE, INSTALL }
 
 sealed interface UpdateState {
     data object Idle : UpdateState
@@ -54,8 +59,18 @@ sealed interface UpdateState {
     /** Downloaded and verified; Android must first let this app install packages. */
     data class NeedsPermission(val update: Update) : UpdateState
     data class Installing(val update: Update) : UpdateState
-    /** [update] is kept so "Try again" knows what to retry; [detail] is Android's own words, if any. */
-    data class Failed(val problem: UpdateProblem, val update: Update?, val detail: String? = null) : UpdateState
+    /**
+     * [update] is kept so "Try again" knows what to retry; [detail] is Android's own words, if any;
+     * [retryAtMs] is when GitHub said to come back ([UpdateProblem.RATE_LIMITED]), [httpCode] the
+     * status it answered with ([UpdateProblem.GITHUB_ERROR]).
+     */
+    data class Failed(
+        val problem: UpdateProblem,
+        val update: Update?,
+        val detail: String? = null,
+        val retryAtMs: Long? = null,
+        val httpCode: Int? = null,
+    ) : UpdateState
 }
 
 /**
@@ -165,8 +180,12 @@ class Updater @Inject constructor(@ApplicationContext private val context: Conte
             runCatching { get(ReleaseFeed.URL, api = true).use { it.body?.string() ?: "" } }
         }
         prefs.edit().putLong(KEY_LAST_CHECK, System.currentTimeMillis()).apply()
-        val body = outcome.getOrElse {
-            _state.value = UpdateState.Failed(UpdateProblem.NETWORK, null)
+        val body = outcome.getOrElse { error ->
+            _state.value = when (val refusal = (error as? RefusedException)?.refusal) {
+                is ApiRefusal.Wait -> UpdateState.Failed(UpdateProblem.RATE_LIMITED, null, retryAtMs = refusal.untilMs)
+                is ApiRefusal.Error -> UpdateState.Failed(UpdateProblem.GITHUB_ERROR, null, httpCode = refusal.code)
+                null -> UpdateState.Failed(UpdateProblem.NETWORK, null)
+            }
             return null
         }
         val releases = ReleaseFeed.parse(body) ?: run {
@@ -298,8 +317,16 @@ class Updater @Inject constructor(@ApplicationContext private val context: Conte
                 return@repeat
             }
             if (!response.isSuccessful) {
+                // Only the status and the three rate-limit headers are read, and none is logged.
+                val refusal = ApiRefusal.of(
+                    response.code,
+                    remaining = response.header("x-ratelimit-remaining"),
+                    resetEpochSeconds = response.header("x-ratelimit-reset"),
+                    retryAfterSeconds = response.header("retry-after"),
+                    nowMs = System.currentTimeMillis(),
+                )
                 response.close()
-                throw IOException("HTTP ${response.code}")
+                throw RefusedException(refusal)
             }
             return response
         }
@@ -337,6 +364,9 @@ class Updater @Inject constructor(@ApplicationContext private val context: Conte
             throw e
         }
     }
+
+    /** GitHub answered outside 2xx. Still an [IOException], so a download reads it as before. */
+    private class RefusedException(val refusal: ApiRefusal) : IOException("GitHub refused: $refusal")
 
     private fun apkFile(): File = File(File(context.cacheDir, "updates"), "tutti-update.apk")
 

@@ -15,6 +15,11 @@
     <string name="update_permission_open">Ouvrir le réglage</string>
     <string name="update_try_again">Réessayer</string>
     <string name="update_failed_network">GitHub ne répond pas. Vérifiez la connexion, puis réessayez.</string>
+    <!-- GitHub a répondu, mais pas avec la liste (2026-11-15). %1$s est une heure locale, %1$d un statut HTTP. -->
+    <string name="update_failed_rate_limited_until">GitHub demande d’attendre avant de vérifier à nouveau. Réessayez après %1$s.</string>
+    <string name="update_failed_rate_limited">GitHub demande d’attendre avant de vérifier à nouveau. Réessayez un peu plus tard.</string>
+    <string name="update_failed_github_code">GitHub a répondu par une erreur (%1$d). Réessayez plus tard.</string>
+    <string name="update_failed_github">GitHub a répondu par une erreur. Réessayez plus tard.</string>
     <string name="update_failed_feed">La réponse de GitHub est illisible. Réessayez plus tard.</string>
     <string name="update_failed_download">Le téléchargement s’est interrompu avant la fin. Réessayez.</string>
     <string name="update_failed_digest">Le fichier ne correspond pas à celui annoncé par GitHub : il a été supprimé.</string>

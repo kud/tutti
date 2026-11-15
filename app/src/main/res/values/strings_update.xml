@@ -16,6 +16,11 @@
     <string name="update_permission_open">Open the setting</string>
     <string name="update_try_again">Try again</string>
     <string name="update_failed_network">Couldn’t reach GitHub. Check the connection, then try again.</string>
+    <!-- GitHub answered, but not with the list (2026-11-15). %1$s is a local time, %1$d an HTTP status. -->
+    <string name="update_failed_rate_limited_until">GitHub asks to wait before checking again. Try again after %1$s.</string>
+    <string name="update_failed_rate_limited">GitHub asks to wait before checking again. Try again in a little while.</string>
+    <string name="update_failed_github_code">GitHub answered with an error (%1$d). Try again later.</string>
+    <string name="update_failed_github">GitHub answered with an error. Try again later.</string>
     <string name="update_failed_feed">GitHub’s answer couldn’t be read. Try again later.</string>
     <string name="update_failed_download">The download stopped before the end. Try again.</string>
     <string name="update_failed_digest">The file didn’t match what GitHub announced, so it was deleted.</string>
