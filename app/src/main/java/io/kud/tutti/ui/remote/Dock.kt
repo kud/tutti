@@ -507,12 +507,17 @@ private fun Tile(
                 contentDescription = label
                 if (stateText != null) stateDescription = stateText
             }
+            // The face's fade, as one layer the size of the tile: under 1 the layer draws offscreen and
+            // clips to its own bounds, so on the face's Column it cut the destination badge, which
+            // overhangs the face (2026-11-15, YouTube's Subscriptions badge on a down dock). After
+            // the background and the press ripple, before the padding: only the face fades.
+            .graphicsLayer { alpha = faceAlpha }
             .padding(horizontal = 4.dp, vertical = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
         // The dock's dress (PinDress): the tile's own node carries the name for TalkBack in every one.
-        Column(Modifier.graphicsLayer { alpha = faceAlpha }, horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
             when {
                 !dress.name -> icon(content)
                 !dress.glyph -> PinNameOnly(label, dress.nameLines, content, description = null)
