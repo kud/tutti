@@ -53,7 +53,7 @@ android {
 
     buildTypes {
         debug {
-            applicationIdSuffix = ".debug"
+            applicationIdSuffix = ".icontrial"
             signingConfig = signingConfigs.getByName("debug")
         }
         release {
