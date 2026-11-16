@@ -52,6 +52,23 @@ class RemoteSessionTest {
     }
 
     @Test
+    fun `ime show keeps int5 and the label for the diagnostic probe, and the probe outlives the field`() {
+        val show = RemoteMessage(
+            remote_ime_show_request = RemoteImeShowRequest(
+                remote_text_field_status = RemoteTextFieldStatus(counter_field = 2, value_ = "x", int5 = 129, label = "Search"),
+            ),
+        )
+        val state = session.reduce(RemoteState(ready = true, currentApp = "a"), show).state
+        assertEquals(ImeProbe(129, "Search"), state.imeProbe)
+        assertEquals(1, state.imeShows)
+        assertEquals(2, session.reduce(state, show).state.imeShows)
+        val inject = RemoteMessage(remote_ime_key_inject = RemoteImeKeyInject(app_info = RemoteAppInfo(app_package = "b")))
+        val after = session.reduce(state, inject).state
+        assertNull(after.ime)
+        assertEquals(129, after.imeProbe?.int5)
+    }
+
+    @Test
     fun `ime show opens the field and batch edits update counters and text`() {
         val show = RemoteMessage(
             remote_ime_show_request = RemoteImeShowRequest(
@@ -77,7 +94,7 @@ class RemoteSessionTest {
         val out = RemoteMessages.text("arte concert", state.imeCounter, state.fieldCounter).remote_ime_batch_edit
         assertNotNull(out)
         assertEquals(9, out.ime_counter)
-        assertEquals(12, out.edit_info.single().text_field_status?.start)
+        assertEquals(11, out.edit_info.single().text_field_status?.start)
     }
 
     @Test
@@ -94,5 +111,16 @@ class RemoteSessionTest {
         assertEquals(RemoteDirection.START_LONG, inject?.direction)
         assertNull(RemoteMessages.key(0))
         assertNull(RemoteMessages.key(9_999))
+    }
+
+    @Test
+    fun `a dropped link forgets the TV's power and volume, keeps the rest`() {
+        val live = RemoteState(ready = true, powered = true, volume = TvVolume(12, 100, false), currentApp = "com.example.app")
+        val down = live.disconnected()
+        assertEquals(false, down.ready)
+        assertNull(down.powered)
+        assertNull(down.volume)
+        assertNull(down.ime)
+        assertEquals("com.example.app", down.currentApp)
     }
 }

@@ -3,24 +3,26 @@ package io.kud.tutti.ui.remote
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.kud.tutti.R
-import io.kud.tutti.controller.Link
 import io.kud.tutti.controller.TuttiController
 import io.kud.tutti.controller.TuttiUiState
 import io.kud.tutti.platform.data.RowButton
 import io.kud.tutti.platform.data.SecondaryButton
 import io.kud.tutti.protocol.atv.V2Key
 import io.kud.tutti.ui.common.Haptics
+import io.kud.tutti.ui.common.LocalMessages
 import io.kud.tutti.ui.common.TonalRoundButton
 import io.kud.tutti.ui.common.actionLabel
 
 /** The icon a row button wears, in the row and in the edit mode's "add" chips. */
 @DrawableRes
 fun rowButtonIcon(button: RowButton, muted: Boolean = false): Int = when (button) {
-    RowButton.BACK -> R.drawable.ic_back
+    RowButton.BACK -> R.drawable.ic_tv_back
     RowButton.HOME -> R.drawable.ic_home
     RowButton.PLAY -> R.drawable.ic_play_pause
     RowButton.VOICE -> R.drawable.ic_mic
@@ -51,11 +53,12 @@ fun rowButtonLabel(button: RowButton): String = stringResource(
     },
 )
 
-/** The three that take a long-press action of his own. */
+/** The four that take a long-press action of his own. */
 private fun RowButton.secondary(): SecondaryButton? = when (this) {
     RowButton.BACK -> SecondaryButton.BACK
     RowButton.HOME -> SecondaryButton.HOME
     RowButton.PLAY -> SecondaryButton.PLAY
+    RowButton.INPUT -> SecondaryButton.INPUT
     else -> null
 }
 
@@ -86,40 +89,133 @@ fun LiveRowButton(
     state: TuttiUiState,
     controller: TuttiController,
     haptics: Haptics,
-    keyboardOpen: Boolean,
+    /** A TV field is open behind the input view he left: the Keyboard key wears its "on" look. */
+    fieldWaiting: Boolean,
     onKeyboard: () -> Unit,
     onSecondary: (SecondaryButton) -> Unit,
     size: Dp,
+    /** Where a key goes: the remote's target router ([RemoteScreen]); the TV by default. */
+    onKey: (Int) -> Unit = controller::key,
+    /** The key is down for the target (a TV-only key while the computer is targeted): bumps, says [keyDownReason]. */
+    keyDown: (Int) -> Boolean = { false },
+    keyDownReason: String? = null,
+    /** What the key means on the target, for TalkBack ("Escape on the computer"); null keeps the TV's. */
+    keyMeaning: (Int) -> String? = { null },
+    /** Input's tap: tutti's own input chooser ([TvInputSheet]). */
+    onInputs: () -> Unit = {},
+    modifier: Modifier = Modifier,
+    /** Drawn as a dock pin (the row joined the dock on 2026-10-29), its name under the glyph. */
+    pin: Boolean = false,
 ) {
+    val pinLabel = if (pin) rowButtonLabel(button) else null
+    // One rule for every control (controlLink): a TV key goes down with the TV's link, Mute with
+    // the bar's, connecting and out of reach alike, and a down key bumps and sends nothing.
+    val tv = state.controlLink(Owner.TV)
+    val tvReason = controlLinkReason(tv, Owner.TV, state)
+    val clipboard = LocalClipboardManager.current
+    val messages = LocalMessages.current
+    val pasteEmpty = stringResource(R.string.keyboard_long_paste_empty)
+    val pasteNoField = stringResource(R.string.keyboard_long_paste_no_field)
+    val pasteDone = stringResource(R.string.keyboard_long_paste_done)
     when (button) {
-        RowButton.VOICE -> VoiceButton(controller = controller, enabled = state.remote.ready, size = size)
+        RowButton.VOICE -> VoiceButton(controller = controller, down = tv.down, downReason = tvReason, size = size, modifier = modifier, pinLabel = pinLabel)
         RowButton.KEYBOARD -> TonalRoundButton(
             icon = R.drawable.ic_keyboard,
             contentDescription = rowButtonLabel(button),
             onClick = onKeyboard,
-            active = keyboardOpen,
+            // Long press pastes the phone's clipboard into the TV's open field, without the view.
+            onLongClick = {
+                when (val outcome = paste(clipboard.getText()?.text, state.keyboardField?.text)) {
+                    Paste.Empty -> {
+                        haptics.reject()
+                        messages?.show(pasteEmpty)
+                    }
+                    Paste.NoField -> {
+                        haptics.reject()
+                        messages?.show(pasteNoField)
+                    }
+                    is Paste.Send -> {
+                        haptics.longPress()
+                        controller.text(outcome.text)
+                        messages?.show(pasteDone)
+                    }
+                }
+            },
+            onLongClickLabel = stringResource(R.string.keyboard_long_paste),
+            // A field remembered from before a drop is not a field now: never "on" while the TV is down.
+            active = fieldWaiting && !tv.down,
+            unreachable = tv.down,
             size = size,
+            stateDescription = tvReason,
+            modifier = modifier,
+            pinLabel = pinLabel,
         )
-        RowButton.MUTE -> TonalRoundButton(
-            icon = rowButtonIcon(button, state.muted),
-            contentDescription = rowButtonLabel(button),
-            onClick = { controller.toggleMute() },
-            active = state.muted,
-            unreachable = !state.bar.connected,
-            size = size,
-        )
+        RowButton.MUTE -> {
+            val bar = state.controlLink(Owner.BAR)
+            // A remembered mute is not shown once the bar has gone: the reducer keeps the last value.
+            val muted = state.muted && !bar.down
+            TonalRoundButton(
+                icon = rowButtonIcon(button, muted),
+                // Like the rail's speaker: the label says what a tap does, the state what is true now.
+                contentDescription = stringResource(if (muted) R.string.volume_unmute else R.string.volume_mute),
+                onClick = { controller.toggleMute() },
+                active = muted,
+                unreachable = bar.down,
+                size = size,
+                modifier = modifier,
+                pinLabel = pinLabel,
+                stateDescription = controlLinkReason(bar, Owner.BAR, state) ?: if (muted) stringResource(R.string.volume_muted) else null,
+            )
+        }
+        // Input opens tutti's input chooser (Erwann, 2026-10-26), whose every row is a TV input: with
+        // the TV's link down none of them can switch, so the key goes down with the TV like every TV
+        // key, its tap a bump and the chip nudged (Erwann on dev.15, 2026-11-13: « Pourquoi certains
+        // boutons ne sont pas désactivés vu la situation ? »). It was a door that always opened; that
+        // opened onto a list of dead rows. Its long press is a key's, refused with the rest.
+        RowButton.INPUT -> {
+            val secondary = SecondaryButton.INPUT
+            val inputs = state.controlLink(Owner.TV_EITHER)
+            TonalRoundButton(
+                icon = rowButtonIcon(button),
+                contentDescription = rowButtonLabel(button),
+                onClick = onInputs,
+                onLongClick = {
+                    if (tv.down) {
+                        haptics.bump()
+                        tvReason?.let { messages?.show(it) }
+                    } else {
+                        onSecondary(secondary)
+                    }
+                },
+                onLongClickLabel = state.dock.longPress[secondary]?.let { actionLabel(it, state) }
+                    ?: rowDefault(secondary)?.let { stringResource(it.label) },
+                // Its rows switch over IP control: down only when neither of the TV's planes answers.
+                unreachable = inputs.down,
+                stateDescription = controlLinkReason(inputs, Owner.TV_EITHER, state),
+                size = size,
+                modifier = modifier,
+                pinLabel = pinLabel,
+            )
+        }
         else -> {
             val key = button.key() ?: return
             val secondary = button.secondary()
             TonalRoundButton(
                 icon = rowButtonIcon(button),
-                contentDescription = rowButtonLabel(button),
-                onClick = { controller.key(key) },
-                unreachable = state.devices.tv != null && state.links.tv == Link.UNREACHABLE,
+                contentDescription = listOfNotNull(rowButtonLabel(button), keyMeaning(key), keyDownReason.takeIf { keyDown(key) }).joinToString(", "),
+                onClick = { onKey(key) },
+                unreachable = tv.down || keyDown(key),
                 onLongClick = secondary?.let { { onSecondary(it) } },
                 // Names the second action: read aloud by TalkBack, and tagged over the key when it lands.
-                onLongClickLabel = secondary?.let { state.dock.longPress[it] }?.let { actionLabel(it, state) },
+                // His own action when he chose one, else the key's default (RowGestures).
+                onLongClickLabel = secondary?.let { which ->
+                    state.dock.longPress[which]?.let { actionLabel(it, state) }
+                        ?: rowDefault(which)?.let { stringResource(it.label) }
+                },
                 size = size,
+                stateDescription = tvReason,
+                modifier = modifier,
+                pinLabel = pinLabel,
             )
         }
     }

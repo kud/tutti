@@ -1,10 +1,16 @@
 package io.kud.tutti.ui.remote
 
+import io.kud.tutti.controller.TuttiUiState
+import io.kud.tutti.ui.common.TuttiSheet
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.ui.text.style.TextAlign
 import io.kud.tutti.ui.motion.snappyOrFade
 import android.Manifest
 import android.app.Activity
 import android.os.SystemClock
-import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateColorAsState
@@ -15,6 +21,7 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
@@ -34,13 +41,19 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.drawOutline
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.Dp
@@ -50,6 +63,10 @@ import androidx.compose.ui.window.Popup
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import io.kud.tutti.R
+import io.kud.tutti.ui.common.LocalMessages
+import io.kud.tutti.ui.common.LocalChipNudge
+import io.kud.tutti.ui.common.downFill
+import io.kud.tutti.ui.common.downInk
 import io.kud.tutti.controller.TuttiController
 import io.kud.tutti.protocol.atv.VoiceEvent
 import io.kud.tutti.protocol.atv.VoiceFailure
@@ -68,12 +85,25 @@ private enum class Hold { NONE, TALKING, CANCELLING }
  * The microphone permission is asked on first use only, after a one-line rationale.
  */
 @Composable
-fun VoiceButton(controller: TuttiController, enabled: Boolean, size: Dp = 56.dp) {
+fun VoiceButton(
+    controller: TuttiController,
+    /** The TV's link isn't up (controlLink): the down dress, and a press bumps and opens nothing. */
+    down: Boolean,
+    /** Why, for TalkBack: "Connecting to the TV", "BRAVIA 8 unreachable". */
+    downReason: String? = null,
+    size: Dp = 56.dp,
+    modifier: Modifier = Modifier,
+    /** Drawn as a dock pin, with this name under the glyph ([io.kud.tutti.ui.common.TonalRoundButton]'s `pinLabel`). */
+    pinLabel: String? = null,
+) {
+    val nudge = LocalChipNudge.current
     val context = LocalContext.current
+    val resources = LocalResources.current
     val haptics = rememberHaptics()
     val voice by controller.voice.collectAsState()
     var hold by remember { mutableStateOf(Hold.NONE) }
     val reportProblem = rememberProblemReporter()
+    val messages = LocalMessages.current
     var rationale by remember { mutableStateOf(false) }
 
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -81,10 +111,10 @@ fun VoiceButton(controller: TuttiController, enabled: Boolean, size: Dp = 56.dp)
             granted -> R.string.voice_hold_hint
             else -> R.string.voice_permission_denied
         }
-        Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
+        messages?.show(resources.getString(text))
     }
 
-    val current by rememberUpdatedState(enabled)
+    val isDown by rememberUpdatedState(down)
 
     LifecycleEventEffect(Lifecycle.Event.ON_STOP) {
         if (hold != Hold.NONE) {
@@ -103,7 +133,7 @@ fun VoiceButton(controller: TuttiController, enabled: Boolean, size: Dp = 56.dp)
                 VoiceEvent.CAPPED -> {
                     haptics.bump()
                     hold = Hold.NONE
-                    Toast.makeText(context, R.string.voice_capped, Toast.LENGTH_SHORT).show()
+                    messages?.show(resources.getString(R.string.voice_capped))
                 }
                 VoiceEvent.SENT, VoiceEvent.CANCELLED -> Unit
             }
@@ -120,7 +150,7 @@ fun VoiceButton(controller: TuttiController, enabled: Boolean, size: Dp = 56.dp)
             VoiceFailure.NO_REPLY -> R.string.voice_no_reply
             VoiceFailure.DISCONNECTED -> R.string.voice_disconnected
         }
-        reportProblem(context.getString(text), controller.failureDetail("voice: hold to talk", outcome = failed.reason.name))
+        reportProblem(resources.getString(text), controller.failureDetail("voice: hold to talk", outcome = failed.reason.name))
         controller.clearVoiceFailure()
     }
 
@@ -137,42 +167,87 @@ fun VoiceButton(controller: TuttiController, enabled: Boolean, size: Dp = 56.dp)
         snappyOrFade(),
         label = "scale",
     )
+    val rest = if (pinLabel != null) scheme.surfaceContainerHigh else scheme.secondaryContainer
     val container by animateColorAsState(
-        when (hold) {
+        if (down) downFill(rest) else when (hold) {
             Hold.TALKING -> scheme.primary
             Hold.CANCELLING -> scheme.errorContainer
-            Hold.NONE -> scheme.secondaryContainer
+            Hold.NONE -> rest
         },
         snappyOrFade(),
         label = "container",
     )
-    val content = when (hold) {
+    val content = if (down) downInk(if (pinLabel != null) scheme.onSurfaceVariant else scheme.onSecondaryContainer) else when (hold) {
         Hold.TALKING -> scheme.onPrimary
         Hold.CANCELLING -> scheme.onErrorContainer
-        Hold.NONE -> scheme.onSecondaryContainer
+        Hold.NONE -> if (pinLabel != null) scheme.onSurfaceVariant else scheme.onSecondaryContainer
     }
+    val voiceShape: androidx.compose.ui.graphics.Shape =
+        if (pinLabel != null) RoundedCornerShape(io.kud.tutti.ui.common.PIN_CORNER) else RoundedCornerShape(percent = corner)
     val label = stringResource(R.string.voice_button)
     val listeningLabel = stringResource(R.string.voice_listening)
+    val startLabel = stringResource(R.string.voice_action_start)
+    val sendLabel = stringResource(R.string.voice_action_send)
+    val cancelLabel = stringResource(R.string.voice_action_cancel)
 
     Box(
-        modifier = Modifier
-            .size(size)
+        modifier = modifier
+            .then(if (pinLabel != null) Modifier.heightIn(min = io.kud.tutti.ui.common.PIN_MIN_HEIGHT) else Modifier.size(size))
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
-                alpha = if (enabled) 1f else 0.38f
             }
-            .clip(RoundedCornerShape(percent = corner))
-            .background(container)
+            .drawBehind {
+                val outline = voiceShape.createOutline(this.size, layoutDirection, this)
+                drawOutline(outline, container)
+            }
+            .clip(voiceShape)
             .semantics {
                 contentDescription = label
-                if (talking) stateDescription = listeningLabel
+                when {
+                    downReason != null -> stateDescription = downReason
+                    talking -> stateDescription = listeningLabel
+                }
+                // TalkBack can't hold and release, so it gets a toggle: activate to start talking,
+                // again to send, or the Cancel action to drop it. Down, it offers nothing.
+                if (downReason == null && !down) {
+                    onClick(label = if (talking) sendLabel else startLabel) {
+                        when {
+                            talking -> {
+                                hold = Hold.NONE
+                                haptics.click()
+                                controller.finishVoice()
+                            }
+                            !controller.micGranted() -> rationale = true
+                            else -> {
+                                haptics.select()
+                                hold = Hold.TALKING
+                                controller.startVoice()
+                            }
+                        }
+                        true
+                    }
+                    if (talking) {
+                        customActions = listOf(
+                            CustomAccessibilityAction(cancelLabel) {
+                                hold = Hold.NONE
+                                controller.cancelVoice()
+                                true
+                            },
+                        )
+                    }
+                }
             }
             .pointerInput(controller) {
                 awaitEachGesture {
                     val down = awaitFirstDown()
                     down.consume()
-                    if (!current) return@awaitEachGesture
+                    if (isDown) {
+                        // As every down control: a bump, the chip nudged to say why, nothing sent.
+                        haptics.bump()
+                        nudge.poke()
+                        return@awaitEachGesture
+                    }
                     if (!controller.micGranted()) {
                         rationale = true
                         return@awaitEachGesture
@@ -212,7 +287,7 @@ fun VoiceButton(controller: TuttiController, enabled: Boolean, size: Dp = 56.dp)
                         cancelled || wasCancelling -> controller.cancelVoice()
                         SystemClock.uptimeMillis() - pressedAt < MIN_HOLD_MS -> {
                             controller.cancelVoice()
-                            Toast.makeText(context, R.string.voice_hold_hint, Toast.LENGTH_SHORT).show()
+                            messages?.show(resources.getString(R.string.voice_hold_hint))
                         }
                         else -> {
                             haptics.click()
@@ -223,7 +298,11 @@ fun VoiceButton(controller: TuttiController, enabled: Boolean, size: Dp = 56.dp)
             },
         contentAlignment = Alignment.Center,
     ) {
-        Icon(painterResource(R.drawable.ic_mic), contentDescription = null, tint = content)
+        if (pinLabel != null) {
+            io.kud.tutti.ui.common.PinKeyFace(R.drawable.ic_mic, null, pinLabel, content)
+        } else {
+            Icon(painterResource(R.drawable.ic_mic), contentDescription = null, tint = content)
+        }
         if (hold != Hold.NONE) {
             val lift = with(LocalDensity.current) { -(size + 20.dp).roundToPx() }
             Popup(alignment = Alignment.TopCenter, offset = IntOffset(0, lift)) {
@@ -264,3 +343,31 @@ private const val MIN_HOLD_MS = 300L
 
 /** How far past the button's edge the finger may drift before release cancels. */
 private val CANCEL_SLOP = 24.dp
+
+/**
+ * The mic from the ⋮ while no pin holds it (2026-10-29: the row joined the dock, and he may unpin
+ * the mic): the same hold-to-talk key, large, under its name and one line saying how it works.
+ */
+@Composable
+fun VoiceSheet(state: TuttiUiState, controller: TuttiController, onDismiss: () -> Unit) {
+    val tv = state.controlLink(Owner.TV)
+    val reason = controlLinkReason(tv, Owner.TV, state)
+    TuttiSheet(onDismissRequest = onDismiss) {
+        Column(
+            Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(stringResource(R.string.row_voice), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
+            Spacer(Modifier.height(8.dp))
+            Text(
+                reason ?: stringResource(R.string.voice_sheet_hint),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
+            Spacer(Modifier.height(56.dp))
+            VoiceButton(controller = controller, down = tv.down, downReason = reason, size = 88.dp)
+            Spacer(Modifier.height(32.dp))
+        }
+    }
+}

@@ -37,23 +37,29 @@ internal fun requireLan(host: String) {
 class AndroidTcpConnector internal constructor(
     private val checkHost: (String) -> Unit,
     private val readTimeoutMs: Int,
+    private val requireAccess: () -> Unit = {},
+    private val bind: (Socket) -> Unit = {},
 ) : TcpConnector {
-    @Inject constructor() : this(::requireLan, BAR_READ_TIMEOUT_MS)
+    @Inject constructor(localNetwork: LocalNetworkPermission) :
+        this(::requireLan, BAR_READ_TIMEOUT_MS, localNetwork::require, { LanRoute.bind(it) })
 
-    override suspend fun connect(host: String, port: Int): Connection = withContext(Dispatchers.IO) {
+    override suspend fun connect(host: String, port: Int): Connection = closingIfCancelled { opened -> withContext(Dispatchers.IO) {
+        requireAccess()
         checkHost(host)
         val socket = Socket()
         try {
+            // On the LAN network, never the default: a default flipped to cellular cannot reach the bar (LanRoute).
+            bind(socket)
             socket.connect(InetSocketAddress(host, port), CONNECT_TIMEOUT_MS)
             socket.tcpNoDelay = true
             socket.keepAlive = true
             socket.soTimeout = readTimeoutMs
-            SocketConnection(socket)
+            SocketConnection(socket).also(opened)
         } catch (e: Exception) {
             runCatching { socket.close() }
             throw e
         }
-    }
+    } }
 
     private companion object {
         const val CONNECT_TIMEOUT_MS = 4_000
@@ -70,36 +76,73 @@ class AndroidTcpConnector internal constructor(
 class AndroidTlsConnector internal constructor(
     private val checkHost: (String) -> Unit,
     private val readTimeoutMs: Int,
+    private val requireAccess: () -> Unit = {},
+    private val bind: (Socket) -> Unit = {},
 ) : TlsConnector {
-    @Inject constructor() : this(::requireLan, TV_READ_TIMEOUT_MS)
+    @Inject constructor(localNetwork: LocalNetworkPermission) :
+        this(::requireLan, TV_READ_TIMEOUT_MS, localNetwork::require, { LanRoute.bind(it) })
 
     override suspend fun connect(
         host: String,
         port: Int,
         identity: ClientIdentity,
         expectedPin: CertificatePin?,
-    ): TlsConnection = withContext(Dispatchers.IO) {
+    ): TlsConnection = closingIfCancelled { opened -> withContext(Dispatchers.IO) {
+        requireAccess()
         checkHost(host)
-        val context = SSLContext.getInstance("TLS")
-        context.init(arrayOf(IdentityKeyManager(identity)), arrayOf(PinningTrustManager(expectedPin)), SecureRandom())
+        // A pinned device reuses its context, so its session cache lets the TV resume the TLS
+        // session on reconnect rather than redo the full RSA handshake. Keyed by the pin and our
+        // identity: a new pin or a new identity never resumes an old session. First use (no pin
+        // yet) always gets a fresh one.
+        val key = expectedPin?.let { TlsContexts.Key(host, port, it, CertificatePin.of(identity.certificate)) }
+        val context = contexts.get(key) {
+            SSLContext.getInstance("TLS").apply {
+                init(arrayOf(IdentityKeyManager(identity)), arrayOf(PinningTrustManager(expectedPin)), SecureRandom())
+            }
+        }
         val raw = Socket()
         try {
+            bind(raw)
             raw.connect(InetSocketAddress(host, port), CONNECT_TIMEOUT_MS)
             raw.tcpNoDelay = true
             raw.soTimeout = readTimeoutMs
             val ssl = context.socketFactory.createSocket(raw, host, port, true) as SSLSocket
             ssl.useClientMode = true
             ssl.startHandshake()
-            TlsSocketConnection(ssl, raw, identity.certificate)
+            TlsSocketConnection(ssl, raw, identity.certificate).also(opened)
         } catch (e: Exception) {
             runCatching { raw.close() }
             throw e
         }
-    }
+    } }
 
     private companion object {
         const val CONNECT_TIMEOUT_MS = 4_000
         const val TV_READ_TIMEOUT_MS = 20_000
+
+        /** Process-wide: every connector instance shares the sessions it could resume. */
+        val contexts = TlsContexts<SSLContext>()
+    }
+}
+
+/**
+ * The few TLS contexts worth keeping, one per pinned device and identity, at most [MAX]. A null key
+ * (first use, nothing pinned yet) is never cached.
+ */
+internal class TlsContexts<C : Any> {
+    data class Key(val host: String, val port: Int, val pin: CertificatePin, val identity: CertificatePin)
+
+    private val entries = object : LinkedHashMap<Key, C>(MAX, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Key, C>?): Boolean = size > MAX
+    }
+
+    fun get(key: Key?, create: () -> C): C {
+        if (key == null) return create()
+        return synchronized(entries) { entries.getOrPut(key, create) }
+    }
+
+    private companion object {
+        const val MAX = 6
     }
 }
 
@@ -121,5 +164,20 @@ internal class IdentityKeyManager(private val identity: ClientIdentity) : X509Ex
 
     private companion object {
         const val ALIAS = "tutti-client"
+    }
+}
+
+/**
+ * A blocking connect finishes even when its caller was cancelled meanwhile, and `withContext`
+ * then throws away the result: the socket stayed open, and the bar kept a client nobody read.
+ * Whatever [block] reports through `opened` is closed if the call ends in cancellation.
+ */
+internal suspend fun <T : Connection> closingIfCancelled(block: suspend (opened: (T) -> Unit) -> T): T {
+    var opened: T? = null
+    try {
+        return block { opened = it }
+    } catch (e: kotlinx.coroutines.CancellationException) {
+        opened?.let { runCatching { it.close() } }
+        throw e
     }
 }

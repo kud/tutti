@@ -17,6 +17,15 @@ sealed interface SceneStep {
     data class Bar(val feature: TheatreFeature, val value: String) : SceneStep
 
     data class LaunchApp(val appPackage: String) : SceneStep
+
+    /** The TV's picture off (power saving `pictureOff`) or back on (`off`), sound untouched. */
+    data class PictureOff(val on: Boolean) : SceneStep
+
+    /** Where the TV sends its sound (`outputTerminal`). */
+    data class TvAudioOutput(val terminal: String) : SceneStep
+
+    /** The remote's keys go to this device (an id from the device list). */
+    data class Target(val deviceId: String) : SceneStep
 }
 
 sealed interface SceneMatch {
@@ -29,7 +38,8 @@ sealed interface SceneMatch {
 object SceneEngine {
     /**
      * Ordered steps that bring the devices to [scene], skipping what already matches:
-     * wake, source, picture, bar toggles, bass, volume (clamped to the cap), final app.
+     * wake, source, picture, TV sound output, bar input, bar toggles, bass, volume (clamped to the
+     * cap), final app, picture off, then the remote's target.
      */
     fun plan(scene: Scene, snapshot: DeviceSnapshot): List<SceneStep> {
         val steps = mutableListOf<SceneStep>()
@@ -41,8 +51,10 @@ object SceneEngine {
         (s[SceneKey.TV_INPUT] as? SceneValue.Text)?.let { if (differs(SceneKey.TV_INPUT)) steps += SceneStep.TvInput(it.value) }
         (s[SceneKey.TV_APP] as? SceneValue.Text)?.let { if (differs(SceneKey.TV_APP)) steps += SceneStep.TvApp(it.value) }
         (s[SceneKey.PICTURE_MODE] as? SceneValue.Text)?.let { if (differs(SceneKey.PICTURE_MODE)) steps += SceneStep.PictureMode(it.value) }
+        (s[SceneKey.TV_AUDIO_OUTPUT] as? SceneValue.Text)?.let { if (differs(SceneKey.TV_AUDIO_OUTPUT)) steps += SceneStep.TvAudioOutput(it.value) }
+        (s[SceneKey.BAR_INPUT] as? SceneValue.Text)?.let { if (differs(SceneKey.BAR_INPUT)) steps += SceneStep.Bar(TheatreFeature.INPUT, it.value) }
 
-        for (key in listOf(SceneKey.SOUND_FIELD, SceneKey.VOICE, SceneKey.NIGHT)) {
+        for (key in listOf(SceneKey.SOUND_FIELD, SceneKey.VOICE, SceneKey.NIGHT, SceneKey.SPATIAL_360, SceneKey.VOICE_ZOOM)) {
             val wanted = s[key] as? SceneValue.Flag ?: continue
             if (!differs(key)) continue
             val feature = DeviceSnapshot.BAR_FEATURES.getValue(key)
@@ -67,6 +79,10 @@ object SceneEngine {
         scene.launchApp?.let { app ->
             if ((snapshot[SceneKey.TV_APP] as? SceneValue.Text)?.value != app) steps += SceneStep.LaunchApp(app)
         }
+        // Last: an app coming to the front, or an input change, could light the screen again.
+        (s[SceneKey.PICTURE_OFF] as? SceneValue.Flag)?.let { if (differs(SceneKey.PICTURE_OFF)) steps += SceneStep.PictureOff(it.on) }
+        // After every switch: a target chosen by hand holds against the input it was chosen on.
+        (s[SceneKey.TARGET] as? SceneValue.Text)?.let { if (differs(SceneKey.TARGET)) steps += SceneStep.Target(it.value) }
         return steps
     }
 

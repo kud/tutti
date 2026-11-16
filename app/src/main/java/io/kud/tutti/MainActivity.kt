@@ -1,5 +1,27 @@
 package io.kud.tutti
 
+import android.content.Intent
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.launch
+import io.kud.tutti.platform.data.TuttiStore
+import io.kud.tutti.platform.display.EveningDimmer
+import io.kud.tutti.platform.shortcuts.ACTION_APP
+import io.kud.tutti.platform.shortcuts.ACTION_KEYBOARD
+import io.kud.tutti.platform.shortcuts.ACTION_SCENE
+import io.kud.tutti.platform.shortcuts.EXTRA_PACKAGE
+import io.kud.tutti.platform.shortcuts.EXTRA_SCENE_ID
+import io.kud.tutti.platform.shortcuts.EXTRA_TOKEN
+import io.kud.tutti.platform.shortcuts.ShortcutGuard
+import io.kud.tutti.platform.security.SecureStore
+import io.kud.tutti.platform.shortcuts.publishLauncherShortcuts
+import io.kud.tutti.platform.shortcuts.shortcutIdFor
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.unit.dp
@@ -21,39 +43,85 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dagger.hilt.android.AndroidEntryPoint
 import io.kud.tutti.controller.TuttiController
 import io.kud.tutti.platform.data.ThemeMode
+import io.kud.tutti.platform.diagnostic.AppLog
 import io.kud.tutti.platform.diagnostic.CrashLog
 import io.kud.tutti.platform.diagnostic.Diagnostics
 import io.kud.tutti.platform.discovery.TvDiscovery
 import io.kud.tutti.ui.TuttiApp
 import io.kud.tutti.ui.common.CrashDialog
+import io.kud.tutti.ui.common.LocalMessages
 import io.kud.tutti.ui.common.LocalReducedMotion
+import io.kud.tutti.ui.motion.LocalLinkResuming
+import io.kud.tutti.ui.common.MessageHost
+import io.kud.tutti.ui.common.Messages
 import io.kud.tutti.ui.common.rememberReducedMotion
+import io.kud.tutti.ui.intro.IntroAnchors
 import io.kud.tutti.ui.intro.LaunchIntro
 import io.kud.tutti.ui.intro.LaunchIntroOverlay
+import io.kud.tutti.ui.intro.LocalIntroAnchors
 import io.kud.tutti.ui.theme.TuttiTheme
+import io.kud.tutti.ui.theme.WindowBackground
 import javax.inject.Inject
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     @Inject lateinit var controller: TuttiController
 
+    /** The after-update notification asked for What's new; TuttiApp opens it once the stores load. */
+    private var whatsNewAsked by mutableStateOf(false)
+
     @Inject lateinit var discovery: TvDiscovery
 
     @Inject lateinit var diagnostics: Diagnostics
+
+    @Inject lateinit var hid: io.kud.tutti.platform.bluetooth.HidLink
+    @Inject lateinit var target: io.kud.tutti.controller.TargetController
+
+    @Inject lateinit var store: TuttiStore
+
+    @Inject lateinit var sync: io.kud.tutti.platform.sync.SettingsSync
+
+    @Inject lateinit var secure: SecureStore
 
     override fun onCreate(savedInstanceState: Bundle?) {
         val splash = installSplashScreen()
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
-        // The system splash is only a still bridge; on a cold start the intro takes over at the
-        // same place and plays on the app's own frame clock over the already-drawn remote.
-        val intro = LaunchIntro(enabled = savedInstanceState == null)
+        // Before Compose's first frame: the background the theme last drew, so a dark choice on a
+        // light phone (or the reverse) never flashes the other one.
+        WindowBackground.restore(this)
+        // The system splash is only a still bridge; the intro takes over at the same place and
+        // plays on the app's own frame clock over the already-drawn remote: in full on a cold
+        // start, short on a warm one, not at all for a recreated activity.
+        val intro = LaunchIntro(LaunchIntro.kindFor(restored = savedInstanceState != null))
         splash.setOnExitAnimationListener(intro::takeOver)
+        if (savedInstanceState == null) handleShortcut(intent)
+        // The launcher's shortcuts follow his dock's apps and his scenes (gesture audit item 10;
+        // Erwann, 2026-11-13). Only once the stores have loaded, so a default dock never flashes.
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                // App and scene shortcuts carry this install's token; without a readable one, none are rewritten.
+                val token = runCatching { secure.shortcutToken() }.getOrNull() ?: return@repeatOnLifecycle
+                combine(
+                    store.scenes,
+                    controller.state.filter { it.loaded }.map { it.dock to it.appIcons },
+                ) { scenes, (dock, icons) -> Triple(dock, scenes, icons) }
+                    .distinctUntilChanged()
+                    .collectLatest { (dock, scenes, icons) -> publishLauncherShortcuts(this@MainActivity, dock, scenes, icons, token) }
+            }
+        }
+        // "Salle obscure": the window dims in the evening while the TV is on, only while in front.
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                EveningDimmer(window, contentResolver).follow(controller.state)
+            }
+        }
         setContent {
             val state by controller.state.collectAsStateWithLifecycle()
             val reducedMotion = rememberReducedMotion()
@@ -64,33 +132,94 @@ class MainActivity : ComponentActivity() {
                 ThemeMode.DARK -> true
             }
             TuttiTheme(darkTheme = dark, trueBlack = state.prefs.trueBlack) {
+                WindowBackground.Follow(this@MainActivity)
                 CompositionLocalProvider(
+                    LocalMessages provides remember { Messages() },
                     LocalFeedbackPrefs provides FeedbackPrefs(state.prefs.vibrationLevel, state.prefs.keySounds),
                     // Rows and every plain clickable: Material ripple plus the inset focus ring.
                     LocalIndication provides rememberTuttiIndication(RoundedCornerShape(12.dp), ripple = true, ringInset = true),
                     LocalChipNudge provides remember { ChipNudge() },
                     LocalReducedMotion provides reducedMotion,
+                    LocalLinkResuming provides state.links.tvShown.resuming,
+                    LocalIntroAnchors provides remember { IntroAnchors() },
                 ) {
-                    TuttiApp(controller, discovery, diagnostics, state)
-                    LaunchIntroOverlay(intro)
-                    var crash by remember { mutableStateOf(CrashLog.read(this@MainActivity)) }
+                    TuttiApp(
+                        controller, discovery, diagnostics, hid, state, target,
+                        whatsNewAsked = whatsNewAsked,
+                        onWhatsNewAsked = { whatsNewAsked = false },
+                    )
+                    LaunchIntroOverlay(
+                        intro,
+                        firstLaunch = if (state.loaded) state.devices.isEmpty && !state.prefs.onboarded else null,
+                    )
+                    var crash by remember { mutableStateOf(CrashLog.read(this@MainActivity)?.also { AppLog.events.crash(it) }) }
                     crash?.let { report ->
-                        CrashDialog(report) {
+                        CrashDialog(report, developer = state.prefs.developerMode) {
                             CrashLog.clear(this@MainActivity)
                             crash = null
                         }
                     }
+                    // Last, so a message draws above the remote, its intro and every screen.
+                    MessageHost()
                 }
             }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleShortcut(intent)
+    }
+
+    /**
+     * A launcher shortcut: apply its scene, or open the keyboard view. This activity is exported, so
+     * a scene runs only with this install's token ([ShortcutGuard]); any other [ACTION_SCENE] just
+     * opens the app, silently. Read off the intent here, before the token check suspends.
+     */
+    private fun handleShortcut(intent: Intent?) {
+        shortcutIdFor(intent?.action, intent?.getStringExtra(EXTRA_SCENE_ID), intent?.getStringExtra(EXTRA_PACKAGE))
+            ?.let { id -> runCatching { ShortcutManagerCompat.reportShortcutUsed(this, id) } }
+        when (intent?.action) {
+            ACTION_APP -> {
+                val packageName = intent.getStringExtra(EXTRA_PACKAGE)
+                val presented = intent.getStringExtra(EXTRA_TOKEN)
+                if (packageName.isNullOrBlank() || presented.isNullOrBlank()) return
+                lifecycleScope.launch {
+                    val expected = runCatching { secure.shortcutToken() }.getOrNull()
+                    ShortcutGuard.appToRun(ACTION_APP, packageName, presented, expected)?.let(controller::launchPinnedApp)
+                }
+            }
+            ACTION_SCENE -> {
+                val sceneId = intent.getStringExtra(EXTRA_SCENE_ID)
+                val presented = intent.getStringExtra(EXTRA_TOKEN)
+                if (sceneId.isNullOrBlank() || presented.isNullOrBlank()) return
+                lifecycleScope.launch {
+                    val expected = runCatching { secure.shortcutToken() }.getOrNull()
+                    ShortcutGuard.sceneToRun(ACTION_SCENE, sceneId, presented, expected)?.let(controller::applyScene)
+                }
+            }
+            ACTION_KEYBOARD -> controller.askKeyboard()
+            // Only opens a page of the app's own: safe from any caller of this exported activity.
+            io.kud.tutti.ui.about.ACTION_WHATS_NEW -> whatsNewAsked = true
         }
     }
 
     override fun onStart() {
         super.onStart()
         controller.retain()
+        // A grant made outside the app's own dialog (the system Settings page, or Bluetooth's
+        // NEARBY_DEVICES group carrying it) arrives while there is no launcher callback to see it.
+        controller.onLanPermissionGranted()
+        target.appForeground(true)
+        // Settings sync: watch for changes once, and merge with the file as the app comes to the front.
+        sync.start()
+        sync.request()
     }
 
     override fun onStop() {
+        // The HID role is never held in the background.
+        target.appForeground(false)
+        sync.flush()
         controller.release()
         super.onStop()
     }

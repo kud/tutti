@@ -1,18 +1,24 @@
 package io.kud.tutti.ui.settings
 
+import io.kud.tutti.protocol.devices.DeviceKind
+import io.kud.tutti.ui.remote.LinkLine
+import io.kud.tutti.ui.remote.connInput
+import io.kud.tutti.ui.remote.connections
+import androidx.compose.runtime.LaunchedEffect
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.kud.tutti.platform.bluetooth.HidLink
+import io.kud.tutti.platform.bluetooth.HidSupport
+
 import android.content.Intent
-import androidx.lifecycle.compose.LifecycleResumeEffect
-import io.kud.tutti.platform.data.AppPrefs
-import io.kud.tutti.platform.data.VibrationLevel
-import io.kud.tutti.ui.common.SystemFeedback
-import androidx.annotation.DrawableRes
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -35,34 +41,49 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import io.kud.tutti.R
+import io.kud.tutti.controller.IpCodeStatus
 import io.kud.tutti.controller.Link
 import io.kud.tutti.controller.TuttiController
 import io.kud.tutti.controller.TuttiUiState
+import io.kud.tutti.platform.data.AppPrefs
 import io.kud.tutti.platform.data.SecondaryButton
 import io.kud.tutti.platform.data.ThemeMode
-import io.kud.tutti.protocol.grpc.CloudPlaneState
+import io.kud.tutti.platform.data.VibrationLevel
+import io.kud.tutti.protocol.bravia.TvSettingCatalog
+import io.kud.tutti.protocol.theatre.TheatreFeature
 import io.kud.tutti.quick.settings.QuickNotificationSetting
 import io.kud.tutti.ui.common.AppIcon
+import io.kud.tutti.ui.common.OptionsRow
+import io.kud.tutti.ui.common.OpensChevron
 import io.kud.tutti.ui.common.ProblemNote
-import io.kud.tutti.ui.common.SectionTitle
+import io.kud.tutti.ui.common.SettingsGroup
+import io.kud.tutti.ui.common.SettingsRow
 import io.kud.tutti.ui.common.SwitchRow
+import io.kud.tutti.ui.common.SystemFeedback
 import io.kud.tutti.ui.common.actionLabel
-import io.kud.tutti.ui.common.openBraviaConnect
-import io.kud.tutti.ui.onboarding.PskDialog
+import io.kud.tutti.ui.common.barValueLabel
+import io.kud.tutti.ui.onboarding.IpControlDialog
 import io.kud.tutti.ui.remote.ActionPickerSheet
+import io.kud.tutti.ui.remote.barInputName
 import io.kud.tutti.ui.remote.secondaryLabel
 
 private enum class Forget { TV, BAR }
@@ -79,29 +100,103 @@ fun linkLabel(link: Link): String = stringResource(
     },
 )
 
-@OptIn(ExperimentalMaterial3Api::class)
+/**
+ * Settings' top level (the proposal, approved by Erwann on 2026-10-26, docs/proposals/settings-structure.md,
+ * reshaped 2026-11-06): the room's status tiles first ([dashboard]), anything that needs him in front
+ * with its one action; then one row per [SettingsCategory], each with its icon, its name and a line
+ * saying what the section holds, which never changes with the state. Every group there is a
+ * [SettingsGroup] and every line a [SettingsRow], so the rhythm is the same on every screen.
+ */
 @Composable
 fun SettingsScreen(
     state: TuttiUiState,
+    onBack: () -> Unit,
+    onOpen: (SettingsCategory) -> Unit,
+    onTile: (DashTile) -> Unit = {},
+    onDashAction: (DashAction) -> Unit = {},
+) {
+    val targets = rememberTargets()
+    val targetState = targets?.state?.collectAsStateWithLifecycle()?.value ?: io.kud.tutti.controller.TargetState()
+    val sync = rememberSyncState()
+    val tiles = dashboard(
+        DashInput(
+            connections = io.kud.tutti.ui.remote.connections(io.kud.tutti.ui.remote.connInput(state, targetState)),
+            sync = sync,
+            unlocks = unlockSummary(unlocks(state)),
+            now = System.currentTimeMillis(),
+        ),
+    )
+    SettingsFrame(stringResource(R.string.settings_title), onBack) {
+        Dashboard(tiles, onTile = onTile, onAction = onDashAction, modifier = Modifier.padding(top = 8.dp))
+        for ((section, categories) in SettingsMenu.sections) SettingsGroup(sectionTitle(section)) {
+            for (category in categories) {
+                SettingsRow(
+                    title = categoryTitle(category),
+                    icon = categoryIcon(category),
+                    detail = categoryDescription(category),
+                    detailMaxLines = 2,
+                    // The TV's settings need a TV; its tile above says there is none.
+                    enabled = category != SettingsCategory.TV || state.devices.tv != null,
+                    onClick = { onOpen(category) },
+                    trailing = { OpensChevron() },
+                )
+            }
+        }
+    }
+}
+
+/** One of [SettingsMenu.pages], under Settings: its arrow and system back go up to the list. */
+@Composable
+fun SettingsPageScreen(
+    category: SettingsCategory,
+    state: TuttiUiState,
     controller: TuttiController,
     onBack: () -> Unit,
-    onOpenTv: () -> Unit,
-    onOpenBar: () -> Unit,
     onOpenDiagnostic: () -> Unit,
-    onEditLayout: () -> Unit = {},
     onPair: () -> Unit,
+    onAddBar: () -> Unit,
+    onOpenTechnical: () -> Unit,
+    onOpenEventLog: () -> Unit = {},
+    hid: HidLink? = null,
 ) {
-    val context = LocalContext.current
-    var picker by remember { mutableStateOf<SecondaryButton?>(null) }
-    var pskDialog by remember { mutableStateOf(false) }
-    var forget by remember { mutableStateOf<Forget?>(null) }
-    var appsDialog by remember { mutableStateOf(false) }
+    SettingsFrame(categoryTitle(category), onBack) {
+        when (category) {
+            SettingsCategory.DISPLAY -> AppearancePage(state, controller)
+            SettingsCategory.FEEDBACK -> SettingsGroup(null, Modifier.padding(top = 8.dp)) {
+                FeedbackRows(state.prefs, onVibration = controller::setVibration, onKeySounds = controller::setKeySounds)
+            }
+            SettingsCategory.VOLUME -> SettingsGroup(null, Modifier.padding(top = 8.dp)) {
+                VolumeGuardRows(state.prefs, onChange = controller::setVolumeGuard)
+            }
+            SettingsCategory.AUTOMATIC -> AutomaticGroup(state.prefs, controller)
+            SettingsCategory.LOCK_SCREEN -> SettingsGroup(null, Modifier.padding(top = 8.dp)) {
+                QuickNotificationSetting(icon = R.drawable.ic_bolt)
+            }
+            // Say again? is a Playback button, so its one setting sits on the Playback page.
+            SettingsCategory.PLAYBACK -> SayAgainSetting(state.prefs.sayAgainSeconds, controller::setSayAgainSeconds)
+            SettingsCategory.LONG_PRESS -> LongPressPage(state, controller)
+            SettingsCategory.APPS -> AppsPage(state, controller)
+            SettingsCategory.THIRD_PARTY -> ThirdPartyPage(state, controller)
+            SettingsCategory.DEVICES -> DevicesPage(state, controller, onPair, onAddBar, hid)
+            SettingsCategory.SYNC -> SyncPage()
+            SettingsCategory.BACKUP -> BackupPage(state, controller)
+            SettingsCategory.ADVANCED -> AdvancedPage(state, controller, onOpenDiagnostic, onOpenTechnical, onOpenEventLog)
+            // Their screens were there before Settings had pages (SettingsRoutes.category); Remote
+            // layout puts the remote in edit mode.
+            SettingsCategory.LAYOUT, SettingsCategory.UNLOCK, SettingsCategory.TV, SettingsCategory.SOUNDBAR, SettingsCategory.ABOUT -> Unit
+        }
+    }
+}
 
+/** What every Settings screen shares: the top bar whose arrow goes back one level, and the scroll. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SettingsFrame(title: String, onBack: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.settings_title)) },
+                title = { Text(title) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(painterResource(R.drawable.ic_back), contentDescription = stringResource(R.string.action_back))
@@ -111,155 +206,247 @@ fun SettingsScreen(
             )
         },
     ) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(bottom = 32.dp)) {
-            SectionTitle(stringResource(R.string.settings_devices))
-            val tv = state.devices.tv
-            if (tv != null) {
-                DeviceRow(
-                    icon = R.drawable.ic_tv,
-                    name = tv.name,
-                    detail = stringResource(
-                        R.string.settings_tv_status,
-                        tv.host,
-                        linkLabel(state.links.tv),
-                        linkLabel(state.links.rest),
-                    ),
-                )
-                Row(Modifier.padding(horizontal = 8.dp)) {
-                    TextButton(onClick = onPair) { Text(stringResource(R.string.settings_pair_again)) }
-                    TextButton(onClick = { pskDialog = true }) { Text(stringResource(R.string.settings_psk)) }
-                    TextButton(onClick = { forget = Forget.TV }) { Text(stringResource(R.string.settings_forget)) }
-                }
-                ProblemNote(
-                    message = null,
-                    detail = listOfNotNull(state.linkNotes.tv, state.linkNotes.rest).joinToString("\n\n").ifEmpty { null },
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                )
-            }
-            val bar = state.devices.bar
-            if (bar != null) {
-                DeviceRow(
-                    icon = R.drawable.ic_speaker,
-                    name = bar.name,
-                    detail = stringResource(R.string.settings_bar_status, bar.host, linkLabel(state.links.bar)),
-                )
-                Row(Modifier.padding(horizontal = 8.dp)) {
-                    TextButton(onClick = { forget = Forget.BAR }) { Text(stringResource(R.string.settings_forget)) }
-                }
-                ProblemNote(message = null, detail = state.linkNotes.bar, modifier = Modifier.padding(horizontal = 16.dp))
-            }
-            if (tv == null || bar == null) {
-                TextButton(onClick = onPair, modifier = Modifier.padding(horizontal = 8.dp)) {
-                    Text(stringResource(R.string.settings_add_device))
-                }
-            }
+        Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(bottom = 32.dp), content = content)
+    }
+}
 
-            SectionTitle(stringResource(R.string.settings_tv))
-            LinkRow(
-                title = stringResource(R.string.settings_tv_settings),
-                detail = if (state.links.rest == Link.ONLINE) {
-                    stringResource(R.string.settings_tv_settings_detail)
-                } else {
-                    stringResource(R.string.settings_tv_settings_needs, linkLabel(state.links.rest))
+@Composable
+private fun sectionTitle(section: SettingsSection): String = stringResource(
+    when (section) {
+        SettingsSection.EVERYDAY -> R.string.settings_section_everyday
+        SettingsSection.REMOTE -> R.string.settings_section_remote
+        SettingsSection.PLAYBACK -> R.string.settings_section_playback
+        SettingsSection.DEVICES -> R.string.settings_section_devices
+        SettingsSection.SYNC -> R.string.settings_section_sync
+        SettingsSection.TUTTI -> R.string.settings_section_tutti
+    },
+)
+
+@Composable
+private fun categoryTitle(category: SettingsCategory): String = stringResource(
+    when (category) {
+        SettingsCategory.DISPLAY -> R.string.settings_appearance
+        SettingsCategory.FEEDBACK -> R.string.settings_feedback
+        SettingsCategory.VOLUME -> R.string.settings_volume_comfort
+        SettingsCategory.AUTOMATIC -> R.string.auto_title
+        SettingsCategory.LOCK_SCREEN -> R.string.settings_lock_screen
+        SettingsCategory.PLAYBACK -> R.string.settings_playback
+        SettingsCategory.LAYOUT -> R.string.layout_entry
+        SettingsCategory.LONG_PRESS -> R.string.settings_long_presses
+        SettingsCategory.APPS -> R.string.settings_apps
+        SettingsCategory.THIRD_PARTY -> R.string.settings_free_services
+        SettingsCategory.DEVICES -> R.string.settings_devices
+        SettingsCategory.TV -> R.string.settings_tv
+        SettingsCategory.SOUNDBAR -> R.string.settings_bar
+        SettingsCategory.UNLOCK -> R.string.unlock_entry
+        SettingsCategory.SYNC -> R.string.sync_title
+        SettingsCategory.BACKUP -> R.string.backup_title
+        SettingsCategory.ADVANCED -> R.string.settings_developer
+        SettingsCategory.ABOUT -> R.string.about_entry
+    },
+)
+
+@androidx.annotation.DrawableRes
+private fun categoryIcon(category: SettingsCategory): Int = when (category) {
+    SettingsCategory.DISPLAY -> R.drawable.ic_contrast
+    SettingsCategory.FEEDBACK -> R.drawable.ic_vibration
+    SettingsCategory.VOLUME -> R.drawable.ic_volume_up
+    SettingsCategory.AUTOMATIC -> R.drawable.ic_bedtime
+    SettingsCategory.LOCK_SCREEN -> R.drawable.ic_notifications
+    SettingsCategory.PLAYBACK -> R.drawable.ic_replay
+    SettingsCategory.LAYOUT -> R.drawable.ic_edit
+    SettingsCategory.LONG_PRESS -> R.drawable.ic_dpad
+    SettingsCategory.APPS -> R.drawable.ic_apps
+    SettingsCategory.THIRD_PARTY -> R.drawable.ic_open_in_new
+    SettingsCategory.DEVICES -> R.drawable.ic_laptop
+    SettingsCategory.TV -> R.drawable.ic_tv
+    SettingsCategory.SOUNDBAR -> R.drawable.ic_speaker
+    SettingsCategory.UNLOCK -> R.drawable.ic_unlock
+    SettingsCategory.SYNC -> R.drawable.ic_refresh
+    SettingsCategory.BACKUP -> R.drawable.ic_download
+    SettingsCategory.ADVANCED -> R.drawable.ic_code
+    SettingsCategory.ABOUT -> R.drawable.ic_info
+}
+
+/** What a category holds, in a line that never changes with the state (Erwann, 2026-11-06). */
+@Composable
+private fun categoryDescription(category: SettingsCategory): String = when (category) {
+    // A newer build waiting is the one exception, said where it is installed (docs/design.md, "Updates").
+    SettingsCategory.ABOUT -> aboutLine()
+    else -> stringResource(
+        when (category) {
+            SettingsCategory.DISPLAY -> R.string.settings_desc_appearance
+            SettingsCategory.FEEDBACK -> R.string.settings_desc_feedback
+            SettingsCategory.VOLUME -> R.string.settings_desc_volume
+            SettingsCategory.AUTOMATIC -> R.string.settings_desc_automatic
+            SettingsCategory.LOCK_SCREEN -> R.string.settings_desc_lock_screen
+            SettingsCategory.PLAYBACK -> R.string.settings_desc_playback
+            SettingsCategory.LAYOUT -> R.string.settings_desc_layout
+            SettingsCategory.LONG_PRESS -> R.string.settings_desc_long_presses
+            SettingsCategory.APPS -> R.string.settings_desc_apps
+            SettingsCategory.THIRD_PARTY -> R.string.settings_desc_third_party
+            SettingsCategory.DEVICES -> R.string.settings_desc_devices
+            SettingsCategory.TV -> R.string.settings_desc_tv
+            SettingsCategory.SOUNDBAR -> R.string.settings_desc_bar
+            SettingsCategory.UNLOCK -> R.string.settings_desc_unlock
+            SettingsCategory.SYNC -> R.string.settings_desc_sync
+            SettingsCategory.BACKUP -> R.string.settings_desc_backup
+            SettingsCategory.ADVANCED -> R.string.settings_desc_advanced
+            SettingsCategory.ABOUT -> R.string.about_entry_detail
+        },
+    )
+}
+
+/** About's line names a newer build while one waits, set aside or not (docs/design.md, "Updates"). */
+@Composable
+private fun aboutLine(): String = io.kud.tutti.ui.about.rememberUpdateCue().newer
+    ?.let { stringResource(R.string.settings_line_update, it.toString()) }
+    ?: stringResource(R.string.about_entry_detail)
+
+/** Settings › Devices: the TV, the bar and the computers, adding one, setup again, the Sony account. */
+@Composable
+private fun DevicesPage(state: TuttiUiState, controller: TuttiController, onPair: () -> Unit, onAddBar: () -> Unit, hid: HidLink?) {
+    var ipDialog by remember { mutableStateOf(false) }
+    var forget by remember { mutableStateOf<Forget?>(null) }
+    var adding by remember { mutableStateOf(false) }
+    var tvBluetooth by remember { mutableStateOf(false) }
+    val targets = rememberTargets()
+    val target = targets?.state?.collectAsStateWithLifecycle()?.value
+    // The phone can be a Bluetooth keyboard: the TV row offers it, and a computer can be added.
+    val hidSupported = hid?.state?.collectAsStateWithLifecycle()?.value?.support == HidSupport.SUPPORTED
+    if (hid != null) LaunchedEffect(hid) { hid.probe() }
+    // Pairing from here holds the Bluetooth role; leaving Devices gives it back.
+    if (targets != null) DisposableEffect(targets) { onDispose { targets.settingsLeft() } }
+
+    val tv = state.devices.tv
+    val bar = state.devices.bar
+    // Each link's status in the shared language, the very lines « Connexions » shows (design.md › Status).
+    val links = target?.let { t -> connections(connInput(state, t)) }
+    fun linesOf(kind: DeviceKind) = links?.firstOrNull { it.kind == kind }?.lines
+    SettingsGroup(null, Modifier.padding(top = 8.dp)) {
+        if (tv != null) {
+            val ipRenew = !state.pskSet && state.ipCode == IpCodeStatus.RENEW
+            SettingsRow(
+                title = tv.name,
+                icon = R.drawable.ic_tv,
+                // Links in words (Erwann, 2026-10-25): "Google TV connected · IP control not set up".
+                detail = if (linesOf(DeviceKind.TV) != null) null else listOfNotNull(
+                    stringResource(R.string.devices_tv_status, linkLabel(state.links.tv), linkLabel(state.links.rest)),
+                    stringResource(R.string.devices_bt_paired).takeIf { target?.list?.tv?.bluetooth != null },
+                    stringResource(R.string.ipc_row_renew).takeIf { ipRenew },
+                ).joinToString(" · "),
+                footer = {
+                    linesOf(DeviceKind.TV)?.forEach { LinkLine(DeviceKind.TV, it, start = 0.dp, onAction = null) }
+                    DeviceActions {
+                        TextButton(onClick = onPair) { Text(stringResource(R.string.settings_pair_again)) }
+                        // The code on the TV first, the PSK inside (Erwann, 2026-10-25).
+                        TextButton(onClick = { ipDialog = true }) { Text(stringResource(if (ipRenew) R.string.ipc_renew_action else R.string.ipc_action)) }
+                        // Setup only (Erwann, 2026-10-25): pairing and « Oublier », never a
+                        // trackpad; the remote itself uses this link when the network drops.
+                        if (hidSupported && targets != null) {
+                            TextButton(onClick = { tvBluetooth = true }) { Text(stringResource(R.string.bt_backup_title)) }
+                        }
+                        TextButton(onClick = { forget = Forget.TV }) { Text(stringResource(R.string.settings_forget)) }
+                    }
+                    ProblemNote(
+                        message = null,
+                        detail = listOfNotNull(state.linkNotes.tv, state.linkNotes.rest).joinToString("\n\n").ifEmpty { null },
+                    )
                 },
-                // Open whenever a TV is paired: offline, the screen explains how to turn IP control on.
-                enabled = tv != null,
-                onClick = onOpenTv,
-            )
-
-            SectionTitle(stringResource(R.string.settings_bar))
-            LinkRow(
-                title = stringResource(R.string.settings_bar_settings),
-                detail = stringResource(R.string.settings_bar_settings_detail),
-                enabled = bar != null,
-                onClick = onOpenBar,
-            )
-
-            SectionTitle(stringResource(R.string.settings_shortcuts))
-            LinkRow(
-                title = stringResource(R.string.layout_entry),
-                detail = stringResource(R.string.layout_entry_detail),
-                enabled = true,
-                onClick = onEditLayout,
-            )
-            for (button in SecondaryButton.entries) {
-                val action = state.dock.longPress[button]
-                LinkRow(
-                    title = stringResource(R.string.settings_long_press, secondaryLabel(button)),
-                    detail = action?.let { actionLabel(it, state) } ?: stringResource(R.string.editor_none),
-                    enabled = true,
-                    onClick = { picker = button },
-                )
-            }
-
-            LinkRow(
-                title = stringResource(R.string.settings_apps_shown),
-                detail = stringResource(R.string.settings_apps_shown_detail, state.visibleApps.size, state.apps.size),
-                enabled = state.apps.isNotEmpty(),
-                onClick = { appsDialog = true },
-            )
-
-            SectionTitle(stringResource(R.string.settings_app))
-            ThemeRow(state.prefs.theme, controller::setTheme)
-            SwitchRow(
-                label = stringResource(R.string.settings_true_black),
-                supporting = stringResource(R.string.settings_true_black_detail),
-                checked = state.prefs.trueBlack,
-                onCheckedChange = controller::setTrueBlack,
-            )
-            QuickNotificationSetting()
-
-            SectionTitle(stringResource(R.string.settings_feedback))
-            FeedbackRows(state.prefs, onVibration = controller::setVibration, onKeySounds = controller::setKeySounds)
-
-            SectionTitle(stringResource(R.string.settings_sony))
-            LinkRow(
-                title = stringResource(R.string.settings_sony_connection),
-                detail = when (state.cloud) {
-                    is CloudPlaneState.Unavailable -> stringResource(R.string.settings_sony_unavailable)
-                    CloudPlaneState.Disabled -> stringResource(R.string.settings_sony_disabled)
-                    CloudPlaneState.SignedOut -> stringResource(R.string.settings_sony_signed_out)
-                    CloudPlaneState.Connecting -> stringResource(R.string.link_connecting)
-                    is CloudPlaneState.Connected -> stringResource(R.string.link_online)
-                },
-                enabled = false,
-                onClick = {},
-            )
-            Text(
-                stringResource(R.string.settings_sony_explain),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 16.dp),
-            )
-
-            SectionTitle(stringResource(R.string.settings_developer))
-            SwitchRow(
-                label = stringResource(R.string.settings_developer_mode),
-                supporting = stringResource(R.string.settings_developer_mode_detail),
-                checked = state.prefs.developerMode,
-                onCheckedChange = controller::setDeveloperMode,
-            )
-            if (state.prefs.developerMode) {
-                LinkRow(
-                    title = stringResource(R.string.settings_diagnostic),
-                    detail = stringResource(R.string.settings_diagnostic_detail),
-                    enabled = true,
-                    onClick = onOpenDiagnostic,
-                )
-            }
-
-            SectionTitle(stringResource(R.string.settings_bravia_connect))
-            LinkRow(
-                title = stringResource(R.string.sound_recalibrate),
-                detail = stringResource(R.string.settings_recalibrate_detail),
-                enabled = true,
-                onClick = { openBraviaConnect(context) },
             )
         }
+        if (bar != null) {
+            SettingsRow(
+                title = bar.name,
+                icon = R.drawable.ic_speaker,
+                detail = stringResource(R.string.devices_bar_status, linkLabel(state.links.bar)).takeIf { linesOf(DeviceKind.SOUNDBAR) == null },
+                footer = {
+                    linesOf(DeviceKind.SOUNDBAR)?.forEach { LinkLine(DeviceKind.SOUNDBAR, it, start = 0.dp, onAction = null) }
+                    DeviceActions {
+                        TextButton(onClick = { forget = Forget.BAR }) { Text(stringResource(R.string.settings_forget)) }
+                    }
+                    ProblemNote(message = null, detail = state.linkNotes.bar)
+                },
+            )
+        }
+        if (targets != null && target != null) ComputerRows(targets, target, state.tv.inputs)
+        // One way in for every device (Erwann, 2026-10-25: « Comment j'ajoute un appareil ? »):
+        // it asks what first, offering the TV or the bar only when missing.
+        if (targets != null) {
+            AddDeviceRow(missing = tv == null || bar == null, onClick = { adding = true })
+        } else if (tv == null) {
+            SettingsRow(
+                title = stringResource(R.string.settings_add_device),
+                icon = R.drawable.ic_add,
+                onClick = onPair,
+                trailing = { OpensChevron() },
+            )
+        }
+        // No "Run setup again" (2026-11-12): Pair again on the TV's row and Add a device cover it.
     }
 
-    if (appsDialog) {
-        AppsShownDialog(state, controller::setAppShown) { appsDialog = false }
+    if (tvBluetooth && targets != null && hid != null) {
+        TvBluetoothDialog(targets, hid, onDismiss = { tvBluetooth = false })
+    }
+    if (adding && targets != null) {
+        AddDeviceFlow(
+            targets = targets,
+            hid = hid,
+            inputs = state.tv.inputs,
+            tvMissing = state.devices.tv == null,
+            barMissing = state.devices.bar == null,
+            onSetUpTv = onPair,
+            onSetUpBar = onAddBar,
+            onClose = { adding = false },
+            onRefreshInputs = controller::refreshInputs,
+        )
+    }
+    if (ipDialog) {
+        // Renewing goes straight to the code: the row already says what it is for.
+        IpControlDialog(state, controller, onDismiss = { ipDialog = false }, startWithCode = !state.pskSet && state.ipCode == IpCodeStatus.RENEW)
+    }
+    forget?.let { device ->
+        // Named, so the dialog says which device goes (2026-10-25).
+        val name = if (device == Forget.TV) state.devices.tv?.name else state.devices.bar?.name
+        AlertDialog(
+            onDismissRequest = { forget = null },
+            title = {
+                Text(if (name.isNullOrBlank()) stringResource(R.string.settings_forget_title) else stringResource(R.string.settings_forget_named, name))
+            },
+            text = {
+                Text(stringResource(if (device == Forget.TV) R.string.settings_forget_tv_detail else R.string.settings_forget_bar_detail))
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    if (device == Forget.TV) controller.forgetTv() else controller.forgetBar()
+                    forget = null
+                }) { Text(stringResource(R.string.settings_forget)) }
+            },
+            dismissButton = { TextButton(onClick = { forget = null }) { Text(stringResource(R.string.cancel)) } },
+        )
+    }
+}
+
+/** Settings › Long presses: what holding each row key does. */
+@Composable
+private fun LongPressPage(state: TuttiUiState, controller: TuttiController) {
+    var picker by remember { mutableStateOf<SecondaryButton?>(null) }
+    SettingsGroup(null, Modifier.padding(top = 8.dp)) {
+        for (button in SecondaryButton.entries) {
+            val action = state.dock.longPress[button]
+            LinkRow(
+                title = stringResource(R.string.settings_long_press, secondaryLabel(button)),
+                detail = action?.let { actionLabel(it, state) } ?: stringResource(R.string.editor_none),
+                enabled = true,
+                onClick = { picker = button },
+                icon = when (button) {
+                    SecondaryButton.HOME -> R.drawable.ic_home
+                    SecondaryButton.BACK -> R.drawable.ic_tv_back
+                    SecondaryButton.PLAY -> R.drawable.ic_play_pause
+                    SecondaryButton.INPUT -> R.drawable.ic_input
+                },
+            )
+        }
     }
     picker?.let { button ->
         ActionPickerSheet(
@@ -274,126 +461,211 @@ fun SettingsScreen(
             onDismiss = { picker = null },
         )
     }
-    if (pskDialog) {
-        PskDialog(onSave = {
-            controller.setPsk(it)
-            pskDialog = false
-        }, onDismiss = { pskDialog = false })
-    }
-    forget?.let { target ->
-        AlertDialog(
-            onDismissRequest = { forget = null },
-            title = { Text(stringResource(R.string.settings_forget_title)) },
-            text = {
-                Text(stringResource(if (target == Forget.TV) R.string.settings_forget_tv_detail else R.string.settings_forget_bar_detail))
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    if (target == Forget.TV) controller.forgetTv() else controller.forgetBar()
-                    forget = null
-                }) { Text(stringResource(R.string.settings_forget)) }
-            },
-            dismissButton = { TextButton(onClick = { forget = null }) { Text(stringResource(R.string.cancel)) } },
-        )
-    }
 }
 
+/**
+ * Settings › Apps: one row per app tutti knows. The row opens where the app lands (the same sheet as
+ * the Apps sheet's long press); its switch, a separate target, shows or hides it. A hidden app
+ * says so in words, never by the switch alone.
+ */
 @Composable
-private fun DeviceRow(@DrawableRes icon: Int, name: String, detail: String) {
-    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-        Icon(painterResource(icon), contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-        Spacer(Modifier.width(16.dp))
-        Column {
-            Text(name, style = MaterialTheme.typography.bodyLarge)
-            Text(detail, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+private fun AppsPage(state: TuttiUiState, controller: TuttiController) {
+    var choosing by remember { mutableStateOf<String?>(null) }
+    Text(
+        stringResource(if (state.ipControl) R.string.settings_apps_shown_live else R.string.settings_apps_shown_static),
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(start = 32.dp, end = 32.dp, top = 8.dp),
+    )
+    SettingsGroup(null, Modifier.padding(top = 16.dp)) {
+        if (state.apps.isEmpty()) {
+            SettingsRow(title = stringResource(R.string.settings_apps_none))
+        }
+        for (app in state.apps) {
+            val shown = app.packageName !in state.prefs.hiddenApps
+            SettingsRow(
+                title = app.name,
+                detail = listOfNotNull(
+                    stringResource(R.string.settings_app_hidden).takeIf { !shown },
+                    stringResource(R.string.dest_opens_at_row, io.kud.tutti.ui.remote.destinationLabel(state.prefs.appDestinations[app.packageName])),
+                ).joinToString(" · "),
+                onClick = { choosing = app.packageName },
+                leading = { AppIcon(app.name, state.appIcons[app.packageName], packageName = app.packageName) },
+                trailing = {
+                    val label = stringResource(R.string.settings_app_shown_switch, app.name)
+                    Switch(
+                        checked = shown,
+                        onCheckedChange = { controller.setAppShown(app.packageName, it) },
+                        modifier = Modifier.semantics { contentDescription = label },
+                    )
+                },
+            )
+        }
+    }
+    choosing?.let { packageName ->
+        val app = state.apps.firstOrNull { it.packageName == packageName }
+        if (app == null) {
+            choosing = null
+        } else {
+            io.kud.tutti.ui.remote.DestinationPicker(
+                appName = app.name,
+                packageName = app.packageName,
+                current = state.prefs.appDestinations[app.packageName],
+                forPin = false,
+                appDefault = null,
+                onPick = { link ->
+                    controller.setAppDestination(app.packageName, link)
+                    choosing = null
+                },
+                onTry = controller::probeLink,
+                onDismiss = { choosing = null },
+            )
         }
     }
 }
 
+/** Settings › Appearance: the theme, true black and dark room. */
 @Composable
-fun LinkRow(title: String, detail: String, enabled: Boolean, onClick: () -> Unit) {
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .clickable(enabled = enabled, onClick = onClick)
-            .alpha(if (enabled) 1f else 0.6f)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-    ) {
-        Text(title, style = MaterialTheme.typography.bodyLarge)
-        Text(detail, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+private fun AppearancePage(state: TuttiUiState, controller: TuttiController) {
+    SettingsGroup(null, Modifier.padding(top = 8.dp)) {
+        ThemeRow(state.prefs.theme, controller::setTheme)
+        SwitchRow(
+            label = stringResource(R.string.settings_true_black),
+            supporting = stringResource(R.string.settings_true_black_detail),
+            checked = state.prefs.trueBlack,
+            onCheckedChange = controller::setTrueBlack,
+            icon = R.drawable.ic_bedtime,
+        )
+        SwitchRow(
+            label = stringResource(R.string.settings_evening_dim),
+            supporting = stringResource(R.string.settings_evening_dim_detail),
+            checked = state.prefs.eveningDim,
+            onCheckedChange = controller::setEveningDim,
+            icon = R.drawable.ic_visibility_off,
+        )
     }
+}
+
+/**
+ * Settings › Developer (the page keeps its key, ADVANCED; Erwann, 2026-10-24: "une app de geek dans les options"): one switch, and
+ * with it on, every technical screen in one place. The reverse map's readouts and hidden options
+ * land here as rows, never on the everyday screens.
+ */
+@Composable
+private fun AdvancedPage(
+    state: TuttiUiState,
+    controller: TuttiController,
+    onOpenDiagnostic: () -> Unit,
+    onOpenTechnical: () -> Unit,
+    onOpenEventLog: () -> Unit,
+) {
+    SettingsGroup(null, Modifier.padding(top = 8.dp)) {
+        SwitchRow(
+            label = stringResource(R.string.settings_developer_mode),
+            supporting = stringResource(R.string.settings_developer_mode_detail),
+            checked = state.prefs.developerMode,
+            onCheckedChange = controller::setDeveloperMode,
+            icon = R.drawable.ic_settings,
+        )
+        if (state.prefs.developerMode) {
+            LinkRow(
+                title = stringResource(R.string.settings_diagnostic),
+                detail = stringResource(R.string.settings_diagnostic_detail),
+                enabled = true,
+                onClick = onOpenDiagnostic,
+                icon = R.drawable.ic_article,
+                opens = true,
+            )
+            LinkRow(
+                title = stringResource(R.string.technical_title),
+                detail = stringResource(R.string.technical_entry_detail),
+                enabled = true,
+                onClick = onOpenTechnical,
+                icon = R.drawable.ic_code,
+                opens = true,
+            )
+            LinkRow(
+                title = stringResource(R.string.event_log_title),
+                detail = stringResource(R.string.event_log_entry_detail),
+                enabled = true,
+                onClick = onOpenEventLog,
+                icon = R.drawable.ic_article,
+                opens = true,
+            )
+        }
+    }
+}
+
+/** A device's actions under its status, wrapping rather than overflowing in French. */
+@Composable
+private fun DeviceActions(content: @Composable () -> Unit) {
+    // Pulled left by the buttons' own padding, so their labels line up with the detail text.
+    FlowRow(Modifier.offset(x = (-12).dp)) { content() }
+}
+
+/** A row that opens something: another screen ([opens] adds the chevron), a sheet or a dialog. */
+@Composable
+fun LinkRow(
+    title: String,
+    detail: String,
+    enabled: Boolean,
+    onClick: () -> Unit,
+    @androidx.annotation.DrawableRes icon: Int? = null,
+    opens: Boolean = false,
+) {
+    SettingsRow(
+        title = title,
+        detail = detail,
+        icon = icon,
+        enabled = enabled,
+        onClick = onClick,
+        trailing = if (opens) {
+            { OpensChevron() }
+        } else {
+            null
+        },
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ThemeRow(mode: ThemeMode, onChange: (ThemeMode) -> Unit) {
-    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
-        Text(stringResource(R.string.settings_theme), style = MaterialTheme.typography.bodyLarge)
-        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(top = 8.dp)) {
-            ThemeMode.entries.forEachIndexed { index, entry ->
-                SegmentedButton(
-                    selected = entry == mode,
-                    onClick = { onChange(entry) },
-                    shape = SegmentedButtonDefaults.itemShape(index, ThemeMode.entries.size),
-                ) {
-                    Text(
-                        stringResource(
-                            when (entry) {
-                                ThemeMode.SYSTEM -> R.string.settings_theme_system
-                                ThemeMode.LIGHT -> R.string.settings_theme_light
-                                ThemeMode.DARK -> R.string.settings_theme_dark
-                            },
-                        ),
-                    )
-                }
-            }
-        }
-    }
-}
-
-/** Every app tutti knows, each with a switch: hidden ones leave the Apps sheet and pickers. */
-@Composable
-private fun AppsShownDialog(state: TuttiUiState, onShown: (String, Boolean) -> Unit, onDismiss: () -> Unit) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.settings_apps_shown)) },
-        text = {
-            Column {
-                Text(
-                    stringResource(if (state.ipControl) R.string.settings_apps_shown_live else R.string.settings_apps_shown_static),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Spacer(Modifier.height(8.dp))
-                LazyColumn {
-                    items(state.apps, key = { it.packageName }) { app ->
-                        val shown = app.packageName !in state.prefs.hiddenApps
-                        Row(
-                            Modifier
-                                .fillMaxWidth()
-                                .toggleable(value = shown, role = Role.Switch) { onShown(app.packageName, it) }
-                                .padding(vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            AppIcon(app.name, state.appIcons[app.packageName], packageName = app.packageName)
-                            Spacer(Modifier.width(12.dp))
-                            Text(app.name, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-                            Switch(checked = shown, onCheckedChange = null)
-                        }
+    SettingsRow(
+        title = stringResource(R.string.settings_theme),
+        icon = R.drawable.ic_contrast,
+        footer = {
+            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(top = 8.dp)) {
+                ThemeMode.entries.forEachIndexed { index, entry ->
+                    SegmentedButton(
+                        selected = entry == mode,
+                        onClick = { onChange(entry) },
+                        shape = SegmentedButtonDefaults.itemShape(index, ThemeMode.entries.size),
+                    ) {
+                        Text(
+                            stringResource(
+                                when (entry) {
+                                    ThemeMode.SYSTEM -> R.string.settings_theme_system
+                                    ThemeMode.LIGHT -> R.string.settings_theme_light
+                                    ThemeMode.DARK -> R.string.settings_theme_dark
+                                },
+                            ),
+                            maxLines = 1,
+                        )
                     }
                 }
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.settings_apps_shown_done)) } },
     )
 }
 
 /**
- * Vibration and key sounds (Iris's spec, Erwann's decisions of 2026-10-23). tutti follows Android
- * and never overrides it: when the system's touch vibration or touch sounds are off, the row says
- * so and links to Android's settings, read again each time the screen resumes.
+ * Vibration and key sounds (the spec, Erwann's decisions of 2026-10-23). tutti follows Android
+ * and never overrides it: when the system's touch vibration or touch sounds are off, the row keeps
+ * tutti's own switch but says it is inactive (warning glyph and words, never colour alone) and
+ * carries the way to Android's settings, read again each time the screen resumes. Vibration is one
+ * row of three segments, Off · Essentials · Everything (2026-11-12, after the separate "Vibrate for"
+ * menu opened a row too high on dev.6); the stored level was already one value, so nothing migrates.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun FeedbackRows(prefs: AppPrefs, onVibration: (VibrationLevel) -> Unit, onKeySounds: (Boolean) -> Unit) {
     val context = LocalContext.current
@@ -408,44 +680,50 @@ private fun FeedbackRows(prefs: AppPrefs, onVibration: (VibrationLevel) -> Unit,
         }
         Unit
     }
-    val level = prefs.vibrationLevel
-    SwitchRow(
-        label = stringResource(R.string.settings_vibration),
-        supporting = stringResource(if (system.vibration) R.string.settings_vibration_detail else R.string.settings_vibration_system_off),
-        checked = level != VibrationLevel.OFF,
-        onCheckedChange = { onVibration(if (it) VibrationLevel.ALL else VibrationLevel.OFF) },
-    )
-    if (!system.vibration) {
-        OpenSystemLink(openSystem)
-    } else if (level != VibrationLevel.OFF) {
-        val options = listOf(
-            VibrationLevel.ALL to R.string.settings_vibration_all,
-            VibrationLevel.ESSENTIALS to R.string.settings_vibration_essentials,
-        )
-        SingleChoiceSegmentedButtonRow(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp)) {
-            options.forEachIndexed { index, (option, label) ->
-                SegmentedButton(
-                    selected = level == option,
-                    onClick = { onVibration(option) },
-                    shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size),
-                ) {
-                    Text(stringResource(label))
-                }
-            }
-        }
+    val openLabel = stringResource(R.string.settings_open_system)
+    val openAction = Modifier.semantics {
+        customActions = listOf(CustomAccessibilityAction(openLabel) { openSystem(); true })
     }
+    val level = prefs.vibrationLevel
+    val levels = listOf(
+        VibrationLevel.OFF to stringResource(R.string.settings_vibration_off),
+        VibrationLevel.ESSENTIALS to stringResource(R.string.settings_vibration_essentials),
+        VibrationLevel.ALL to stringResource(R.string.settings_vibration_all),
+    )
+    OptionsRow(
+        label = stringResource(R.string.settings_vibration),
+        selected = level,
+        valueLabel = levels.first { it.first == level }.second,
+        options = levels,
+        onSelect = onVibration,
+        supporting = stringResource(
+            when (level) {
+                VibrationLevel.OFF -> R.string.settings_vibration_detail_off
+                VibrationLevel.ESSENTIALS -> R.string.settings_vibration_detail_essentials
+                VibrationLevel.ALL -> R.string.settings_vibration_detail
+            },
+        ),
+        notice = stringResource(R.string.settings_vibration_system_off).takeIf { !system.vibration },
+        icon = R.drawable.ic_vibration,
+        modifier = if (system.vibration) Modifier else openAction,
+        footer = if (system.vibration) null else ({ OpenSystemLink(openLabel, openSystem) }),
+    )
     SwitchRow(
         label = stringResource(R.string.settings_key_sounds),
-        supporting = stringResource(if (system.sounds) R.string.settings_key_sounds_detail else R.string.settings_key_sounds_system_off),
+        supporting = stringResource(R.string.settings_key_sounds_detail),
+        notice = stringResource(R.string.settings_key_sounds_system_off).takeIf { !system.sounds },
         checked = prefs.keySounds,
         onCheckedChange = onKeySounds,
+        icon = R.drawable.ic_volume_up,
+        modifier = if (system.sounds) Modifier else openAction,
+        footer = if (system.sounds) null else ({ OpenSystemLink(openLabel, openSystem) }),
     )
-    if (!system.sounds) OpenSystemLink(openSystem)
 }
 
+/** The way to Android's settings, inside the row it explains: its own 48 dp target, not the row's tap. */
 @Composable
-private fun OpenSystemLink(onClick: () -> Unit) {
-    TextButton(onClick = onClick, modifier = Modifier.padding(start = 4.dp)) {
-        Text(stringResource(R.string.settings_open_system))
+private fun OpenSystemLink(label: String, onClick: () -> Unit) {
+    TextButton(onClick = onClick, modifier = Modifier.offset(x = (-12).dp)) {
+        Text(label)
     }
 }

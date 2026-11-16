@@ -1,8 +1,8 @@
 package io.kud.tutti.ui.remote
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.keyframes
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.LaunchedEffect
@@ -19,9 +19,16 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import io.kud.tutti.ui.motion.refusalShake
+import io.kud.tutti.ui.motion.rememberRefusalShake
+import io.kud.tutti.ui.motion.RefusalShake
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.ui.res.painterResource
 import io.kud.tutti.ui.common.LocalReducedMotion
 import io.kud.tutti.ui.common.PressStyle
+import io.kud.tutti.ui.common.barValueLabel
 import io.kud.tutti.ui.common.rememberFeedback
 import io.kud.tutti.ui.common.rememberPress
 import io.kud.tutti.ui.common.rememberTuttiIndication
@@ -49,26 +56,37 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.kud.tutti.R
+import io.kud.tutti.platform.data.Devices
+import io.kud.tutti.ui.common.rememberGestureHint
+import io.kud.tutti.ui.common.GestureHintBubble
+import io.kud.tutti.ui.common.holdForMenu
+import io.kud.tutti.platform.data.DockAction
 import io.kud.tutti.controller.TuttiController
 import io.kud.tutti.controller.TuttiUiState
 import io.kud.tutti.protocol.theatre.FeatureKind
 import io.kud.tutti.protocol.theatre.TheatreFeature
+import io.kud.tutti.ui.common.PinnedHeader
+import io.kud.tutti.ui.common.barIcon
 import io.kud.tutti.ui.common.belowStatusBar
 import io.kud.tutti.ui.common.featureLabel
 import io.kud.tutti.ui.common.openBraviaConnect
@@ -91,154 +109,328 @@ fun soundSummary(state: TuttiUiState): String {
     val on = listOf(TheatreFeature.SOUND_FIELD, TheatreFeature.VOICE, TheatreFeature.NIGHT, TheatreFeature.SPATIAL_360, TheatreFeature.AUTO_VOLUME)
         .filter { state.bar.isOn(it) == true }
         .map { stringResource(featureLabel(it)) }
+    // The bar on its own names its source first ("Bluetooth · Night"): it is what's playing.
+    val source = barAlone(state)?.let { barValueLabel(TheatreFeature.INPUT, it.input) }
+    if (source != null) return (listOf(source) + on).joinToString(" · ")
     return if (on.isEmpty()) stringResource(R.string.sound_summary_plain) else on.joinToString(" · ")
 }
 
 /**
  * The "Son" sheet: large toggles (sound field, voice, night, DRC, auto volume, IMAX,
  * 360 Spatial), bass and rear sliders, Voice Zoom 3 only if the bar answered the probe,
- * and the BRAVIA Connect deep link for calibration.
+ * and the BRAVIA Connect deep link for calibration. Shown only with a bar ([soundSheetShown]).
  */
 @Composable
-fun SoundSheet(state: TuttiUiState, controller: TuttiController, modifier: Modifier = Modifier) {
+fun SoundSheet(
+    state: TuttiUiState,
+    controller: TuttiController,
+    modifier: Modifier = Modifier,
+    peeking: Boolean = false,
+) {
     val haptics = rememberHaptics()
+    // Folded, the sheet shows its title line and nothing else: the peek also covers the gesture bar's
+    // inset, which used to reveal the top of "Bar input" under the summary. The rest fades in as the
+    // sheet opens (opacity only, so it is also the reduced-motion form) and stays out of TalkBack's
+    // reach until then; the drag handle's own action opens it.
+    val rest by animateFloatAsState(if (peeking) 0f else 1f, tween(Motion.MEDIUM), label = "sheet-rest")
     val context = LocalContext.current
     // The sheet may rise to the window's top; its handle stops below the status bar and the rest scrolls.
     val statusTop = WindowInsets.statusBars.getTop(LocalDensity.current)
-    Column(
-        modifier
-            .fillMaxWidth()
-            .belowStatusBar(statusTop)
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp)
-            .navigationBarsPadding()
-            .padding(bottom = 16.dp),
-    ) {
-        // Title and summary differ in size, so they share a baseline, centred as a pair in the row.
-        Row(Modifier.fillMaxWidth().heightIn(min = 40.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                stringResource(R.string.sound_title),
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.alignByBaseline(),
-            )
-            Spacer(Modifier.width(12.dp))
-            Text(
-                soundSummary(state),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.alignByBaseline().weight(1f, fill = false),
-            )
-        }
-        Spacer(Modifier.height(8.dp))
-
-        val tiles = listOf(
-            TheatreFeature.SOUND_FIELD,
-            TheatreFeature.VOICE,
-            TheatreFeature.NIGHT,
-            TheatreFeature.DRC,
-            TheatreFeature.AUTO_VOLUME,
-            TheatreFeature.IMAX,
-            TheatreFeature.SPATIAL_360,
-        ) + if (state.voiceZoomAvailable) listOf(TheatreFeature.VOICE_ZOOM) else emptyList()
-        for (row in tiles.chunked(2)) {
-            Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                for (feature in row) {
-                    SoundTile(
-                        state = state,
-                        feature = feature,
-                        onTap = {
-                            haptics.select()
-                            when (val kind = feature.kind) {
-                                is FeatureKind.Toggle -> controller.toggleBar(feature)
-                                is FeatureKind.Choice -> {
-                                    val current = state.bar.value(feature)
-                                    val next = kind.options[(kind.options.indexOf(current) + 1).mod(kind.options.size)]
-                                    controller.setBarChoice(feature, next)
-                                }
-                                else -> Unit
-                            }
-                        },
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-                if (row.size == 1) Spacer(Modifier.weight(1f))
+    val scroll = rememberScrollState()
+    // The section whose "?" was tapped: its explanation sheet is open (design.md, "Son" sheet).
+    var explaining by remember { mutableStateOf<SoundSection?>(null) }
+    // Long press on a tile or a DRC/IMAX choice pins it (gesture audit item 9).
+    val pinner = rememberDockPinner(state, controller)
+    // One-time hints (discoverability rule 3): the tile's long press after a third toggle, the input's
+    // after the first change, each beside the control it names.
+    val hint = rememberGestureHint(controller)
+    var toggles by remember { mutableIntStateOf(0) }
+    val layout = soundSheetLayout(state.voiceZoomAvailable)
+    explaining?.let { ExplainSheet(it, layout, onDismiss = { explaining = null }) }
+    // The title line is the sheet's pinned header: folded, it is the whole peek; open, it stays put
+    // while the settings scroll under it (design.md, Sheets).
+    PinnedHeader(
+        scrolled = scroll.canScrollBackward,
+        modifier = modifier.fillMaxWidth().belowStatusBar(statusTop),
+        header = {
+            // Title and summary differ in size, so they share a baseline, centred as a pair in the row.
+            Row(Modifier.fillMaxWidth().heightIn(min = 40.dp).padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    stringResource(R.string.sound_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.alignByBaseline(),
+                )
+                Spacer(Modifier.width(12.dp))
+                Text(
+                    soundSummary(state),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.alignByBaseline().weight(1f, fill = false),
+                )
             }
-        }
+        },
+    ) {
+        Column(
+            Modifier
+                .verticalScroll(scroll)
+                .padding(horizontal = 16.dp)
+                .navigationBarsPadding()
+                .padding(bottom = 16.dp)
+                .graphicsLayer { alpha = rest }
+                .then(if (peeking) Modifier.clearAndSetSemantics {} else Modifier),
+        ) {
+            Spacer(Modifier.height(4.dp))
+            BarInputRow(
+                state,
+                controller,
+                onHelp = { explaining = SoundSection.Input },
+                pinner = pinner,
+                onChanged = { hint.offer("bar_input_long") },
+            )
+            GestureHintBubble(hint, Modifier.padding(top = 8.dp), only = "bar_input_long")
+            Spacer(Modifier.height(4.dp))
 
-        LevelSlider(state, TheatreFeature.BASS, onLevel = { controller.setBarLevel(TheatreFeature.BASS, it) })
-        LevelSlider(state, TheatreFeature.REAR_LEVEL, onLevel = { controller.setBarLevel(TheatreFeature.REAR_LEVEL, it) })
-        if (state.voiceZoomAvailable) {
-            LevelSlider(state, TheatreFeature.VOICE_ZOOM_LEVEL, onLevel = { controller.setBarLevel(TheatreFeature.VOICE_ZOOM_LEVEL, it) })
-        }
+            val tiles = layout.tiles
+            SectionLabel(stringResource(R.string.sound_section_effects), onHelp = { explaining = SoundSection.Effects })
+            for (row in tiles.chunked(2)) {
+                Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    for (feature in row) {
+                        SoundTile(
+                            state = state,
+                            feature = feature,
+                            onTap = {
+                                haptics.select()
+                                if (feature.kind is FeatureKind.Toggle) {
+                                    controller.toggleBar(feature)
+                                    if (++toggles == 3) hint.offer("effect_long")
+                                }
+                            },
+                            onPin = { name ->
+                                haptics.longPress()
+                                pinner.request(DockAction.ToggleBar(feature.key), name)
+                            },
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                    if (row.size == 1) Spacer(Modifier.weight(1f))
+                }
+            }
+            GestureHintBubble(hint, Modifier.padding(vertical = 4.dp), only = "effect_long")
 
-        Spacer(Modifier.height(12.dp))
-        FilledTonalButton(onClick = { openBraviaConnect(context) }, modifier = Modifier.fillMaxWidth()) {
-            Text(stringResource(R.string.sound_recalibrate))
+            for (feature in layout.choices) {
+                ChoiceSegments(state, feature, onSelect = {
+                    haptics.select()
+                    controller.setBarChoice(feature, it)
+                }, onHelp = { explaining = SoundSection.Choice(feature) }, onPin = { option, name ->
+                    haptics.longPress()
+                    pinner.request(DockAction.SetBar(feature.key, option), name)
+                })
+            }
+
+            if (layout.levels.isNotEmpty()) {
+                Spacer(Modifier.height(4.dp))
+                SectionLabel(stringResource(R.string.sound_section_levels), onHelp = { explaining = SoundSection.Levels })
+            }
+            for (feature in layout.levels) {
+                LevelSlider(state, feature, onLevel = { controller.setBarLevel(feature, it) })
+            }
+
+            Spacer(Modifier.height(12.dp))
+            FilledTonalButton(onClick = { openBraviaConnect(context) }, modifier = Modifier.fillMaxWidth()) {
+                Text(stringResource(R.string.sound_recalibrate))
+            }
         }
     }
 }
 
+/** The Sound sheet's settings, in order; [soundSheetLayout] sorts them by kind. */
+val SOUND_SHEET_FEATURES = listOf(
+    TheatreFeature.SOUND_FIELD,
+    TheatreFeature.VOICE,
+    TheatreFeature.NIGHT,
+    TheatreFeature.DRC,
+    TheatreFeature.AUTO_VOLUME,
+    TheatreFeature.IMAX,
+    TheatreFeature.SPATIAL_360,
+    TheatreFeature.VOICE_ZOOM,
+    TheatreFeature.BASS,
+    TheatreFeature.REAR_LEVEL,
+    TheatreFeature.VOICE_ZOOM_LEVEL,
+)
+
+data class SoundSheetLayout(val tiles: List<TheatreFeature>, val choices: List<TheatreFeature>, val levels: List<TheatreFeature>)
+
+/**
+ * Whether the remote carries the Sound sheet at all (Erwann, 2026-11-06): only with a bar set up.
+ * With none, the sheet and its peek are gone and the remote takes the space back; adding a bar
+ * lives in Settings › Devices and on Settings' soundbar tile. With a bar nothing changes.
+ */
+fun soundSheetShown(devices: Devices): Boolean = devices.bar != null
+
+/**
+ * The rule (Erwann, 2026-10-24: "on a pas mal d'options qui ont plus que on/off"): only an on/off
+ * setting ([FeatureKind.Toggle]) is a tile; every [FeatureKind.Choice], today DRC and IMAX, gets a
+ * row showing all its options; levels are sliders. Voice Zoom 3 shows only if the bar answered the
+ * probe. Tested in `SoundSheetLayoutTest`, so a new feature can't land as a misleading tile.
+ */
+fun soundSheetLayout(voiceZoom: Boolean, features: List<TheatreFeature> = SOUND_SHEET_FEATURES): SoundSheetLayout {
+    val shown = features.filter {
+        voiceZoom || (it != TheatreFeature.VOICE_ZOOM && it != TheatreFeature.VOICE_ZOOM_LEVEL)
+    }
+    return SoundSheetLayout(
+        tiles = shown.filter { it.kind is FeatureKind.Toggle },
+        choices = shown.filter { it.kind is FeatureKind.Choice },
+        levels = shown.filter { it.kind is FeatureKind.Level },
+    )
+}
+
+/**
+ * A three-way bar setting (DRC, IMAX: auto, on, off) as one labelled row of segments, every option
+ * in view and the current one ticked as well as filled, so it never rests on colour. TalkBack reads
+ * the setting's name, then each option as a radio button with its selected state. Unavailable,
+ * the segments are disabled and the reason shows under them, never hidden.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SoundTile(state: TuttiUiState, feature: TheatreFeature, onTap: () -> Unit, modifier: Modifier = Modifier) {
+private fun ChoiceSegments(state: TuttiUiState, feature: TheatreFeature, onSelect: (String) -> Unit, onHelp: () -> Unit, onPin: (String, String) -> Unit) {
+    val kind = feature.kind as? FeatureKind.Choice ?: return
     val reason = barReason(state, feature)
     val value = state.bar.value(feature)
-    val on = when (feature.kind) {
-        is FeatureKind.Toggle -> state.bar.isOn(feature) == true
-        is FeatureKind.Choice -> value == "on" || value == "auto"
-        else -> false
+    val label = stringResource(featureLabel(feature))
+    val refused = state.bar.refusedValues(feature)
+    val refusedWord = stringResource(R.string.choice_refused)
+    val described = withHint(label, explanation(feature)?.let { stringResource(it) })
+    val pinLabel = stringResource(R.string.pin_to_dock)
+    val bumpFeedback = rememberFeedback()
+    Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+        SectionLabel(label, onHelp = onHelp, modifier = Modifier.padding(bottom = 2.dp))
+        SingleChoiceSegmentedButtonRow(
+            Modifier.fillMaxWidth().semantics { contentDescription = described },
+        ) {
+            kind.options.forEachIndexed { index, option ->
+                val isRefused = option in refused
+                val segmentShape = SegmentedButtonDefaults.itemShape(index, kind.options.size)
+                val optionName = "$label · ${choiceLabel(option)}"
+                SegmentedButton(
+                    selected = option == value,
+                    // A refused option stays tappable: a tap is a retry.
+                    onClick = { if (option != value) onSelect(option) },
+                    enabled = reason == null,
+                    shape = SegmentedButtonDefaults.itemShape(index, kind.options.size),
+                    icon = {
+                        if (isRefused && option != value) {
+                            Icon(painterResource(R.drawable.ic_warning), contentDescription = null, modifier = Modifier.size(SegmentedButtonDefaults.IconSize))
+                        } else {
+                            SegmentedButtonDefaults.Icon(active = option == value)
+                        }
+                    },
+                    modifier = Modifier.heightIn(min = 48.dp)
+                        .holdForMenu(pinLabel, segmentShape, enabled = reason == null, onRefused = bumpFeedback::bump) { onPin(option, optionName) }
+                        .then(
+                        if (isRefused) Modifier.semantics { stateDescription = refusedWord } else Modifier,
+                    ),
+                ) {
+                    Text(choiceLabel(option), maxLines = 1)
+                }
+            }
+        }
+        val labels = (kind.options + refused).associateWith { choiceLabel(it) }
+        val note = reason ?: refused.filter { it != value }.joinToString { labels[it] ?: it }.ifEmpty { null }
+            ?.let { stringResource(R.string.choice_refused_note, it) }
+        if (note != null) {
+            Text(
+                note,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+        }
     }
-    val scheme = MaterialTheme.colorScheme
-    val container by animateColorAsState(if (on && reason == null) scheme.primaryContainer else scheme.surfaceContainerHigh, snappyOrFade(), label = "tile")
-    val content = if (on && reason == null) scheme.onPrimaryContainer else scheme.onSurface
-    val interaction = remember { MutableInteractionSource() }
-    val press = rememberPress(interaction, PressStyle.TILE)
-    val feedback = rememberFeedback()
-    val reduced = LocalReducedMotion.current
-    val corner by animateDpAsState(if (on && reason == null) 16.dp else 24.dp, if (reduced) snap() else Motion.snappy(), label = "corner")
+}
 
-    // Pending, then the outcome: the tile has already flipped (optimistic). An arc shows only if the
-    // bar takes more than 150 ms; a refusal springs the tile back (the rollback), shakes it 4 dp,
-    // plays reject and says so for 3 s. Reduced motion keeps the words and the cross, not the shake.
+/**
+ * What a bar toggle shows, shared by the Son sheet's tile and the playback sheet's chip: why it is
+ * greyed, whether it is on, and the outcome of a press. The control has already flipped
+ * (optimistic); a spinner may show only if the bar takes more than 150 ms; a refusal springs it
+ * back (the rollback), plays the shared refusal shake with its reject and says so for 3 s.
+ */
+internal class BarToggleStatus(
+    val reason: String?,
+    val on: Boolean,
+    val failed: Boolean,
+    val spinner: Boolean,
+    val shake: RefusalShake,
+    val stateLine: String,
+)
+
+@Composable
+internal fun rememberBarToggleStatus(state: TuttiUiState, feature: TheatreFeature): BarToggleStatus {
+    val reason = barReason(state, feature)
+    val value = state.bar.value(feature)
+    val on = state.bar.isOn(feature) == true
     val pending = state.bar.pending[feature.key]?.value
     val waiting = rememberWaiting(pending != null)
     val outcome = remember { TileOutcome() }
     var refusals by remember { mutableIntStateOf(0) }
     var failed by remember { mutableStateOf(false) }
-    val shake = remember { Animatable(0f) }
+    val shake = rememberRefusalShake()
+    // A late answer (the bar took it after all) clears the warning at once: never "On" beside
+    // "Didn't take" (Erwann's 360 Spatial screenshot, 2026-10-25).
+    var late by remember { mutableIntStateOf(0) }
     LaunchedEffect(pending, value, state.bar.connected) {
-        if (outcome.observe(pending, value, state.bar.connected) == TileSettle.REFUSED) refusals++
+        when (outcome.observe(pending, value, state.bar.connected)) {
+            TileSettle.REFUSED -> refusals++
+            TileSettle.LATE -> late++
+            else -> Unit
+        }
     }
+    LaunchedEffect(late) { if (late > 0) failed = false }
     LaunchedEffect(refusals) {
         if (refusals == 0) return@LaunchedEffect
         failed = true
-        feedback.reject()
-        if (!reduced) {
-            shake.snapTo(0f)
-            shake.animateTo(
-                0f,
-                keyframes {
-                    durationMillis = Motion.MEDIUM
-                    4f at 40
-                    -4f at 100
-                    3f at 160
-                    -2f at 210
-                },
-            )
-        }
+        shake.refuse()
         delay(FAILED_MS)
         failed = false
     }
+    val stateLine = if (failed && reason == null) {
+        stringResource(R.string.sound_tile_failed)
+    } else {
+        reason ?: stringResource(if (on) R.string.toggle_state_on else R.string.toggle_state_off)
+    }
+    return BarToggleStatus(reason, on, failed, waiting.spinner && !failed, shake, stateLine)
+}
+
+@Composable
+internal fun SoundTile(state: TuttiUiState, feature: TheatreFeature, onTap: () -> Unit, onPin: (String) -> Unit, modifier: Modifier = Modifier) {
+    val status = rememberBarToggleStatus(state, feature)
+    val reason = status.reason
+    val on = status.on
+    val failed = status.failed
+    val shake = status.shake
+    val stateLine = status.stateLine
+    val scheme = MaterialTheme.colorScheme
+    val container by animateColorAsState(if (on && reason == null) scheme.primary else scheme.surfaceContainerHigh, snappyOrFade(), label = "tile")
+    val content = if (on && reason == null) scheme.onPrimary else scheme.onSurface
+    val interaction = remember { MutableInteractionSource() }
+    val press = rememberPress(interaction, PressStyle.TILE)
+    val feedback = rememberFeedback()
+    val reduced = LocalReducedMotion.current
+    val corner by animateDpAsState(if (on && reason == null) 16.dp else 24.dp, if (reduced) snap() else Motion.snappy(), label = "corner")
+    val name = stringResource(featureLabel(feature))
+    val hint = explanation(feature)?.let { stringResource(it) }
     Column(
         modifier
             .heightIn(min = 76.dp)
+            .refusalShake(shake)
             .graphicsLayer {
                 scaleX = press.scale
                 scaleY = press.scale
-                translationX = shake.value.dp.toPx()
             }
             .background(container, RoundedCornerShape(corner))
+            // Long press pins it; refused like the tap while the bar is out of reach.
+            .holdForMenu(stringResource(R.string.pin_to_dock), TILE_SHAPE, enabled = reason == null, onRefused = feedback::bump) { onPin(name) }
             // A disabled tile still answers: a bump, and its reason stays in view (design.md: never hidden).
             .clickable(
                 interactionSource = interaction,
@@ -246,26 +438,30 @@ private fun SoundTile(state: TuttiUiState, feature: TheatreFeature, onTap: () ->
                 role = Role.Switch,
                 onClick = { if (reason == null) onTap() else feedback.bump() },
             )
+            // TalkBack: the name, its state (or why it's greyed), then what it does, as its section's "?" says it.
+            .semantics { contentDescription = withHint("$name, $stateLine", hint) }
             .alpha(if (reason == null) 1f else 0.6f)
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.Center,
     ) {
+        // The glyph (recognition, never state) and the mark (state) share the top line, at opposite
+        // corners, so the name below has the tile's whole width and never wraps at 390 dp.
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(stringResource(featureLabel(feature)), style = MaterialTheme.typography.titleSmall, color = content, modifier = Modifier.weight(1f))
-            TileMark(on = on, locked = reason != null, pending = waiting.spinner && !failed, color = content, onColor = container)
+            Icon(painterResource(barIcon(feature.key)), contentDescription = null, tint = content, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.weight(1f))
+            TileMark(on = on, locked = reason != null, pending = status.spinner, color = content, onColor = container)
         }
+        Spacer(Modifier.height(4.dp))
+        Text(name, style = MaterialTheme.typography.titleSmall, color = content)
         if (failed && reason == null) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(painterResource(R.drawable.ic_close), contentDescription = null, tint = content, modifier = Modifier.size(14.dp))
+                Icon(painterResource(R.drawable.ic_warning), contentDescription = null, tint = content, modifier = Modifier.size(14.dp))
                 Spacer(Modifier.width(4.dp))
                 Text(stringResource(R.string.sound_tile_failed), style = MaterialTheme.typography.bodySmall, color = content, maxLines = 2)
             }
         } else {
             Text(
-                text = reason ?: when (feature.kind) {
-                    is FeatureKind.Choice -> choiceLabel(value)
-                    else -> stringResource(if (on) R.string.state_on else R.string.state_off)
-                },
+                text = reason ?: stringResource(if (on) R.string.toggle_state_on else R.string.toggle_state_off),
                 style = MaterialTheme.typography.bodySmall,
                 color = if (reason == null) content else scheme.onSurfaceVariant,
                 maxLines = 2,
@@ -319,10 +515,11 @@ private const val FAILED_MS = 3_000L
 @Composable
 fun choiceLabel(value: String?): String = when (value) {
     "auto" -> stringResource(R.string.state_auto)
-    "on" -> stringResource(R.string.state_on)
-    "off" -> stringResource(R.string.state_off)
+    "on" -> stringResource(R.string.toggle_state_on)
+    "off" -> stringResource(R.string.toggle_state_off)
     null -> "—"
-    else -> value
+    // A value outside the documented vocabulary: readable rather than raw ("main_sub" → "Main sub").
+    else -> io.kud.tutti.protocol.bravia.TvSettingCatalog.readable(value)
 }
 
 /** A level slider that moves locally while dragging and sends once on release. */
@@ -334,6 +531,7 @@ fun LevelSlider(state: TuttiUiState, feature: TheatreFeature, onLevel: (Int) -> 
     val current = state.bar.level(feature) ?: 0
     var dragging by remember { mutableStateOf<Float?>(null) }
     val shown = dragging ?: current.toFloat()
+    val described = withHint(stringResource(featureLabel(feature)), explanation(feature)?.let { stringResource(it) })
     Column(modifier.fillMaxWidth().padding(top = 12.dp).alpha(if (reason == null) 1f else 0.6f)) {
         // Label and value differ in size: one baseline, and a long reason ellipsises instead of wrapping.
         Row(Modifier.fillMaxWidth()) {
@@ -365,6 +563,7 @@ fun LevelSlider(state: TuttiUiState, feature: TheatreFeature, onLevel: (Int) -> 
             valueRange = kind.min.toFloat()..kind.max.toFloat(),
             steps = (kind.max - kind.min - 1).coerceAtLeast(0),
             enabled = reason == null,
+            modifier = Modifier.semantics { contentDescription = described },
         )
     }
 }

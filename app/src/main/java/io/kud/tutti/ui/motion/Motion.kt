@@ -3,15 +3,18 @@ package io.kud.tutti.ui.motion
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.Easing
 import androidx.compose.animation.core.FiniteAnimationSpec
+import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.SpringSpec
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.compositionLocalOf
 import io.kud.tutti.ui.common.LocalReducedMotion
 
 /**
- * One motion vocabulary for the whole app (Iris's motion spec): acknowledge, wait, succeed, fail.
+ * One motion vocabulary for the whole app (the motion spec): acknowledge, wait, succeed, fail.
  * Durations are the tokens; springs and easings are the only curves. With reduced motion every
  * movement becomes a [Motion.SHORT] fade; haptics stay, since they carry the state.
  */
@@ -37,7 +40,7 @@ object Motion {
     /** Once per screen at most: the TV found, the final tick. Damping 0.6, stiffness 400. */
     fun <T> bouncy(): SpringSpec<T> = spring(dampingRatio = 0.6f, stiffness = 400f)
 
-    /** A press landing: critically damped, no overshoot, about 60 ms (Iris's interaction spec). */
+    /** A press landing: critically damped, no overshoot, about 60 ms (the interaction spec). */
     fun <T> pressIn(): SpringSpec<T> = spring(dampingRatio = 1f, stiffness = Spring.StiffnessHigh)
 
     /** The pressed layer landing, in step with [pressIn]. */
@@ -62,6 +65,26 @@ object Motion {
 /** [Motion.snappy], or a [Motion.SHORT] fade when motion is reduced. */
 @Composable
 fun <T> snappyOrFade(): FiniteAnimationSpec<T> = if (LocalReducedMotion.current) Motion.fade() else Motion.snappy()
+
+/**
+ * The TV's link is being won back on the app's return ([io.kud.tutti.controller.TvShown.resuming]):
+ * the remote comes back already in the down dress, so [linkFade] snaps down instead of fading.
+ */
+val LocalLinkResuming = compositionLocalOf { false }
+
+/**
+ * The down dress coming and going with its device's link (Iris, 2026-11-07): [Motion.MEDIUM]
+ * going down, so a blip of a second or two is softened without being hidden, and [Motion.SHORT]
+ * coming back, so keys that work again look ready at once. On a resume ([LocalLinkResuming]) the
+ * first frame back is already down: one transition, up, never normal, down, normal. Opacity
+ * only; reduced motion snaps.
+ */
+@Composable
+fun <T> linkFade(down: Boolean): FiniteAnimationSpec<T> = when {
+    LocalReducedMotion.current -> snap()
+    down && LocalLinkResuming.current -> snap()
+    else -> tween(if (down) Motion.MEDIUM else Motion.SHORT, easing = LinearOutSlowInEasing)
+}
 
 /** [Motion.bouncy], or a [Motion.SHORT] fade when motion is reduced. */
 @Composable

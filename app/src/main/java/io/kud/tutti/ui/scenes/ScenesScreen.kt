@@ -33,6 +33,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -69,6 +70,7 @@ fun ScenesScreen(
     onBack: () -> Unit,
     onEdit: (String?) -> Unit,
 ) {
+    val targets by controller.targetNames.collectAsState()
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
@@ -87,6 +89,10 @@ fun ScenesScreen(
                 onClick = { onEdit(null) },
                 icon = { Icon(painterResource(R.drawable.ic_add), contentDescription = null) },
                 text = { Text(stringResource(R.string.scenes_new)) },
+                // In ink, not the accent container (Gamme; 2026-10-30): the one way to make
+                // something here, and no colour that a scene pill or an "on" could be mistaken for.
+                containerColor = MaterialTheme.colorScheme.inverseSurface,
+                contentColor = MaterialTheme.colorScheme.inverseOnSurface,
             )
         },
     ) { padding ->
@@ -100,7 +106,7 @@ fun ScenesScreen(
             items(state.scenes, key = { it.scene.id }) { ui ->
                 SceneCard(
                     ui = ui,
-                    summary = sceneSummary(ui.scene, state),
+                    summary = sceneSummary(ui.scene, state, targets),
                     onApply = { controller.applyScene(ui.scene.id) },
                     onEdit = { onEdit(ui.scene.id) },
                 )
@@ -180,7 +186,7 @@ private fun SceneCard(ui: SceneUi, summary: String, onApply: () -> Unit, onEdit:
         Text(summary, style = MaterialTheme.typography.bodySmall, color = content.copy(alpha = 0.8f), maxLines = 3)
         if (failure != null) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(painterResource(R.drawable.ic_close), contentDescription = null, tint = content, modifier = Modifier.size(14.dp))
+                Icon(painterResource(R.drawable.ic_warning), contentDescription = null, tint = content, modifier = Modifier.size(14.dp))
                 Spacer(Modifier.size(4.dp))
                 Text(
                     pluralStringResource(R.plurals.scene_steps_failed, failure.failed, failure.failed, failure.total),
@@ -190,7 +196,7 @@ private fun SceneCard(ui: SceneUi, summary: String, onApply: () -> Unit, onEdit:
             }
         } else when (ui.status) {
             SceneStatus.ACTIVE -> Text(stringResource(R.string.scenes_active), style = MaterialTheme.typography.labelMedium, color = content)
-            SceneStatus.MODIFIED -> Text(stringResource(R.string.scene_modified), style = MaterialTheme.typography.labelMedium, color = seed)
+            SceneStatus.MODIFIED -> Text(stringResource(R.string.scene_modified), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             SceneStatus.IDLE -> Unit
         }
     }

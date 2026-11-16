@@ -1,8 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Home-screen widget (quick/widget/QuickWidget.kt). Pushed on state change, never polled. -->
+<!--
+  Home-screen widget (quick/widget/QuickWidget.kt). Pushed on state change, never polled.
+  previewLayout: the picker shows the widget with example content (Android 12+), never Glance's
+  loading layout; Android 15+ also gets it as a generated preview (QuickWidgetPreview.kt).
+-->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:description="@string/quick_widget_description"
     android:initialLayout="@layout/glance_default_loading_layout"
+    android:previewLayout="@layout/quick_widget_preview"
     android:minWidth="180dp"
     android:minHeight="110dp"
     android:minResizeWidth="180dp"

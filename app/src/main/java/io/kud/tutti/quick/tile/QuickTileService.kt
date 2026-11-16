@@ -47,8 +47,9 @@ class QuickTileService : TileService() {
 
     override fun onClick() {
         super.onClick()
-        // Volume is harmless, but the overlay also has Power and scenes: ask for the unlock first.
-        if (isLocked) unlockAndRun { openOverlay() } else openOverlay()
+        // Locked, the overlay opens over the lock screen with play/pause, volume and mute only;
+        // Power and scenes wait for the unlock (QuickOverlayActivity).
+        openOverlay()
     }
 
     private fun openOverlay() {
@@ -83,7 +84,8 @@ class QuickTileService : TileService() {
             !state.connected -> getString(R.string.quick_status_disconnected)
             !state.power -> getString(R.string.quick_status_off)
             state.muted -> getString(R.string.quick_status_muted)
-            else -> getString(R.string.quick_volume_value, state.volume)
+            // A level not yet reported is unknown, never "Volume 0" (design.md, Quick access).
+            else -> state.level?.let { getString(R.string.quick_volume_value, it.level) } ?: getString(R.string.quick_status_connected)
         }
         tile.icon = Icon.createWithResource(
             this,

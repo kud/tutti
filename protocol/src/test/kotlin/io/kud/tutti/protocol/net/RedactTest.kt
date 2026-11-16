@@ -24,6 +24,34 @@ class RedactTest {
     }
 
     @Test
+    fun `a short known value never shreds the words that contain it`() {
+        // Button names a reply once handed to the scrub list (invented here, as any value would be).
+        val known = listOf("Red", "Blue", "Play", "Mute", "Return", "Rec")
+        val input = "configured answered recorded Bluetooth getPlayingContentInfo setAudioMute " +
+            "hdmi.audioreturnchannel PLAYING"
+        assertEquals(input, Redact.text(input, known))
+    }
+
+    @Test
+    fun `a known value standing alone is still redacted, and its marker never again`() {
+        val out = Redact.text("button Red, then PLAY; psk Kettle42 / Kettle42.", listOf("red", "play", "kettle42", "dacted"))
+        assertEquals("button <redacted>, then <redacted>; psk <redacted> / <redacted>.", out)
+        assertFalse("<<" in out, out)
+    }
+
+    @Test
+    fun `a known value with symbols is matched literally`() {
+        val out = Redact.text("psk a.b*c+d? and a-b-c-d", listOf("a.b*c+d?"))
+        assertEquals("psk <redacted> and a-b-c-d", out)
+    }
+
+    @Test
+    fun `the longer of two overlapping values is taken whole`() {
+        val out = Redact.text("bar Living Room Bar here", listOf("Living", "Living Room Bar"))
+        assertEquals("bar <redacted> here", out)
+    }
+
+    @Test
     fun `the detector still detects`() {
         // A scrubber whose passing state is "found nothing" needs a probe that it still matches.
         assertTrue("<ip>" in Redact.text("10.0.0.1"))

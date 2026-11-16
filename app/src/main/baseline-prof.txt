@@ -1,0 +1,7 @@
+# tutti's own baseline profile, merged by AGP with the ones Compose and AndroidX ship, and
+# installed by profileinstaller at first launch (the APK is sideloaded, so Play's cloud
+# profiles never reach it). Until a Macrobenchmark run on a phone can record the real start
+# and remote paths, the whole app (about 4.6k methods after R8, protocol included) is
+# compiled ahead of time: small next to Compose, and the remote's first frames skip the JIT.
+HSPLio/kud/tutti/**->**(**)**
+Lio/kud/tutti/**;

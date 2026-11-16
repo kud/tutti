@@ -1,6 +1,5 @@
 package io.kud.tutti.ui.scenes
 
-import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -9,8 +8,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -21,10 +22,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
@@ -42,6 +44,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
@@ -52,9 +55,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import io.kud.tutti.R
 import io.kud.tutti.controller.Link
@@ -66,17 +72,34 @@ import io.kud.tutti.protocol.atv.AppCatalog
 import io.kud.tutti.protocol.scenes.Scene
 import io.kud.tutti.protocol.scenes.SceneKey
 import io.kud.tutti.protocol.scenes.SceneValue
+import io.kud.tutti.protocol.bravia.TvSetting
+import io.kud.tutti.protocol.theatre.FeatureKind
+import io.kud.tutti.protocol.theatre.TheatreFeature
+import io.kud.tutti.ui.common.barValueLabel
+import io.kud.tutti.ui.settings.outputNames
+import io.kud.tutti.ui.settings.tvValueName
 import io.kud.tutti.ui.common.ChoiceRow
+import io.kud.tutti.ui.common.LocalMessages
 import io.kud.tutti.ui.common.SceneGlyphs
 import io.kud.tutti.ui.common.SectionTitle
+import io.kud.tutti.ui.common.TuttiMenu
 import io.kud.tutti.ui.common.glyphRes
+import io.kud.tutti.ui.common.pinGlyphLabel
 import io.kud.tutti.ui.common.rememberHaptics
 import io.kud.tutti.ui.remote.contentOn
 import io.kud.tutti.ui.remote.signed
 import kotlin.math.roundToInt
 
-private val Palette: List<Long> = listOf(
-    0xFF8E5CF2, 0xFF5C7CF2, 0xFF3B4A6B, 0xFFE0609A, 0xFF3FAE6A, 0xFFF2994A, 0xFF9AA5B1, 0xFFE05C5C,
+/** Scene colours, each with the name TalkBack reads (Scene.color stores only the value). */
+private val Palette: List<Pair<Long, Int>> = listOf(
+    0xFF8E5CF2 to R.string.scene_colour_violet,
+    0xFF5C7CF2 to R.string.scene_colour_blue,
+    0xFF3B4A6B to R.string.scene_colour_navy,
+    0xFFE0609A to R.string.scene_colour_pink,
+    0xFF3FAE6A to R.string.scene_colour_green,
+    0xFFF2994A to R.string.scene_colour_orange,
+    0xFF9AA5B1 to R.string.scene_colour_grey,
+    0xFFE05C5C to R.string.scene_colour_red,
 )
 
 /**
@@ -92,13 +115,15 @@ fun SceneEditorScreen(
     controller: TuttiController,
     onDone: () -> Unit,
 ) {
+    val targets by controller.targetNames.collectAsState()
     val haptics = rememberHaptics()
-    val context = LocalContext.current
+    val resources = LocalResources.current
+    val messages = LocalMessages.current
     val original = remember(sceneId) { state.scenes.firstOrNull { it.scene.id == sceneId }?.scene }
     val id = remember(sceneId) { original?.id ?: controller.newSceneId() }
     val savedProfile = remember(id) { state.profiles.firstOrNull { it.sceneId == id }?.appPackage }
     var name by remember { mutableStateOf(original?.name.orEmpty()) }
-    var color by remember { mutableLongStateOf(original?.color ?: Palette.first()) }
+    var color by remember { mutableLongStateOf(original?.color ?: Palette.first().first) }
     var glyph by remember { mutableStateOf(original?.glyph ?: "auto_awesome") }
     var settings by remember { mutableStateOf(original?.settings ?: emptyMap()) }
     var launchApp by remember { mutableStateOf(original?.launchApp) }
@@ -155,6 +180,7 @@ fun SceneEditorScreen(
             Modifier
                 .fillMaxSize()
                 .padding(padding)
+                .consumeWindowInsets(padding)
                 .imePadding()
                 .verticalScroll(rememberScrollState())
                 .padding(bottom = 32.dp),
@@ -168,42 +194,65 @@ fun SceneEditorScreen(
             )
 
             SectionTitle(stringResource(R.string.editor_look))
-            Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                for (swatch in Palette) {
+            // Colour and symbol are two radio groups: each option is a 48 dp target with a name, and the
+            // chosen one says so in shape (a ring and a tick, a filled disc), never by colour alone.
+            FlowRow(Modifier.padding(horizontal = 12.dp).selectableGroup()) {
+                for ((swatch, nameRes) in Palette) {
                     val selected = swatch == color
+                    val colourName = stringResource(nameRes)
                     Box(
                         Modifier
-                            .size(32.dp)
-                            .clip(CircleShape)
-                            .background(Color(swatch))
-                            .then(if (selected) Modifier.border(3.dp, MaterialTheme.colorScheme.onSurface, CircleShape) else Modifier)
-                            .clickable {
+                            .size(48.dp)
+                            .selectable(selected = selected, role = Role.RadioButton) {
                                 haptics.tick()
                                 color = swatch
-                            },
-                    )
-                }
-            }
-            Spacer(Modifier.height(12.dp))
-            FlowRow(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                for (option in SceneGlyphs) {
-                    val selected = option == glyph
-                    Box(
-                        Modifier
-                            .size(44.dp)
-                            .clip(CircleShape)
-                            .background(if (selected) Color(color) else MaterialTheme.colorScheme.surfaceContainerHigh)
-                            .clickable {
-                                haptics.tick()
-                                glyph = option
-                            },
+                            }
+                            .semantics { contentDescription = colourName },
                         contentAlignment = Alignment.Center,
                     ) {
-                        Icon(
-                            painterResource(glyphRes(option)),
-                            contentDescription = option,
-                            tint = if (selected) contentOn(Color(color)) else MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                        Box(
+                            Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(Color(swatch))
+                                .then(if (selected) Modifier.border(3.dp, MaterialTheme.colorScheme.onSurface, CircleShape) else Modifier),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            if (selected) {
+                                Icon(painterResource(R.drawable.ic_check), contentDescription = null, tint = contentOn(Color(swatch)), modifier = Modifier.size(20.dp))
+                            }
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            FlowRow(Modifier.padding(horizontal = 12.dp).selectableGroup()) {
+                for (option in SceneGlyphs) {
+                    val selected = option == glyph
+                    val glyphName = stringResource(pinGlyphLabel(option))
+                    Box(
+                        Modifier
+                            .size(48.dp)
+                            .selectable(selected = selected, role = Role.RadioButton) {
+                                haptics.tick()
+                                glyph = option
+                            }
+                            .semantics { contentDescription = glyphName },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Box(
+                            Modifier
+                                .size(44.dp)
+                                .clip(CircleShape)
+                                .background(if (selected) Color(color) else MaterialTheme.colorScheme.surfaceContainerHigh),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                painterResource(glyphRes(option)),
+                                contentDescription = null,
+                                tint = if (selected) contentOn(Color(color)) else MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     }
                 }
             }
@@ -213,7 +262,7 @@ fun SceneEditorScreen(
                 onClick = {
                     val captured = controller.captureCurrent()
                     if (captured.isEmpty()) {
-                        Toast.makeText(context, R.string.editor_capture_empty, Toast.LENGTH_SHORT).show()
+                        messages?.show(resources.getString(R.string.editor_capture_empty))
                     } else {
                         haptics.doublePulse()
                         settings = settings + captured
@@ -231,7 +280,7 @@ fun SceneEditorScreen(
                     InputChip(
                         selected = false,
                         onClick = { editing = key },
-                        label = { Text(settingChip(key, value, state)) },
+                        label = { Text(settingChip(key, value, state, targets)) },
                         trailingIcon = {
                             Icon(
                                 painterResource(R.drawable.ic_close),
@@ -245,7 +294,7 @@ fun SceneEditorScreen(
                     )
                 }
             }
-            val missing = SceneKey.entries.filterNot { settings.containsKey(it) }
+            val missing = SceneKey.entries.filterNot { settings.containsKey(it) }.filter { offered(it, state, targets) }
             if (missing.isNotEmpty()) {
                 Box(Modifier.padding(horizontal = 8.dp)) {
                     TextButton(onClick = { adding = true }) {
@@ -253,13 +302,13 @@ fun SceneEditorScreen(
                         Spacer(Modifier.size(6.dp))
                         Text(stringResource(R.string.editor_add_setting))
                     }
-                    DropdownMenu(expanded = adding, onDismissRequest = { adding = false }) {
+                    TuttiMenu(expanded = adding, onDismissRequest = { adding = false }) {
                         for (key in missing) {
                             DropdownMenuItem(
                                 text = { Text(keyName(key)) },
                                 onClick = {
                                     adding = false
-                                    settings = settings + (key to defaultValue(key, state))
+                                    settings = settings + (key to defaultValue(key, state, targets))
                                     editing = key
                                 },
                             )
@@ -276,17 +325,23 @@ fun SceneEditorScreen(
                 valueLabel = launchApp?.let(::appName) ?: stringResource(R.string.editor_none),
                 options = apps,
                 onSelect = { launchApp = it },
+                selected = launchApp,
             )
             ChoiceRow(
                 label = stringResource(R.string.editor_profile),
                 valueLabel = profile?.let { stringResource(R.string.editor_profile_value, appName(it)) } ?: stringResource(R.string.editor_none),
                 options = apps,
                 onSelect = { profile = it },
+                selected = profile,
             )
 
             SectionTitle(stringResource(R.string.editor_dock))
-            Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                for (index in 0 until DockConfig.SIZE) {
+            // The dock's first page, as it stands: two rows of six.
+            for (row in 0 until DockConfig.ROWS) Row(
+                Modifier.padding(start = 16.dp, end = 16.dp, top = if (row > 0) 8.dp else 0.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                for (index in row * DockConfig.ROW until (row + 1) * DockConfig.ROW) {
                     val holds = (state.dock.slots.getOrNull(index)?.primary as? DockAction.RunScene)?.sceneId == id
                     FilledTonalButton(
                         enabled = name.isNotBlank() && !holds,
@@ -296,6 +351,7 @@ fun SceneEditorScreen(
                             controller.assignDock(index, DockAction.RunScene(id), state.dock.slots.getOrNull(index)?.secondary)
                         },
                         modifier = Modifier.weight(1f),
+                        contentPadding = PaddingValues(0.dp),
                     ) { Text((index + 1).toString()) }
                 }
             }
@@ -309,6 +365,7 @@ fun SceneEditorScreen(
                 key = key,
                 value = value,
                 state = state,
+                targets = targets,
                 onChange = { settings = settings + (key to it) },
                 onDismiss = { editing = null },
             )
@@ -331,14 +388,26 @@ fun SceneEditorScreen(
     }
 }
 
-private fun defaultValue(key: SceneKey, state: TuttiUiState): SceneValue = when (key) {
+/** Voice Zoom only on a bar that answers it; a target only when there is more than one device to point at. */
+private fun offered(key: SceneKey, state: TuttiUiState, targets: Map<String, String>): Boolean = when (key) {
+    SceneKey.VOICE_ZOOM -> state.voiceZoomAvailable
+    SceneKey.TARGET -> targets.size > 1
+    else -> true
+}
+
+private fun defaultValue(key: SceneKey, state: TuttiUiState, targets: Map<String, String>): SceneValue = when (key) {
     SceneKey.TV_INPUT -> SceneValue.Text(state.tv.input ?: state.tv.inputs.firstOrNull()?.uri ?: "extInput:hdmi?port=1")
     SceneKey.TV_APP -> SceneValue.Text(state.remote.currentApp ?: AppCatalog.apps.first().packageName)
     SceneKey.PICTURE_MODE -> SceneValue.Text(state.tv.pictureMode ?: "standard")
-    SceneKey.SOUND_FIELD, SceneKey.VOICE, SceneKey.NIGHT -> SceneValue.Flag(true)
+    SceneKey.TV_AUDIO_OUTPUT -> SceneValue.Text(
+        state.tv.settings.sound.firstOrNull { it.target == TvSetting.OUTPUT_TERMINAL }?.currentValue ?: TvSetting.TERMINAL_AUDIO_SYSTEM,
+    )
+    SceneKey.BAR_INPUT -> SceneValue.Text(state.bar.value(TheatreFeature.INPUT) ?: "tv")
+    SceneKey.SOUND_FIELD, SceneKey.VOICE, SceneKey.NIGHT, SceneKey.PICTURE_OFF, SceneKey.SPATIAL_360, SceneKey.VOICE_ZOOM -> SceneValue.Flag(true)
     SceneKey.BASS -> SceneValue.Level(0)
     SceneKey.VOLUME -> SceneValue.Level(state.volume ?: 20)
     SceneKey.VOLUME_CAP -> SceneValue.Level(20)
+    SceneKey.TARGET -> SceneValue.Text(targets.keys.firstOrNull() ?: "")
 }
 
 /** Edits one scene value with the control its type calls for; changes apply live to the draft. */
@@ -347,6 +416,7 @@ private fun SettingDialog(
     key: SceneKey,
     value: SceneValue,
     state: TuttiUiState,
+    targets: Map<String, String>,
     onChange: (SceneValue) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -358,7 +428,7 @@ private fun SettingDialog(
             when (value) {
                 is SceneValue.Flag -> Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        settingChip(key, value, state),
+                        settingChip(key, value, state, targets),
                         modifier = Modifier.weight(1f),
                         style = MaterialTheme.typography.bodyLarge,
                     )
@@ -385,8 +455,11 @@ private fun SettingDialog(
                         SceneKey.TV_APP -> AppCatalog.apps.map { it.packageName to it.name }
                         SceneKey.PICTURE_MODE -> state.tv.settings.picture
                             .firstOrNull { it.target == "pictureMode" }
-                            ?.candidates?.map { it.value to (it.title ?: it.value) }
+                            ?.let { mode -> mode.candidates.map { it.value to tvValueName(it.value, mode) } }
                             .orEmpty()
+                        SceneKey.TV_AUDIO_OUTPUT -> outputNames().let { names -> TvSetting.OUTPUT_TERMINALS.map { it to (names[it] ?: it) } }
+                        SceneKey.BAR_INPUT -> (TheatreFeature.INPUT.kind as FeatureKind.Choice).options.map { it to barValueLabel(TheatreFeature.INPUT, it) }
+                        SceneKey.TARGET -> targets.toList()
                         else -> emptyList()
                     }
                     if (options.isEmpty()) {

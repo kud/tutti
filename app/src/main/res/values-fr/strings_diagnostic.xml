@@ -4,7 +4,7 @@
     <string name="settings_diagnostic_detail">Tester chaque connexion et copier un rapport</string>
 
     <string name="diagnostic_title">Diagnostic</string>
-    <string name="diagnostic_intro">Teste la découverte, l’API REST du téléviseur, la télécommande Android TV et la barre de son, étape par étape, sans rien allumer ni changer. Le rapport ne contient ni code, ni clé, ni adresse IP.</string>
+    <string name="diagnostic_intro">Teste la découverte, l’API REST de la TV, la télécommande Android TV et la barre de son, étape par étape, sans rien allumer ni changer. Le rapport ne contient ni code, ni clé, ni adresse IP.</string>
     <string name="diagnostic_run">Lancer</string>
     <string name="diagnostic_rerun">Relancer</string>
     <string name="diagnostic_stop">Arrêter</string>
@@ -21,14 +21,15 @@
     <string name="diagnostic_millis">%1$d ms</string>
 
     <string name="diagnostic_plane_discovery">Découverte</string>
-    <string name="diagnostic_plane_rest">Téléviseur · API REST</string>
-    <string name="diagnostic_plane_remote">Téléviseur · télécommande Android TV</string>
+    <string name="diagnostic_plane_rest">TV · API REST</string>
+    <string name="diagnostic_plane_remote">TV · télécommande Android TV</string>
     <string name="diagnostic_plane_bar">Barre de son</string>
+    <string name="diagnostic_plane_bar_http">Barre de son · port 54545</string>
     <string name="diagnostic_plane_cloud">Connexion Sony</string>
 
     <string name="diagnostic_step_discovery">Recherche sur le réseau (mDNS)</string>
-    <string name="diagnostic_step_rest_interface">Le téléviseur répond</string>
-    <string name="diagnostic_step_rest_auth">Code PSK accepté</string>
+    <string name="diagnostic_step_rest_interface">La TV répond</string>
+    <string name="diagnostic_step_rest_auth">Accès au contrôle IP accepté</string>
     <string name="diagnostic_step_rest_methods">Méthodes proposées</string>
     <string name="diagnostic_step_rest_read">Lecture : %1$s</string>
     <string name="diagnostic_step_remote_identity">Association enregistrée</string>
@@ -38,9 +39,24 @@
     <string name="diagnostic_step_bar_connect">Connexion au port 33336</string>
     <string name="diagnostic_step_bar_features">Lecture des réglages</string>
     <string name="diagnostic_step_bar_voicezoom">Voice Zoom 3</string>
+    <string name="diagnostic_step_bar_http">Relevés réseau, en lecture seule</string>
     <string name="diagnostic_step_cloud">Plan cloud Sony</string>
 
     <string name="crash_title">L’app a planté</string>
     <string name="crash_copy">Copier</string>
     <string name="crash_close">Fermer</string>
+    <string name="crash_copied">Copié</string>
+    <!-- Mode développeur : le journal des événements récents et le signalement GitHub sans clé. -->
+    <string name="event_log_title">Événements récents</string>
+    <string name="event_log_entry_detail">Ce que tutti a fait récemment et ce qui est revenu, nettoyé</string>
+    <string name="event_log_intro">Lancements, liens d’app, touches maintenues, connexions et erreurs, du plus récent au plus ancien : les %1$d derniers, gardés en mémoire seulement. Adresses, clés, noms et numéros de série sont retirés avant d’être gardés.</string>
+    <string name="event_log_copy">Copier le journal</string>
+    <string name="event_log_share">Partager</string>
+    <string name="event_log_clear">Effacer</string>
+    <string name="event_log_empty">Rien pour l’instant.</string>
+    <string name="event_log_last_crash">Dernier plantage</string>
+    <string name="event_log_share_subject">Événements récents de tutti</string>
+    <string name="report_github">Signaler sur GitHub</string>
+    <string name="report_crash_title">L’app a planté</string>
+    <string name="report_log_title">Signalement depuis les événements récents de tutti</string>
 </resources>

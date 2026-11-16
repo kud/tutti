@@ -41,6 +41,8 @@ import io.kud.tutti.protocol.diagnostic.Plane
 import io.kud.tutti.protocol.diagnostic.StepResult
 import io.kud.tutti.protocol.diagnostic.StepStatus
 import io.kud.tutti.ui.common.SectionTitle
+import io.kud.tutti.ui.common.LocalMessages
+import io.kud.tutti.ui.common.Messages
 import io.kud.tutti.ui.common.copyDetails
 
 /** Settings › Diagnostic: every probe live, then a scrubbed plain-text report to copy or share. */
@@ -49,6 +51,7 @@ import io.kud.tutti.ui.common.copyDetails
 fun DiagnosticScreen(diagnostics: Diagnostics, onBack: () -> Unit) {
     val ui by diagnostics.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val messages = LocalMessages.current
     val started = ui.report != null
     val counts = ui.steps.groupingBy { it.status }.eachCount()
 
@@ -95,7 +98,7 @@ fun DiagnosticScreen(diagnostics: Diagnostics, onBack: () -> Unit) {
                         )
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             val report = ui.report.orEmpty()
-                            TextButton(onClick = { copy(context, report) }) { Text(stringResource(R.string.diagnostic_copy)) }
+                            TextButton(onClick = { copy(context, report, messages) }) { Text(stringResource(R.string.diagnostic_copy)) }
                             TextButton(onClick = { share(context, report) }) { Text(stringResource(R.string.diagnostic_share)) }
                         }
                     }
@@ -169,6 +172,7 @@ private fun planeLabel(plane: Plane): String = stringResource(
         Plane.REST -> R.string.diagnostic_plane_rest
         Plane.REMOTE -> R.string.diagnostic_plane_remote
         Plane.BAR -> R.string.diagnostic_plane_bar
+        Plane.BAR_HTTP -> R.string.diagnostic_plane_bar_http
         Plane.CLOUD -> R.string.diagnostic_plane_cloud
     },
 )
@@ -190,13 +194,14 @@ private fun stepLabel(id: String): String {
         DiagnosticSteps.BAR_CONNECT -> stringResource(R.string.diagnostic_step_bar_connect)
         DiagnosticSteps.BAR_FEATURES -> stringResource(R.string.diagnostic_step_bar_features)
         DiagnosticSteps.BAR_VOICE_ZOOM -> stringResource(R.string.diagnostic_step_bar_voicezoom)
+        DiagnosticSteps.BAR_HTTP -> stringResource(R.string.diagnostic_step_bar_http)
         DiagnosticSteps.CLOUD -> stringResource(R.string.diagnostic_step_cloud)
         else -> id
     }
 }
 
-private fun copy(context: Context, report: String) {
-    copyDetails(context, report, context.getString(R.string.diagnostic_share_subject))
+private fun copy(context: Context, report: String, messages: Messages?) {
+    copyDetails(context, report, messages, context.getString(R.string.diagnostic_share_subject))
 }
 
 private fun share(context: Context, report: String) {

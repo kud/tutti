@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The in-app updater: About › Version, its sheet, and the daily message (docs/design.md, "Updates"). -->
+<resources>
+    <string name="update_title">Updates</string>
+    <string name="update_installed">Installed: version %1$s</string>
+    <string name="update_check">Check for updates</string>
+    <string name="update_checking">Checking GitHub…</string>
+    <string name="update_up_to_date">Up to date: GitHub has nothing newer.</string>
+    <string name="update_available">Version %1$s is available.</string>
+    <string name="update_download_install">Download and install</string>
+    <string name="update_downloading">Downloading…</string>
+    <string name="update_downloading_percent">Downloading: %1$d%%</string>
+    <string name="update_installing">Android will ask you to confirm. The app then closes to update, and a notification brings you back.</string>
+    <string name="update_permission_title">Android needs your permission to install updates from this app.</string>
+    <string name="update_permission_detail">Open the setting, turn on “Allow from this source”, then come back here. Android asks only once.</string>
+    <string name="update_permission_open">Open the setting</string>
+    <string name="update_try_again">Try again</string>
+    <string name="update_failed_network">Couldn’t reach GitHub. Check the connection, then try again.</string>
+    <!-- GitHub answered, but not with the list (2026-11-15). %1$s is a local time, %1$d an HTTP status. -->
+    <string name="update_failed_rate_limited_until">GitHub asks to wait before checking again. Try again after %1$s.</string>
+    <string name="update_failed_rate_limited">GitHub asks to wait before checking again. Try again in a little while.</string>
+    <string name="update_failed_github_code">GitHub answered with an error (%1$d). Try again later.</string>
+    <string name="update_failed_github">GitHub answered with an error. Try again later.</string>
+    <string name="update_failed_feed">GitHub’s answer couldn’t be read. Try again later.</string>
+    <!-- A failed check's way out to the releases page in the browser (2026-11-15). -->
+    <string name="update_open_releases">See the releases on GitHub</string>
+    <string name="update_failed_download">The download stopped before the end. Try again.</string>
+    <string name="update_failed_digest">The file didn’t match what GitHub announced, so it was deleted.</string>
+    <string name="update_failed_package">The file isn’t a newer build of this app, so it was deleted.</string>
+    <string name="update_failed_install">Android didn’t install the update.</string>
+    <string name="update_failed_install_detail">Android didn’t install the update: %1$s</string>
+    <string name="update_note">Checks GitHub when you ask, and when the app opens or comes back: at most once an hour with test builds on, once a day otherwise. Nothing installs without your confirmation.</string>
+    <!-- How a newer build makes itself known (docs/design.md, "Updates"; 2026-10-28). -->
+    <string name="update_message_install">Install</string>
+    <string name="update_later">Later</string>
+    <string name="update_menu_row">Install version %1$s</string>
+    <string name="action_more_update">More options, update available</string>
+    <string name="settings_line_update">Version %1$s available</string>
+    <!-- Stable or test builds (2026-11-06). -->
+    <string name="update_channel_test">Get test builds</string>
+    <string name="update_channel_test_detail">Newer, less tested. Turning it off doesn’t go back: Android won’t install an older build, so this one stays until the next final release.</string>
+    <!-- After an update the updater started (docs/design.md, "Updates"). -->
+    <string name="update_done_title">%1$s was updated</string>
+    <string name="update_done_text">Version %1$s. Tap to open the remote.</string>
+    <string name="update_done_channel">Updates</string>
+    <string name="update_done_channel_description">One quiet notification after an update, to open the remote again.</string>
+</resources>

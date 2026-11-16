@@ -109,6 +109,12 @@ abstract class SimServer(private val name: String) : AutoCloseable {
     protected val links = CopyOnWriteArrayList<Link>()
     private var server: ServerSocket? = null
 
+    /** Bound but never listening: holds a sleeping port so a dial is refused, not answered by another simulator. */
+    private var held: Socket? = null
+
+    /** The thread accepting on [server]; [sleep] waits for it to leave accept(). */
+    private var acceptor: Thread? = null
+
     /** TLS devices wrap the accepted socket; the raw one stays reachable to drop it abruptly. */
     protected open fun wrap(raw: Socket): Socket = raw
 
@@ -120,6 +126,8 @@ abstract class SimServer(private val name: String) : AutoCloseable {
     @Synchronized
     fun wake() {
         if (awake) return
+        held?.let { runCatching { it.close() } }
+        held = null
         val socket = ServerSocket()
         socket.reuseAddress = true
         // Sockets accepted before a sleep may linger (FIN_WAIT) until the client closes its end;
@@ -135,11 +143,18 @@ abstract class SimServer(private val name: String) : AutoCloseable {
         port = socket.localPort
         server = socket
         awake = true
-        thread(isDaemon = true, name = "$name-accept") {
+        acceptor = thread(isDaemon = true, name = "$name-accept") {
             while (!socket.isClosed) {
                 val raw = try {
                     socket.accept()
                 } catch (e: IOException) {
+                    break
+                }
+                // An accept already blocked when sleep() closed the socket can still return a
+                // connection: Linux checks the queue before the pending signal. Standby refuses it.
+                if (socket.isClosed) {
+                    runCatching { raw.setSoLinger(true, 0) }
+                    runCatching { raw.close() }
                     break
                 }
                 accepted.incrementAndGet()
@@ -166,13 +181,38 @@ abstract class SimServer(private val name: String) : AutoCloseable {
         awake = false
         runCatching { server?.close() }
         server = null
+        // ServerSocket.close() returns while the accept thread is still inside accept(), and the
+        // kernel keeps the listener alive until that call returns: until then the "sleeping" port
+        // completes handshakes, and the accept can even hand one to serve(). Under load that
+        // window outlived the test's next dial (BraviaSimTest reached HTTPS on a sleeping port).
+        // Wait for the thread to leave, so the port truly refuses and hold() below can bind it.
+        acceptor?.let { if (it !== Thread.currentThread()) it.join(ACCEPTOR_EXIT_MILLIS) }
+        acceptor = null
         dropConnections()
+        // A freed port is anyone's: the other test JVM's simulators once bound it, so a real client
+        // (OkHttp, which never calls refuseIfAsleep) reached them instead of being refused. Held
+        // without SO_REUSEADDR, the port conflicts with every later bind, a port-0 one included;
+        // with it, Linux still hands the port to a new listener, since this socket never listens.
+        // SO_REUSEADDR is only the fallback for a port with links lingering in TIME_WAIT.
+        if (port != 0 && held == null) held = hold(reuse = false) ?: hold(reuse = true)
+    }
+
+    private fun hold(reuse: Boolean): Socket? {
+        val socket = Socket()
+        return try {
+            socket.reuseAddress = reuse
+            socket.bind(InetSocketAddress(InetAddress.getLoopbackAddress(), port))
+            socket
+        } catch (e: IOException) {
+            runCatching { socket.close() }
+            null
+        }
     }
 
     /**
      * Throws as a TCP connect to a port in standby does. The connectors check this before
-     * dialling, because a port released by [sleep] is free for any process to take: a simulator in
-     * the other test JVM once took it, and AtvSimTest "connected to a sleeping TV".
+     * dialling as well as [sleep] holding the port: a simulator in the other test JVM once took a
+     * released port, and AtvSimTest "connected to a sleeping TV".
      */
     fun refuseIfAsleep() {
         if (!awake) throw ConnectException("$name is in standby: connection refused")
@@ -190,7 +230,12 @@ abstract class SimServer(private val name: String) : AutoCloseable {
 
     val liveConnections: Int get() = links.count { !it.raw.isClosed }
 
-    override fun close() = sleep()
+    @Synchronized
+    override fun close() {
+        sleep()
+        held?.let { runCatching { it.close() } }
+        held = null
+    }
 
     inner class Link(val socket: Socket, val raw: Socket) {
         val input = socket.getInputStream()
@@ -219,6 +264,9 @@ abstract class SimServer(private val name: String) : AutoCloseable {
         }
 
         fun drop() {
+            // An abort (RST), as a device losing power sends nothing: a graceful close would also
+            // leave this port in TIME_WAIT, which stops sleep() holding it without SO_REUSEADDR.
+            runCatching { raw.setSoLinger(true, 0) }
             runCatching { raw.close() }
         }
 
@@ -228,6 +276,10 @@ abstract class SimServer(private val name: String) : AutoCloseable {
 
         val peerCertificate: X509Certificate?
             get() = (socket as? SSLSocket)?.session?.peerCertificates?.firstOrNull() as? X509Certificate
+    }
+
+    private companion object {
+        const val ACCEPTOR_EXIT_MILLIS = 5_000L
     }
 }
 

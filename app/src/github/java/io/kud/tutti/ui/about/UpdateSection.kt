@@ -1,0 +1,349 @@
+package io.kud.tutti.ui.about
+
+import android.content.ActivityNotFoundException
+import android.text.format.DateFormat
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.LifecycleResumeEffect
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.kud.tutti.BuildConfig
+import io.kud.tutti.R
+import io.kud.tutti.platform.update.UpdateProblem
+import io.kud.tutti.platform.update.UpdateState
+import io.kud.tutti.platform.update.Updater
+import io.kud.tutti.protocol.update.AppVersion
+import io.kud.tutti.protocol.update.ReleaseFeed
+import io.kud.tutti.protocol.update.UpdateChannel
+import io.kud.tutti.protocol.update.UpdateCue
+import io.kud.tutti.ui.common.SwitchRow
+import io.kud.tutti.ui.common.LocalMessages
+import io.kud.tutti.ui.common.TuttiSheet
+import java.util.Date
+import kotlinx.coroutines.launch
+
+/**
+ * About › Version: one row with the installed version and where the updater stands, and one sheet
+ * that checks GitHub, downloads and installs (docs/design.md, "Updates"). Every state is a
+ * sentence; a failure says what failed and what to do, never by colour alone.
+ */
+@Composable
+internal fun UpdateRow() {
+    val context = LocalContext.current
+    val updater = remember(context) { Updater.from(context) }
+    val state by updater.state.collectAsStateWithLifecycle()
+    var open by rememberSaveable { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable(role = Role.Button) {
+                open = true
+                if (state is UpdateState.Idle || state is UpdateState.UpToDate || state is UpdateState.Failed) {
+                    scope.launch { updater.check() }
+                }
+            }
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(
+                stringResource(R.string.about_version_detail, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE),
+                style = MaterialTheme.typography.bodyLarge,
+            )
+            // Two lines kept for the updater's sentence, whatever it says, so "Checking…" turning
+            // into "Couldn't reach GitHub…" never moves the rows under it (2026-10-30).
+            Text(
+                summary(state),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                minLines = 2,
+            )
+        }
+    }
+
+    // Stable or test builds (2026-11-06): turning it off never goes back, Android won't downgrade.
+    val channel by updater.channel.collectAsStateWithLifecycle()
+    SwitchRow(
+        label = stringResource(R.string.update_channel_test),
+        checked = channel == UpdateChannel.TEST,
+        onCheckedChange = { on ->
+            updater.setChannel(if (on) UpdateChannel.TEST else UpdateChannel.STABLE)
+            // Ask again on the new channel, unless a download or install is under way.
+            val now = updater.state.value
+            if (now is UpdateState.Idle || now is UpdateState.UpToDate || now is UpdateState.Failed || now is UpdateState.Available) {
+                scope.launch { updater.check() }
+            }
+        },
+        supporting = stringResource(R.string.update_channel_test_detail),
+    )
+
+    if (open) UpdateSheet(updater, state, onDismiss = { open = false })
+}
+
+@Composable
+fun rememberUpdateCue(): UpdateCueState {
+    val context = LocalContext.current
+    val updater = remember(context) { Updater.from(context) }
+    val newer by updater.newer.collectAsStateWithLifecycle()
+    val cue by updater.cue.collectAsStateWithLifecycle()
+    return UpdateCueState(newer, newer != null && cue == UpdateCue.NOTICE)
+}
+
+/**
+ * The automatic check, while the app is in front: on opening and on coming back, at most once an
+ * hour on the test channel and once a day on stable ([io.kud.tutti.protocol.update.CheckSchedule]).
+ * A build found for the first time says so once, with Install ([onInstall]); after that the ⋮'s dot
+ * and row carry it, so nothing repeats. Never an install by itself. The message speaks only on the
+ * plain remote ([onRemote] and not [editing], read when the check lands; [updateNoticeAllowed] with the open layers
+ * and any message showing), else it is skipped: never queued, never replacing another message.
+ */
+@Composable
+fun UpdateCheckEffect(onRemote: () -> Boolean, editing: () -> Boolean, onInstall: () -> Unit) {
+    val context = LocalContext.current
+    val resources = LocalResources.current
+    val updater = remember(context) { Updater.from(context) }
+    val messages = LocalMessages.current
+    val scope = rememberCoroutineScope()
+    androidx.lifecycle.compose.LifecycleStartEffect(updater) {
+        // Back in front: "tutti was updated" has done its job.
+        io.kud.tutti.platform.update.UpdatedNotice.cancel(context)
+        val job = scope.launch {
+            kotlinx.coroutines.delay(3_000)
+            val update = updater.checkIfDue() ?: return@launch
+            val quiet = messages ?: return@launch
+            if (!updateNoticeAllowed(onRemote(), editing(), covers = quiet.covers, messageShowing = quiet.current != null)) return@launch
+            quiet.show(
+                resources.getString(R.string.update_available, update.version.toString()),
+                actionLabel = resources.getString(R.string.update_message_install),
+                onAction = onInstall,
+                long = true,
+            )
+        }
+        onStopOrDispose { job.cancel() }
+    }
+}
+
+/**
+ * The same sheet opened from outside About, by the remote's ⋮ row or the "Install" on the message
+ * (docs/design.md, "Updates"): one tap means install, so it asks GitHub for the build if this run
+ * doesn't hold it yet, then starts the download at once. Android still asks to confirm the install.
+ */
+@Composable
+fun UpdateNowSheet(onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    val updater = remember(context) { Updater.from(context) }
+    val state by updater.state.collectAsStateWithLifecycle()
+    var started by rememberSaveable { mutableStateOf(false) }
+    // One run, keyed on nothing: a state change must not cancel the check or the download it starts.
+    LaunchedEffect(Unit) {
+        if (started) return@LaunchedEffect
+        started = true
+        val update = when (val now = updater.state.value) {
+            is UpdateState.Available -> now.update
+            // A check that finds nothing or fails leaves the sheet to say so.
+            UpdateState.Idle, UpdateState.UpToDate, is UpdateState.Failed -> updater.check()
+            else -> null
+        }
+        update?.let { updater.downloadAndInstall(it) }
+    }
+    UpdateSheet(updater, state, onDismiss)
+}
+
+@Composable
+private fun summary(state: UpdateState): String = when (state) {
+    UpdateState.Idle -> stringResource(R.string.update_check)
+    else -> statusText(state)
+}
+
+@Composable
+private fun statusText(state: UpdateState): String = when (state) {
+    UpdateState.Idle -> stringResource(R.string.update_note)
+    UpdateState.Checking -> stringResource(R.string.update_checking)
+    UpdateState.UpToDate -> stringResource(R.string.update_up_to_date)
+    is UpdateState.Available -> stringResource(R.string.update_available, state.update.version.toString())
+    is UpdateState.Downloading -> state.percent?.let { stringResource(R.string.update_downloading_percent, it) }
+        ?: stringResource(R.string.update_downloading)
+    is UpdateState.NeedsPermission -> stringResource(R.string.update_permission_title)
+    is UpdateState.Installing -> stringResource(R.string.update_installing)
+    is UpdateState.Failed -> when (state.problem) {
+        UpdateProblem.NETWORK -> stringResource(R.string.update_failed_network)
+        UpdateProblem.RATE_LIMITED -> state.retryAtMs?.let { at ->
+            stringResource(R.string.update_failed_rate_limited_until, DateFormat.getTimeFormat(LocalContext.current).format(Date(at)))
+        } ?: stringResource(R.string.update_failed_rate_limited)
+        UpdateProblem.GITHUB_ERROR -> state.httpCode?.let { stringResource(R.string.update_failed_github_code, it) }
+            ?: stringResource(R.string.update_failed_github)
+        UpdateProblem.FEED -> stringResource(R.string.update_failed_feed)
+        UpdateProblem.DOWNLOAD -> stringResource(R.string.update_failed_download)
+        UpdateProblem.DIGEST -> stringResource(R.string.update_failed_digest)
+        UpdateProblem.PACKAGE -> stringResource(R.string.update_failed_package)
+        UpdateProblem.INSTALL -> state.detail?.let { stringResource(R.string.update_failed_install_detail, it) }
+            ?: stringResource(R.string.update_failed_install)
+    }
+}
+
+@Composable
+private fun UpdateSheet(updater: Updater, state: UpdateState, onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    // Back from Android's "Install unknown apps" page: carry on if it was allowed.
+    LifecycleResumeEffect(state) {
+        if (state is UpdateState.NeedsPermission && context.packageManager.canRequestPackageInstalls()) {
+            updater.install(state.update)
+        }
+        onPauseOrDispose { }
+    }
+    TuttiSheet(onDismissRequest = onDismiss) { UpdateSheetBody(updater, state, onDismiss) }
+}
+
+/**
+ * Whether a failure is one the app can't fix by itself: GitHub out of reach, refusing, or answering
+ * with something unreadable. Those get a way out to the releases page (2026-11-15); a download,
+ * digest or install failure keeps to "Try again", since the app still holds what to retry.
+ */
+internal fun UpdateProblem.offersReleasesPage(): Boolean = when (this) {
+    UpdateProblem.NETWORK, UpdateProblem.RATE_LIMITED, UpdateProblem.GITHUB_ERROR, UpdateProblem.FEED -> true
+    UpdateProblem.DOWNLOAD, UpdateProblem.DIGEST, UpdateProblem.PACKAGE, UpdateProblem.INSTALL -> false
+}
+
+/** The sheet's content, apart from the sheet itself so a render test can draw it. */
+@Composable
+internal fun UpdateSheetBody(updater: Updater, state: UpdateState, onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp)) {
+        Text(
+            stringResource(R.string.update_title),
+            style = MaterialTheme.typography.titleLarge,
+            modifier = Modifier.semantics { heading() },
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            stringResource(R.string.update_installed, updater.installed),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(16.dp))
+        // The state, as a sentence TalkBack reads when it changes.
+        Text(
+            statusText(state),
+            style = MaterialTheme.typography.bodyLarge,
+            modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+        )
+        if (state is UpdateState.NeedsPermission) {
+            Spacer(Modifier.height(4.dp))
+            Text(
+                stringResource(R.string.update_permission_detail),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        if (state is UpdateState.Downloading || state is UpdateState.Checking) {
+            Spacer(Modifier.height(12.dp))
+            val percent = (state as? UpdateState.Downloading)?.percent
+            if (percent != null) {
+                LinearProgressIndicator(progress = { percent / 100f }, modifier = Modifier.fillMaxWidth())
+            } else {
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            }
+        }
+        Spacer(Modifier.height(20.dp))
+        when (state) {
+            is UpdateState.Available -> {
+                Button(
+                    onClick = { scope.launch { updater.downloadAndInstall(state.update) } },
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text(stringResource(R.string.update_download_install)) }
+                // "Later" sets this build aside: the remote's dot goes, the ⋮ row and About keep it.
+                TextButton(
+                    onClick = {
+                        updater.setAside(state.update.version)
+                        onDismiss()
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text(stringResource(R.string.update_later)) }
+            }
+            is UpdateState.NeedsPermission -> Button(
+                onClick = {
+                    try {
+                        context.startActivity(updater.permissionIntent())
+                    } catch (_: ActivityNotFoundException) {
+                        // No such settings page on this phone: the install itself will ask.
+                        updater.install(state.update)
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text(stringResource(R.string.update_permission_open)) }
+            is UpdateState.Failed -> {
+                OutlinedButton(
+                    onClick = {
+                        val update = state.update
+                        if (update != null && state.problem == UpdateProblem.INSTALL) {
+                            updater.install(update)
+                        } else {
+                            scope.launch { updater.check() }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text(stringResource(R.string.update_try_again)) }
+                // The way out when the app can't get the list itself (Erwann, 2026-11-15): the
+                // releases page in the browser, marked as leaving the app like About's source row.
+                if (state.problem.offersReleasesPage()) {
+                    TextButton(
+                        onClick = { openInBrowser(context, ReleaseFeed.PAGE) },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(stringResource(R.string.update_open_releases))
+                        Spacer(Modifier.width(8.dp))
+                        Icon(painterResource(R.drawable.ic_open), contentDescription = null, modifier = Modifier.size(18.dp))
+                    }
+                }
+            }
+            UpdateState.UpToDate, UpdateState.Idle -> OutlinedButton(
+                onClick = { scope.launch { updater.check() } },
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text(stringResource(R.string.update_check)) }
+            else -> Unit
+        }
+        Spacer(Modifier.height(16.dp))
+        Text(
+            stringResource(R.string.update_note),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(16.dp))
+    }
+}

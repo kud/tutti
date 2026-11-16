@@ -28,28 +28,51 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: "17"
 
-      - uses: gradle/actions/setup-gradle@v6.4.0
+      - uses: gradle/actions/setup-gradle@v6.4.1
 
+      # Both builds are tested, linted and assembled: `github` (with the updater, the one published
+      # here) and `fdroid` (no updater, built by F-Droid from source; never attached to a release,
+      # since installs that predate the updater's `-fdroid.apk` rule would take it as theirs).
+      # A manual run without a tag also writes the render tests' PNGs (invented fixtures), to judge a
+      # visual change, and the showcase screenshots (README, F-Droid) under `renders/showcase`; push,
+      # PR and release runs never do.
       - name: Test, lint and assemble
-        run: ./gradlew --stacktrace :protocol:test :app:testDebugUnitTest :app:lintDebug :app:assembleDebug
+        env:
+          TUTTI_RENDERS: ${{ github.event_name == 'workflow_dispatch' && inputs.tag == '' && format('{0}/renders', github.workspace) || '' }}
+          TUTTI_SHOWCASE: ${{ github.event_name == 'workflow_dispatch' && inputs.tag == '' && format('{0}/renders/showcase', github.workspace) || '' }}
+        run: ./gradlew --stacktrace :protocol:test :app:testGithubDebugUnitTest :app:testFdroidDebugUnitTest :app:lintGithubDebug :app:lintFdroidDebug :app:assembleGithubDebug :app:assembleFdroidDebug
+
+      - name: No lint errors
+        run: |
+          for f in app/build/reports/lint-results-githubDebug.xml app/build/reports/lint-results-fdroidDebug.xml; do
+            test "$(grep -c 'severity="Error"' "$f")" = 0 || { echo "::error::lint errors in $f"; exit 1; }
+          done
 
       - name: Upload debug APK
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: debug-apk
-          path: app/build/outputs/apk/debug/*.apk
+          path: app/build/outputs/apk/github/debug/*.apk
           if-no-files-found: error
+
+      - name: Upload renders
+        if: always() && github.event_name == 'workflow_dispatch' && inputs.tag == ''
+        uses: actions/upload-artifact@v7
+        with:
+          name: renders
+          path: renders/
+          if-no-files-found: ignore
 
       - name: Upload reports
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: reports
           path: |
@@ -74,22 +97,7 @@ jobs:
       ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
       TAG: ${{ inputs.tag || github.ref_name }}
     steps:
-      - uses: actions/checkout@v4
-
-      # With all four secrets: a signed release. Without them: the debug APK (public
-      # debug key), published only as a pre-release. Never an unsigned release APK.
-      - name: Choose signing
-        run: |
-          missing=()
-          for name in ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
-            [ -n "${!name}" ] || missing+=("$name")
-          done
-          if [ "${#missing[@]}" -gt 0 ]; then
-            echo "::warning::Missing repository secrets: ${missing[*]}. Publishing the debug APK as a pre-release."
-            echo "SIGNED=false" >> "$GITHUB_ENV"
-          else
-            echo "SIGNED=true" >> "$GITHUB_ENV"
-          fi
+      - uses: actions/checkout@v7
 
       - name: Derive version from the tag
         run: |
@@ -113,30 +121,50 @@ jobs:
           echo "TUTTI_VERSION_CODE=$code" >> "$GITHUB_ENV"
           if [ -n "${BASH_REMATCH[4]}" ]; then echo "PRERELEASE=true" >> "$GITHUB_ENV"; else echo "PRERELEASE=false" >> "$GITHUB_ENV"; fi
 
+      # A final release needs all four secrets: never an unsigned APK, and never one signed
+      # with the public debug key, which anyone could use to ship an "update". A -dev tag
+      # without them still ships the debug build as a pre-release, for testing on Erwann's
+      # phones until the release key exists (Erwann, 2026-10-25).
+      - name: Choose signing
+        run: |
+          missing=()
+          for name in ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
+            [ -n "${!name}" ] || missing+=("$name")
+          done
+          if [ "${#missing[@]}" -eq 0 ]; then
+            echo "SIGNED=true" >> "$GITHUB_ENV"
+          elif [ "$PRERELEASE" = "true" ]; then
+            echo "::warning::Missing repository secrets: ${missing[*]}. Publishing the debug APK as a dev pre-release."
+            echo "SIGNED=false" >> "$GITHUB_ENV"
+          else
+            echo "::error::Missing repository secrets: ${missing[*]}. A final release needs the release key."
+            exit 1
+          fi
+
       - name: Restore the keystore
         if: env.SIGNED == 'true'
         run: |
           echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.jks"
           echo "TUTTI_KEYSTORE_PATH=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: "17"
 
-      - uses: gradle/actions/setup-gradle@v6.4.0
+      - uses: gradle/actions/setup-gradle@v6.4.1
 
       - name: Assemble release
         if: env.SIGNED == 'true'
-        run: ./gradlew --stacktrace :app:assembleRelease
+        run: ./gradlew --stacktrace :app:assembleGithubRelease
 
       - name: Verify the signature
         if: env.SIGNED == 'true'
         run: |
-          apk=app/build/outputs/apk/release/app-release.apk
+          apk=app/build/outputs/apk/github/release/app-github-release.apk
           if [ ! -f "$apk" ]; then
-            echo "::error::$apk not found (an unsigned build would be app-release-unsigned.apk)"
-            ls -la app/build/outputs/apk/release/ || true
+            echo "::error::$apk not found (an unsigned build would be app-github-release-unsigned.apk)"
+            ls -la app/build/outputs/apk/github/release/ || true
             exit 1
           fi
           apksigner=$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -n 1)
@@ -145,22 +173,36 @@ jobs:
           cp "$apk" "$RUNNER_TEMP/$name-$TUTTI_VERSION_NAME.apk"
           echo "RELEASE_APK=$RUNNER_TEMP/$name-$TUTTI_VERSION_NAME.apk" >> "$GITHUB_ENV"
 
+      # R8's mapping, to read the release's stack traces; it names no secret, only our classes.
+      - name: Keep the R8 mapping
+        if: env.SIGNED == 'true'
+        run: |
+          mapping=app/build/outputs/mapping/githubRelease/mapping.txt
+          [ -f "$mapping" ] || { echo "::error::$mapping not found"; exit 1; }
+          name=$(grep '^app.name=' gradle.properties | cut -d= -f2)
+          cp "$mapping" "$RUNNER_TEMP/$name-$TUTTI_VERSION_NAME-mapping.txt"
+          echo "RELEASE_MAPPING=$RUNNER_TEMP/$name-$TUTTI_VERSION_NAME-mapping.txt" >> "$GITHUB_ENV"
+
       - name: Assemble debug
         if: env.SIGNED != 'true'
         run: |
-          ./gradlew --stacktrace :app:assembleDebug
-          apk=app/build/outputs/apk/debug/app-debug.apk
-          [ -f "$apk" ] || { echo "::error::$apk not found"; ls -la app/build/outputs/apk/debug/ || true; exit 1; }
+          # Non-debuggable (app/build.gradle.kts): same id and signature, but compiled by ART.
+          ./gradlew --stacktrace -Ptutti.devRelease :app:assembleGithubDebug
+          apk=app/build/outputs/apk/github/debug/app-github-debug.apk
+          [ -f "$apk" ] || { echo "::error::$apk not found"; ls -la app/build/outputs/apk/github/debug/ || true; exit 1; }
           name=$(grep '^app.name=' gradle.properties | cut -d= -f2)
           cp "$apk" "$RUNNER_TEMP/$name-$TUTTI_VERSION_NAME-debug.apk"
           echo "RELEASE_APK=$RUNNER_TEMP/$name-$TUTTI_VERSION_NAME-debug.apk" >> "$GITHUB_ENV"
 
+      # Asset names are the updater's contract (protocol/update/Updates.kt, `assetFor`): a release
+      # install takes `tutti-<version>.apk`, a debug install `tutti-<version>-debug.apk`. Renaming
+      # either strands every install; never attach an fdroid build.
       - name: Publish the GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           flags=()
-          if [ "$SIGNED" != "true" ] || [ "$PRERELEASE" = "true" ]; then flags+=(--prerelease); fi
+          if [ "$PRERELEASE" = "true" ]; then flags+=(--prerelease); fi
           # A pushed tag must already exist; a manual run creates it on the commit it built.
           if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
             if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" >/dev/null 2>&1; then
@@ -171,7 +213,9 @@ jobs:
           else
             flags+=(--verify-tag)
           fi
-          gh release create "$TAG" "$RELEASE_APK" --generate-notes --title "$TAG" "${flags[@]}"
+          files=("$RELEASE_APK")
+          if [ -n "${RELEASE_MAPPING:-}" ]; then files+=("$RELEASE_MAPPING"); fi
+          gh release create "$TAG" "${files[@]}" --generate-notes --title "$TAG" "${flags[@]}"
 
       - name: Remove the keystore
         if: always()

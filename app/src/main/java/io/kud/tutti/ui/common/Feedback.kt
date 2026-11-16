@@ -23,6 +23,9 @@ data class FeedbackPrefs(val vibration: VibrationLevel = VibrationLevel.ALL, val
 
 val LocalFeedbackPrefs = staticCompositionLocalOf { FeedbackPrefs() }
 
+/** Hears every event a [Feedback] is asked for, before the rules decide what plays: tests' log. */
+val LocalFeedbackObserver = staticCompositionLocalOf<((FeedbackEvent) -> Unit)?> { null }
+
 /**
  * Haptics are primary feedback (design.md), and sound is an opt-in extra on key presses only.
  * Call sites name a [FeedbackEvent]; [FeedbackRules] decides what plays. Always fired before any
@@ -36,14 +39,22 @@ val LocalFeedbackPrefs = staticCompositionLocalOf { FeedbackPrefs() }
  * The old `Haptics` method names stay as thin wrappers so call sites can move gradually.
  */
 @Stable
-class Feedback internal constructor(private val view: View, private val prefs: FeedbackPrefs) {
-    fun perform(event: FeedbackEvent) {
+class Feedback internal constructor(
+    private val view: View,
+    private val prefs: FeedbackPrefs,
+    private val observer: ((FeedbackEvent) -> Unit)? = null,
+) {
+    /** [withSound] false keeps the haptic and drops the click: the intro's landing, when its chime plays instead. */
+    fun perform(event: FeedbackEvent, withSound: Boolean = true) {
+        observer?.invoke(event)
         val plan = FeedbackRules.plan(event, prefs.vibration, prefs.keySounds)
         plan.haptic?.let(::vibrate)
-        if (plan.sound) view.playSoundEffect(SoundEffectConstants.CLICK)
+        if (plan.sound && withSound) view.playSoundEffect(SoundEffectConstants.CLICK)
     }
 
     fun tick() = perform(FeedbackEvent.STEP)
+
+    fun detent() = perform(FeedbackEvent.DETENT)
 
     fun select() = perform(FeedbackEvent.SELECT)
 
@@ -66,6 +77,11 @@ class Feedback internal constructor(private val view: View, private val prefs: F
             HapticPattern.CLICK -> view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
             HapticPattern.TICK -> view.performHapticFeedback(
                 if (modern) HapticFeedbackConstants.SEGMENT_FREQUENT_TICK else HapticFeedbackConstants.CLOCK_TICK,
+            )
+            // The segment tick is the frequent tick's firmer sibling; before API 34, the virtual key's
+            // click against the clock tick. Neither is a wall's bump.
+            HapticPattern.DETENT -> view.performHapticFeedback(
+                if (modern) HapticFeedbackConstants.SEGMENT_TICK else HapticFeedbackConstants.VIRTUAL_KEY,
             )
             HapticPattern.SELECT -> view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
             HapticPattern.LONG_PRESS -> view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
@@ -95,7 +111,8 @@ typealias Haptics = Feedback
 fun rememberFeedback(): Feedback {
     val view = LocalView.current
     val prefs = LocalFeedbackPrefs.current
-    return remember(view, prefs) { Feedback(view, prefs) }
+    val observer = LocalFeedbackObserver.current
+    return remember(view, prefs, observer) { Feedback(view, prefs, observer) }
 }
 
 @Composable

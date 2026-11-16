@@ -1,0 +1,155 @@
+package io.kud.tutti.ui.remote
+
+import io.kud.tutti.platform.data.DockAction
+import io.kud.tutti.platform.data.DockConfig
+import io.kud.tutti.platform.data.DockSlot
+import io.kud.tutti.protocol.atv.KeyGroup
+import io.kud.tutti.protocol.atv.NamedKeys
+import io.kud.tutti.protocol.atv.V2Key
+import io.kud.tutti.protocol.cast.CastNowPlaying
+import io.kud.tutti.protocol.cast.CastPlayerState
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class NowShowingActionsTest {
+    private val app = NowShowing.App("Example", "com.example.player")
+
+    @Test
+    fun `every playback key is a named remote v2 playback key`() {
+        for (code in PLAYBACK_TRANSPORT + PLAYBACK_TRACKS) {
+            assertEquals("key $code", KeyGroup.PLAYBACK, NamedKeys.byCode(code)?.group)
+        }
+    }
+
+    @Test
+    fun `play pause is one toggle in the middle of the transport`() {
+        assertEquals(V2Key.MEDIA_PLAY_PAUSE, PLAYBACK_TRANSPORT[PLAYBACK_TRANSPORT.size / 2])
+        assertFalse(V2Key.MEDIA_PLAY in PLAYBACK_TRANSPORT)
+        assertFalse(V2Key.MEDIA_PAUSE in PLAYBACK_TRANSPORT)
+    }
+
+    @Test
+    fun `the tap opens playback only while the tv shows something`() {
+        assertTrue(cardOpensPlayback(CardShowing.Showing(app)))
+        assertTrue(cardOpensPlayback(CardShowing.Showing(NowShowing.Input("HDMI 2"))))
+        assertFalse(cardOpensPlayback(CardShowing.Home))
+        assertFalse(cardOpensPlayback(CardShowing.Offline))
+        assertFalse(cardOpensPlayback(CardShowing.Reconnecting))
+        assertFalse(cardOpensPlayback(CardShowing.Standby(barOn = true)))
+        assertFalse(cardOpensPlayback(null))
+    }
+
+    @Test
+    fun `on the mac's input the tap controls the mac instead of opening playback`() {
+        val mac = CardShowing.Showing(NowShowing.Input("HDMI 2"))
+        assertEquals(CardTap.CONTROL_COMPUTER, cardTap(mac, onComputerInput = true))
+        assertEquals(CardTap.PLAYBACK, cardTap(mac, onComputerInput = false))
+        // An app is never the Mac's input, whatever the flag says.
+        assertEquals(CardTap.PLAYBACK, cardTap(CardShowing.Showing(app), onComputerInput = true))
+        assertEquals(CardTap.NONE, cardTap(CardShowing.Home, onComputerInput = true))
+        assertEquals(CardTap.NONE, cardTap(null, onComputerInput = true))
+    }
+
+    @Test
+    fun `the long press acts on apps only`() {
+        assertEquals(app, cardActionsApp(CardShowing.Showing(app)))
+        assertNull(cardActionsApp(CardShowing.Showing(NowShowing.Input("HDMI 2"))))
+        assertNull(cardActionsApp(CardShowing.Home))
+    }
+
+    @Test
+    fun `pinned index finds the pin that launches the app`() {
+        val dock = DockConfig(
+            slots = listOf(
+                DockSlot(DockAction.Key(V2Key.HOME)),
+                DockSlot(),
+                DockSlot(DockAction.LaunchApp("com.example.player", "Example")),
+            ),
+        )
+        assertEquals(2, pinnedIndex(dock, "com.example.player"))
+        assertNull(pinnedIndex(dock, "com.example.other"))
+    }
+
+    @Test
+    fun `actions offer pin or unpin, hide, and closing only with ip control`() {
+        assertEquals(listOf(AppAction.PIN, AppAction.HIDE), appActions(pinnedAt = null, pskSet = false))
+        assertEquals(listOf(AppAction.UNPIN, AppAction.HIDE, AppAction.CLOSE_APPS), appActions(pinnedAt = 3, pskSet = true))
+    }
+
+    @Test
+    fun `the wheel's jump reads in seconds, then minutes`() {
+        assertEquals("+10 s", seekAmount(10))
+        assertEquals("\u221220 s", seekAmount(-20))
+        assertEquals("+1 min", seekAmount(60))
+        assertEquals("\u22121 min 30 s", seekAmount(-90))
+        assertEquals("+0 s", seekAmount(0))
+    }
+
+    @Test
+    fun `one scrub step per step of travel, either way`() {
+        val track = ScrubTrack(10f)
+        assertTrue(track.move(9f).isEmpty())
+        assertEquals(listOf(1), track.move(2f))
+        assertEquals(listOf(1, 1), track.move(20f))
+        // Back over a little travel sends nothing, then steps back.
+        assertTrue(track.move(-9f).isEmpty())
+        assertEquals(listOf(-1), track.move(-10f))
+        track.reset()
+        assertEquals(listOf(-1, -1, -1), track.move(-35f))
+    }
+
+    @Test
+    fun `a wobble on the scrub strip sends nothing`() {
+        val track = ScrubTrack(10f)
+        repeat(20) { assertTrue(track.move(if (it % 2 == 0) 6f else -6f).isEmpty()) }
+    }
+
+    @Test
+    fun `the jog wheel goes forward when its surface is pushed left`() {
+        val wheel = JogTrack(10f)
+        assertEquals(listOf(1), wheel.move(-12f))
+        assertEquals(listOf(-1, -1), wheel.move(30f))
+        wheel.reset()
+        assertTrue(wheel.move(-9f).isEmpty())
+    }
+
+    @Test
+    fun `a trusted cast time gives a timeline, anything else the wheel`() {
+        val at = 1_000_000L
+        val playing = CastNowPlaying("t", null, CastPlayerState.PLAYING, 600.0, 2400.0, 1.0, at)
+        val strip = playbackStrip(playing, at + 3_000)
+        assertTrue(strip is PlaybackStrip.Timeline)
+        strip as PlaybackStrip.Timeline
+        assertEquals(603.0, strip.elapsedSec, 0.001)
+        assertEquals(2400.0, strip.totalSec, 0.001)
+        assertEquals(603f / 2400f, strip.progress, 0.0001f)
+        // No cast, live, a reading at its end while playing, a stale reading: the wheel.
+        assertEquals(PlaybackStrip.JogWheel, playbackStrip(null, at))
+        assertEquals(PlaybackStrip.JogWheel, playbackStrip(playing.copy(durationSec = null), at))
+        assertEquals(PlaybackStrip.JogWheel, playbackStrip(playing.copy(positionSec = 2400.0), at))
+        assertEquals(PlaybackStrip.JogWheel, playbackStrip(playing, at + CastNowPlaying.MAX_RUN_MS + 1))
+        // Paused holds its time however old the reading.
+        val paused = playing.copy(state = CastPlayerState.PAUSED)
+        assertTrue(playbackStrip(paused, at + 600_000) is PlaybackStrip.Timeline)
+    }
+
+    @Test
+    fun `search in the app by key, unless the app has its own search link`() {
+        assertTrue(inAppSearchKey(CardShowing.Showing(app)))
+        assertFalse(inAppSearchKey(CardShowing.Showing(NowShowing.App("YouTube", "com.google.android.youtube.tv"))))
+        assertFalse(inAppSearchKey(CardShowing.Showing(NowShowing.Input("HDMI 2"))))
+        assertEquals(V2Key.ASSIST, GLOBAL_SEARCH_KEY)
+    }
+
+    @Test
+    fun `no search chip over nuvio, the whole-tv one elsewhere`() {
+        val nuvio = CardShowing.Showing(NowShowing.App("Nuvio", "com.nuvio.tv"))
+        assertFalse(inAppSearchKey(nuvio))
+        assertFalse(globalSearchOffered(nuvio))
+        assertTrue(globalSearchOffered(CardShowing.Showing(app)))
+        assertTrue(globalSearchOffered(CardShowing.Showing(NowShowing.Input("HDMI 2"))))
+    }
+}

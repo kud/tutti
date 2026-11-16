@@ -1,12 +1,12 @@
 package io.kud.tutti.ui.motion
 
+import androidx.compose.runtime.getValue
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.keyframes
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -21,7 +21,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -35,7 +34,6 @@ import io.kud.tutti.ui.common.rememberPress
 import io.kud.tutti.ui.common.rememberTuttiIndication
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -56,7 +54,6 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import io.kud.tutti.R
 import io.kud.tutti.ui.common.LocalReducedMotion
@@ -73,10 +70,12 @@ enum class ActionPhase { IDLE, PENDING, SUCCESS, FAILURE }
  *   known [fraction] it fills left to right instead of turning;
  * - success folds into a circle and draws its tick ([Motion.MEDIUM]) with a confirm haptic, the
  *   word beside it ([successLabel]);
- * - failure shakes 3 × 6 dp with a reject haptic, wears a cross and "Try again", and says why
- *   under it ([failureMessage]).
- * No state rests on colour: ring and word, tick and word, cross and sentence. With reduced
- * motion there is no scale, shake, spring or spinner: only [Motion.SHORT] fades, and the haptics.
+ * - failure plays the shared refusal shake (6 dp, [RefusalShake]) with its reject, offers
+ *   "Try again" with the retry glyph, and says why under it beside [R.drawable.ic_warning]
+ *   ([failureMessage]); never a cross, which reads as "close".
+ * No state rests on colour: ring and word, tick and word, warning glyph and sentence. With reduced
+ * motion there is no scale, shake, spring or spinner: only [Motion.SHORT] fades (the refusal is an
+ * opacity dip), and the haptics.
  *
  * It wraps its content: give it no fillMaxWidth, or the circle has nowhere to fold.
  * Outcomes play only on a change, unless [announceInitial] (e.g. a dialog reopened on a failure).
@@ -100,7 +99,7 @@ fun ProgressButton(
     // An outcome waits behind the spinner's minimum time, so a shown spinner never flashes.
     val shown = if (waiting.held) ActionPhase.PENDING else phase
 
-    val shake = remember { Animatable(0f) }
+    val shake = rememberRefusalShake(ShakeSize.WIDE)
     val tick = remember { Animatable(if (shown == ActionPhase.SUCCESS) 1f else 0f) }
     val announced = remember { booleanArrayOf(announceInitial) }
     LaunchedEffect(shown) {
@@ -117,21 +116,7 @@ fun ProgressButton(
                 }
             }
             ActionPhase.FAILURE -> {
-                if (announce) haptics.reject()
-                if (announce && !reduced) {
-                    shake.snapTo(0f)
-                    shake.animateTo(
-                        0f,
-                        keyframes {
-                            durationMillis = Motion.MEDIUM
-                            SHAKE_DP at 42
-                            -SHAKE_DP at 83
-                            SHAKE_DP at 125
-                            -SHAKE_DP at 167
-                            SHAKE_DP at 208
-                        },
-                    )
-                }
+                if (announce) shake.refuse()
             }
             else -> tick.snapTo(0f)
         }
@@ -146,7 +131,6 @@ fun ProgressButton(
     val idleDisabled = !enabled && shown == ActionPhase.IDLE
     val container by animateColorAsState(
         when {
-            shown == ActionPhase.FAILURE -> colors.errorContainer
             idleDisabled -> colors.onSurface.copy(alpha = 0.12f)
             else -> colors.secondaryContainer
         },
@@ -155,7 +139,6 @@ fun ProgressButton(
     )
     val content by animateColorAsState(
         when {
-            shown == ActionPhase.FAILURE -> colors.onErrorContainer
             idleDisabled -> colors.onSurface.copy(alpha = 0.38f)
             else -> colors.onSecondaryContainer
         },
@@ -170,7 +153,7 @@ fun ProgressButton(
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
                 Modifier
-                    .offset { IntOffset(shake.value.dp.roundToPx(), 0) }
+                    .refusalShake(shake)
                     .graphicsLayer {
                         val scale = 1f - (1f - PRESSED_SCALE) * press.fraction
                         scaleX = scale
@@ -211,7 +194,9 @@ fun ProgressButton(
                         }
                         ActionPhase.SUCCESS -> DrawnTick(progress = { tick.value }, color = content)
                         ActionPhase.FAILURE -> Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(painterResource(R.drawable.ic_close), contentDescription = null, tint = content, modifier = Modifier.size(18.dp))
+                            // An offer to try again, dressed as an action: the failure is told by the
+                            // shake, the haptic and the warning line below, never by a red X button.
+                            Icon(painterResource(R.drawable.ic_refresh), contentDescription = null, tint = content, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(8.dp))
                             Text(stringResource(R.string.action_retry), style = MaterialTheme.typography.labelLarge, color = content, maxLines = 1)
                         }
@@ -238,7 +223,7 @@ fun ProgressButton(
         ) {
             Row(verticalAlignment = Alignment.Top) {
                 Icon(
-                    painterResource(R.drawable.ic_close),
+                    painterResource(R.drawable.ic_warning),
                     contentDescription = null,
                     tint = colors.error,
                     modifier = Modifier.padding(top = 2.dp).size(16.dp),
@@ -270,4 +255,3 @@ private fun DrawnTick(progress: () -> Float, color: Color) {
 
 private val HEIGHT = 48.dp
 private const val PRESSED_SCALE = 0.96f
-private const val SHAKE_DP = 6f

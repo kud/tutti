@@ -19,7 +19,17 @@ sealed interface FeatureKind {
  *
  * [notifies] is false for features the device does not push: poll them with `get`.
  */
-enum class TheatreFeature(val key: String, val kind: FeatureKind, val notifies: Boolean = true) {
+enum class TheatreFeature(
+    val key: String,
+    val kind: FeatureKind,
+    val notifies: Boolean = true,
+    /**
+     * A Technical details readout, asked by [TheatreClient.refreshDetails] when that screen opens,
+     * never on connect or in the periodic re-ask: the bar takes one request at a time, so nine
+     * more `get`s there would delay every everyday answer behind values nobody is looking at.
+     */
+    val detail: Boolean = false,
+) {
     POWER("main.power", FeatureKind.Toggle()),
     VOLUME("main.volumestep", FeatureKind.Level(0, 100)),
     MUTE("main.mute", FeatureKind.Toggle()),
@@ -63,6 +73,30 @@ enum class TheatreFeature(val key: String, val kind: FeatureKind, val notifies: 
      */
     BLUETOOTH_MODE("bluetooth.mode", FeatureKind.ReadOnly),
     BLUETOOTH_QUALITY("bluetooth.connectionquality", FeatureKind.Choice(listOf("prioritysound", "priorityconnection"))),
+
+    // Technical details: read-only, never set by tutti, unverified on the Bar 9 until a report
+    // answers them (docs/reverse/bravia-connect.md §2). Vocabularies unknown: shown raw.
+
+    /** Internal temperature, as the bar spells it (unit unknown). */
+    TEMPERATURE("system.temperature", FeatureKind.ReadOnly, notifies = false, detail = true),
+    TIMEZONE("system.timezone", FeatureKind.ReadOnly, notifies = false, detail = true),
+    LANGUAGE("system.language", FeatureKind.ReadOnly, notifies = false, detail = true),
+
+    /** Sales region the firmware was built for. */
+    REGION("system.destination", FeatureKind.ReadOnly, notifies = false, detail = true),
+    MANUFACTURER("system.manufacturer", FeatureKind.ReadOnly, notifies = false, detail = true),
+
+    /** The name the user gave the bar: shown on the phone, blanked in every log and report. */
+    DEVICE_NAME("system.devicename", FeatureKind.ReadOnly, notifies = false, detail = true),
+
+    /** AV sync on the TV path, distinct from [AV_SYNC]. Read-only here: a setter waits on a report. */
+    TV_AV_SYNC("tv.avsync", FeatureKind.ReadOnly, notifies = false, detail = true),
+
+    /** Wired or wireless. Never written: the wrong value cuts tutti's own link. */
+    NETWORK_MODE("network.mode", FeatureKind.ReadOnly, notifies = false, detail = true),
+
+    /** DHCP on or off. Never written, as [NETWORK_MODE]. */
+    NETWORK_DHCP("network.dhcp", FeatureKind.ReadOnly, notifies = false, detail = true),
     ;
 
     /** Wire value for a toggle, or null when the feature is not a toggle. */
@@ -72,6 +106,12 @@ enum class TheatreFeature(val key: String, val kind: FeatureKind, val notifies: 
         private val byKey = entries.associateBy { it.key }
 
         fun fromKey(key: String): TheatreFeature? = byKey[key]
+
+        /** What tutti asks on connect and re-asks while connected. */
+        val everyday: List<TheatreFeature> = entries.filterNot { it.detail }
+
+        /** Asked only when Technical details opens. */
+        val details: List<TheatreFeature> = entries.filter { it.detail }
 
         /**
          * Features the bar answers but tutti never asks for: identifiers, and the switch that
@@ -83,6 +123,9 @@ enum class TheatreFeature(val key: String, val kind: FeatureKind, val notifies: 
             "network.ipaddress",
             "system.externalcontrol",
         )
+
+        /** Keys whose value no log line or report may show: [NEVER_ASKED] plus the user's own name for the bar. */
+        val BLANKED: Set<String> = NEVER_ASKED + DEVICE_NAME.key
 
         const val PORT = 33336
     }

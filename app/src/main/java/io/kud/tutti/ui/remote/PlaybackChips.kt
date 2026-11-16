@@ -1,0 +1,182 @@
+package io.kud.tutti.ui.remote
+
+import androidx.annotation.DrawableRes
+import androidx.annotation.StringRes
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.dp
+import io.kud.tutti.R
+import io.kud.tutti.protocol.apps.AppShortcut
+import io.kud.tutti.ui.common.downFill
+import io.kud.tutti.ui.common.downInk
+import io.kud.tutti.ui.common.keyIcon
+import io.kud.tutti.ui.common.keyLabel
+
+/*
+ * The playback sheet's compact chips (2026-10-27): Captions and Audio track, which open a
+ * picker on the TV. 40 dp tall, the word always shown. Voice and Night left the sheet on
+ * 2026-10-28 (Erwann: « Pourquoi on a encore des settings de son ici ? »): sound lives in the
+ * Sound sheet, which is their only home.
+ */
+
+/** The chips' height: under the 56 dp keys, so the transport row stays the sheet's lead. */
+private val CHIP_HEIGHT = 40.dp
+private val CHIP_SHAPE = RoundedCornerShape(20.dp)
+private val CHIP_GAP = 8.dp
+
+/**
+ * One row of chips when they all fit, each widened by an equal share of the room left; else rows
+ * of two, each chip half the width, so a narrow phone or a longer language (French) gets a tidy
+ * 2 × 2 and never one chip orphaned on a second row.
+ */
+@Composable
+internal fun PlaybackChipRow(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    Layout(content, modifier) { measurables, constraints ->
+        val gap = CHIP_GAP.roundToPx()
+        val width = constraints.maxWidth
+        val rows = chipRows(measurables.map { it.maxIntrinsicWidth(Constraints.Infinity) }, width, gap)
+        // Nothing to show (Nuvio offers no search and no shortcut): the row takes no room.
+        if (rows.isEmpty()) return@Layout layout(width, 0) {}
+        val placeables = arrayOfNulls<androidx.compose.ui.layout.Placeable>(measurables.size)
+        for (row in rows) {
+            for (chip in row) {
+                placeables[chip.index] = measurables[chip.index].measure(Constraints.fixedWidth(chip.width))
+            }
+        }
+        val heights = rows.map { row -> row.maxOf { placeables[it.index]!!.height } }
+        val total = heights.sum() + gap * (rows.size - 1)
+        layout(width, total) {
+            var y = 0
+            rows.forEachIndexed { r, row ->
+                var x = 0
+                for (chip in row) {
+                    val p = placeables[chip.index]!!
+                    p.placeRelative(x, y + (heights[r] - p.height) / 2)
+                    x += p.width + gap
+                }
+                y += heights[r] + gap
+            }
+        }
+    }
+}
+
+/** A chip's place in [chipRows]: which child, and the width it is measured at. */
+internal data class ChipSlot(val index: Int, val width: Int)
+
+/**
+ * The rows [PlaybackChipRow] lays out, from each chip's natural width: one row when they all fit,
+ * each widened by an equal share of the room left; else rows of two at half the width. No chips,
+ * no rows: an empty row once divided by zero and crashed the sheet over Nuvio (2026-11-07).
+ */
+internal fun chipRows(natural: List<Int>, width: Int, gap: Int): List<List<ChipSlot>> {
+    if (natural.isEmpty()) return emptyList()
+    val fits = natural.sum() + gap * (natural.size - 1) <= width
+    val rows = if (fits) listOf(natural.indices.toList()) else natural.indices.chunked(2)
+    return rows.map { row ->
+        val free = width - gap * (row.size - 1)
+        val widths = if (fits) {
+            val slack = (free - row.sumOf { natural[it] }) / row.size
+            row.map { natural[it] + slack }
+        } else {
+            row.map { if (row.size == 1) width else free / 2 }
+        }
+        row.mapIndexed { i, index -> ChipSlot(index, widths[i].coerceAtLeast(0)) }
+    }
+}
+
+/**
+ * Captions or Audio track: glyph and word, no ring or check, because a press opens a picker on
+ * the TV rather than switching something here. Down: the down dress (solid, quieter), TalkBack hearing why.
+ */
+@Composable
+internal fun KeyChip(code: Int, downReason: String?, onKey: (Int) -> Unit) {
+    ActionChip(keyIcon(code), keyLabel(code), downReason) { onKey(code) }
+}
+
+/**
+ * A command for the app in front (YouTube's Subscriptions, History…): the same compact chip, since
+ * a press opens something on the TV and switches nothing here.
+ */
+@Composable
+internal fun ShortcutChip(shortcut: AppShortcut, downReason: String?, onOpen: (AppShortcut) -> Unit) {
+    ActionChip(shortcutIcon(shortcut), stringResource(shortcutLabel(shortcut)), downReason) { onOpen(shortcut) }
+}
+
+/** Search inside the app in front, by the Search key ([inAppSearchKey]). */
+@Composable
+internal fun InAppSearchChip(downReason: String?, onKey: (Int) -> Unit) {
+    ActionChip(R.drawable.ic_search, stringResource(R.string.shortcut_search), downReason) {
+        onKey(io.kud.tutti.protocol.atv.V2Key.SEARCH)
+    }
+}
+
+/** Google TV's own search over whatever is on screen ([GLOBAL_SEARCH_KEY]). */
+@Composable
+internal fun GlobalSearchChip(downReason: String?, onKey: (Int) -> Unit) {
+    ActionChip(R.drawable.ic_mic, stringResource(R.string.shortcut_search_tv), downReason) { onKey(GLOBAL_SEARCH_KEY) }
+}
+
+@DrawableRes
+internal fun shortcutIcon(shortcut: AppShortcut): Int = when (shortcut) {
+    AppShortcut.SEARCH -> R.drawable.ic_search
+    AppShortcut.SUBSCRIPTIONS -> R.drawable.ic_subscriptions
+    AppShortcut.HISTORY -> R.drawable.ic_history
+    AppShortcut.LIBRARY -> R.drawable.ic_video_library
+}
+
+@StringRes
+internal fun shortcutLabel(shortcut: AppShortcut): Int = when (shortcut) {
+    AppShortcut.SEARCH -> R.string.shortcut_search
+    AppShortcut.SUBSCRIPTIONS -> R.string.shortcut_subscriptions
+    AppShortcut.HISTORY -> R.string.shortcut_history
+    AppShortcut.LIBRARY -> R.string.shortcut_library
+}
+
+@Composable
+internal fun ActionChip(@DrawableRes icon: Int, label: String, downReason: String?, onClick: () -> Unit) {
+    val down = downReason != null
+    val scheme = MaterialTheme.colorScheme
+    val ink = if (down) downInk(scheme.onSurface) else scheme.onSurface
+    Row(
+        Modifier
+            .heightIn(min = CHIP_HEIGHT)
+            .clip(CHIP_SHAPE)
+            .background(if (down) downFill(scheme.surfaceContainerHigh) else scheme.surfaceContainerHigh, CHIP_SHAPE)
+            .clickable(enabled = !down, role = Role.Button, onClickLabel = label, onClick = onClick)
+            .semantics(mergeDescendants = true) {
+                contentDescription = label
+                downReason?.let { stateDescription = it }
+            }
+            .padding(start = 12.dp, end = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center,
+    ) {
+        Icon(painterResource(icon), contentDescription = null, tint = ink, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(8.dp))
+        Text(label, style = MaterialTheme.typography.labelLarge, color = ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}

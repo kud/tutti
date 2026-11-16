@@ -79,7 +79,8 @@ class TheatreSimTest {
         bar.wake()
         bar.values[TheatreFeature.VOLUME.key] = "20"
         client.connected()
-        assertTrue(bar.accepted.get() >= 2)
+        // The kernel finishes the handshake before the sim's accept loop counts it.
+        assertTrue("second connection never accepted", eventually { bar.accepted.get() >= 2 })
     }
 
     @Test

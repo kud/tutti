@@ -4,18 +4,28 @@
     <string name="dock_keys">Keys</string>
     <string name="dock_reassign">Edit this pin</string>
     <string name="apps_title">Apps</string>
+    <string name="apps_recent">Recent</string>
+    <string name="apps_all">All apps</string>
     <string name="apps_pin_hint">Long-press an app to pin it to the dock.</string>
     <string name="apps_no_ip_hint">IP control is off on the TV, so tutti shows the apps it already knows. Turn it on for the full list and the official icons.</string>
+    <string name="apps_launch_pending">Opening on the TV</string>
+    <string name="apps_launch_failed">Didn’t open</string>
+    <string name="apps_launch_failed_note">The TV didn’t open %1$s. Try again, or open it from the TV’s own apps screen.</string>
+    <string name="apps_launch_not_opened">%1$s didn’t open</string>
+    <string name="apps_launch_waking">Turning on the TV for %1$s…</string>
+    <string name="apps_launch_waking_tile">Turning on the TV</string>
+    <string name="apps_launch_not_woken">%1$s not opened: the TV didn’t turn on</string>
     <string name="apps_open_tv_screen">Open the TV’s own apps screen</string>
+    <string name="apps_screen_failed">The TV didn’t open its apps screen</string>
+    <string name="apps_screen_unconfirmed">Sent. The TV can’t confirm its apps screen opened</string>
     <string name="apps_pin_action">Pin to the dock</string>
     <string name="apps_pin_title">Pin %1$s</string>
-    <string name="apps_slot">Slot %1$d · %2$s</string>
+    <string name="apps_slot">Pin %1$d · %2$s</string>
     <string name="apps_slot_empty">empty</string>
     <string name="more_title">All keys</string>
     <string name="more_section_channels">Numbers and channels</string>
     <string name="more_section_colours">Colour keys</string>
     <string name="more_section_tv">TV</string>
-    <string name="more_section_apps">Apps</string>
     <string name="more_jump">Jump</string>
     <string name="more_live_tv">TV</string>
     <string name="more_channel_short">CH</string>
@@ -30,5 +40,21 @@
     <string name="more_audio">Audio</string>
     <string name="more_menu">Menu</string>
     <string name="more_quick_settings">Quick settings</string>
-    <string name="more_all_apps">All apps</string>
+    <!-- The TV's inputs in the Apps sheet: a long press pins one. -->
+    <string name="tv_input_pin">Pin to the dock</string>
+    <!-- Where an app opens (2026-11-11): the Apps sheet's long press and the pin editor. -->
+    <string name="dest_opens_at_row">Opens at · %1$s</string>
+    <string name="dest_picker_title">Open %1$s at</string>
+    <string name="dest_as_usual">As usual</string>
+    <string name="dest_as_usual_detail">Where the app was last time</string>
+    <string name="dest_same_as_app">Same as the app</string>
+    <string name="dest_same_as_app_detail">Now: %1$s</string>
+    <string name="dest_link">Link…</string>
+    <string name="dest_link_label">Link</string>
+    <string name="dest_link_hint">An https:// link, or %1$s</string>
+    <string name="dest_link_hint_web">An https:// link</string>
+    <string name="dest_link_invalid">This link can\'t open this app. Use an https:// link or the app\'s own.</string>
+    <string name="dest_paste">Paste</string>
+    <string name="dest_try">Try</string>
+    <string name="dest_done">Done</string>
 </resources>

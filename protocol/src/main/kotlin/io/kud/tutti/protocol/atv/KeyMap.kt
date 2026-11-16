@@ -63,6 +63,9 @@ object V2Key {
     const val PROG_YELLOW = 185
     const val PROG_BLUE = 186
     const val APP_SWITCH = 187
+    /** Jump 10 s back or forward in the player, where it supports it (the pad's two-finger skip). */
+    const val MEDIA_SKIP_FORWARD = 272
+    const val MEDIA_SKIP_BACKWARD = 273
     const val ASSIST = 219
     const val MEDIA_AUDIO_TRACK = 222
     const val LAST_CHANNEL = 229

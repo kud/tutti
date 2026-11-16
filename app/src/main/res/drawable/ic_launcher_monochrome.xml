@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Themed approved v2 launcher; cut-outs retain the negative space. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
@@ -7,5 +8,5 @@
     <path
         android:fillColor="#FFFFFFFF"
         android:fillType="evenOdd"
-        android:pathData="M50,28h8a14,14 0,0 1,14 14v24a14,14 0,0 1,-14 14h-8a14,14 0,0 1,-14 -14v-24a14,14 0,0 1,14 -14zM54,39a9,9 0,1 1,0 18a9,9 0,1 1,0 -18zM46,66h16a2,2 0,0 1,0 4h-16a2,2 0,0 1,0 -4z" />
+        android:pathData="M49.06,26.25h9.88a9.72,9.72 0,0 1,9.72 9.72v36.06a9.72,9.72 0,0 1,-9.72 9.72h-9.88a9.72,9.72 0,0 1,-9.72 -9.72v-36.06a9.72,9.72 0,0 1,9.72 -9.72zM54,31.68a2.31,2.31 0,1 1,0 4.62a2.31,2.31 0,1 1,0 -4.62zM54,40.08a11.53,11.53 0,1 1,0 23.06a11.53,11.53 0,1 1,0 -23.06zM54,46.18a5.43,5.43 0,1 1,0 10.86a5.43,5.43 0,1 1,0 -10.86zM47.17,70.39h13.66a2.555,2.555 0,0 1,0 5.11h-13.66a2.555,2.555 0,0 1,0 -5.11z" />
 </vector>

@@ -1,11 +1,34 @@
 package io.kud.tutti.ui.remote
 
+import io.kud.tutti.protocol.privacy.FreeServices
+import io.kud.tutti.protocol.privacy.NonFreeFeature
+import io.kud.tutti.platform.data.RowButton
+import io.kud.tutti.sleep.SleepTimers
+import io.kud.tutti.sleep.gentleOffRow
+import io.kud.tutti.protocol.sleep.SleepFade
+import io.kud.tutti.platform.net.LocalNetworkRules
 import io.kud.tutti.ui.common.FeedbackEvent
+import android.Manifest
+import android.app.Activity
+import android.content.Intent
+import android.net.Uri
+import android.os.SystemClock
+import android.provider.Settings
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.app.ActivityCompat
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -13,56 +36,91 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.BottomSheetScaffold
+import androidx.compose.material3.SheetValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.rememberBottomSheetScaffoldState
-import androidx.compose.foundation.layout.width
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.systemGestureExclusion
+import androidx.compose.ui.semantics.isTraversalGroup
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.traversalIndex
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import io.kud.tutti.R
+import androidx.compose.runtime.saveable.rememberSaveable
+import io.kud.tutti.controller.Link
+import io.kud.tutti.controller.PowerTarget
+import io.kud.tutti.controller.TargetController
 import io.kud.tutti.controller.TuttiController
+import io.kud.tutti.protocol.devices.DeviceKind
+import io.kud.tutti.protocol.devices.KeyAvailability
+import io.kud.tutti.protocol.hid.RemoteLink
+import io.kud.tutti.platform.data.PadMode
+import androidx.compose.runtime.mutableStateMapOf
+import io.kud.tutti.ui.common.LocalMessages
 import io.kud.tutti.controller.TuttiUiState
 import io.kud.tutti.platform.data.DockAction
+import io.kud.tutti.platform.data.DockSlot
+import io.kud.tutti.protocol.apps.KnownApp
 import io.kud.tutti.platform.data.PadSize
 import io.kud.tutti.platform.data.SecondaryButton
+import io.kud.tutti.controller.TvLinkRule
+import io.kud.tutti.protocol.atv.DirectionHold
+import io.kud.tutti.protocol.devices.HoldPlan
 import io.kud.tutti.protocol.atv.V2Key
 import io.kud.tutti.ui.common.LocalReducedMotion
 import io.kud.tutti.ui.common.TonalRoundButton
 import io.kud.tutti.ui.common.rememberHaptics
 import io.kud.tutti.ui.motion.Motion
 import io.kud.tutti.ui.motion.rememberWaiting
+import kotlinx.coroutines.delay
 
 private sealed interface PickerTarget {
-    data class Slot(val index: Int) : PickerTarget
-
     data class LongPress(val button: SecondaryButton) : PickerTarget
 
     /** A pin's editor (long press on it). */
     data class Edit(val index: Int) : PickerTarget
+
+    /** One kind's picker, from the layout editor's list of kinds: what it picks goes in place [index]. */
+    data class Kind(val index: Int, val kind: PinKind) : PickerTarget
 }
 
 /**
  * The home: system chip + one Power, scene pills, the pad with the volume rail on its right,
- * Back / Home / Play / Keyboard / Mute, and the 4-slot dock. Every tap gives its haptic first,
+ * Back / Home / Play / Mic / Keyboard (mute is the rail's foot), and the 4-slot dock. Every tap gives its haptic first,
  * then hands the action to the controller, which updates state before the network.
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -70,283 +128,1145 @@ private sealed interface PickerTarget {
 fun RemoteScreen(
     state: TuttiUiState,
     controller: TuttiController,
+    target: TargetController,
     onOpenScenes: () -> Unit,
     onOpenSettings: () -> Unit,
     onEditScene: (String) -> Unit,
+    /** A Connections step that leaves the remote (pairing, a setup step, Settings › Devices). */
+    onConnectionStep: (ConnAction) -> Unit = { onOpenSettings() },
     editing: Boolean = false,
     onEditingChange: (Boolean) -> Unit = {},
+    /** A newer build, its cue, and the one-tap install (docs/design.md, "Updates"). */
+    update: io.kud.tutti.protocol.update.AppVersion? = null,
+    updateNotice: Boolean = false,
+    onUpdate: () -> Unit = {},
 ) {
     val haptics = rememberHaptics()
     val layout = state.prefs.layout
     BackHandler(enabled = editing) { onEditingChange(false) }
     var picker by remember { mutableStateOf<PickerTarget?>(null) }
-    var keyboardRequested by remember { mutableStateOf(false) }
     var sheet2 by remember { mutableStateOf<RemoteSheet?>(null) }
-    val imeOpen = state.remote.ime != null
-    val keyboardOpen = imeOpen || keyboardRequested
-
-    // The TV field lost focus (or the app changed): close what it opened.
-    LaunchedEffect(imeOpen) {
-        if (!imeOpen) keyboardRequested = false
+    var powerSheet by remember { mutableStateOf(false) }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    // The gentle switch-off timer: its end, and a clock that ticks only while one runs.
+    val gentleTimer by SleepTimers.state.collectAsState()
+    val gentleNow by produceState(System.currentTimeMillis(), gentleTimer) {
+        while (gentleTimer != null) {
+            value = System.currentTimeMillis()
+            kotlinx.coroutines.delay(15_000L)
+        }
     }
+    // The "?" in the top bar: every hidden gesture (discoverability rule 2).
+    var gesturesSheet by remember { mutableStateOf(false) }
+    // The gesture audit (2026-10-25): the volume sheet (the rail's number), a scene pinned from its menu.
+    var volumeSheet by remember { mutableStateOf(false) }
+    var pinningScene by remember { mutableStateOf<String?>(null) }
+    // The now-showing card's sheets (Erwann, 2026-10-25), each holding what the card showed when
+    // opened, so a blip that changes the card never yanks the sheet away.
+    var playbackFor by remember { mutableStateOf<CardShowing?>(null) }
+    var actionsFor by remember { mutableStateOf<CardShowing?>(null) }
+    var pinningNow by remember { mutableStateOf<NowShowing.App?>(null) }
+    // The full input view is a state of the remote, not a screen: InputRules moves it.
+    var input by remember { mutableStateOf(InputMode()) }
+    // Whether the now-showing card fits above the pad: the pad block measures, the chip reads it.
+    var cardShown by remember { mutableStateOf(false) }
+    val hasField = state.remote.ime != null
+    LaunchedEffect(hasField, state.remote.imeShows) {
+        input = InputRules.tv(input, hasField, state.remote.imeShows, SystemClock.uptimeMillis())
+    }
+    // The TV closed the field: the closed frame holds, then the remote comes back, unless a new field took over.
+    LaunchedEffect(input.closedAt) {
+        if (input.closedAt == null) return@LaunchedEffect
+        delay(InputRules.GRACE_MS)
+        input = InputRules.tick(input, SystemClock.uptimeMillis())
+    }
+    val inputOpen = input.open
+    // The launcher's Keyboard shortcut: open the keyboard view once, whatever the TV shows.
+    val keyboardAsked by controller.keyboardAsked.collectAsState()
+    val recentApps by controller.recentApps.collectAsState()
+    val castNowPlaying by controller.castNowPlaying.collectAsState()
+    val castSpeedRefused by controller.castSpeedRefused.collectAsState()
+    val castSeekRefused by controller.castSeekRefused.collectAsState()
+    LaunchedEffect(keyboardAsked) {
+        if (!keyboardAsked) return@LaunchedEffect
+        if (!input.open) input = InputRules.keyboardKey(input)
+        controller.keyboardAnswered()
+    }
+    val tvReachable = !(state.devices.tv != null && state.links.tvShown.link == Link.UNREACHABLE)
+    // TalkBack hears the TV's link change once per real outage: "out of reach" past give-up, and
+    // "back" after it. A blip fades the remote down and back and says nothing (Iris, 2026-11-07):
+    // the chip and the key's own "not sent" reason carry it. The first connect says nothing either.
+    val view = LocalView.current
+    val tvLinkSay = state.devices.tv?.name?.let { name ->
+        when {
+            state.links.tvShown.link == Link.UNREACHABLE -> stringResource(R.string.system_unreachable, name)
+            state.links.tvShown.link == Link.ONLINE -> stringResource(R.string.tv_link_back)
+            else -> null
+        }
+    }
+    var lastTvLinkSay by remember { mutableStateOf(tvLinkSay) }
+    LaunchedEffect(tvLinkSay) {
+        if (tvLinkSay == null) return@LaunchedEffect
+        val was = lastTvLinkSay
+        lastTvLinkSay = tvLinkSay
+        @Suppress("DEPRECATION")
+        if (was != null && tvLinkSay != was) view.announceForAccessibility(tvLinkSay)
+    }
+    val reduced = LocalReducedMotion.current
+    val rise = with(LocalDensity.current) { INPUT_RISE.roundToPx() }
 
     DisposableEffect(controller) {
         controller.remoteInFront = true
         onDispose { controller.remoteInFront = false }
     }
 
+
+    val sheet = rememberBottomSheetScaffoldState()
+
+    // The bar on its own (Erwann, 2026-10-24): the TV keys have nothing to reach while the TV
+    // sleeps, so a pad press says so and sends nothing; the card's button or Power wakes it.
+    val alone = barAlone(state)
+    val messages = LocalMessages.current
+    // The target engine (TargetController): the chip, the sheet and where each key goes.
+    val targets by target.state.collectAsState()
+    // The inputs a computer set up in tutti is shown on: the input sheets give them a computer's glyph.
+    val computerInputs = targets.devices.filter { it.kind == DeviceKind.COMPUTER }.mapNotNull { it.hdmiInput }.toSet()
+    var targetSheet by remember { mutableStateOf(false) }
+    // The device pill opens « Connexions » (Erwann, 2026-10-25), no longer Settings directly.
+    var connectionsSheet by remember { mutableStateOf(false) }
+
+    // Android 17's local-network gate: asked when the banner, the sheet's step or onboarding hits
+    // it. A refusal with no rationale afterwards means the system will not show another dialog —
+    // only its app page grants it (LocalNetworkRules, Connections's lanCantAsk).
+    var lanCantAsk by rememberSaveable { mutableStateOf(false) }
+    val lanLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) {
+            controller.onLanPermissionGranted()
+        } else {
+            val activity = context as? Activity
+            val rationale = activity != null &&
+                ActivityCompat.shouldShowRequestPermissionRationale(activity, Manifest.permission.ACCESS_LOCAL_NETWORK)
+            lanCantAsk = LocalNetworkRules.outlook(denied = true, shouldShowRationale = rationale) ==
+                LocalNetworkRules.Outlook.CANNOT_ASK
+        }
+    }
+    // The system's page for tutti, where the local-network switch stands when no dialog answers.
+    fun openLanSettings() {
+        context.startActivity(
+            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null)),
+        )
+    }
+    fun askLanAccess() {
+        if (lanCantAsk) openLanSettings() else lanLauncher.launch(Manifest.permission.ACCESS_LOCAL_NETWORK)
+    }
+    // The remote is on screen: with the app in front, the HID connection may be held.
+    DisposableEffect(target) {
+        target.remoteShown(true)
+        onDispose { target.remoteShown(false) }
+    }
+    val onComputer = targets.target?.kind == DeviceKind.COMPUTER
+    // Keys go through the router whenever a key may leave the LAN: a computer target, or the TV over Bluetooth.
+    val routed = onComputer || targets.link == RemoteLink.BLUETOOTH
+    val computerUnavailable = stringResource(R.string.computer_unavailable)
+    val notOverBluetooth = stringResource(R.string.target_not_over_bluetooth)
+    val linkDown = stringResource(R.string.target_link_down)
+    val computerMeanings = computerMeaningWords()
+    fun keyDown(code: Int): Boolean = routed && targets.availability(code) != KeyAvailability.AVAILABLE
+    fun keyMeaning(code: Int): String? = if (onComputer && !keyDown(code)) computerMeanings(code) else null
+
+    // The pad on a Bluetooth target: trackpad, D-pad or gyro, remembered per target id for the
+    // session; the TV on its LAN keeps the stored mode (2026-10-25).
+    val padTarget = targets.target?.id.orEmpty()
+    val padModesByTarget = remember { mutableStateMapOf<String, PadMode>() }
+    val padBefore = remember { mutableStateMapOf<String, PadMode>() }
+    val rememberedMode = padModesByTarget[padTarget] ?: PadMode.TOUCHPAD
+    val previousMode = padBefore[padTarget] ?: PadMode.TOUCHPAD
+    val btMode = padModeShown(rememberedMode, bluetooth = routed, gyroPossible = targets.gyroPossible, previous = previousMode)
+    val pointerPad = routed && btMode != PadMode.DPAD
+    val gyroWhy = when (gyroBlock(targets.hasGyroscope, targets.gyroPossible)) {
+        GyroBlock.NO_SENSOR -> stringResource(R.string.gyro_no_sensor)
+        GyroBlock.LINK_DOWN -> stringResource(R.string.gyro_link_down)
+        GyroBlock.NONE -> null
+    }
+    fun pickPadMode(mode: PadMode) {
+        if (mode == PadMode.GYRO && gyroWhy != null) {
+            haptics.bump()
+            messages?.show(gyroWhy)
+            return
+        }
+        if (rememberedMode != PadMode.GYRO) padBefore[padTarget] = rememberedMode
+        padModesByTarget[padTarget] = mode
+    }
+    // The link dropped under the gyro pointer: back to the mode before it, said once.
+    val droppedTo = stringResource(if (previousMode == PadMode.DPAD) R.string.pad_mode_dpad else R.string.pad_mode_touchpad)
+    val gyroDropped = stringResource(R.string.gyro_dropped, droppedTo.lowercase())
+    LaunchedEffect(rememberedMode == PadMode.GYRO && routed && !targets.gyroPossible) {
+        if (rememberedMode == PadMode.GYRO && routed && !targets.gyroPossible) {
+            padModesByTarget[padTarget] = previousMode
+            messages?.show(gyroDropped)
+        }
+    }
+    // Typing on a computer (or the TV over Bluetooth) goes through the target's layout; what it can't type is said.
+    val untypable = stringResource(R.string.target_typing_unsupported)
+    val keysOnly = stringResource(R.string.keyboard_keys_unsupported)
+    fun typeText(text: String) {
+        if (!routed) {
+            // A TV box with no input session takes key presses only (RemoteSession.typeKeys): no accents there.
+            val missed = controller.text(text)
+            if (missed.isNotEmpty()) messages?.show(String.format(keysOnly, missed.joinToString(" ")))
+            return
+        }
+        val missed = target.text(text)
+        if (missed.isNotEmpty()) messages?.show(String.format(untypable, missed.joinToString(" ")))
+    }
+    LaunchedEffect(input.open, routed) { if (input.open && routed) target.textReset() }
+
+    // Home and Play/Pause wake a TV known asleep, then go (TvLinkRule.wakesTv); the rest keep standby's refusal.
+    val wakingWords = stringResource(R.string.key_waking_tv)
+    fun wakesTv(code: Int): Boolean = TvLinkRule.wakesTv(code, long = false, tvPowered = tvPowered(state), barAlone = alone != null)
+
+    /** One key, wherever it belongs. A key that goes nowhere bumps and says why; glyphs never change. */
+    fun sendKey(code: Int): Boolean {
+        if (!routed) {
+            if (wakesTv(code)) {
+                messages?.show(wakingWords)
+                controller.wakeThenKey(code)
+            } else {
+                controller.key(code)
+            }
+            return true
+        }
+        val why = when (target.key(code).availability) {
+            KeyAvailability.AVAILABLE -> return true
+            KeyAvailability.NOT_ON_COMPUTER -> computerUnavailable
+            KeyAvailability.NOT_OVER_BLUETOOTH -> notOverBluetooth
+            KeyAvailability.LINK_DOWN -> linkDown
+        }
+        haptics.bump()
+        messages?.show(why)
+        return false
+    }
+    /**
+     * OK held on the pad ([OkHold]): down puts the key down where it belongs (the TV's remote key,
+     * the TV's Bluetooth key, or one plain Enter on a computer: [Targeting.hold]); up lifts it on
+     * whichever path holds it, so a route that changed mid-hold never leaves OK down.
+     */
+    fun holdSelect(down: Boolean) {
+        if (!down) {
+            target.releaseKey()
+            controller.releaseKey()
+            return
+        }
+        if (!routed) {
+            controller.holdKey(V2Key.DPAD_CENTER)
+            return
+        }
+        val why = when (target.holdKey(V2Key.DPAD_CENTER).availability) {
+            KeyAvailability.AVAILABLE -> return
+            KeyAvailability.NOT_ON_COMPUTER -> computerUnavailable
+            KeyAvailability.NOT_OVER_BLUETOOTH -> notOverBluetooth
+            KeyAvailability.LINK_DOWN -> linkDown
+        }
+        haptics.bump()
+        messages?.show(why)
+    }
+    /**
+     * An arrow held on the D-pad ([io.kud.tutti.protocol.atv.DirectionPress]): down where a key can be held (the TV's remote
+     * key, the TV's Bluetooth key), so the TV repeats and scrubs as with a physical remote, and up
+     * on lift or cancel. False where it can't be held (a computer): the pad repeats plain presses.
+     * An arrow comes up the moment the finger does, and a lost release lets it go after
+     * [DirectionHold.LEASE_MS] without renewal.
+     */
+    fun holdDirection(code: Int, down: Boolean): Boolean {
+        if (!down) {
+            target.releaseKey()
+            controller.releaseKey()
+            return true
+        }
+        if (!routed) {
+            controller.holdKey(code, minHoldMs = 0L, leaseMs = DirectionHold.LEASE_MS)
+            return true
+        }
+        return when (target.holdPlan(code)) {
+            HoldPlan.REMOTE, HoldPlan.HID -> {
+                target.holdKey(code, minHoldMs = 0L, leaseMs = DirectionHold.LEASE_MS)
+                true
+            }
+            HoldPlan.PLAIN, HoldPlan.NONE -> false
+        }
+    }
+
+    fun renewHold() {
+        target.renewHold()
+        controller.renewHold()
+    }
+    // A key that opens a menu on the TV closes its sheet, so the pad is in view to drive that
+    // menu (keyClosesSheet); TalkBack hears where to go next, since the sheet vanished under it.
+    val tvMenuSay = stringResource(R.string.sheet_key_tv_menu)
+    fun sheetKey(code: Int, close: () -> Unit) {
+        val sent = sendKey(code)
+        if (!keyClosesSheet(code)) return
+        close()
+        @Suppress("DEPRECATION")
+        if (sent) view.announceForAccessibility(tvMenuSay)
+    }
+    val standbyWords = stringResource(R.string.key_tv_standby)
+    val wakeWords = stringResource(R.string.card_wake_tv_short)
+    fun tvAsleepAlone(code: Int? = null): Boolean {
+        if (alone?.tvAsleep != true) return false
+        if (code != null && wakesTv(code)) return false
+        haptics.reject()
+        if (messages?.current?.text != standbyWords) {
+            messages?.show(standbyWords, actionLabel = wakeWords, onAction = { controller.power(PowerTarget.TV, on = true) })
+        }
+        return true
+    }
+
+    // The round keys' default long presses (RowGestures) say themselves once per visit, with
+    // "Change" to pick another: proposed, never imposed in silence.
+    val defaultsSaid = remember { mutableSetOf<SecondaryButton>() }
+    val longSaidWords = stringResource(R.string.row_long_default_said)
+    val changeWords = stringResource(R.string.row_long_change)
+    val noPreviousWords = stringResource(R.string.row_long_no_previous)
+    val defaultLabels = RowDefault.entries.associateWith { stringResource(it.label) }
     fun secondary(button: SecondaryButton) {
         val action = state.dock.longPress[button]
         haptics.longPress()
-        if (action != null) controller.run(action) else picker = PickerTarget.LongPress(button)
+        if (action != null) {
+            controller.run(action)
+            return
+        }
+        val fallback = rowDefault(button)
+        if (fallback == null) {
+            picker = PickerTarget.LongPress(button)
+            return
+        }
+        val menuKey = V2Key.TV_INPUT.takeIf { fallback == RowDefault.TV_INPUT_MENU }
+        if (tvAsleepAlone(menuKey)) return
+        val change = { picker = PickerTarget.LongPress(button) }
+        val ran = when (fallback) {
+            RowDefault.PREVIOUS_APP -> controller.launchPreviousApp()
+            // Recent apps live at the top of the Apps sheet (Google TV has no switcher of its own).
+            RowDefault.RECENT_APPS -> {
+                sheet2 = RemoteSheet.APPS
+                true
+            }
+            // The TV's own input menu, driven with the pad; a key refused says why itself (sendKey).
+            RowDefault.TV_INPUT_MENU -> if (sendKey(V2Key.TV_INPUT)) true else return
+        }
+        if (!ran) {
+            messages?.show(noPreviousWords, actionLabel = changeWords, onAction = change)
+        } else if (defaultsSaid.add(button)) {
+            messages?.show(longSaidWords.format(defaultLabels.getValue(fallback)), actionLabel = changeWords, onAction = change)
+        }
     }
 
-    val sheet = rememberBottomSheetScaffoldState()
+    // « Et la feuille Son peut monter toute seule » (Erwann, 2026-10-24): when the bar starts
+    // playing on its own the sheet rises once, its controls being the ones that matter now. Folded
+    // again, it stays folded until the state ends; saved, so coming back to the remote doesn't
+    // raise it a second time.
+    var rose by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(alone != null) {
+        if (alone == null) {
+            rose = false
+        } else if (!rose && !inputOpen && !editing) {
+            rose = true
+            sheet.bottomSheetState.expand()
+        }
+    }
+
+    // The Sound sheet open, or the phone keyboard's field, covers the remote as a modal sheet does.
+    io.kud.tutti.ui.common.CoversRemote(active = inputOpen || sheet.bottomSheetState.currentValue == SheetValue.Expanded)
     val navigationInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    // No bar, no Sound sheet (Erwann, 2026-11-06): no peek, no swipe, and one left open folds away.
+    val soundShown = soundSheetShown(state.devices)
+    LaunchedEffect(soundShown) {
+        if (!soundShown && sheet.bottomSheetState.currentValue == SheetValue.Expanded) sheet.bottomSheetState.partialExpand()
+    }
     BottomSheetScaffold(
         scaffoldState = sheet,
-        sheetPeekHeight = if (keyboardOpen || editing) 0.dp else SHEET_PEEK + navigationInset,
-        sheetSwipeEnabled = !editing,
+        sheetPeekHeight = if (inputOpen || editing || !soundShown) 0.dp else SHEET_PEEK + navigationInset,
+        sheetSwipeEnabled = !editing && !inputOpen && soundShown,
+        sheetDragHandle = if (soundShown) ({ BottomSheetDefaults.DragHandle() }) else null,
         sheetContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
         containerColor = MaterialTheme.colorScheme.background,
-        sheetContent = { SoundSheet(state, controller) },
+        sheetContent = {
+            if (soundShown) SoundSheet(state, controller, peeking = sheet.bottomSheetState.targetValue != SheetValue.Expanded)
+        },
     ) { padding ->
         if (editing) {
             LayoutEditor(
                 state = state,
                 onLayout = controller::updateLayout,
                 onReset = controller::resetLayout,
-                onMovePin = controller::moveDockSlot,
+                onSwapPin = controller::swapDockSlots,
+                onRemovePin = controller::removeDockPin,
+                onPutBackPin = controller::putBackDockPin,
                 onEditPin = { picker = PickerTarget.Edit(it) },
-                onAddPage = controller::addDockPage,
+                onKind = { index, kind -> picker = if (kind == PinKind.STEPS) PickerTarget.Edit(index) else PickerTarget.Kind(index, kind) },
+                onRestoreSpare = controller::restoreSparePin,
+                onDropSpare = controller::dropSparePin,
                 onDone = { onEditingChange(false) },
                 modifier = Modifier.padding(padding),
             )
             return@BottomSheetScaffold
         }
-        Column(
-            Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .statusBarsPadding()
-                .imePadding(),
-        ) {
-            Row(
-                Modifier.fillMaxWidth().padding(start = 16.dp, end = 12.dp, top = 8.dp, bottom = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
+        AnimatedContent(
+            targetState = inputOpen,
+            transitionSpec = {
+                when {
+                    reduced -> fadeIn(tween(Motion.SHORT)) togetherWith fadeOut(tween(Motion.SHORT))
+                    // Going home shouldn't perform: a plain cross-fade.
+                    !targetState -> fadeIn(tween(INPUT_BACK_MS)) togetherWith fadeOut(tween(INPUT_BACK_MS))
+                    // From the key: the view grows out of it (a stand-in for the shared-bounds morph).
+                    input.origin == InputOrigin.KEY ->
+                        (fadeIn(tween(Motion.MEDIUM)) + scaleIn(tween(Motion.MEDIUM, easing = Motion.Emphasized), initialScale = 0.92f)) togetherWith
+                            fadeOut(tween(Motion.FADE_OUT))
+                    // The TV opened it: no source key, so it rises.
+                    else -> (fadeIn(tween(Motion.MEDIUM)) + slideInVertically(tween(Motion.MEDIUM, easing = Motion.Emphasized)) { rise }) togetherWith
+                        fadeOut(tween(Motion.FADE_OUT))
+                }
+            },
+            label = "input view",
+            modifier = Modifier.fillMaxSize().padding(padding),
+        ) { open ->
+            if (open) {
+                InputView(
+                    field = state.remote.ime,
+                    mode = input,
+                    phase = InputRules.phase(input, tvReachable),
+                    tvName = state.devices.tv?.name.orEmpty(),
+                    volume = state.volume.takeIf { state.bar.connected },
+                    onText = ::typeText,
+                    onEnter = {
+                        input = InputRules.enter(input, SystemClock.uptimeMillis())
+                        sendKey(V2Key.ENTER)
+                    },
+                    onKey = ::sendKey,
+                    onSelectHold = ::holdSelect,
+                    onDirectionHold = ::holdDirection,
+                    onHoldRenew = ::renewHold,
+                    onLeave = { input = InputRules.leave(input) },
+                    onTypingChange = { controller.typing = it },
+                    modifier = Modifier.statusBarsPadding().navigationBarsPadding().imePadding(),
+                )
+                return@AnimatedContent
+            }
+            Column(
+                Modifier
+                    .fillMaxSize()
+                    .statusBarsPadding(),
             ) {
-                SystemChip(state, onClick = onOpenSettings, modifier = Modifier.weight(1f))
-                Spacer(Modifier.width(4.dp))
-                IconButton(onClick = onOpenScenes) {
-                    Icon(painterResource(R.drawable.ic_scene), contentDescription = stringResource(R.string.action_scenes))
-                }
-                IconButton(onClick = onOpenSettings) {
-                    Icon(painterResource(R.drawable.ic_settings), contentDescription = stringResource(R.string.action_settings))
-                }
-                // Waking a sleeping TV takes seconds: a turning ring says so (not a colour), and the label follows.
-                // The ring keeps the loading rules: not before 150 ms, then at least 400 ms; held still when motion is reduced.
-                val wakingRing = rememberWaiting(state.waking)
-                Box(contentAlignment = Alignment.Center) {
-                    TonalRoundButton(
-                        icon = R.drawable.ic_power,
-                        contentDescription = stringResource(if (state.waking) R.string.power_waking else R.string.action_power),
-                        onClick = { controller.power() },
-                        feedback = FeedbackEvent.SELECT,
-                        active = state.powered == true,
-                        size = 52.dp,
+                // One bar at every width (TopBar.kt; Erwann, 2026-10-25): the chip, the "⋮" against it,
+                // a clear gap, then Power at the far edge.
+                Row(
+                    Modifier.fillMaxWidth().padding(start = 16.dp, end = 12.dp, top = 8.dp, bottom = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    // The chip's "On the TV" line steps aside while the card below says it.
+                    SystemChip(state, onClick = { connectionsSheet = true }, modifier = Modifier.weight(1f), showNow = !cardShown)
+                    val rows = targetRows(targets)
+                    if (linkIndicatorShown(targets.link)) {
+                        Spacer(Modifier.width(4.dp))
+                        LinkIndicator(targets.link)
+                    }
+                    if (targetChipShown(rows)) {
+                        currentTarget(rows)?.let { current ->
+                            Spacer(Modifier.width(4.dp))
+                            TargetChip(current, onOpen = { targetSheet = true })
+                        }
+                    }
+                    Spacer(Modifier.width(4.dp))
+                    TopBarOverflow(
+                        // Apps and Keys are pins he may drop: the ⋮ offers each one the dock no longer holds.
+                        onApps = if (state.dock.holds(DockAction.OpenApps)) null else ({ sheet2 = RemoteSheet.APPS }),
+                        onKeys = if (state.dock.holds(DockAction.OpenKeys)) null else ({ sheet2 = RemoteSheet.KEYS }),
+                        // So are the remote's keys that open something of tutti's (the row until 2026-10-29).
+                        // Back, Home, Play/Pause, Info, Subtitles, Guide and TV settings stay in Keys.
+                        onMic = if (state.dock.holds(DockAction.Remote(RowButton.VOICE))) null else ({ sheet2 = RemoteSheet.VOICE }),
+                        onKeyboard = if (state.dock.holds(DockAction.Remote(RowButton.KEYBOARD))) null else ({ input = InputRules.keyboardKey(input) }),
+                        onInput = if (state.dock.holds(DockAction.Remote(RowButton.INPUT))) null else ({ sheet2 = RemoteSheet.INPUTS }),
+                        onScenes = onOpenScenes,
+                        onEditDock = { onEditingChange(true) },
+                        onSettings = onOpenSettings,
+                        onGestures = { gesturesSheet = true },
+                        update = update,
+                        notice = updateNotice,
+                        onUpdate = onUpdate,
                     )
-                    // Box scope inside a Row: the plain overload, named, so the Row's one isn't picked.
-                    androidx.compose.animation.AnimatedVisibility(
-                        visible = wakingRing.spinner,
-                        enter = fadeIn(Motion.fade()),
-                        exit = fadeOut(Motion.exit()),
-                        modifier = Modifier.matchParentSize(),
-                    ) {
-                        if (LocalReducedMotion.current) {
-                            CircularProgressIndicator(progress = { 0.75f }, modifier = Modifier.fillMaxSize(), strokeWidth = 3.dp)
-                        } else {
-                            CircularProgressIndicator(Modifier.fillMaxSize(), strokeWidth = 3.dp)
+                    Spacer(Modifier.width(POWER_GAP_DP.dp))
+                    // Waking a sleeping TV takes seconds: a turning ring says so (not a colour), and the label follows.
+                    // The ring keeps the loading rules: not before 150 ms, then at least 400 ms; held still when motion is reduced.
+                    val wakingRing = rememberWaiting(state.waking)
+                    // The short press switches the TV only (the bar alone without a TV), so the button shows that device's power.
+                    val shortPowered = if (state.devices.tv != null) tvPowered(state) else barPowered(state)
+                    Box(contentAlignment = Alignment.Center) {
+                        TonalRoundButton(
+                            icon = R.drawable.ic_power,
+                            contentDescription = stringResource(if (state.waking) R.string.power_waking else R.string.action_power),
+                            onClick = { controller.power() },
+                            // TV only, soundbar only or both (Erwann, 2026-10-24), and the TV's sleep timer:
+                            // with a TV set up, alone or with the bar (the gesture audit, 2026-10-25).
+                            onLongClick = { powerSheet = true }.takeIf { state.devices.tv != null },
+                            onLongClickLabel = stringResource(if (state.devices.bar != null) R.string.power_long_label else R.string.power_long_label_tv),
+                            feedback = FeedbackEvent.SELECT,
+                            active = shortPowered == true,
+                            size = 52.dp,
+                            // Unknown power says nothing rather than "Off".
+                            stateDescription = shortPowered?.let { stringResource(if (it) R.string.toggle_state_on else R.string.toggle_state_off) },
+                        )
+                        // Box scope inside a Row: the plain overload, named, so the Row's one isn't picked.
+                        androidx.compose.animation.AnimatedVisibility(
+                            visible = wakingRing.spinner,
+                            enter = fadeIn(Motion.fade()),
+                            exit = fadeOut(Motion.exit()),
+                            modifier = Modifier.matchParentSize(),
+                        ) {
+                            if (LocalReducedMotion.current) {
+                                CircularProgressIndicator(progress = { 0.75f }, modifier = Modifier.fillMaxSize(), strokeWidth = 3.dp)
+                            } else {
+                                CircularProgressIndicator(Modifier.fillMaxSize(), strokeWidth = 3.dp)
+                            }
                         }
                     }
                 }
-            }
 
-            if (layout.scenes) {
-                SceneStrip(
-                    scenes = state.scenes,
-                    onApply = { controller.applyScene(it) },
-                    onEdit = onEditScene,
-                    modifier = Modifier.padding(vertical = 4.dp),
-                )
-            }
-
-            if (keyboardOpen) {
-                KeyboardPanel(
-                    field = state.remote.ime,
-                    onText = controller::text,
-                    onEnter = { controller.key(V2Key.ENTER) },
-                    onClose = {
-                        controller.dismissKeyboard()
-                        keyboardRequested = false
-                    },
-                    onTypingChange = { controller.typing = it },
-                )
-            }
-
-            // Normal is the pad as it shipped. Large takes the margins back; compact keeps the
-            // rail full height and stands a shorter pad at its foot, nearer the thumb.
-            val large = layout.padSize == PadSize.LARGE
-            val rowPadding = if (large) 4.dp else 12.dp
-            Row(
-                Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .padding(horizontal = if (large) 8.dp else 16.dp, vertical = rowPadding),
-            ) {
-                // The mode switch stands under the pad, outside its surface, with at least
-                // SWITCH_CLEARANCE above the button row so a thumb heading there lands on neither.
-                val belowSwitch = SWITCH_CLEARANCE - rowPadding
-                Column(
-                    Modifier.weight(1f).fillMaxHeight(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    if (layout.padSize == PadSize.COMPACT) {
-                        Spacer(Modifier.weight(1f - COMPACT_SHARE))
-                    } else if (!keyboardOpen) {
-                        // As much room above as the switch takes below, so the pad's middle stays
-                        // level with the rail's, where it always was.
-                        Spacer(Modifier.height(SWITCH_GAP + PAD_SWITCH_HEIGHT + belowSwitch))
-                    }
-                    Pad(
-                        mode = state.prefs.padMode,
-                        onKey = controller::key,
-                        onLongSelect = { controller.longPress(V2Key.DPAD_CENTER) },
-                        onPlayPause = { controller.key(V2Key.MEDIA_PLAY_PAUSE) },
-                        onVolumeStep = controller::volumeStep,
-                        volume = state.volume.takeIf { state.bar.connected },
-                        volumeCap = state.volumeCap,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(if (layout.padSize == PadSize.COMPACT) COMPACT_SHARE else 1f),
+                // Android 17 shut the LAN behind its runtime permission (LocalNetworkRules): said
+                // once here, its step next, so the remote never reads as alive while links die.
+                if (state.lanPermissionMissing && (state.devices.tv != null || state.devices.bar != null)) {
+                    LanBanner(
+                        asks = !lanCantAsk,
+                        onAllow = { askLanAccess() },
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                     )
-                    Spacer(Modifier.height(SWITCH_GAP))
-                    PadModeSwitch(
-                        mode = state.prefs.padMode,
-                        onModeChange = controller::setPadMode,
-                    )
-                    Spacer(Modifier.height(belowSwitch))
                 }
-                Spacer(Modifier.width(if (large) 8.dp else 12.dp))
-                VolumeRail(
-                    volume = state.volume,
-                    cap = state.volumeCap,
-                    muted = state.muted,
-                    enabled = state.bar.connected,
-                    onVolume = controller::setVolume,
-                )
-            }
 
-            val row = layout.shownRow
-            if (row.isNotEmpty()) {
-                Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                    horizontalArrangement = rowArrangement(row.size),
+                if (layout.scenes) {
+                    SceneStrip(
+                        scenes = state.scenes,
+                        onApply = { controller.applyScene(it) },
+                        onEdit = onEditScene,
+                        undoSceneId = state.sceneUndo?.sceneId,
+                        onUndo = {
+                            haptics.confirm()
+                            controller.undoLastScene()
+                        },
+                        onPin = { pinningScene = it },
+                        // A scene needs every device it touches (sceneOwners): the dock's rule.
+                        downReason = { scene ->
+                            state.downOwner(sceneOwners(scene))?.let { (owner, link) -> controlLinkReason(link, owner, state) }
+                        },
+                        modifier = Modifier.padding(vertical = 4.dp),
+                    )
+                }
+
+                // The thumb reaches about half the screen (Erwann, 2026-10-24): the pad and the rail
+                // stand low, one height side by side, the mode switch a glyph on the pad's corner,
+                // and the free room goes above them to the card (placePad). One size (Erwann, 2026-10-30).
+                val large = layout.padOnScreen == PadSize.LARGE
+                val railGap = if (large) 8.dp else 12.dp
+                val showing = heldCardShowing(state)
+                Column(
+                    Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .padding(horizontal = if (large) 8.dp else 16.dp),
                 ) {
-                    row.forEach { button ->
+                    BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
+                        val place = placePad(maxHeight.value, (maxWidth - railGap - RAIL_WIDTH).value, layout.padOnScreen, LocalDensity.current.fontScale, pointer = pointerPad)
+                        val shown = showing?.takeIf { place.card.size != CardSize.HIDDEN }
+                        SideEffect { cardShown = shown != null }
+                        // The card centres in the room above the pad (Erwann, 2026-10-24: the band
+                        // must read as meant, not as a void), full width less 16 dp margins.
+                        if (shown != null) {
+                            Box(
+                                Modifier
+                                    .align(Alignment.TopStart)
+                                    .fillMaxWidth()
+                                    .height(place.cardRoom.dp)
+                                    .padding(horizontal = if (large) 8.dp else 0.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                NowShowingCard(
+                                    showing = shown,
+                                    fit = place.card,
+                                    tvName = state.devices.tv?.name.orEmpty(),
+                                    appIcons = state.appIcons,
+                                    // The TV alone; the bar plays on (CEC may still move it to the TV input).
+                                    onWakeTv = { controller.power(PowerTarget.TV, on = true) },
+                                    waking = state.waking,
+                                    cast = castNowPlaying,
+                                    timer = gentleTimer?.let { timer ->
+                                        stringResource(
+                                            if (gentleOffTomorrow(gentleNow, timer.endsAt)) R.string.gentle_off_card_tomorrow else R.string.gentle_off_card,
+                                            android.text.format.DateFormat.getTimeFormat(context).format(java.util.Date(timer.endsAt)),
+                                            gentleOffSpan(gentleNow, timer.endsAt),
+                                        )
+                                    },
+                                    onOpen = when (cardTap(shown, targets.computerOnInput != null)) {
+                                        CardTap.PLAYBACK -> {
+                                            {
+                                                haptics.click()
+                                                playbackFor = shown
+                                            }
+                                        }
+                                        CardTap.CONTROL_COMPUTER -> {
+                                            {
+                                                haptics.click()
+                                                targets.computerOnInput?.let { target.setTarget(it.id) }
+                                            }
+                                        }
+                                        CardTap.NONE -> null
+                                    },
+                                    controls = targets.computerOnInput?.name?.takeIf { cardTap(shown, true) == CardTap.CONTROL_COMPUTER },
+                                    onActions = cardActionsApp(shown)?.let {
+                                        {
+                                            haptics.longPress()
+                                            actionsFor = shown
+                                        }
+                                    },
+                                )
+                            }
+                        }
+                        // The hand picks the pad's side once (Erwann, 2026-10-24: right by default): the pad
+                        // under that thumb, the rail on the other side, the switch in the pad's corner facing
+                        // the rail. TalkBack always reads the pad, then the rail, whichever side each stands on.
+                        val padOnRight = layout.hand.padOnRight
+                        val density = LocalDensity.current
+                        val padLink = state.controlLink(Owner.TV)
+                        val padReason = controlLinkReason(padLink, Owner.TV, state)
+                        val pointer = @Composable { m: Modifier ->
+                            PointerPad(
+                                mode = btMode,
+                                onMove = { target.move(it) },
+                                onClick = target::click,
+                                onNextMode = { pickPadMode(nextPadMode(btMode, bluetooth = true)) },
+                                onPickMode = ::pickPadMode,
+                                modifier = m.semantics { traversalIndex = 0f },
+                                stripOnLeft = !padOnRight,
+                                down = targets.link == RemoteLink.NONE,
+                                downReason = linkDown,
+                                gyroReason = gyroWhy,
+                            )
+                        }
+                        val pad = @Composable { m: Modifier ->
+                            if (pointerPad) pointer(m) else Pad(
+                                down = if (routed) targets.link == RemoteLink.NONE else padLink.down,
+                                downReason = if (routed) linkDown else padReason,
+                                mode = if (routed) PadMode.DPAD else state.prefs.padMode,
+                                onKey = { if (routed || !tvAsleepAlone(it)) sendKey(it) },
+                                onSelectHold = { down -> if (!down || routed || !tvAsleepAlone()) holdSelect(down) },
+                                onDirectionHold = { code, down -> if (!down || routed || !tvAsleepAlone(code)) holdDirection(code, down) else false },
+                                onHoldRenew = ::renewHold,
+                                onPlayPause = { if (routed || !tvAsleepAlone(V2Key.MEDIA_PLAY_PAUSE)) sendKey(V2Key.MEDIA_PLAY_PAUSE) },
+                                onVolumeStep = controller::volumeStep,
+                                onSkip = { if (routed || !tvAsleepAlone()) sendKey(skipKey(it)) },
+                                onModeChange = if (routed) {
+                                    { pickPadMode(it) }
+                                } else {
+                                    controller::setPadMode
+                                },
+                                volume = state.volume.takeIf { state.bar.connected },
+                                volumeCap = state.volumeCap,
+                                volumeLandmarks = state.volumeLandmarks,
+                                switchOnLeft = layout.hand.switchOnLeft,
+                                modifier = m
+                                    .semantics { traversalIndex = 0f }
+                                    // A swipe from the pad's outer edge steps rather than going back.
+                                    .systemGestureExclusion { coords ->
+                                        val px = coords.size
+                                        with(density) {
+                                            padEdgeExclusion(
+                                                width = px.width.toFloat(),
+                                                height = px.height.toFloat(),
+                                                edgeOnRight = padOnRight,
+                                                strip = PAD_EXCLUSION_STRIP.dp.toPx(),
+                                                tall = PAD_EXCLUSION_TALL.dp.toPx(),
+                                            )
+                                        }
+                                    },
+                            )
+                        }
+                        // The rail fills the row: the pad's height, top and foot, the same in either mode
+                        // (Erwann, 2026-10-24: "la taille du volume devrait être toujours la même").
+                        val rail = @Composable {
+                            VolumeRail(
+                                volume = state.volume,
+                                cap = state.volumeCap,
+                                muted = state.muted,
+                                enabled = state.bar.connected,
+                                onVolume = controller::setVolume,
+                                onStep = controller::volumeStep,
+                                onMute = controller::toggleMute,
+                                modifier = Modifier.semantics { traversalIndex = 1f },
+                                guardLine = state.volumeGuardLine,
+                                landmarks = state.volumeLandmarks,
+                                onOpenLevel = {
+                                    haptics.click()
+                                    volumeSheet = true
+                                },
+                            )
+                        }
+                        Row(
+                            Modifier
+                                .align(Alignment.BottomStart)
+                                .padding(bottom = place.below.dp)
+                                .fillMaxWidth()
+                                .height(place.height.dp)
+                                .semantics { isTraversalGroup = true },
+                        ) {
+                            if (padOnRight) {
+                                rail()
+                                Spacer(Modifier.width(railGap))
+                                pad(Modifier.weight(1f).fillMaxHeight())
+                            } else {
+                                pad(Modifier.weight(1f).fillMaxHeight())
+                                Spacer(Modifier.width(railGap))
+                                rail()
+                            }
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(12.dp))
+                Dock(
+                    state = state,
+                    onRun = { _, slot ->
+                        // A bar toggle with no bar to answer is refused, not guessed: the Sound
+                        // tile's bump, and the pin's dashed badge already says why.
+                        when (pinToggle(slot.primary, state.bar, state.devices.bar != null)) {
+                            PinToggle.Unreachable, PinToggle.NoBar -> haptics.bump()
+                            else -> when (val action = slot.primary) {
+                                // Apps and Keys are pins now (2026-10-28): they open their sheet here.
+                                DockAction.OpenApps -> sheet2 = RemoteSheet.APPS
+                                DockAction.OpenKeys -> sheet2 = RemoteSheet.KEYS
+                                // A pinned key follows the target like the remote's own keys.
+                                is DockAction.Key -> if (routed && !action.long) sendKey(action.keyCode) else controller.run(action)
+                                null -> Unit
+                                else -> controller.run(action)
+                            }
+                        }
+                    },
+                    onEdit = { index ->
+                        picker = PickerTarget.Edit(index)
+                    },
+                    // An empty dock's one way in: the same editor as ⋮ › Edit dock and Settings.
+                    onCustomise = { onEditingChange(true) },
+                    onRunSecondary = { _, action ->
+                        haptics.click()
+                        when (action) {
+                            DockAction.OpenApps -> sheet2 = RemoteSheet.APPS
+                            DockAction.OpenKeys -> sheet2 = RemoteSheet.KEYS
+                            else -> controller.run(action)
+                        }
+                    },
+                    // The remote's own keys, the row until 2026-10-29: the same live key, drawn as a pin.
+                    remoteKey = { button, keyModifier ->
                         LiveRowButton(
                             button = button,
                             state = state,
                             controller = controller,
                             haptics = haptics,
-                            keyboardOpen = keyboardOpen,
-                            onKeyboard = {
-                                if (keyboardOpen) {
-                                    controller.dismissKeyboard()
-                                    keyboardRequested = false
-                                } else {
-                                    keyboardRequested = true
-                                }
-                            },
+                            fieldWaiting = input.fieldWaiting,
+                            onKeyboard = { input = InputRules.keyboardKey(input) },
                             onSecondary = ::secondary,
                             size = ROW_BUTTON,
+                            onKey = ::sendKey,
+                            keyDown = ::keyDown,
+                            keyDownReason = computerUnavailable,
+                            keyMeaning = ::keyMeaning,
+                            onInputs = { sheet2 = RemoteSheet.INPUTS },
+                            modifier = keyModifier,
+                            pin = true,
                         )
-                    }
-                }
-            }
-
-            if (!keyboardOpen) {
-                Spacer(Modifier.height(12.dp))
-                Dock(
-                    state = state,
-                    onApps = {
-                        sheet2 = RemoteSheet.APPS
-                    },
-                    onKeys = {
-                        sheet2 = RemoteSheet.KEYS
-                    },
-                    onRun = { _, slot ->
-                        slot.primary?.let(controller::run)
-                    },
-                    onAssign = { index ->
-                        picker = PickerTarget.Slot(index)
-                    },
-                    onEdit = { index ->
-                        picker = PickerTarget.Edit(index)
-                    },
-                    onRunSecondary = { _, action ->
-                        haptics.click()
-                        controller.run(action)
                     },
                 )
+                // Pins that didn't fit when the row joined: said once in words, until he decides.
+                if (state.dock.spare.isNotEmpty()) {
+                    TextButton(
+                        onClick = { onEditingChange(true) },
+                        modifier = Modifier.align(Alignment.CenterHorizontally).heightIn(min = 48.dp),
+                    ) {
+                        Text(stringResource(R.string.dock_spare_notice, state.dock.spare.size), style = MaterialTheme.typography.labelLarge)
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
             }
-            Spacer(Modifier.height(12.dp))
         }
     }
 
+    if (connectionsSheet) {
+        // A pill that says something is wrong lands on that device's line (problemLine).
+        val barOffer by controller.barAddressOffer.collectAsState()
+        val connDevices = connections(connInput(state, targets, barOffer = barOffer != null, lanCantAsk = lanCantAsk))
+        ConnectionsSheet(
+            devices = connDevices,
+            focus = problemLine(connDevices),
+            onAction = { device, action ->
+                connectionsSheet = false
+                when (action) {
+                    ConnAction.WAKE_TV -> controller.power(PowerTarget.TV, on = true)
+                    ConnAction.CONTROL -> target.setTarget(device.id)
+                    ConnAction.USE_NEW_ADDRESS -> controller.useBarAddressOffer()
+                    // Local: the grant closes the loop here, no route through Settings.
+                    ConnAction.LAN_REQUEST -> askLanAccess()
+                    ConnAction.LAN_OPEN_SETTINGS -> openLanSettings()
+                    else -> onConnectionStep(action)
+                }
+            },
+            onOpenSettings = {
+                connectionsSheet = false
+                onOpenSettings()
+            },
+            onDismiss = { connectionsSheet = false },
+        )
+    }
+
+    if (targetSheet) {
+        TargetSheet(
+            rows = targetRows(targets, tvInput = state.tv.input, tvPowered = tvPowered(state), ipControl = state.ipControlSet),
+            onPick = { row ->
+                target.setTarget(row.id)
+                targetSheet = false
+            },
+            onShowOnTv = { row ->
+                haptics.select()
+                target.showOnTv(row.id)
+                targetSheet = false
+            },
+            onDismiss = { targetSheet = false },
+        )
+    }
+
+    if (powerSheet) {
+        // Live: asked again each time tutti comes back to the front, so granting exact alarms on the
+        // system page (one tap away) clears the "late" line at once, and a running timer turns exact.
+        var exactAllowed by remember { mutableStateOf(SleepTimers.exactAllowed(context)) }
+        androidx.lifecycle.compose.LifecycleResumeEffect(context) {
+            exactAllowed = SleepTimers.exactAllowed(context)
+            SleepTimers.refreshExact(context)
+            onPauseOrDispose {}
+        }
+        // The sleep key comes from the TV's IRCC list, which only TV settings load: ask once.
+        LaunchedEffect(Unit) { controller.loadSleepTimer() }
+        val powerPinner = rememberDockPinner(state, controller)
+        val pinScreenOff = stringResource(R.string.screen_off_title)
+        val pinScreenBack = stringResource(R.string.screen_off_back)
+        PowerSheet(
+            screen = screenOffRow(
+                ipControl = state.ipControlSet,
+                supported = state.tv.settings.powerSavingSupported,
+                loaded = state.tv.settings.loaded,
+                powerSaving = state.tv.settings.powerSaving,
+                restOnline = state.links.rest == Link.ONLINE,
+                tvPowered = tvPowered(state),
+                downReason = stringResource(R.string.power_sleep_down),
+                standbyReason = stringResource(R.string.power_sleep_standby),
+            ),
+            onScreen = { off ->
+                haptics.click()
+                controller.setPictureOff(off)
+            },
+            onPinScreen = { off -> powerPinner.request(DockAction.PictureOff(off), if (off) pinScreenOff else pinScreenBack) },
+            sleep = sleepTimerRow(
+                sleepCode = state.tv.settings.sleepCode,
+                restOnline = state.links.rest == Link.ONLINE,
+                tvPowered = tvPowered(state),
+                downReason = stringResource(R.string.power_sleep_down),
+                standbyReason = stringResource(R.string.power_sleep_standby),
+            ),
+            onSleep = {
+                haptics.click()
+                controller.pressSleepTimer()
+            },
+            choices = powerChoices(
+                hasTv = state.devices.tv != null,
+                tvPowered = tvPowered(state),
+                hasBar = state.devices.bar != null,
+                barPowered = barPowered(state),
+                powered = state.powered,
+            ),
+            onChoose = { choice ->
+                haptics.select()
+                controller.power(choice.target, choice.on)
+                powerSheet = false
+            },
+            onDismiss = { powerSheet = false },
+            gentle = gentleOffRow(
+                hasDevice = state.devices.tv != null || state.devices.bar != null,
+                powered = state.powered,
+                running = gentleTimer,
+                offReason = stringResource(R.string.gentle_off_all_off),
+            ),
+            now = gentleNow,
+            exactAllowed = exactAllowed,
+            onGentle = { minutes ->
+                haptics.select()
+                SleepTimers.start(context, minutes)
+                powerSheet = false
+            },
+            onGentleAt = { endsAt ->
+                haptics.select()
+                SleepTimers.startAt(context, endsAt)
+                powerSheet = false
+            },
+            onGentleCancel = {
+                haptics.click()
+                SleepTimers.cancel(context)
+            },
+            episodeOffered = io.kud.tutti.protocol.sleep.EpisodeEnd.offered(castNowPlaying, gentleNow),
+            onGentleEpisode = {
+                haptics.select()
+                SleepTimers.startEpisode(context)
+                powerSheet = false
+            },
+            onAllowExact = SleepTimers.exactSettings(context)?.let { page ->
+                {
+                    runCatching { context.startActivity(page) }
+                    Unit
+                }
+            },
+        )
+    }
+
+    if (volumeSheet) {
+        VolumeSheet(
+            state = state,
+            onSet = { controller.setVolume(it) },
+            onSavePreset = controller::saveVolumePreset,
+            onCap = controller::setTonightCap,
+            onClearCap = controller::clearTonightCap,
+            onDismiss = { volumeSheet = false },
+        )
+    }
+    // The high-volume guard's question, over the remote or the volume sheet alike.
+    state.volumeAsk?.let { ask ->
+        VolumeGuardDialog(
+            ask = ask,
+            onGo = {
+                haptics.confirm()
+                controller.confirmLoud()
+            },
+            onStay = {
+                haptics.select()
+                controller.stayBelowGuard()
+            },
+        )
+    }
+    val pinToSlot = rememberPinToSlot(state, controller)
+    val hideApp = rememberHideApp(controller)
+    pinningScene?.let { id ->
+        val scene = state.scenes.firstOrNull { it.scene.id == id }?.scene
+        if (scene != null) {
+            ScenePinDialog(
+                sceneName = scene.name,
+                state = state,
+                onPick = { slot ->
+                    pinToSlot(slot, DockAction.RunScene(id), scene.name)
+                    pinningScene = null
+                },
+                onDismiss = { pinningScene = null },
+            )
+        }
+    }
+
+    val liveCard = heldCardShowing(state)
+    val keysPinner = rememberDockPinner(state, controller)
+    playbackFor?.let { opened ->
+        // Per opening: a refusal said in the picker goes with the sheet.
+        val speedControl = rememberSpeedControl()
+        PlaybackSheet(
+            showing = liveCard?.takeIf(::cardOpensPlayback) ?: opened,
+            tvName = state.devices.tv?.name.orEmpty(),
+            appIcons = state.appIcons,
+            downReason = controlLinkReason(state.controlLink(Owner.TV), Owner.TV, state),
+            onKey = { code ->
+                haptics.click()
+                sheetKey(code) { playbackFor = null }
+            },
+            onDismiss = { playbackFor = null },
+            cast = castNowPlaying,
+            onScrub = { code -> sendKey(code) },
+            speedChip = { shown ->
+                SpeedChip(shown, castSpeedRefused, controlLinkReason(state.controlLink(Owner.TV), Owner.TV, state), speedControl)
+            },
+            speedPicker = { shown -> SpeedPicker(shown, speedControl) { rate -> controller.setCastSpeed(rate) } },
+            sayAgainChip = { shown ->
+                SayAgainChip(
+                    cast = shown,
+                    refused = castSeekRefused,
+                    seconds = io.kud.tutti.protocol.cast.CastSayAgain.seconds(state.prefs.sayAgainSeconds),
+                    downReason = controlLinkReason(state.controlLink(Owner.TV), Owner.TV, state),
+                ) { seconds ->
+                    haptics.click()
+                    controller.sayAgain(seconds)
+                }
+            },
+            watchChips = {
+                val showing = liveCard?.takeIf(::cardOpensPlayback) ?: opened
+                WatchShareChips(
+                    watchingAt = { now -> watchingOf(showing, castNowPlaying, now) },
+                    artworkAt = { leadArtwork(showing, castNowPlaying) },
+                    trakt = state.prefs.allows(NonFreeFeature.TRAKT_LINK),
+                    justWatch = state.prefs.allows(NonFreeFeature.JUSTWATCH_LINK),
+                    imdb = state.prefs.allows(NonFreeFeature.IMDB_LINK),
+                )
+            },
+            details = when {
+                state.prefs.allows(NonFreeFeature.TITLE_DETAILS) -> { playing -> TitleDetailsSection(playing) }
+                FreeServices.offers(state.prefs.onlyFreeServices, state.prefs.titleDetails, state.prefs.titleDetailsOfferDeclined) ->
+                    { playing -> TitleDetailsOffer(playing, onEnable = { controller.setTitleDetails(true) }, onDecline = controller::declineTitleDetailsOffer) }
+                else -> null
+            },
+            appShortcuts = {
+                val showing = liveCard?.takeIf(::cardOpensPlayback) ?: opened
+                val reason = controlLinkReason(state.controlLink(Owner.TV), Owner.TV, state)
+                val sendAndClose: (Int) -> Unit = { code ->
+                    haptics.click()
+                    sheetKey(code) { playbackFor = null }
+                }
+                PlaybackChipRow(Modifier.fillMaxWidth()) {
+                    if (inAppSearchKey(showing)) InAppSearchChip(reason, sendAndClose)
+                    for (shortcut in playbackShortcuts(showing).orEmpty()) {
+                        ShortcutChip(shortcut, reason) {
+                            haptics.click()
+                            controller.openAppLink(it.link)
+                            playbackFor = null
+                        }
+                    }
+                    if (globalSearchOffered(showing)) GlobalSearchChip(reason, sendAndClose)
+                }
+            },
+        )
+    }
+    actionsFor?.let { opened ->
+        val showing = liveCard?.takeIf { cardActionsApp(it) != null } ?: opened
+        val app = cardActionsApp(showing)
+        if (app != null) {
+            val pinnedAt = pinnedIndex(state.dock, app.packageName)
+            AppActionsSheet(
+                showing = showing,
+                app = app,
+                tvName = state.devices.tv?.name.orEmpty(),
+                appIcons = state.appIcons,
+                actions = appActions(pinnedAt, state.ipControlSet),
+                pinnedAt = pinnedAt,
+                closeDown = state.links.rest != Link.ONLINE,
+                onPin = {
+                    haptics.click()
+                    pinningNow = app
+                },
+                onUnpin = {
+                    haptics.select()
+                    pinnedAt?.let { controller.saveSlot(it, DockSlot()) }
+                    actionsFor = null
+                },
+                onHide = {
+                    hideApp(app.packageName, app.name)
+                    actionsFor = null
+                },
+                onCloseApps = {
+                    haptics.confirm()
+                    controller.closeTvApps()
+                    actionsFor = null
+                },
+                onDismiss = { actionsFor = null },
+            )
+        }
+    }
+    pinningNow?.let { app ->
+        PinDialog(
+            app = state.apps.firstOrNull { it.packageName == app.packageName } ?: KnownApp(app.packageName, app.name),
+            state = state,
+            onPick = { slot ->
+                pinToSlot(slot, DockAction.LaunchApp(app.packageName, app.name), app.name)
+                pinningNow = null
+                actionsFor = null
+            },
+            onDismiss = { pinningNow = null },
+        )
+    }
+
     when (sheet2) {
+        // The mic from the ⋮ while no pin holds it: the same hold-to-talk key, large, in a sheet.
+        RemoteSheet.VOICE -> VoiceSheet(state, controller, onDismiss = { sheet2 = null })
         RemoteSheet.APPS -> AppsSheet(
             state = state,
-            onLaunch = { app ->
-                haptics.click()
-                controller.launchApp(app.packageName)
-                sheet2 = null
-            },
+            // The tile plays its own click on down and confirm or reject on the outcome.
+            onLaunch = { app -> controller.launchAppAsSet(app.packageName) },
+            onLaunched = { sheet2 = null },
             onAllApps = {
                 haptics.click()
                 controller.openAllApps()
                 sheet2 = null
             },
-            onPin = { app, index ->
-                haptics.longPress()
-                controller.assignDock(index, DockAction.LaunchApp(app.packageName, app.name), state.dock.slots.getOrNull(index)?.secondary)
-            },
+            onPin = { app, index -> pinToSlot(index, DockAction.LaunchApp(app.packageName, app.name), app.name) },
+            onHide = { app -> hideApp(app.packageName, app.name) },
+            onSetDestination = { app, link -> controller.setAppDestination(app.packageName, link) },
+            onTryLink = { link -> controller.probeLink(link) },
             onDismiss = { sheet2 = null },
+            recents = recentApps,
+            inputs = tvInputsRow(
+                ipControl = state.ipControlSet,
+                inputs = state.tv.inputs,
+                currentUri = state.tv.input,
+                restOnline = state.links.rest == Link.ONLINE,
+                tvPowered = tvPowered(state),
+                downReason = stringResource(R.string.power_sleep_down),
+                standbyReason = stringResource(R.string.power_sleep_standby),
+                computerInputs = computerInputs,
+            ),
+            // Picked like an app: it switches and the sheet goes, the card showing the input.
+            onInput = { uri ->
+                haptics.select()
+                controller.switchInput(uri)
+                sheet2 = null
+            },
+            onPinInput = { uri, name ->
+                haptics.longPress()
+                keysPinner.request(DockAction.Input(uri, name), name)
+            },
+        )
+        // The Input button's tap (Erwann, 2026-10-26): the Apps sheet's inputs as a list, and the
+        // TV's own input menu below them. Picked like there: it switches and the sheet goes.
+        RemoteSheet.INPUTS -> InputSheet(
+            sheet = tvInputSheet(
+                ipControl = state.ipControlSet,
+                inputs = state.tv.inputs,
+                currentUri = state.tv.input,
+                restOnline = state.links.rest == Link.ONLINE,
+                tvPowered = tvPowered(state),
+                noIpReason = stringResource(R.string.tv_input_no_ip),
+                downReason = stringResource(R.string.power_sleep_down),
+                standbyReason = stringResource(R.string.power_sleep_standby),
+                unlistedReason = stringResource(R.string.tv_input_unlisted),
+                computerInputs = computerInputs,
+            ),
+            onInput = { uri ->
+                haptics.select()
+                controller.switchInput(uri)
+                sheet2 = null
+            },
+            onPin = { uri, name ->
+                haptics.longPress()
+                keysPinner.request(DockAction.Input(uri, name), name)
+            },
+            onTvMenu = { sheetKey(V2Key.TV_INPUT) { sheet2 = null } },
+            onDismiss = { sheet2 = null },
+            onOpen = { if (state.ipControlSet) controller.refreshInputs() },
         )
         RemoteSheet.KEYS -> MoreKeysSheet(
-            state = state,
-            onKey = {
-                controller.key(it)
-            },
-            onLaunch = {
-                controller.launchApp(it)
-            },
+            onKey = { code -> sheetKey(code) { sheet2 = null } },
             onDismiss = { sheet2 = null },
+            pin = KeyPin(enabled = !state.controlLink(Owner.TV).down) { code, name -> keysPinner.request(DockAction.Key(code), name) },
+            downReason = controlLinkReason(state.controlLink(Owner.TV), Owner.TV, state),
         )
         null -> Unit
     }
 
+    if (gesturesSheet) GesturesSheet(onDismiss = { gesturesSheet = false })
+
     when (val target = picker) {
-        is PickerTarget.Slot -> ActionPickerSheet(
-            title = stringResource(R.string.dock_assign_title, target.index + 1),
-            state = state,
-            allowRemove = state.dock.slots.getOrNull(target.index)?.primary != null,
-            onPick = { action ->
-                controller.assignDock(target.index, action, state.dock.slots.getOrNull(target.index)?.secondary)
-                picker = null
-            },
-            onLoadTv = controller::loadTvSettings,
-            onDismiss = { picker = null },
-        )
         is PickerTarget.LongPress -> ActionPickerSheet(
             title = stringResource(R.string.longpress_assign_title, secondaryLabel(target.button)),
             state = state,
@@ -358,6 +1278,22 @@ fun RemoteScreen(
             onLoadTv = controller::loadTvSettings,
             onDismiss = { picker = null },
         )
+        is PickerTarget.Kind -> ActionPickerSheet(
+            title = stringResource(R.string.layout_kind_pick_title, stringResource(target.kind.label), target.index + 1),
+            state = state,
+            allowRemove = false,
+            onPick = { action ->
+                if (action != null) {
+                    haptics.confirm()
+                    controller.placeDockPin(target.index, DockSlot(action))
+                }
+                picker = null
+            },
+            onLoadTv = controller::loadTvSettings,
+            onDismiss = { picker = null },
+            sheets = true,
+            only = target.kind,
+        )
         is PickerTarget.Edit -> PinEditorSheet(
             index = target.index,
             slot = state.dock.slot(target.index),
@@ -368,14 +1304,10 @@ fun RemoteScreen(
             },
             onLoadTv = controller::loadTvSettings,
             onDismiss = { picker = null },
+            onTryLink = { link -> controller.probeLink(link) },
             onTry = { action ->
                 haptics.click()
                 controller.run(action)
-            },
-            onAddPage = controller::addDockPage,
-            onRemovePage = { page ->
-                controller.removeDockPage(page)
-                picker = null
             },
             onEditLayout = if (editing) {
                 null
@@ -390,24 +1322,60 @@ fun RemoteScreen(
     }
 }
 
+/**
+ * The local-network permission's banner (Android 17): one line under the top bar, on the same
+ * words as the sheet's step ([ConnAction.LAN_REQUEST]). While a dialog may still come the ask
+ * launches one; after a refusal the system never shows again, the button opens tutti's page.
+ */
+@Composable
+private fun LanBanner(asks: Boolean, onAllow: () -> Unit, modifier: Modifier = Modifier) {
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHighest,
+        contentColor = MaterialTheme.colorScheme.onSurface,
+        modifier = modifier.fillMaxWidth(),
+    ) {
+        Row(
+            Modifier.padding(start = 16.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Icon(
+                painterResource(R.drawable.ic_warning),
+                contentDescription = stringResource(R.string.conn_needs_permission),
+                tint = MaterialTheme.colorScheme.error,
+                modifier = Modifier.size(20.dp),
+            )
+            Text(
+                stringResource(R.string.conn_banner_lan),
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.weight(1f).padding(vertical = 10.dp),
+            )
+            TextButton(onClick = onAllow, modifier = Modifier.heightIn(min = 48.dp)) {
+                Text(stringResource(if (asks) R.string.conn_action_lan_allow else R.string.conn_action_lan_open_settings))
+            }
+        }
+    }
+}
+
 @Composable
 fun secondaryLabel(button: SecondaryButton): String = when (button) {
     SecondaryButton.HOME -> stringResource(R.string.action_home)
     SecondaryButton.BACK -> stringResource(R.string.action_back)
     SecondaryButton.PLAY -> stringResource(R.string.action_play_pause)
+    SecondaryButton.INPUT -> stringResource(R.string.row_input)
 }
 
-/** A compact pad's share of the height the normal one fills. */
-private const val COMPACT_SHARE = 0.78f
-
 /** The full-height sheets the bottom row's doors open. */
-private enum class RemoteSheet { APPS, KEYS }
+private enum class RemoteSheet { APPS, KEYS, INPUTS, VOICE }
 
-/** Between the pad's edge and the mode switch. */
-private val SWITCH_GAP = 14.dp
+/** How far the input view rises when the TV opens it. */
+private val INPUT_RISE = 24.dp
 
-/** At least this much between the mode switch's bottom edge and the button row under it. */
-private val SWITCH_CLEARANCE = 32.dp
+/** Back to the remote: a plain cross-fade. */
+private const val INPUT_BACK_MS = 200
 
 /** The “Son” handle and its one-line summary. */
 private val SHEET_PEEK = 72.dp
+
+/** The bar's two film-night switches, repeated in the playback sheet (benchmark item 5). */

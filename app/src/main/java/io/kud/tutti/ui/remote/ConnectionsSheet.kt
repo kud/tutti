@@ -1,0 +1,239 @@
+package io.kud.tutti.ui.remote
+
+import io.kud.tutti.ui.common.Status
+import androidx.annotation.DrawableRes
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import io.kud.tutti.R
+import io.kud.tutti.protocol.devices.DeviceKind
+import io.kud.tutti.ui.common.StatusLine
+import io.kud.tutti.ui.common.TuttiSheet
+
+@DrawableRes
+private fun DeviceKind.glyph(): Int = when (this) {
+    DeviceKind.TV -> R.drawable.ic_tv
+    DeviceKind.SOUNDBAR -> R.drawable.ic_speaker
+    DeviceKind.COMPUTER -> R.drawable.ic_laptop
+}
+
+@Composable
+private fun linkName(link: ConnLink): String = stringResource(
+    when (link) {
+        ConnLink.GOOGLE_TV -> R.string.conn_link_google_tv
+        ConnLink.SONY_IP -> R.string.conn_link_sony_ip
+        ConnLink.NETWORK -> R.string.conn_link_network
+        ConnLink.BLUETOOTH -> R.string.conn_link_bluetooth
+    },
+)
+
+@Composable
+internal fun stateWords(words: ConnWords): String = stringResource(
+    when (words) {
+        ConnWords.CONNECTED -> R.string.conn_connected
+        ConnWords.CONNECTING -> R.string.conn_connecting
+        ConnWords.RECONNECTING -> R.string.conn_reconnecting
+        ConnWords.STANDBY -> R.string.conn_standby
+        ConnWords.NOT_SET_UP -> R.string.conn_not_set_up
+        ConnWords.UNREACHABLE -> R.string.conn_unreachable
+        ConnWords.KEY_REFUSED -> R.string.conn_key_refused
+        ConnWords.CODE_TO_RENEW -> R.string.conn_code_to_renew
+        ConnWords.NEEDS_PAIRING -> R.string.conn_needs_pairing
+        ConnWords.READY -> R.string.conn_ready
+        ConnWords.NOT_PAIRED -> R.string.conn_not_paired
+        ConnWords.BLUETOOTH_OFF -> R.string.conn_bluetooth_off
+        ConnWords.NEEDS_PERMISSION -> R.string.conn_needs_permission
+        ConnWords.BUSY -> R.string.conn_busy
+        ConnWords.NOT_ADDED -> R.string.conn_not_added
+        ConnWords.MOVED -> R.string.conn_moved
+    },
+)
+
+/** What a link gives, in the remote's own words, so the reader knows what a missing one costs. */
+@Composable
+private fun gives(kind: DeviceKind, link: ConnLink): String = stringResource(
+    when (link) {
+        ConnLink.GOOGLE_TV -> R.string.conn_gives_google_tv
+        ConnLink.SONY_IP -> R.string.conn_gives_sony_ip
+        ConnLink.NETWORK -> R.string.conn_gives_bar
+        ConnLink.BLUETOOTH -> if (kind == DeviceKind.COMPUTER) R.string.conn_gives_bt_computer else R.string.conn_gives_bt_tv
+    },
+)
+
+@Composable
+private fun actionLabel(action: ConnAction): String = stringResource(
+    when (action) {
+        ConnAction.WAKE_TV -> R.string.card_wake_tv_short
+        ConnAction.PAIR_TV, ConnAction.PAIR_COMPUTER -> R.string.conn_action_pair
+        ConnAction.SET_UP_IP -> R.string.conn_action_set_up
+        ConnAction.ADD_BAR -> R.string.conn_action_add
+        ConnAction.USE_NEW_ADDRESS -> R.string.conn_action_use_address
+        ConnAction.CONTROL -> R.string.conn_action_control
+        ConnAction.OPEN_DEVICES -> R.string.conn_action_devices
+        ConnAction.LAN_REQUEST -> R.string.conn_action_lan_allow
+        ConnAction.LAN_OPEN_SETTINGS -> R.string.conn_action_lan_open_settings
+    },
+)
+
+/**
+ * The « Connexions » sheet, from the device pill (Erwann, 2026-10-25). Which device the remote is
+ * aiming at first, then each device with each link on its own line: the state's glyph and its
+ * words, what the link gives, and its one next step, in the shared status language (`Status.kt`). TalkBack reads a line
+ * as one sentence ("Google TV, connected: keys, keyboard, apps"), the button after it. Settings
+ * stays one row away at the bottom.
+ */
+@Composable
+fun ConnectionsSheet(
+    devices: List<ConnDevice>,
+    /** The line the pill's trouble points at ([problemLine]): brought into view and set apart. */
+    focus: ConnFocus? = null,
+    onAction: (ConnDevice, ConnAction) -> Unit,
+    onOpenSettings: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    TuttiSheet(onDismissRequest = onDismiss) { ConnectionsContent(devices, focus, onAction, onOpenSettings) }
+}
+
+/** The sheet's content on its own, so the showcase can draw it without a modal window. */
+@Composable
+fun ConnectionsContent(
+    devices: List<ConnDevice>,
+    focus: ConnFocus?,
+    onAction: (ConnDevice, ConnAction) -> Unit,
+    onOpenSettings: () -> Unit,
+) {
+    Column {
+        Text(
+            stringResource(R.string.conn_title),
+            style = MaterialTheme.typography.titleLarge,
+            modifier = Modifier
+                .padding(horizontal = 24.dp, vertical = 8.dp)
+                .semantics { heading() },
+        )
+        devices.firstOrNull { it.targeted }?.name?.let { name ->
+            Text(
+                stringResource(R.string.conn_target, name),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 24.dp),
+            )
+        }
+        Column(Modifier.verticalScroll(rememberScrollState()).padding(top = 8.dp, bottom = 8.dp)) {
+            for (device in devices) DeviceBlock(device, focus) { onAction(device, it) }
+            HorizontalDivider(Modifier.padding(horizontal = 24.dp, vertical = 8.dp), color = MaterialTheme.colorScheme.outlineVariant)
+            val settings = stringResource(R.string.settings_title)
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 56.dp)
+                    .clickable(role = Role.Button, onClick = onOpenSettings)
+                    .padding(horizontal = 24.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(painterResource(R.drawable.ic_settings), null, Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.width(16.dp))
+                Text(settings, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+                Icon(painterResource(R.drawable.ic_chevron_right), null, Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+}
+
+@Composable
+private fun DeviceBlock(device: ConnDevice, focus: ConnFocus?, onAction: (ConnAction) -> Unit) {
+    val name = device.name ?: stringResource(
+        when (device.kind) {
+            DeviceKind.TV -> R.string.conn_device_tv
+            DeviceKind.SOUNDBAR -> R.string.conn_device_bar
+            DeviceKind.COMPUTER -> R.string.conn_device_computer
+        },
+    )
+    val heading = if (device.targeted) stringResource(R.string.conn_device_targeted, name) else name
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
+            .padding(start = 24.dp, end = 24.dp, top = 12.dp)
+            .semantics(mergeDescendants = true) {
+                heading()
+                contentDescription = heading
+            },
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        Icon(painterResource(device.kind.glyph()), null, Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onSurface)
+        Text(name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+    }
+    for (line in device.lines) LinkLine(device.kind, line, focused = focus == ConnFocus(device.id, line.link), onAction = onAction)
+    device.note?.let { note ->
+        // Aligned with the lines' words (52 + 12 + 18 + 10 dp, `StatusLine`), read after them by TalkBack.
+        Text(
+            stringResource(
+                when (note) {
+                    ConnNote.TV_OFF_NETWORK -> R.string.conn_note_tv_off_network
+                    ConnNote.TV_OFF_NETWORK_REMOTE_START_ON -> R.string.conn_note_tv_remote_start_on
+                    ConnNote.BAR_OFF_NETWORK -> R.string.conn_note_bar_off_network
+                    ConnNote.BAR_OFF_NETWORK_STANDBY_ON -> R.string.conn_note_bar_standby_on
+                },
+            ),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(start = 92.dp, end = 24.dp, top = 4.dp, bottom = 8.dp),
+        )
+    }
+}
+
+/**
+ * One link's status, the same line in « Connexions » and in Settings › Devices, so the two never
+ * word a state differently. Devices passes no [onAction]: its row keeps its own management buttons.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun LinkLine(kind: DeviceKind, line: ConnLine, focused: Boolean = false, start: Dp = 52.dp, onAction: ((ConnAction) -> Unit)?) {
+    // The pill's trouble: this line comes into view, its step at the thumb. Its emphasis is the
+    // status's own (design.md › Status): only a line that needs him is set apart.
+    val bring = remember { BringIntoViewRequester() }
+    if (focused) LaunchedEffect(Unit) { bring.bringIntoView() }
+    StatusLine(
+        status = line.words.mark,
+        words = stringResource(R.string.conn_line, linkName(line.link), stateWords(line.words)),
+        capability = gives(kind, line.link),
+        said = stringResource(R.string.conn_line_said, linkName(line.link), stateWords(line.words), gives(kind, line.link)),
+        modifier = Modifier.bringIntoViewRequester(bring).padding(start = start, end = 12.dp),
+        actionLabel = line.action?.takeIf { onAction != null }?.let { actionLabel(it) },
+        onAction = line.action?.let { action -> onAction?.let { { it(action) } } },
+    )
+}

@@ -21,10 +21,12 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -44,6 +46,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -53,9 +56,15 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.kud.tutti.R
+import io.kud.tutti.protocol.bravia.TvSetting
+import io.kud.tutti.ui.common.tvSoundOutputIcon
+import io.kud.tutti.ui.common.tvSoundOutputLabel
 import io.kud.tutti.controller.Link
 import io.kud.tutti.controller.TuttiUiState
 import io.kud.tutti.platform.data.DockAction
+import io.kud.tutti.platform.data.RowButton
+import io.kud.tutti.ui.common.actionIcon
+import io.kud.tutti.ui.common.actionLabel
 import io.kud.tutti.protocol.apps.AppLibrary
 import io.kud.tutti.protocol.atv.KeyGroup
 import io.kud.tutti.protocol.atv.NamedKeys
@@ -64,6 +73,7 @@ import io.kud.tutti.protocol.theatre.BarShortcuts
 import io.kud.tutti.protocol.theatre.FeatureKind
 import io.kud.tutti.protocol.theatre.TheatreFeature
 import io.kud.tutti.ui.common.AppIcon
+import io.kud.tutti.ui.common.PinnedHeader
 import io.kud.tutti.ui.common.TuttiSheet
 import io.kud.tutti.ui.common.barIcon
 import io.kud.tutti.ui.common.barValueLabel
@@ -101,9 +111,11 @@ fun ActionPickerSheet(
     onPick: (DockAction?) -> Unit,
     onLoadTv: () -> Unit,
     onDismiss: () -> Unit,
+    sheets: Boolean = false,
+    only: PinKind? = null,
 ) {
     TuttiSheet(onDismissRequest = onDismiss) {
-        ActionPickerContent(title, state, allowRemove, onPick, onLoadTv, Modifier.fillMaxHeight())
+        ActionPickerContent(title, state, allowRemove, onPick, onLoadTv, Modifier.fillMaxHeight(), sheets = sheets, only = only)
     }
 }
 
@@ -115,15 +127,18 @@ fun ActionPickerContent(
     onPick: (DockAction?) -> Unit,
     onLoadTv: () -> Unit,
     modifier: Modifier = Modifier,
+    // Apps and Keys, the remote's own sheets: only a dock pin can open them (DockAction.OpenApps).
+    sheets: Boolean = false,
+    // One kind only, from the layout editor's list of kinds (Erwann, 2026-10-30): no chips, its rows alone.
+    only: PinKind? = null,
 ) {
     // Picture modes and the TV's own keys come from the settings load: ask once IP control answers.
     LaunchedEffect(state.ipControl) {
         if (state.ipControl && !state.tv.settings.loaded && !state.tv.settings.loading) onLoadTv()
     }
     var query by rememberSaveable { mutableStateOf("") }
-    var filter by rememberSaveable { mutableStateOf<Category?>(null) }
+    var filter by rememberSaveable { mutableStateOf(only?.category) }
     var allKeys by rememberSaveable { mutableStateOf(false) }
-    val held = remember { mutableStateMapOf<Int, Boolean>() }
     val barValues = remember { mutableStateMapOf<TheatreFeature, String>() }
     val needle = fold(query.trim())
     val searching = needle.isNotEmpty()
@@ -142,9 +157,17 @@ fun ActionPickerContent(
     val pictureModes = state.tv.settings.picture.firstOrNull { it.target == "pictureMode" }
         ?.candidates.orEmpty().filter { it.isAvailable }.map { (it.title ?: it.value) to it.value }
     val ircc = state.tv.settings.ircc
+    // Sound output: offered when the TV lists setSoundSettings, readable or write-only.
+    val soundOutputs = if (state.tv.settings.outputWriteOnly || state.tv.settings.sound.any { it.target == TvSetting.OUTPUT_TERMINAL }) {
+        listOf(TvSetting.TERMINAL_AUDIO_SYSTEM, TvSetting.TERMINAL_SPEAKER)
+    } else {
+        emptyList()
+    }
+    val soundLabels = soundOutputs.associateWith { stringResource(tvSoundOutputLabel(it)) }
     val sceneRows = state.scenes.map { it.scene }
 
     val keyRows: List<Pair<KeyGroup?, List<Int>>> = when {
+        only == PinKind.CHANNELS -> listOf(null to NamedKeys.all.filter { it.isChannel }.map { it.code }.filter { matches(keyLabels.getValue(it)) })
         searching -> listOf(null to NamedKeys.all.map { it.code }.filter { matches(keyLabels.getValue(it)) })
         allKeys || filter == Category.KEYS -> KeyGroup.entries.map { group -> group to NamedKeys.all.filter { it.group == group }.map { it.code } }
         else -> listOf(null to NamedKeys.common)
@@ -154,159 +177,195 @@ fun ActionPickerContent(
     val barRows = barOffer.offered.filter { matches(barLabels.getValue(it)) }
     val pictureRows = pictureModes.filter { matches(it.first) }
     val irccRows = ircc.filter { matches(Ircc.displayName(it.name)) }
+    val soundRows = soundOutputs.filter { matches(soundLabels.getValue(it)) }
     val scenesShown = sceneRows.filter { matches(it.name) }
+    // The remote's own keys follow, the round row until 2026-10-29: pins like the rest now.
+    val sheetLabels = (listOf(DockAction.OpenApps, DockAction.OpenKeys) + RowButton.entries.filter { it != RowButton.MUTE }.map { DockAction.Remote(it) })
+        .associateWith { actionLabel(it, state) }
+    val sheetRows = if (sheets && (filter == null || only == PinKind.KEYS)) sheetLabels.keys.filter { matches(sheetLabels.getValue(it)) } else emptyList()
     val nothing = searching && keyRows.all { it.second.isEmpty() } && appRows.isEmpty() && inputRows.isEmpty() &&
-        barRows.isEmpty() && pictureRows.isEmpty() && irccRows.isEmpty() && scenesShown.isEmpty()
+        barRows.isEmpty() && pictureRows.isEmpty() && irccRows.isEmpty() && soundRows.isEmpty() && scenesShown.isEmpty() && sheetRows.isEmpty()
 
-    LazyColumn(
+    val list = rememberLazyListState()
+    // Title, search and chips are the pinned header: only the list scrolls (design.md, Sheets).
+    PinnedHeader(
+        scrolled = list.canScrollBackward,
         modifier = modifier.fillMaxWidth(),
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 32.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        item(key = "title") {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    title,
-                    style = MaterialTheme.typography.headlineSmall,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.weight(1f).semantics { heading() },
-                )
-                if (allowRemove) TextButton(onClick = { onPick(null) }) { Text(stringResource(R.string.picker_remove)) }
-            }
-        }
-        item(key = "search") {
-            TextField(
-                value = query,
-                onValueChange = { query = it },
-                singleLine = true,
-                placeholder = { Text(stringResource(R.string.picker_search), maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                leadingIcon = { Icon(painterResource(R.drawable.ic_search), contentDescription = null) },
-                shape = RoundedCornerShape(28.dp),
-                colors = TextFieldDefaults.colors(
-                    focusedIndicatorColor = Color.Transparent,
-                    unfocusedIndicatorColor = Color.Transparent,
-                    focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                ),
-                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-            )
-        }
-        item(key = "chips") {
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(Category.entries, key = { it.name }) { category ->
-                    FilterChip(
-                        selected = filter == category,
-                        onClick = { filter = if (filter == category) null else category },
-                        label = { Text(stringResource(category.label)) },
-                    )
-                }
-            }
-        }
-
-        if (nothing) {
-            item(key = "none") { Note(stringResource(R.string.picker_no_match, query.trim())) }
-        }
-
-        if (shows(Category.KEYS)) {
-            for ((group, codes) in keyRows) {
-                if (codes.isEmpty()) continue
-                header("keys-${group?.name}", R.string.picker_keys, group?.let(::keyGroupLabel))
-                items(codes, key = { "key-$it" }) { code ->
-                    val long = held[code] == true
-                    KeyRow(
-                        label = keyLabels.getValue(code),
-                        icon = keyIcon(code),
-                        long = long,
-                        onMode = { held[code] = it },
-                        onPick = { onPick(DockAction.Key(code, long)) },
-                    )
-                }
-            }
-            if (!searching && filter == null) {
-                item(key = "keys-more") {
+        header = {
+            Column(
+                Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        if (allKeys) stringResource(R.string.picker_fewer_keys) else stringResource(R.string.picker_all_keys, NamedKeys.all.size),
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .clickable { allKeys = !allKeys }
-                            .padding(vertical = 12.dp, horizontal = 4.dp),
+                        title,
+                        style = MaterialTheme.typography.headlineSmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.weight(1f).semantics { heading() },
+                    )
+                    if (allowRemove) TextButton(onClick = { onPick(null) }) { Text(stringResource(R.string.picker_remove)) }
+                }
+                TextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    singleLine = true,
+                    placeholder = { Text(stringResource(R.string.picker_search), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                    leadingIcon = { Icon(painterResource(R.drawable.ic_search), contentDescription = null) },
+                    shape = RoundedCornerShape(28.dp),
+                    colors = TextFieldDefaults.colors(
+                        focusedIndicatorColor = Color.Transparent,
+                        unfocusedIndicatorColor = Color.Transparent,
+                        focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    ),
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                )
+                if (only == null) LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(Category.entries, key = { it.name }) { category ->
+                        FilterChip(
+                            selected = filter == category,
+                            onClick = { filter = if (filter == category) null else category },
+                            label = { Text(stringResource(category.label)) },
+                            // A filter on is told by the tick, never by the container alone (2026-10-30).
+                            leadingIcon = if (filter == category) {
+                                { Icon(painterResource(R.drawable.ic_check), contentDescription = null, modifier = Modifier.size(FilterChipDefaults.IconSize)) }
+                            } else {
+                                null
+                            },
+                        )
+                    }
+                }
+            }
+        },
+    ) {
+        LazyColumn(
+            // Down to the sheet's foot, so a drag under a short result list still lands on the list.
+            modifier = Modifier.fillMaxWidth().fillMaxHeight(),
+            state = list,
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            if (nothing) {
+                item(key = "none") { Note(stringResource(R.string.picker_no_match, query.trim())) }
+            }
+
+            if (sheetRows.isNotEmpty()) {
+                header("sheets", R.string.picker_sheets)
+                items(sheetRows, key = { "sheet-${sheetLabels.getValue(it)}" }) { action ->
+                    PickRow(sheetLabels.getValue(action), actionIcon(action, state)) { onPick(action) }
+                }
+            }
+
+            if (shows(Category.KEYS)) {
+                for ((group, codes) in keyRows) {
+                    if (codes.isEmpty()) continue
+                    header("keys-${group?.name}", R.string.picker_keys, group?.let(::keyGroupLabel))
+                    items(codes, key = { "key-$it" }) { code ->
+                        // A key is pressed; holding is chosen per step in the pin's editor, never here.
+                        PickRow(keyLabels.getValue(code), keyIcon(code)) { onPick(DockAction.Key(code)) }
+                    }
+                }
+                if (!searching && filter == null && only == null) {
+                    item(key = "keys-more") {
+                        Text(
+                            if (allKeys) stringResource(R.string.picker_fewer_keys) else stringResource(R.string.picker_all_keys, NamedKeys.all.size),
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable { allKeys = !allKeys }
+                                .padding(vertical = 12.dp, horizontal = 4.dp),
+                        )
+                    }
+                }
+            }
+
+            if (shows(Category.APPS) && (appRows.isNotEmpty() || !searching)) {
+                header("apps", R.string.picker_apps)
+                items(appRows, key = { "app-${it.packageName}" }) { app ->
+                    PickRow(app.name, R.drawable.ic_apps, app = app.packageName, state = state) {
+                        onPick(DockAction.LaunchApp(app.packageName, app.name))
+                    }
+                }
+                if (hiddenApps > 0 && !searching) item(key = "apps-hidden") { Note(pluralStringResource(R.plurals.picker_apps_hidden, hiddenApps, hiddenApps)) }
+            }
+
+            if (shows(Category.INPUTS) && (inputRows.isNotEmpty() || !searching)) {
+                header("inputs", R.string.picker_inputs)
+                items(inputRows, key = { "input-${it.second}" }) { (label, uri) ->
+                    PickRow(label, R.drawable.ic_input) { onPick(DockAction.Input(uri, label)) }
+                }
+                if (inputs.isEmpty() && !state.ipControl && !searching) item(key = "inputs-why") { Note(stringResource(R.string.picker_inputs_no_ip)) }
+            }
+
+            if (shows(Category.BAR) && (barRows.isNotEmpty() || !searching)) {
+                header("bar", R.string.picker_bar)
+                items(barRows, key = { "bar-${it.key}" }) { feature ->
+                    val values = (if (feature.kind is FeatureKind.Toggle) listOf(TOGGLE) else emptyList()) + BarShortcuts.values(feature)
+                    val value = barValues[feature] ?: if (feature.kind is FeatureKind.Toggle) TOGGLE else BarShortcuts.initial(feature, state.bar)
+                    BarRow(
+                        label = barLabels.getValue(feature),
+                        icon = barIcon(feature.key),
+                        value = if (value == TOGGLE) stringResource(R.string.picker_toggle) else barValueLabel(feature, value),
+                        onStep = { delta ->
+                            val at = values.indexOf(value).coerceAtLeast(0)
+                            barValues[feature] = values[(at + delta).mod(values.size)]
+                        },
+                        onPick = { onPick(if (value == TOGGLE) DockAction.ToggleBar(feature.key) else DockAction.SetBar(feature.key, value)) },
                     )
                 }
-            }
-        }
-
-        if (shows(Category.APPS) && (appRows.isNotEmpty() || !searching)) {
-            header("apps", R.string.picker_apps)
-            items(appRows, key = { "app-${it.packageName}" }) { app ->
-                PickRow(app.name, R.drawable.ic_apps, app = app.packageName, state = state) {
-                    onPick(DockAction.LaunchApp(app.packageName, app.name))
-                }
-            }
-            if (hiddenApps > 0 && !searching) item(key = "apps-hidden") { Note(stringResource(R.string.picker_apps_hidden, hiddenApps)) }
-        }
-
-        if (shows(Category.INPUTS) && (inputRows.isNotEmpty() || !searching)) {
-            header("inputs", R.string.picker_inputs)
-            items(inputRows, key = { "input-${it.second}" }) { (label, uri) ->
-                PickRow(label, R.drawable.ic_input) { onPick(DockAction.Input(uri, label)) }
-            }
-            if (inputs.isEmpty() && !state.ipControl && !searching) item(key = "inputs-why") { Note(stringResource(R.string.picker_inputs_no_ip)) }
-        }
-
-        if (shows(Category.BAR) && (barRows.isNotEmpty() || !searching)) {
-            header("bar", R.string.picker_bar)
-            items(barRows, key = { "bar-${it.key}" }) { feature ->
-                val values = (if (feature.kind is FeatureKind.Toggle) listOf(TOGGLE) else emptyList()) + BarShortcuts.values(feature)
-                val value = barValues[feature] ?: if (feature.kind is FeatureKind.Toggle) TOGGLE else BarShortcuts.initial(feature, state.bar)
-                BarRow(
-                    label = barLabels.getValue(feature),
-                    icon = barIcon(feature.key),
-                    value = if (value == TOGGLE) stringResource(R.string.picker_toggle) else barValueLabel(feature, value),
-                    onStep = { delta ->
-                        val at = values.indexOf(value).coerceAtLeast(0)
-                        barValues[feature] = values[(at + delta).mod(values.size)]
-                    },
-                    onPick = { onPick(if (value == TOGGLE) DockAction.ToggleBar(feature.key) else DockAction.SetBar(feature.key, value)) },
-                )
-            }
-            if (!searching) {
-                when {
-                    !barOnline -> item(key = "bar-why") { Note(stringResource(R.string.picker_bar_offline)) }
-                    barOffer.hidden > 0 -> item(key = "bar-hidden") { Note(stringResource(R.string.picker_bar_hidden, barOffer.hidden)) }
-                }
-            }
-        }
-
-        if (shows(Category.TV) && (pictureRows.isNotEmpty() || irccRows.isNotEmpty() || !searching)) {
-            header("tv", R.string.picker_tv)
-            if (!state.ipControl) {
-                if (!searching) item(key = "tv-why") { Note(stringResource(R.string.picker_no_ip)) }
-            } else if (!state.tv.settings.loaded) {
-                if (!searching) item(key = "tv-loading") { Note(stringResource(R.string.picker_tv_loading)) }
-            } else {
-                if (pictureRows.isNotEmpty()) {
-                    header("tv-picture", R.string.picker_picture_mode, sub = true)
-                    items(pictureRows, key = { "picture-${it.second}" }) { (label, mode) ->
-                        PickRow(label, R.drawable.ic_tune) { onPick(DockAction.PictureMode(mode, label)) }
+                if (!searching) {
+                    when {
+                        !barOnline -> item(key = "bar-why") { Note(stringResource(R.string.picker_bar_offline)) }
+                        barOffer.hidden > 0 -> item(key = "bar-hidden") { Note(pluralStringResource(R.plurals.picker_bar_hidden, barOffer.hidden, barOffer.hidden)) }
                     }
                 }
-                if (irccRows.isNotEmpty()) {
-                    header("tv-keys", R.string.picker_tv_keys, sub = true)
-                    items(irccRows, key = { "ircc-${it.name}" }) { code ->
-                        PickRow(Ircc.displayName(code.name), R.drawable.ic_tv) { onPick(DockAction.Ircc(code.name, code.value)) }
-                    }
-                }
-                if (pictureModes.isEmpty() && ircc.isEmpty() && !searching) item(key = "tv-none") { Note(stringResource(R.string.picker_tv_none)) }
             }
-        }
 
-        if (shows(Category.SCENES) && scenesShown.isNotEmpty()) {
-            header("scenes", R.string.picker_scenes)
-            items(scenesShown, key = { "scene-${it.id}" }) { scene ->
-                PickRow(scene.name, glyphRes(scene.glyph)) { onPick(DockAction.RunScene(scene.id)) }
+            if (shows(Category.TV) && (pictureRows.isNotEmpty() || irccRows.isNotEmpty() || soundRows.isNotEmpty() || !searching)) {
+                header("tv", R.string.picker_tv)
+                if (!state.ipControl) {
+                    if (!searching) item(key = "tv-why") { Note(stringResource(R.string.picker_no_ip)) }
+                } else if (!state.tv.settings.loaded) {
+                    if (!searching) item(key = "tv-loading") { Note(stringResource(R.string.picker_tv_loading)) }
+                } else {
+                    if (pictureRows.isNotEmpty()) {
+                        header("tv-picture", R.string.picker_picture_mode, sub = true)
+                        items(pictureRows, key = { "picture-${it.second}" }) { (label, mode) ->
+                            PickRow(label, R.drawable.ic_tune) { onPick(DockAction.PictureMode(mode, label)) }
+                        }
+                    }
+                    if (soundRows.isNotEmpty()) {
+                        header("tv-sound", R.string.picker_tv_sound, sub = true)
+                        items(soundRows, key = { "sound-$it" }) { terminal ->
+                            PickRow(soundLabels.getValue(terminal), tvSoundOutputIcon(terminal)) { onPick(DockAction.TvSoundOutput(terminal)) }
+                        }
+                    }
+                    if (!searching && state.tv.settings.powerSavingSupported) {
+                        header("tv-screen", R.string.screen_off_picker, sub = true)
+                        item(key = "screen-off") {
+                            PickRow(stringResource(R.string.screen_off_title), R.drawable.ic_visibility_off) { onPick(DockAction.PictureOff(true)) }
+                        }
+                        item(key = "screen-back") {
+                            PickRow(stringResource(R.string.screen_off_back), R.drawable.ic_tv) { onPick(DockAction.PictureOff(false)) }
+                        }
+                    }
+                    if (irccRows.isNotEmpty()) {
+                        header("tv-keys", R.string.picker_tv_keys, sub = true)
+                        items(irccRows, key = { "ircc-${it.name}" }) { code ->
+                            PickRow(Ircc.displayName(code.name), R.drawable.ic_tv) { onPick(DockAction.Ircc(code.name, code.value)) }
+                        }
+                    }
+                    if (pictureModes.isEmpty() && ircc.isEmpty() && soundOutputs.isEmpty() && !state.tv.settings.powerSavingSupported && !searching) item(key = "tv-none") { Note(stringResource(R.string.picker_tv_none)) }
+                }
+            }
+
+            if (shows(Category.SCENES) && scenesShown.isNotEmpty()) {
+                header("scenes", R.string.picker_scenes)
+                items(scenesShown, key = { "scene-${it.id}" }) { scene ->
+                    PickRow(scene.name, glyphRes(scene.glyph)) { onPick(DockAction.RunScene(scene.id)) }
+                }
             }
         }
     }
@@ -322,7 +381,7 @@ private fun LazyListScope.header(key: String, @StringRes text: Int, @StringRes d
         Text(
             full.uppercase(),
             style = if (sub) MaterialTheme.typography.labelMedium else MaterialTheme.typography.labelLarge,
-            color = if (sub) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary,
+            color = if (sub) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = if (sub) 4.dp else 12.dp, start = 4.dp).semantics { heading() },
         )
     }
@@ -368,40 +427,6 @@ private fun PickRow(label: String, @DrawableRes icon: Int, app: String? = null, 
     RowCard(onPick) { RowLabel(icon, label, Modifier.weight(1f).padding(end = 8.dp), app, state) }
 }
 
-/** A key: the row picks it, the pills on the right choose a short press or a held one. */
-@Composable
-private fun KeyRow(label: String, @DrawableRes icon: Int, long: Boolean, onMode: (Boolean) -> Unit, onPick: () -> Unit) {
-    RowCard(onPick) {
-        RowLabel(icon, label, Modifier.weight(1f).padding(end = 8.dp))
-        Row(
-            Modifier.clip(RoundedCornerShape(20.dp)).background(MaterialTheme.colorScheme.surfaceContainerHighest),
-        ) {
-            Pill(stringResource(R.string.picker_press_short), selected = !long) { onMode(false) }
-            Pill(stringResource(R.string.picker_press_long), selected = long) { onMode(true) }
-        }
-    }
-}
-
-@Composable
-private fun Pill(text: String, selected: Boolean, onClick: () -> Unit) {
-    Box(
-        Modifier
-            .heightIn(min = 40.dp)
-            .widthIn(min = 64.dp)
-            .clip(RoundedCornerShape(20.dp))
-            .background(if (selected) MaterialTheme.colorScheme.primary else Color.Transparent)
-            .selectable(selected = selected, role = Role.RadioButton, onClick = onClick)
-            .padding(horizontal = 12.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text,
-            style = MaterialTheme.typography.labelLarge,
-            color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
-}
-
 /** A bar setting: the row picks it at the value the chevrons show (or "toggle" for a switch). */
 @Composable
 private fun BarRow(label: String, @DrawableRes icon: Int, value: String, onStep: (Int) -> Unit, onPick: () -> Unit) {
@@ -443,3 +468,15 @@ private fun Chevron(@DrawableRes icon: Int, description: String, onClick: () -> 
         Icon(painterResource(icon), contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
     }
 }
+
+/** The picker's section for one kind of the layout editor's list; channels are keys, sound the bar's settings. */
+private val PinKind.category: Category?
+    get() = when (this) {
+        PinKind.KEYS, PinKind.CHANNELS -> Category.KEYS
+        PinKind.APPS -> Category.APPS
+        PinKind.INPUTS -> Category.INPUTS
+        PinKind.SCENES -> Category.SCENES
+        PinKind.SOUND -> Category.BAR
+        PinKind.TV -> Category.TV
+        PinKind.STEPS -> null
+    }

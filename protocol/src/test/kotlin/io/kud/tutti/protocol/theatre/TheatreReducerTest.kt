@@ -27,6 +27,70 @@ class TheatreReducerTest {
     private val start = TheatreState(connected = true, confirmed = mapOf(volume to "20"))
 
     @Test
+    fun `a refused value rolls back and is remembered until the bar takes it`() {
+        val refused = start.on(set(1, "30"), result(1, "ERR"))
+        assertEquals("20", refused.value(TheatreFeature.VOLUME))
+        assertEquals(setOf("30"), refused.refusedValues(TheatreFeature.VOLUME))
+
+        val retried = refused.on(set(2, "30"), result(2, "ACK"))
+        assertTrue(retried.refusedValues(TheatreFeature.VOLUME).isEmpty())
+        assertTrue(refused.on(notify("30")).refusedValues(TheatreFeature.VOLUME).isEmpty())
+    }
+
+    @Test
+    fun `a set the bar never answers rolls back and counts as refused`() {
+        val timedOut = start.on(set(1, "30", now = 0), TheatreEvent.Tick(now = 2_000))
+        assertEquals("20", timedOut.value(TheatreFeature.VOLUME))
+        assertEquals(setOf("30"), timedOut.refusedValues(TheatreFeature.VOLUME))
+    }
+
+    @Test
+    fun `a late ack confirms a set already rolled back at its timeout`() {
+        val timedOut = start.on(set(1, "30", now = 0), TheatreEvent.Tick(now = 2_000))
+        assertEquals("20", timedOut.value(TheatreFeature.VOLUME))
+        val late = timedOut.on(result(1, "ACK"))
+        assertEquals("30", late.value(TheatreFeature.VOLUME))
+        assertTrue(late.refusedValues(TheatreFeature.VOLUME).isEmpty())
+        assertTrue(late.overdue.isEmpty())
+    }
+
+    @Test
+    fun `a late refusal leaves the rollback, and an overdue set is forgotten after the grace`() {
+        val timedOut = start.on(set(1, "30", now = 0), TheatreEvent.Tick(now = 2_000))
+        val refused = timedOut.on(result(1, "NAK"))
+        assertEquals("20", refused.value(TheatreFeature.VOLUME))
+        assertEquals(setOf("30"), refused.refusedValues(TheatreFeature.VOLUME))
+
+        val forgotten = timedOut.on(TheatreEvent.Tick(now = 2_000 + TheatreReducer.LATE_SET_MILLIS))
+        assertTrue(forgotten.overdue.isEmpty())
+        assertEquals("20", forgotten.on(result(1, "ACK")).value(TheatreFeature.VOLUME))
+    }
+
+    @Test
+    fun `a late ack never hides a newer pending intent`() {
+        val timedOut = start.on(set(1, "30", now = 0), TheatreEvent.Tick(now = 2_000), set(2, "40", now = 2_100))
+        val late = timedOut.on(result(1, "ACK"))
+        assertEquals("30", late.confirmed[volume])
+        assertEquals("40", late.value(TheatreFeature.VOLUME))
+    }
+
+    @Test
+    fun `a set answered with its own value echoed back is taken, not refused`() {
+        val echoed = start.on(set(1, "30"), result(1, "30", feature = volume))
+        assertEquals("30", echoed.confirmed[volume])
+        assertFalse(echoed.isPending(TheatreFeature.VOLUME))
+        assertTrue(echoed.refusedValues(TheatreFeature.VOLUME).isEmpty())
+        assertNull(echoed.lastError)
+    }
+
+    @Test
+    fun `a disconnect forgets overdue sets`() {
+        val timedOut = start.on(set(1, "30", now = 0), TheatreEvent.Tick(now = 2_000))
+        assertEquals(1, timedOut.overdue.size)
+        assertTrue(timedOut.on(TheatreEvent.Connected(false)).overdue.isEmpty())
+    }
+
+    @Test
     fun `optimistic set shows at once and is confirmed by the ack`() {
         val sent = start.on(set(1, "30"))
         assertEquals("30", sent.value(TheatreFeature.VOLUME))
@@ -119,5 +183,38 @@ class TheatreReducerTest {
     fun `malformed input leaves state untouched`() {
         val state = start.on(set(1, "30"))
         assertEquals(state, state.on(TheatreEvent.Received(TheatreInbound.Malformed("x", "not JSON"))))
+    }
+
+    @Test
+    fun `a dropped bar keeps what it reported but says nothing live`() {
+        val mute = TheatreFeature.MUTE.key
+        val power = TheatreFeature.POWER.key
+        val up = TheatreState(connected = true, confirmed = mapOf(mute to "on", power to "on", volume to "20"))
+        assertEquals(true, up.liveOn(TheatreFeature.MUTE))
+        assertEquals(20, up.liveLevel(TheatreFeature.VOLUME))
+
+        val dropped = up.on(TheatreEvent.Connected(false))
+        assertEquals("on", dropped.confirmed[mute])
+        assertTrue(dropped.supports(TheatreFeature.MUTE))
+        assertNull(dropped.liveOn(TheatreFeature.MUTE))
+        assertNull(dropped.liveOn(TheatreFeature.POWER))
+        assertNull(dropped.liveLevel(TheatreFeature.VOLUME))
+
+        val back = dropped.on(TheatreEvent.Connected(true))
+        assertEquals(true, back.liveOn(TheatreFeature.MUTE))
+    }
+
+    @Test
+    fun `a toggle press flips what the bar reported, turns on what it did not, and refuses while unreachable`() {
+        val night = TheatreFeature.NIGHT
+        val on = TheatreState(connected = true, confirmed = mapOf(night.key to "on"))
+        val off = TheatreState(connected = true, confirmed = mapOf(night.key to "off"))
+        val unreported = TheatreState(connected = true)
+        assertEquals(false, on.toggleTarget(night))
+        assertEquals(true, off.toggleTarget(night))
+        assertEquals(true, unreported.toggleTarget(night))
+        assertNull(on.on(TheatreEvent.Connected(false)).toggleTarget(night))
+        assertNull(TheatreState().toggleTarget(night))
+        assertNull(unreported.toggleTarget(TheatreFeature.VOLUME))
     }
 }

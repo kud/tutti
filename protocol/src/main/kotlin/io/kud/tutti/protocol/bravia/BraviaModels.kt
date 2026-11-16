@@ -38,6 +38,9 @@ sealed interface BraviaError {
     data class Malformed(val detail: String) : BraviaError
 
     data class Transport(val detail: String) : BraviaError
+
+    /** HTTPS answered with a certificate other than the pinned one: re-pair, never retry blindly. */
+    data object PinMismatch : BraviaError
 }
 
 sealed interface BraviaResult<out T> {
@@ -90,6 +93,10 @@ data class TvSetting(
 
         const val SCENE_TARGET = "sceneSetting"
         const val OUTPUT_TERMINAL = "outputTerminal"
+
+        /** The two outputs a shortcut offers, from [OUTPUT_TERMINALS]: the HDMI audio system (the bar) and the TV's own speakers. */
+        const val TERMINAL_AUDIO_SYSTEM = "audioSystem"
+        const val TERMINAL_SPEAKER = "speaker"
     }
 }
 
@@ -108,10 +115,42 @@ data class IrccCode(val name: String, val value: String)
 
 data class VolumeInfo(val target: String, val volume: Int, val muted: Boolean, val min: Int?, val max: Int?)
 
-data class PlayingContent(val uri: String?, val source: String?, val title: String?)
+/**
+ * `avContent.getPlayingContentInfo`. Sony's current reference documents only the external-input
+ * case ([uri] `extInput:hdmi?port=1`, [source], [title] such as "HDMI 2"). The tuner fields are
+ * undocumented there; they are the ones Home Assistant's braviatv reads when [uri] starts with
+ * `tv` (homeassistant/components/braviatv/coordinator.py, `async_update_playing`): [title] is then
+ * the channel name, [programTitle] the programme, [dispNum] the channel number, [startDateTime]
+ * the programme's start (ISO 8601) and [durationSec] its length. All optional: whether the XR80
+ * sends them is unknown, and with an app playing the TV may answer with nothing at all.
+ */
+data class PlayingContent(
+    val uri: String?,
+    val source: String?,
+    val title: String?,
+    val programTitle: String? = null,
+    val dispNum: String? = null,
+    val startDateTime: String? = null,
+    val durationSec: Int? = null,
+) {
+    /** The TV's own tuner (`tv:dvbt?…`, `tv:dvbs?…`), told apart the way Home Assistant does. */
+    val isTuner: Boolean get() = uri?.startsWith("tv") == true
+
+    val isExternalInput: Boolean get() = uri?.startsWith("extInput") == true
+}
 
 /** [mac] is `macAddr`, often the wired interface's: prefer [NetworkInterfaceInfo] for Wake-on-LAN. Never log it. */
 data class SystemInfo(val model: String?, val product: String?, val generation: String?, val name: String?, val mac: String? = null)
+
+/**
+ * One entry of `system.getSystemSupportedFunction`: an [option] (e.g. `WOL`, `PIP`) and its
+ * [value]. Some values identify the TV (the `WOL` value is its MAC address), so the UI shows
+ * [shownValue], which is null for anything [io.kud.tutti.protocol.net.Redact] would scrub.
+ */
+data class SupportedFunction(val option: String, val value: String?) {
+    val shownValue: String?
+        get() = value?.takeIf { it.isNotBlank() && io.kud.tutti.protocol.net.Redact.text(it) == it }
+}
 
 /** One of the TV's network interfaces. Never log [mac]. */
 data class NetworkInterfaceInfo(val name: String?, val mac: String?, val ipv4: String?)

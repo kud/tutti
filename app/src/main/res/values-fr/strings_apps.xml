@@ -1,21 +1,31 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="dock_apps">Applis</string>
+    <string name="dock_apps">Apps</string>
     <string name="dock_keys">Touches</string>
     <string name="dock_reassign">Modifier l’épingle</string>
-    <string name="apps_title">Applis</string>
-    <string name="apps_pin_hint">Appui long sur une appli pour l’épingler au dock.</string>
-    <string name="apps_no_ip_hint">Le contrôle IP est désactivé sur le téléviseur : tutti montre les applis qu’il connaît déjà. Activez-le pour la liste complète et les icônes officielles.</string>
-    <string name="apps_open_tv_screen">Ouvrir l’écran Applis du téléviseur</string>
+    <string name="apps_title">Apps</string>
+    <string name="apps_recent">Récentes</string>
+    <string name="apps_all">Toutes les apps</string>
+    <string name="apps_pin_hint">Appui long sur une app pour l’épingler au dock.</string>
+    <string name="apps_no_ip_hint">Le contrôle IP est désactivé sur la TV : tutti montre les apps qu’il connaît déjà. Activez-le pour la liste complète et les icônes officielles.</string>
+    <string name="apps_launch_pending">Ouverture sur la TV</string>
+    <string name="apps_launch_failed">Pas ouverte</string>
+    <string name="apps_launch_failed_note">La TV n’a pas ouvert %1$s. Réessayez, ou ouvrez-la depuis l’écran Apps de la TV.</string>
+    <string name="apps_launch_not_opened">%1$s ne s’est pas ouverte</string>
+    <string name="apps_launch_waking">Allumage de la TV pour %1$s…</string>
+    <string name="apps_launch_waking_tile">Allumage de la TV</string>
+    <string name="apps_launch_not_woken">%1$s pas ouverte : la TV ne s’est pas allumée</string>
+    <string name="apps_open_tv_screen">Ouvrir l’écran Apps de la TV</string>
+    <string name="apps_screen_failed">La TV n’a pas ouvert son écran Apps</string>
+    <string name="apps_screen_unconfirmed">Envoyé. La TV ne confirme pas l’ouverture de l’écran Apps</string>
     <string name="apps_pin_action">Épingler au dock</string>
     <string name="apps_pin_title">Épingler %1$s</string>
-    <string name="apps_slot">Emplacement %1$d · %2$s</string>
+    <string name="apps_slot">Épingle %1$d · %2$s</string>
     <string name="apps_slot_empty">vide</string>
     <string name="more_title">Toutes les touches</string>
     <string name="more_section_channels">Chiffres et chaînes</string>
     <string name="more_section_colours">Touches de couleur</string>
-    <string name="more_section_tv">Télé</string>
-    <string name="more_section_apps">Applis</string>
+    <string name="more_section_tv">TV</string>
     <string name="more_jump">Préc.</string>
     <string name="more_live_tv">TV</string>
     <string name="more_channel_short">CH</string>
@@ -30,5 +40,20 @@
     <string name="more_audio">Audio</string>
     <string name="more_menu">Menu</string>
     <string name="more_quick_settings">Réglages rapides</string>
-    <string name="more_all_apps">Toutes les applis</string>
+    <string name="tv_input_pin">Épingler au dock</string>
+    <!-- Where an app opens (2026-11-11): the Apps sheet's long press and the pin editor. -->
+    <string name="dest_opens_at_row">S\'ouvre sur · %1$s</string>
+    <string name="dest_picker_title">Ouvrir %1$s sur</string>
+    <string name="dest_as_usual">Comme d\'habitude</string>
+    <string name="dest_as_usual_detail">Là où l\'app en était</string>
+    <string name="dest_same_as_app">Comme l\'app</string>
+    <string name="dest_same_as_app_detail">Actuellement : %1$s</string>
+    <string name="dest_link">Lien…</string>
+    <string name="dest_link_label">Lien</string>
+    <string name="dest_link_hint">Un lien https://, ou %1$s</string>
+    <string name="dest_link_hint_web">Un lien https://</string>
+    <string name="dest_link_invalid">Ce lien ne peut pas ouvrir cette app. Un lien https:// ou celui de l\'app convient.</string>
+    <string name="dest_paste">Coller</string>
+    <string name="dest_try">Essayer</string>
+    <string name="dest_done">OK</string>
 </resources>

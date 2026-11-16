@@ -6,8 +6,11 @@ import android.net.NetworkCapabilities
 import android.os.Build
 import dagger.hilt.android.qualifiers.ApplicationContext
 import io.kud.tutti.controller.TuttiController
+import io.kud.tutti.platform.data.IconBitmaps
+import io.kud.tutti.platform.data.PhoneIconBitmaps
 import io.kud.tutti.platform.discovery.DiscoveredTv
 import io.kud.tutti.platform.discovery.TvDiscovery
+import io.kud.tutti.platform.net.LocalNetworkPermission
 import io.kud.tutti.platform.net.OkHttpBraviaTransport
 import io.kud.tutti.platform.security.ClientIdentityStore
 import io.kud.tutti.platform.security.SecureStore
@@ -19,8 +22,14 @@ import io.kud.tutti.protocol.diagnostic.DiagnosticTargets
 import io.kud.tutti.protocol.diagnostic.DiscoveryOutcome
 import io.kud.tutti.protocol.diagnostic.StepResult
 import io.kud.tutti.protocol.grpc.CloudPlaneState
+import io.kud.tutti.protocol.atv.ImeFieldKind
+import io.kud.tutti.protocol.net.Redact
 import io.kud.tutti.protocol.net.TcpConnector
 import io.kud.tutti.protocol.net.TlsConnector
+import io.kud.tutti.ui.common.BrandColours
+import io.kud.tutti.ui.common.brandFace
+import javax.inject.Inject
+import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -31,8 +40,10 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
-import javax.inject.Inject
-import javax.inject.Singleton
+
+/** A remote pairing exists only when both halves saved by pairing still exist. */
+internal fun remotePairingRecorded(pinPresent: Boolean, identityPresent: Boolean): Boolean =
+    pinPresent && identityPresent
 
 data class DiagnosticUi(
     val steps: List<StepResult> = DiagnosticSteps.initial(),
@@ -55,6 +66,8 @@ class Diagnostics @Inject constructor(
     private val tls: TlsConnector,
     private val tcp: TcpConnector,
     private val discovery: TvDiscovery,
+    private val lan: LocalNetworkPermission,
+    private val target: dagger.Lazy<io.kud.tutti.controller.TargetController>,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val mutableState = MutableStateFlow(DiagnosticUi())
@@ -70,26 +83,31 @@ class Diagnostics @Inject constructor(
             val bar = ui.devices.bar
             val psk = secure.tvPsk()
             val restPin = secure.tvRestPin()
+            val remoteIdentity = identities.existing()
             val targets = DiagnosticTargets(
                 tvHost = tv?.host,
                 barHost = bar?.host,
                 psk = psk,
                 remotePin = secure.tvRemotePin(),
                 restPinRecorded = restPin != null,
+                ipCookie = secure.tvIpCookie()?.value,
             )
             // Pins learned here are not saved: the diagnostic never changes what the app trusts.
-            val transport = tv?.let { OkHttpBraviaTransport(it.host, restPin) {} }
+            val transport = tv?.let { OkHttpBraviaTransport(it.host, restPin, {}, lan::require) }
             val runner = DiagnosticRunner(
                 targets = targets,
                 bravia = transport,
                 tls = tls,
                 tcp = tcp,
-                identity = { identities.existing() },
+                identity = { remoteIdentity },
                 discover = { discover(tv?.host) },
                 cloudNote = cloudNote(ui.cloud),
-                deviceInfo = ClientDeviceInfo(model = "Tutti", packageName = context.packageName),
+                deviceInfo = ClientDeviceInfo(model = "tutti", packageName = context.packageName),
+                // Keeps the scrubbed getPlayingContentInfo reply, to copy while an app plays.
+                developer = ui.prefs.developerMode,
+                barHttp = bar?.let { io.kud.tutti.platform.net.OkHttpBarHttpTransport(it.host, lan::require) },
             )
-            val environment = environment(targets)
+            val environment = environment(targets, remoteIdentity != null)
             val publisher = launch {
                 runner.steps.collect { steps ->
                     mutableState.value = DiagnosticUi(
@@ -128,7 +146,7 @@ class Diagnostics @Inject constructor(
         is CloudPlaneState.Connected -> "connected (not probed)"
     }
 
-    private fun environment(targets: DiagnosticTargets): List<Pair<String, String>> {
+    private fun environment(targets: DiagnosticTargets, remoteIdentityPresent: Boolean): List<Pair<String, String>> {
         val ui = controller.state.value
         val links = ui.links
         fun yes(value: Boolean) = if (value) "yes" else "no"
@@ -138,11 +156,76 @@ class Diagnostics @Inject constructor(
             "phone" to "${Build.MANUFACTURER} ${Build.MODEL}",
             "network" to if (onWifi()) "wifi" else "not wifi",
             "configured" to "tv ${yes(targets.tvHost != null)}, bar ${yes(targets.barHost != null)}, psk ${yes(targets.psk != null)}, " +
-                "remote pairing ${yes(targets.remotePin != null)}, rest pin ${yes(targets.restPinRecorded)}",
+                "remote pairing ${yes(remotePairingRecorded(targets.remotePin != null, remoteIdentityPresent))}, rest pin ${yes(targets.restPinRecorded)}",
+            // The stored address described, never printed: a wrong or moved address against a TV off the network.
+            "tv address" to io.kud.tutti.protocol.diagnostic.TvAddressFacts.of(
+                targets.tvHost,
+                targets.barHost,
+                movedThisSession = controller.tvMovedThisSession,
+                macKnown = ui.devices.tv?.mac != null,
+            ),
             "live session" to "remote ${links.tv}, rest ${links.rest}, bar ${links.bar}, voice zoom shown ${yes(ui.voiceZoomAvailable)}",
+            // The int5 probe: what the TV sends beside its field's text. The label goes by length only.
+            // The kind is int5 read as an Android input type: inferred, reported to be proven (ImeFieldKind).
+            "tv text field" to (ui.remote.imeProbe?.let { "int5 ${it.int5}, kind ${ImeFieldKind.of(it.int5)} (inferred), label ${Redact.secret(it.label)}" } ?: "none seen"),
             // Feature names only, never values: the model and firmware stay out of the report.
-            "bar settings" to "answered ${ui.bar.confirmed.size}, refused ${ui.bar.refused.sorted().joinToString().ifEmpty { "none" }}",
-        )
+            // Routes tried, link sent, foreground package seen; already through Redact.
+            "last app launch" to (controller.lastLaunchTrace ?: "none this session"),
+            // AirPlay check: the TV's recent foreground packages, oldest first; packages only, no times.
+            "tv foreground" to target.get().foregroundLog.value.entries.joinToString { it.first }.ifEmpty { "none this session" },
+            "bar settings" to "answered ${ui.bar.confirmed.size}, refused ${ui.bar.refused.sorted().joinToString().ifEmpty { "none" }}, " +
+                "silent ${ui.bar.silent.sorted().joinToString().ifEmpty { "none" }}",
+        ) + controller.linkTimings.report() +
+            // Cast's raw numbers (currentTime, duration, state, rate, age, gap), never a title: what settles a wrong timer.
+            controller.castReadings.report(System.currentTimeMillis()) + appIcons() + liveBarWire()
+    }
+
+    /**
+     * What became of each TV app icon this session: a count per outcome, then one line per app
+     * without one (package, outcome, the URL's scheme, port, path head and how its host relates
+     * to the TV), and what its tile shows instead: the phone's own icon, the brand mark or the
+     * letter. Never a host or a header, nor which phone package matched; scrubbed by the
+     * controller and again by the report.
+     */
+    private fun appIcons(): List<Pair<String, String>> {
+        val lines = controller.iconReport { pkg ->
+            when {
+                runCatching { PhoneIconBitmaps.has(context, pkg) }.getOrDefault(false) -> "phone"
+                brandFace(pkg) != null -> "logo"
+                else -> "letter"
+            }
+        }
+        return listOf("app icons" to lines.first(), "tv icon looks" to tvIconLooks()) +
+            lines.drop(1).mapIndexed { i, line -> "app icon %02d".format(i + 1) to line }
+    }
+
+    /**
+     * How each cached TV icon is drawn ([BrandColours.tvLook]): "cached" alone once hid a sheet of
+     * letter tiles, since every banner whose corners disagreed was dropped after a good fetch.
+     */
+    private fun tvIconLooks(): String {
+        val paths = controller.state.value.appIcons.values
+        if (paths.isEmpty()) return "none cached"
+        val looks = paths.map { path ->
+            val bitmap = runCatching { IconBitmaps.load(path, 64) }.getOrNull()
+            when (bitmap?.let { b -> BrandColours.tvLook(b.width, b.height) { intArrayOf(b.getPixel(0, 0), b.getPixel(b.width - 1, 0), b.getPixel(0, b.height - 1), b.getPixel(b.width - 1, b.height - 1)) } }) {
+                null -> "undecodable"
+                BrandColours.TvLook.Crop -> "square"
+                is BrandColours.TvLook.Fill -> "banner on flat corners"
+                BrandColours.TvLook.Backdrop -> "banner on its backdrop"
+            }
+        }
+        return looks.groupingBy { it }.eachCount().entries.sortedBy { it.key }.joinToString { "${it.key} ${it.value}" }
+    }
+
+    /**
+     * The live session's last raw exchanges on TCP 33336 (`>` sent, `<` read as it arrived,
+     * `.` a note), already scrubbed by the wire log and scrubbed again by the report.
+     */
+    private fun liveBarWire(): List<Pair<String, String>> {
+        val lines = controller.barWire
+        if (lines.isEmpty()) return listOf("live bar wire" to "nothing exchanged this session")
+        return lines.mapIndexed { i, line -> "live bar wire %02d".format(i + 1) to line }
     }
 
     private fun onWifi(): Boolean {

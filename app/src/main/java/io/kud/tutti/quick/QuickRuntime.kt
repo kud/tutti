@@ -5,6 +5,7 @@ import android.util.Log
 import androidx.glance.appwidget.updateAll
 import io.kud.tutti.quick.notification.QuickNotifications
 import io.kud.tutti.quick.widget.QuickWidget
+import io.kud.tutti.quick.widget.QuickWidgetPreview
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -38,6 +39,9 @@ object QuickRuntime {
         val controls = app.quickControls() ?: return
 
         scope.launch { QuickNotifications.run(app, controls, QuickPreferences(app)) }
+
+        // Android 15+: the picker's generated preview, once per version, off the main thread.
+        scope.launch(Dispatchers.IO) { QuickWidgetPreview.publish(app) }
 
         // The widget's own session recomposes while it is alive; this covers the
         // rest of the time. Trailing debounce: a volume drag is one update, not forty.

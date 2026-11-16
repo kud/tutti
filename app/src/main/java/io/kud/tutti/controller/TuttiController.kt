@@ -1,11 +1,13 @@
 package io.kud.tutti.controller
 
+import io.kud.tutti.protocol.apps.AppDestinations
+import io.kud.tutti.platform.data.AppPrefs
 import io.kud.tutti.platform.data.VibrationLevel
 import android.app.UiModeManager
 import android.content.Context
-import android.net.ConnectivityManager
-import android.net.Network
 import android.os.Build
+import android.os.SystemClock
+import android.util.Log
 import dagger.hilt.android.qualifiers.ApplicationContext
 import io.kud.tutti.platform.data.DockAction
 import io.kud.tutti.platform.data.DockConfig
@@ -19,34 +21,78 @@ import io.kud.tutti.platform.data.SecondaryButton
 import io.kud.tutti.platform.data.TvDevice
 import io.kud.tutti.platform.diagnostic.AppVersion
 import io.kud.tutti.platform.data.BarDevice
+import io.kud.tutti.platform.net.LanRoute
+import io.kud.tutti.platform.net.LocalNetworkPermission
+import io.kud.tutti.platform.net.LocalNetworkPermissionMissing
+import io.kud.tutti.platform.net.OkHttpBarHttpTransport
 import io.kud.tutti.platform.net.OkHttpBraviaTransport
 import io.kud.tutti.platform.net.PinMismatchException
 import io.kud.tutti.platform.net.WakeOnLanSender
 import io.kud.tutti.platform.security.ClientIdentityStore
+import io.kud.tutti.platform.security.StagedIdentity
 import io.kud.tutti.platform.security.SecureStore
+import io.kud.tutti.protocol.apps.AppIcons
+import io.kud.tutti.protocol.apps.AppLauncher
+import io.kud.tutti.protocol.apps.IpControl
+import io.kud.tutti.protocol.apps.LaunchPlan
+import io.kud.tutti.protocol.apps.toDestination
+import io.kud.tutti.protocol.apps.RestWait
 import io.kud.tutti.protocol.apps.AppLibrary
+import io.kud.tutti.protocol.apps.AppsScreen
+import io.kud.tutti.protocol.apps.AppsScreenOpener
+import io.kud.tutti.protocol.apps.AppsScreenRoute
+import io.kud.tutti.protocol.apps.IconAttempt
+import io.kud.tutti.protocol.apps.IconBook
+import io.kud.tutti.protocol.apps.IconOutcome
 import io.kud.tutti.protocol.apps.KnownApp
-import io.kud.tutti.protocol.atv.AppCatalog
+import io.kud.tutti.protocol.apps.LaunchBook
+import io.kud.tutti.protocol.apps.LaunchEffect
+import io.kud.tutti.protocol.apps.LaunchLink
+import io.kud.tutti.protocol.apps.AppHistory
+import io.kud.tutti.protocol.apps.LaunchQueue
+import io.kud.tutti.protocol.apps.LaunchStep
+import io.kud.tutti.protocol.apps.LaunchResult
+import io.kud.tutti.platform.diagnostic.AppLog
+import io.kud.tutti.protocol.diagnostic.EventLog
+import io.kud.tutti.protocol.diagnostic.IssueLink
+import io.kud.tutti.protocol.apps.LaunchRoute
+import io.kud.tutti.protocol.net.PollMisses
+import io.kud.tutti.protocol.net.ReconnectPace
+import io.kud.tutti.protocol.net.Redact
+import io.kud.tutti.protocol.net.other
 import io.kud.tutti.protocol.bravia.TvApp
 import java.io.File
 import io.kud.tutti.protocol.atv.AtvPairing
 import io.kud.tutti.protocol.atv.AtvRemote
 import io.kud.tutti.protocol.atv.ClientDeviceInfo
 import io.kud.tutti.protocol.atv.HardwareKey
+import io.kud.tutti.protocol.atv.HoldLease
+import io.kud.tutti.protocol.atv.KeyBacklog
+import io.kud.tutti.protocol.atv.KeyHold
 import io.kud.tutti.protocol.atv.KeyMap
 import io.kud.tutti.protocol.atv.PairingFailure
 import io.kud.tutti.protocol.atv.PairingResult
 import io.kud.tutti.protocol.atv.V2Key
+import io.kud.tutti.protocol.bravia.AuthCookie
 import io.kud.tutti.protocol.bravia.BraviaClient
 import io.kud.tutti.protocol.bravia.BraviaError
 import io.kud.tutti.protocol.bravia.BraviaResult
 import io.kud.tutti.protocol.bravia.BraviaService
+import io.kud.tutti.protocol.bravia.CookieRenewal
+import io.kud.tutti.protocol.bravia.IpRegistration
 import io.kud.tutti.protocol.bravia.PowerStatus
+import io.kud.tutti.protocol.bravia.Registration
 import io.kud.tutti.protocol.bravia.getOrNull
 import io.kud.tutti.protocol.grpc.SonyCloudPlane
 import io.kud.tutti.protocol.net.LanAddress
+import io.kud.tutti.protocol.net.BarAddressOffer
+import io.kud.tutti.protocol.net.PublicKeyPin
+import io.kud.tutti.protocol.net.Rediscovery
+import io.kud.tutti.protocol.theatre.BarProbe
 import io.kud.tutti.protocol.net.ClientIdentity
+import io.kud.tutti.protocol.diagnostic.ErrorClass
 import io.kud.tutti.protocol.diagnostic.FailureReport
+import io.kud.tutti.protocol.net.WakeAttempt
 import io.kud.tutti.protocol.net.WakeOnLan
 import io.kud.tutti.protocol.scenes.AppProfile
 import io.kud.tutti.protocol.scenes.AppProfiles
@@ -55,11 +101,19 @@ import io.kud.tutti.protocol.scenes.Scene
 import io.kud.tutti.protocol.scenes.SceneActuator
 import io.kud.tutti.protocol.scenes.SceneEngine
 import io.kud.tutti.protocol.scenes.SceneKey
+import io.kud.tutti.protocol.picture.PictureContext
+import io.kud.tutti.protocol.picture.PictureFollow
+import io.kud.tutti.protocol.picture.PictureFollowConfig
+import io.kud.tutti.protocol.picture.PictureFollowState
 import io.kud.tutti.protocol.scenes.SceneMatch
 import io.kud.tutti.protocol.scenes.SceneRunner
 import io.kud.tutti.protocol.scenes.SceneStep
+import io.kud.tutti.protocol.scenes.SceneUndo
 import io.kud.tutti.protocol.scenes.SceneValue
+import io.kud.tutti.protocol.theatre.BarHttpClient
+import io.kud.tutti.protocol.theatre.BarHttpUnavailable
 import io.kud.tutti.protocol.theatre.FeatureKind
+import io.kud.tutti.protocol.theatre.SilenceWatch
 import io.kud.tutti.protocol.theatre.TheatreClient
 import io.kud.tutti.protocol.theatre.TheatreFeature
 import io.kud.tutti.protocol.theatre.TheatreState
@@ -68,9 +122,12 @@ import io.kud.tutti.protocol.atv.VoiceEvent
 import io.kud.tutti.protocol.atv.VoiceState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -90,13 +147,20 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.channels.Channel
 import java.net.ConnectException
 import java.net.NoRouteToHostException
 import java.net.SocketTimeoutException
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -120,22 +184,43 @@ class TuttiController @Inject constructor(
     private val secure: SecureStore,
     private val identities: ClientIdentityStore,
     private val tls: io.kud.tutti.protocol.net.TlsConnector,
-    tcp: io.kud.tutti.protocol.net.TcpConnector,
+    private val tcp: io.kud.tutti.protocol.net.TcpConnector,
     val cloud: SonyCloudPlane,
+    cast: io.kud.tutti.protocol.cast.CastConnector,
+    private val discovery: io.kud.tutti.platform.discovery.TvDiscovery,
+    private val lan: io.kud.tutti.platform.net.LocalNetworkPermission,
 ) {
     /** Application-lifetime scope; widgets may launch into it. */
-    val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default + loggingHandler { Log.e(TAG, it) })
 
     private val theatre = TheatreClient(tcp, scope)
-    private val atv = AtvRemote(tls, scope, ClientDeviceInfo(model = "Tutti", packageName = context.packageName))
+    // elapsedRealtime counts deep sleep: a session left over from before the screen went off is judged on it.
+    private val atv = AtvRemote(tls, scope, ClientDeviceInfo(model = "tutti", packageName = context.packageName), SystemClock::elapsedRealtime)
 
     @Volatile private var psk: String? = null
+
+    /** Whether a PSK is stored, for the setup checklist; never the key itself. */
+    private val pskSet = MutableStateFlow(false)
+
+    /** The IP-control cookie (Sony's "Normal" auth, from the code shown on the TV). Never logged. */
+    @Volatile private var ipCookie: AuthCookie? = null
+    private val ipCode = MutableStateFlow(IpCodeStatus.NONE)
+
+    /** When renewal was last tried (epoch ms), so a TV that renews without a new cookie, or can't be reached, is not asked every poll. */
+    @Volatile private var renewTriedAt = 0L
+
+    /** The transport and client id between asking the TV for its code and sending it back. */
+    @Volatile private var codeSession: Pair<OkHttpBraviaTransport, String>? = null
+    private val technical = MutableStateFlow(TechnicalReadouts())
     @Volatile private var bravia: BraviaClient? = null
     @Volatile private var braviaTransport: OkHttpBraviaTransport? = null
 
     /** Official icons, cached by package in the app cache dir. */
     private val iconDir: File get() = File(context.cacheDir, "app-icons")
     private val icons = MutableStateFlow<Map<String, String>>(emptyMap())
+    private val iconBook = MutableStateFlow(IconBook())
+    private val iconPass = Mutex()
+    @Volatile private var tvHostForIcons: String? = null
     private val library = combine(store.apps, icons) { seen, cached -> AppLibrary.all(seen) to cached }
 
     private val links = MutableStateFlow(Links())
@@ -144,18 +229,121 @@ class TuttiController @Inject constructor(
     private val voiceZoom = MutableStateFlow(false)
     private val progress = MutableStateFlow<Map<String, SceneRun>>(emptyMap())
     private val activeSceneId = MutableStateFlow<String?>(null)
+    /** One level of "undo the last scene", taken just before a scene runs ([SceneUndo]). */
+    private val sceneUndo = MutableStateFlow<SceneUndo?>(null)
+    /** The high-volume guard's runtime: unlocked, its pending question, the quick surfaces' notice. */
+    private val guard = MutableStateFlow(GuardRuntime())
+    /** Bumped when a cap for tonight runs out, so the state drops it on time. */
+    private val capClock = MutableStateFlow(0)
     private val pairing = MutableStateFlow<PairingUi>(PairingUi.Idle)
     private val overrides = MutableStateFlow(Overrides())
+    /** App launches, optimistic ([LaunchQueue]): what is in flight and the app shown meanwhile. */
+    private val launches = MutableStateFlow(LaunchBook())
     private val restart = MutableStateFlow(0)
+
+    /**
+     * The identity a pinned TV plane presented instead of a trusted one, at most one per plane,
+     * waiting for [io.kud.tutti.protocol.net.AutoTrust] to admit it ([autoTrust]) or drop it.
+     * [event] is the recorded mismatch, whose labels the admission entry reuses. Cleared by pairing.
+     */
+    private data class TrustOffer(val pending: io.kud.tutti.protocol.net.PendingIdentity, val event: io.kud.tutti.protocol.net.PinMismatchEvent)
+
+    private val trustOffers = MutableStateFlow<Map<io.kud.tutti.protocol.net.PinPlane, TrustOffer>>(emptyMap())
+
+    /** Watches [trustOffers] against the links; started by the first mismatch. */
+    private val autoTrustWatch by lazy {
+        scope.launch { combine(trustOffers, links) { offers, current -> offers to current }.collect { (offers, current) -> autoTrust(offers, current) } }
+    }
+
+    /** The host the Remote v2 session talks to, for [io.kud.tutti.protocol.net.TrustGate]. */
+    @Volatile private var remoteHost: String? = null
+
+    private val pinMismatchList = MutableStateFlow<List<io.kud.tutti.protocol.net.PinMismatchEvent>>(emptyList())
+
+    /** Recorded pin mismatches, newest first, for the developer-mode diagnostics (Technical details). */
+    val pinMismatches: StateFlow<List<io.kud.tutti.protocol.net.PinMismatchEvent>> = pinMismatchList
+
     private val wake = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
-    private val volumeTarget = MutableStateFlow<Int?>(null)
+    /** Latest level to send; a Channel, not a StateFlow, so setting the level it already holds still sends it. */
+    private val volumeTarget = Channel<Int>(Channel.CONFLATED)
     private val waking = MutableStateFlow(false)
-    private val wakeOnLan = WakeOnLanSender(context)
+    private val wakeOnLan = WakeOnLanSender(context, lan::require)
+
+    /** How the remote's last connect failed (`ErrorClass`), so a failed wake can tell "nothing there" from "refused". */
+    @Volatile
+    private var tvLastConnect: String? = null
+
+    /** The TV's remote link was up this session, and went down at [tvDownSince] (elapsedRealtime). */
+    @Volatile private var tvWasUp = false
+
+    @Volatile private var tvDownSince: Long? = null
+
+    /** The TV's remote link was up when the last holder let go ([release]). */
+    @Volatile private var tvUpWhenLeft = false
+
+    /** The app came back to a TV link it must connect again ([TvLinkRule.resumes]), until it is up or settled. */
+    private val tvResuming = MutableStateFlow(false)
+
+    /** Time to ready per link, for the diagnostic ([LinkTimings]). */
+    val linkTimings = io.kud.tutti.protocol.diagnostic.LinkTimings()
+
+    /** The raw numbers of the last Cast media statuses (time, duration, state), for the diagnostic. Never a title. */
+    val castReadings = io.kud.tutti.protocol.cast.CastReadings()
+
+    /** When each device was last looked for by mDNS (elapsedRealtime), for [Rediscovery.due]. */
+    @Volatile private var tvBrowsedAt: Long? = null
+
+    @Volatile private var barBrowsedAt: Long? = null
+
+    /** Rediscovery moved the TV to a new address in this process, for the diagnostic ([TvAddressFacts]). */
+    @Volatile var tvMovedThisSession: Boolean = false
+        private set
+
+    /** The bar's model as it last named it, so an offer is only ever the same model. */
+    @Volatile private var barModel: String? = null
+
+    private val barOffer = MutableStateFlow<BarAddressOffer?>(null)
+
+    /**
+     * The soundbar seems to answer at another address ([Rediscovery.barOffer]): an offer the
+     * Connexions sheet shows, applied only by [useBarAddressOffer]. Never applied on its own.
+     */
+    val barAddressOffer: StateFlow<BarAddressOffer?> = barOffer
+
+    /** The remote's current target (a device id), as [TargetController] reports it, for scenes' [SceneKey.TARGET]. */
+    private val remoteTarget = MutableStateFlow<String?>(null)
+
+    private val targetAsks = MutableSharedFlow<String>(extraBufferCapacity = 1)
+
+    /** A scene's [SceneStep.Target]: [TargetController] points the remote at this device. */
+    val sceneTargets: SharedFlow<String> = targetAsks.asSharedFlow()
+
+    /** The devices a scene can point the remote at (never the bar), id to name, for the scene editor. */
+    val targetNames: StateFlow<Map<String, String>> = store.deviceList
+        .map { list -> list.devices.filter { it.kind != io.kud.tutti.protocol.devices.DeviceKind.SOUNDBAR }.associate { it.id to it.name } }
+        .distinctUntilChanged()
+        .stateIn(scope, SharingStarted.Eagerly, emptyMap())
+
+    /** Called by [TargetController] whenever the remote's target changes. */
+    fun reportTarget(id: String?) {
+        remoteTarget.value = id
+    }
 
     private val mutableEvents = MutableSharedFlow<TuttiEvent>(extraBufferCapacity = 16)
     val events: SharedFlow<TuttiEvent> = mutableEvents.asSharedFlow()
 
+    /**
+     * [LocalNetworkPermission] says no (asked and refused, or simply never granted): every LAN
+     * link is down for that reason alone. Cleared by [onLanPermissionGranted], re-raised by the
+     * gates in the loops while it stays missing.
+     */
+    private val lanMissing = MutableStateFlow(false)
+
     private data class Overrides(val volume: Int? = null, val powered: Boolean? = null)
+
+    private data class GuardRuntime(val unlocked: Boolean = false, val ask: VolumeAsk? = null, val notice: Boolean = false)
+
+    private data class VolumeExtra(val guard: GuardRuntime, val undo: SceneUndo?, val capClock: Int, val target: String?)
 
     private data class Stored(
         val devices: io.kud.tutti.platform.data.Devices,
@@ -181,21 +369,164 @@ class TuttiController @Inject constructor(
         val overrides: Overrides,
         val waking: Boolean,
         val linkNotes: LinkNotes,
+        val launches: LaunchBook,
+        val lanMissing: Boolean,
     )
 
     private val stored = combine(store.devices, store.prefs, store.dock, store.scenes, store.profiles) { d, p, k, s, f -> Stored(d, p, k, s, f) }
     private val live = combine(tv, atv.state, theatre.state, links, voiceZoom) { t, r, b, l, v -> Live(t, r, b, l, v) }
-    private val extra = combine(progress, activeSceneId, pairing, cloud.state, combine(overrides, waking, linkNotes, ::Triple)) { p, a, q, c, o ->
-        Extra(p, a, q, c, o.first, o.second, o.third)
+    private val extra = combine(progress, activeSceneId, pairing, cloud.state, combine(combine(overrides, waking, linkNotes, launches) { o, w, n, l -> Quad(o, w, n, l) }, lanMissing) { q, m -> Extras(q, m) }) { p, a, q, c, o ->
+        Extra(p, a, q, c, o.quad.overrides, o.quad.waking, o.quad.linkNotes, o.quad.launches, o.lanMissing)
     }
 
-    val state: StateFlow<TuttiUiState> = combine(stored, live, extra, library) { s, l, e, a ->
-        build(s, l, e).copy(apps = a.first, appIcons = a.second, linkNotes = e.linkNotes)
+    private data class Quad(val overrides: Overrides, val waking: Boolean, val linkNotes: LinkNotes, val launches: LaunchBook)
+
+    private data class Extras(val quad: Quad, val lanMissing: Boolean)
+
+    private val volumeExtra = combine(guard, sceneUndo, capClock, remoteTarget) { g, u, c, t -> VolumeExtra(g, u, c, t) }
+
+    private val credentials = combine(pskSet, ipCode, ::Pair)
+
+    val state: StateFlow<TuttiUiState> = combine(stored, live, extra, library, combine(credentials, technical, volumeExtra, ::Triple)) { s, l, e, a, k ->
+        build(s, l, e, k.third).copy(apps = a.first, appIcons = a.second, linkNotes = e.linkNotes, pskSet = k.first.first, ipCode = k.first.second, technical = k.second)
     }
         .stateIn(scope, SharingStarted.Eagerly, TuttiUiState())
 
-    /** Set by the remote screen while it is in front: volume rocker and hardware keyboard go to the devices. */
-    @Volatile var remoteInFront: Boolean = false
+    private val remoteFront = MutableStateFlow(false)
+
+    /** Set by the switch-off timer while it follows an episode: Cast keeps reading with the remote out of sight. */
+    private val castKeep = MutableStateFlow(false)
+
+    fun keepCast(on: Boolean) {
+        castKeep.value = on
+    }
+
+    /**
+     * Set by the remote screen while it is in front: volume rocker and hardware keyboard go to
+     * the devices, and Cast reads what the TV plays ([castNowPlaying]).
+     */
+    var remoteInFront: Boolean
+        get() = remoteFront.value
+        set(value) {
+            remoteFront.value = value
+        }
+
+    private val castWatcher = CastWatcher(
+        connector = cast,
+        scope = scope,
+        active = CastWatcher.activeFrom(
+            inFront = combine(remoteFront, castKeep) { front, keep -> front || keep },
+            host = store.devices.map { it.tv?.host }.distinctUntilChanged(),
+            tvOn = state.map { it.powered == true }.distinctUntilChanged(),
+        ),
+        clock = System::currentTimeMillis,
+        log = { Log.i(TAG, it) },
+        onReady = { linkTimings.record(io.kud.tutti.protocol.diagnostic.TimedLink.CAST, it) },
+        onReading = castReadings::record,
+        event = { AppLog.events.record(EventLog.Kind.CAST, it) },
+        // What proves a held Cast item over: standby, another package in front, a tuner or input.
+        context = state.map {
+            io.kud.tutti.protocol.cast.CastContext(
+                standby = it.powered == false || it.tv.power == PowerStatus.STANDBY,
+                foreground = it.remote.currentApp,
+                source = it.tv.playing?.takeIf { p -> p.isTuner || p.isExternalInput }?.uri,
+            )
+        },
+    )
+
+    /**
+     * What Cast reports the TV playing, while the remote is in front; null otherwise or when
+     * nothing is reported. Personal viewing data: never logged, stored or put in the diagnostic.
+     */
+    val castNowPlaying: StateFlow<io.kud.tutti.protocol.cast.CastNowPlaying?> get() = castWatcher.nowPlaying
+
+    /** Receiver apps that said no to a playback rate this run: the Speed chip hides for them. */
+    val castSpeedRefused: StateFlow<Set<String>> get() = castWatcher.speedRefused
+
+    /** Asks the Cast app in front to play at [rate] (the Playback sheet's Speed picker). */
+    suspend fun setCastSpeed(rate: Double): io.kud.tutti.protocol.cast.CastSpeedResult = castWatcher.setSpeed(rate)
+
+    /** Receiver apps that refused a SEEK this run: Say again? hides for them. */
+    val castSeekRefused: StateFlow<Set<String>> get() = castWatcher.seekRefused
+
+    /** What the last Say again? turned on and must put back, while its hold runs. */
+    private var sayAgainHeld: io.kud.tutti.protocol.cast.CastSayAgain.Restore? = null
+    private var sayAgainJob: Job? = null
+
+    /**
+     * Say again? (Erwann, 2026-11-12, « Hein ? »): seeks the Cast app back [seconds], turns captions
+     * (Cast text tracks, when the status lists some) and the bar's voice enhancement on for the
+     * replayed span, then puts back exactly what it changed, unless he changed it himself meanwhile.
+     * The event log gets the app, package, seconds and outcomes, never a title or a position.
+     */
+    fun sayAgain(seconds: Int) {
+        scope.launch {
+            val cast = castWatcher.nowPlaying.value ?: return@launch
+            val at = cast.positionAt(System.currentTimeMillis()) ?: return@launch
+            val tracks = castWatcher.tracks
+            val bar = state.value.bar
+            val voiceOn = if (bar.connected) bar.isOn(TheatreFeature.VOICE) else null
+            val back = io.kud.tutti.protocol.cast.CastSayAgain.seconds(seconds)
+            val plan = io.kud.tutti.protocol.cast.CastSayAgain.plan(
+                at, back, cast.playbackRate, tracks, voiceOn, java.util.Locale.getDefault().language, sayAgainHeld,
+            )
+            val result = castWatcher.seek(plan.seekTo)
+            if (result !is io.kud.tutti.protocol.cast.CastSpeedResult.Accepted) {
+                AppLog.events.record(EventLog.Kind.CAST, io.kud.tutti.protocol.cast.CastSayAgain.logLine(cast.appId, castWatcher.foreground, back, result, "untouched", "untouched"))
+                return@launch
+            }
+            var restore = plan.restore
+            val captions = when {
+                plan.captions != null -> {
+                    val set = castWatcher.setTracks(plan.captions!!)
+                    if (set is io.kud.tutti.protocol.cast.CastSpeedResult.Accepted) {
+                        "on"
+                    } else {
+                        // Not ours to put back if it never went on.
+                        if (sayAgainHeld?.tracksSet == null) restore = restore.copy(tracksBefore = null, tracksSet = null)
+                        "refused"
+                    }
+                }
+                tracks.captionsOn -> "already on"
+                !tracks.known -> "no tracks listed"
+                else -> "no text track"
+            }
+            if (plan.voice) theatre.setToggle(TheatreFeature.VOICE, true)
+            val voice = when {
+                plan.voice -> "on"
+                voiceOn == true -> "already on"
+                else -> "bar unreported"
+            }
+            AppLog.events.record(EventLog.Kind.CAST, io.kud.tutti.protocol.cast.CastSayAgain.logLine(cast.appId, castWatcher.foreground, back, result, captions, voice))
+            sayAgainHeld = restore
+            sayAgainJob?.cancel()
+            sayAgainJob = scope.launch {
+                delay(plan.holdMs)
+                restoreSayAgain()
+            }
+        }
+    }
+
+    private suspend fun restoreSayAgain() {
+        val held = sayAgainHeld ?: return
+        sayAgainHeld = null
+        val tracks = io.kud.tutti.protocol.cast.CastSayAgain.restoreTracks(held, castWatcher.tracks)
+        val tracksResult = tracks?.let { castWatcher.setTracks(it) }
+        val bar = state.value.bar
+        val voice = io.kud.tutti.protocol.cast.CastSayAgain.restoreVoice(held, if (bar.connected) bar.isOn(TheatreFeature.VOICE) else null)
+        if (voice != null) theatre.setToggle(TheatreFeature.VOICE, voice)
+        val captionsWord = when {
+            tracksResult == null -> "left"
+            tracksResult is io.kud.tutti.protocol.cast.CastSpeedResult.Accepted -> "put back"
+            else -> "not put back"
+        }
+        AppLog.events.record(EventLog.Kind.CAST, "say again: captions $captionsWord, voice ${if (voice != null) "put back" else "left"}")
+    }
+
+    fun setSayAgainSeconds(seconds: Int) {
+        if (seconds !in io.kud.tutti.protocol.cast.CastSayAgain.SECONDS) return
+        scope.launch { store.updatePrefs { it.copy(sayAgainSeconds = seconds) } }
+    }
 
     /** Set while the keyboard mirror field has focus: printable hardware keys stay in the field. */
     @Volatile var typing: Boolean = false
@@ -203,19 +534,60 @@ class TuttiController @Inject constructor(
     private val lock = Any()
     private var holders = 0
     private var sessionsJob: Job? = null
+    private var epoch = 0
     private var lingerJob: Job? = null
     private var sceneJob: Job? = null
     private var pairingJob: Job? = null
     private var overrideJob: Job? = null
     @Volatile private var codeAnswer: CompletableDeferred<String?>? = null
 
+    /**
+     * The TV's foreground app and the one before it, from the remote v2's reports. Declared before
+     * `init`: its collector runs on Dispatchers.Default and could read the field before the
+     * constructor reached it, and the NPE then ended that collector for the process's life.
+     */
+    private val appHistory = MutableStateFlow(AppHistory())
+
+    /** The picture-follows state ([followPicture]); declared before `init` for the same reason. */
+    private val mutablePictureFollow = MutableStateFlow(PictureFollowState())
+    private val pictureFollowLock = Mutex()
+
+    /** Where the picture-follows rules stand (holding, paused by hand), for Settings' line. */
+    val pictureFollow: StateFlow<PictureFollowState> = mutablePictureFollow
+
     init {
+        AppLog.events.known = ::knownSecrets
+        // Each plane's connection changes, for the developer event log.
+        scope.launch {
+            var before: Links? = null
+            links.collect { now ->
+                val was = before
+                before = now
+                if (was != null) {
+                    if (was.tv != now.tv) AppLog.events.record(EventLog.Kind.CONNECTION, "remote ${was.tv} -> ${now.tv}")
+                    if (was.rest != now.rest) AppLog.events.record(EventLog.Kind.CONNECTION, "rest ${was.rest} -> ${now.rest}")
+                    if (was.bar != now.bar) AppLog.events.record(EventLog.Kind.CONNECTION, "bar ${was.bar} -> ${now.bar}")
+                }
+            }
+        }
+        scope.launch {
+            pskSet.value = secure.tvPsk() != null
+            ipCookie = secure.tvIpCookie()
+            if (ipCookie != null && ipCode.value == IpCodeStatus.NONE) ipCode.value = IpCodeStatus.SET
+        }
         scope.launch(Dispatchers.IO) {
-            val cached = iconDir.listFiles().orEmpty().filter { it.isFile && it.length() > 0 && !it.name.endsWith(".part") }
+            // A cached file that is not an image (an error page saved by an older build) would
+            // count as cached forever and never be fetched again: drop it instead.
+            val files = iconDir.listFiles().orEmpty().filter { it.isFile }
+            val (cached, broken) = files.partition { file ->
+                !file.name.endsWith(".part") && file.length() > 0 &&
+                    runCatching { file.inputStream().use { input -> ByteArray(16).let { head -> AppIcons.looksLikeImage(head.copyOf(input.read(head).coerceAtLeast(0))) } } }.getOrDefault(false)
+            }
+            broken.forEach { it.delete() }
             icons.update { current -> cached.associate { it.name to it.path } + current }
         }
         scope.launch {
-            volumeTarget.filterNotNull().conflate().collect { level ->
+            for (level in volumeTarget) {
                 theatre.setLevel(TheatreFeature.VOLUME, level)
                 delay(VOLUME_SEND_INTERVAL_MS)
             }
@@ -227,6 +599,66 @@ class TuttiController @Inject constructor(
             }
         }
         scope.launch {
+            // The TV's own report replaces an optimistic app once no launch is in flight (LaunchQueue).
+            atv.state.map { it.currentApp }.distinctUntilChanged().collect { app ->
+                launchStep { LaunchQueue.foreground(it, app) }
+            }
+        }
+        scope.launch {
+            // The app before the one in front, for long-press Back (AppHistory).
+            atv.state.map { it.currentApp }.distinctUntilChanged().collect { app -> appHistory.update { it.seen(app) } }
+        }
+        scope.launch {
+            // The high-volume guard re-arms once the bar is below its line again, or once the bar's
+            // link drops (a new session); a quick surface's notice goes with it.
+            state.map { Triple(it.volume, it.bar.connected, guardLevel(it.prefs)) }.distinctUntilChanged().collect { (level, connected, line) ->
+                guard.update { g ->
+                    val unlocked = connected && VolumeRules.stillUnlocked(g.unlocked, level, line)
+                    val notice = g.notice && connected && (level == null || level >= line)
+                    if (unlocked == g.unlocked && notice == g.notice) g else g.copy(unlocked = unlocked, notice = notice)
+                }
+            }
+        }
+        // The network edge's gate for third-party services follows the settings (NonFreeGate).
+        scope.launch { store.prefs.collect { io.kud.tutti.platform.net.NonFreeGate.update(it) } }
+        scope.launch {
+            // A cap for tonight ends on time, and is then forgotten.
+            store.prefs.map { it.tonightCap }.distinctUntilChanged().collectLatest { cap ->
+                if (cap == null) return@collectLatest
+                val left = cap.until - System.currentTimeMillis()
+                if (left > 0) delay(left)
+                capClock.update { it + 1 }
+                store.updatePrefs { prefs -> if (prefs.tonightCap == cap) prefs.copy(tonightCap = null) else prefs }
+            }
+        }
+        scope.launch {
+            // The picture follows what's on (PictureFollow): the app from Remote v2, an external
+            // input from REST's source, re-run once the poll has read the mode and the TV's list.
+            combine(
+                atv.state.map { it.currentApp }.distinctUntilChanged(),
+                tv.map { Triple(it.playing?.uri, it.pictureMode != null, it.pictureModes) }.distinctUntilChanged(),
+                store.prefs.map { it.pictureFollow }.distinctUntilChanged(),
+                combine(store.profiles, store.scenes) { profiles, scenes -> pictureSceneApps(profiles, scenes) }.distinctUntilChanged(),
+            ) { app, (source, _, modes), config, sceneApps -> PictureFollowInput(PictureFollow.contextOf(source, app), config, modes, sceneApps) }
+                .distinctUntilChanged()
+                .collect { input ->
+                    followPicture { state ->
+                        PictureFollow.onContext(state, input.config, input.context, tv.value.pictureMode, input.modes, SystemClock.elapsedRealtime(), input.sceneApps)
+                    }
+                }
+        }
+        scope.launch {
+            // A mode tutti did not set is his: PictureFollow stops until standby.
+            tv.map { it.pictureMode }.distinctUntilChanged().collect { mode ->
+                followPicture { PictureFollow.onObserved(it, mode, SystemClock.elapsedRealtime()) }
+            }
+        }
+        scope.launch {
+            tv.map { it.power }.distinctUntilChanged().collect { power ->
+                if (power == PowerStatus.STANDBY) pictureFollowLock.withLock { mutablePictureFollow.update(PictureFollow::onStandby) }
+            }
+        }
+        scope.launch {
             // Per-app profiles: "Quand Netflix est au premier plan, appliquer Cinéma" (while connected).
             atv.state.map { it.currentApp }.distinctUntilChanged().filterNotNull().collect { app ->
                 val profiles = store.profiles.first()
@@ -234,33 +666,112 @@ class TuttiController @Inject constructor(
                 if (sceneId != activeSceneId.value) applyScene(sceneId)
             }
         }
-        runCatching {
-            val connectivity = context.getSystemService(ConnectivityManager::class.java)
-            connectivity?.registerDefaultNetworkCallback(object : ConnectivityManager.NetworkCallback() {
-                override fun onAvailable(network: Network) {
-                    wake.tryEmit(Unit)
+        scope.launch {
+            // What the remote shows of the TV's link (TvLinkRule.shown): the link as it is, with
+            // "reconnecting" until give-up. UNREACHABLE and CONNECTING alternating in a reconnect keep the clock.
+            // A resume (TvLinkRule.resumes) reads "Connecting..." on the same clock until the link is up.
+            combine(links.map { it.tv }.distinctUntilChanged(), tvResuming) { raw, resuming -> raw to resuming }.collectLatest { (raw, resuming) ->
+                when (raw) {
+                    Link.ONLINE -> {
+                        tvWasUp = true
+                        tvDownSince = null
+                        tvResuming.value = false
+                    }
+                    Link.ABSENT, Link.NEEDS_PAIRING, Link.UNAUTHORIZED -> {
+                        tvWasUp = false
+                        tvDownSince = null
+                        tvResuming.value = false
+                    }
+                    Link.CONNECTING, Link.UNREACHABLE -> if ((tvWasUp || resuming) && tvDownSince == null) tvDownSince = SystemClock.elapsedRealtime()
                 }
-            })
+                while (true) {
+                    val down = tvDownSince?.let { SystemClock.elapsedRealtime() - it }
+                    val shown = TvLinkRule.shown(raw, down, resuming)
+                    links.update { if (it.tvShown == shown) it else it.copy(tvShown = shown) }
+                    delay(TvLinkRule.nextChangeInMs(down) ?: break)
+                }
+            }
         }
+        // Links ride the LAN network, not the default (LanRoute, LanLink): a default flip to
+        // cellular when Wi-Fi briefly loses validation used to drop every link and send the
+        // reconnects over cellular, where a private address times out until Wi-Fi is back.
+        LanRoute.start(context) { step ->
+            step.drop?.let { dropLinks(it) }
+            castWatcher.networkChanged(dropped = step.drop != null)
+            if (step.wake) wake.tryEmit(Unit)
+        }
+    }
+
+    /**
+     * A socket opened on a LAN network the phone has left is dead, but its read only says so after
+     * its timeout (20 s for the TV, 75 s for the bar). Drop both now; their loops reconnect on
+     * the network the phone has, at once ([ReconnectPace]) or when [wake] ends their backoff.
+     * Cast closes its own ([CastWatcher.networkChanged]). Only [LanRoute] calls this: a change of
+     * default network never does.
+     */
+    private fun dropLinks(why: String) {
+        Log.i(TAG, "links dropped: $why")
+        AppLog.events.record(EventLog.Kind.CONNECTION, "links dropped: $why")
+        atv.disconnect()
+        theatre.disconnect()
     }
 
     // region lifecycle
 
     /** Starts (or keeps) the sessions. Pair every call with [release]. */
     fun retain() {
-        synchronized(lock) {
+        retainSession()
+    }
+
+    /**
+     * [retain], returning the session epoch ([Links.epoch]) whose links the caller may trust:
+     * a link reported under an older epoch belongs to sessions that have stopped. A new
+     * generation starts only once the old one has finished, so its `finally` blocks can never
+     * clear what the new one set.
+     */
+    fun retainSession(): Int {
+        val live = sessionsLive
+        val current = synchronized(lock) {
             holders++
             lingerJob?.cancel()
             lingerJob = null
-            if (sessionsJob?.isActive != true) sessionsJob = scope.launch { runSessions() }
+            if (sessionsJob?.isActive != true) {
+                val previous = sessionsJob
+                val next = ++epoch
+                sessionsJob = scope.launch {
+                    previous?.cancelAndJoin()
+                    runSessions(next)
+                }
+            }
+            epoch
+        }
+        // Back from the background or a sleep: a remote session that heard nothing from the TV
+        // meanwhile is dead even if it reads ready. Reconnect now, before the first key.
+        val stale = atv.dropIfStale()
+        if (stale) Log.i(TAG, "tv remote: stale session dropped on return")
+        // A TV that was up when the app left, connected again: the remote's first frame back
+        // already reads "Connecting" in the down dress, so there is one transition, up (TvLinkRule).
+        if (TvLinkRule.resumes(tvUpWhenLeft, live, stale)) {
+            tvUpWhenLeft = false
+            tvDownSince = SystemClock.elapsedRealtime()
+            // The stale session is gone: the raw link says so now, not when its loop next looks.
+            // Shown first, then flagged: a link already back up clears the flag and wins.
+            links.update { it.copy(tv = if (stale) Link.CONNECTING else it.tv, tvShown = TvShown(Link.CONNECTING, resuming = true)) }
+            tvResuming.value = true
         }
         wake.tryEmit(Unit)
+        return current
     }
+
+    /** Whether the sessions are running now (held, or lingering after the last [release]). */
+    val sessionsLive: Boolean
+        get() = synchronized(lock) { sessionsJob?.isActive == true }
 
     fun release() {
         synchronized(lock) {
             holders = (holders - 1).coerceAtLeast(0)
             if (holders > 0) return
+            tvUpWhenLeft = links.value.tv == Link.ONLINE
             lingerJob?.cancel()
             lingerJob = scope.launch {
                 delay(LINGER_MS)
@@ -277,8 +788,23 @@ class TuttiController @Inject constructor(
         }
     }
 
-    private suspend fun runSessions() {
+    private suspend fun runSessions(epoch: Int) {
+        // Coming back after the sessions stopped is a fresh connect, not a reconnect: the remote
+        // reads "Connecting…" until the link is up (Iris, 2026-11-07). Reset before the links move,
+        // so the shown link is never judged against the old clock; a resume ([retainSession]) keeps
+        // the clock it started. Sessions still lingering never come through here.
+        tvWasUp = false
+        if (!tvResuming.value) tvDownSince = null
+        // Whatever the stopped sessions left is not news: every link is asked again under this epoch.
+        links.update { it.restarted(epoch) }
+        if (lan.missing()) {
+            // No LAN permission, no sockets: the loops only confirm it at their own gates.
+            lanMissing.value = true
+        }
         psk = secure.tvPsk()
+        pskSet.value = psk != null
+        ipCookie = secure.tvIpCookie()
+        if (ipCookie == null) ipCode.value = IpCodeStatus.NONE else if (ipCode.value == IpCodeStatus.NONE) ipCode.value = IpCodeStatus.SET
         // A learnt MAC is not a reason to drop and reopen every session.
         val hosts = store.devices.map { it.copy(tv = it.tv?.copy(mac = null)) }.distinctUntilChanged()
         combine(hosts, restart) { devices, _ -> devices }.collectLatest { devices ->
@@ -294,51 +820,101 @@ class TuttiController @Inject constructor(
         withTimeoutOrNull(millis) { wake.first() }
     }
 
+    /**
+     * The local-network permission was granted (the request dialog was answered, or the quick
+     * surfaces hand the app the grant): forget the missing state and rerun the sessions at once,
+     * so the links come back without waiting out a backoff.
+     */
+    fun onLanPermissionGranted() {
+        if (lan.missing()) return
+        if (lanMissing.value) {
+            lanMissing.value = false
+            restart.update { it + 1 }
+        }
+    }
+
     private suspend fun barLoop(bar: BarDevice?) {
         if (bar == null) {
             links.update { it.copy(bar = Link.ABSENT) }
             return
         }
         var wait = MIN_BACKOFF_MS
+        var failures = 0
         try {
             while (scope.isActive) {
+                // No local-network permission, no socket: say it and keep ticking slowly, so a
+                // grant comes back into the loop at once (onLanPermissionGranted wakes it).
+                if (lan.missing()) lanMissing.value = true
                 links.update { it.copy(bar = Link.CONNECTING) }
+                linkTimings.started(io.kud.tutti.protocol.diagnostic.TimedLink.BAR, SystemClock.elapsedRealtime())
                 val connected = try {
                     theatre.connect(bar.host)
                     true
                 } catch (e: CancellationException) {
                     throw e
+                } catch (e: LocalNetworkPermissionMissing) {
+                    lanMissing.value = true
+                    linkNotes.update { it.copy(bar = failureDetail("soundbar: connect (TCP 33336)", outcome = "the local network permission is missing", error = e)) }
+                    false
                 } catch (e: Exception) {
                     linkNotes.update { it.copy(bar = failureDetail("soundbar: connect (TCP 33336)", outcome = "unreachable", error = e)) }
                     false
                 }
                 if (connected) {
+                    linkTimings.ready(io.kud.tutti.protocol.diagnostic.TimedLink.BAR, SystemClock.elapsedRealtime())
                     links.update { it.copy(bar = Link.ONLINE) }
                     linkNotes.update { it.copy(bar = null) }
+                    barOffer.value = null
+                    failures = 0
                     wait = MIN_BACKOFF_MS
+                    lanMissing.value = false
                     coroutineScope {
                         val probe = launch { voiceZoom.value = theatre.probe(TheatreFeature.VOICE_ZOOM) }
+                        val model = launch {
+                            theatre.state.map { it.confirmed[TheatreFeature.MODEL.key] }.filterNotNull().collect { barModel = it }
+                        }
                         val poll = launch {
-                            // DRC and Auto Volume never notify; polling also proves the link is alive.
+                            // DRC and Auto Volume never notify; polling also proves the link is alive:
+                            // a bar that died without closing the socket answers nothing (SilenceWatch).
+                            var polls = 0
+                            val watch = SilenceWatch()
                             while (isActive) {
                                 delay(POLL_BAR_MS)
+                                val before = theatre.heard
                                 theatre.get(TheatreFeature.DRC)
                                 theatre.get(TheatreFeature.AUTO_VOLUME)
                                 theatre.get(TheatreFeature.POWER)
+                                if (watch.afterPoll(before, theatre.heard)) {
+                                    linkNotes.update { it.copy(bar = failureDetail("soundbar: poll", outcome = "two polls in a row went unanswered")) }
+                                    theatre.disconnect()
+                                    break
+                                }
+                                // Every third poll, ask again (paced) for what the bar has neither
+                                // reported nor refused: a missed answer is not a missing feature.
+                                if (++polls % REASK_EVERY_POLLS == 0) theatre.refreshMissing()
                             }
                         }
                         theatre.state.first { !it.connected }
                         probe.cancel()
+                        model.cancel()
                         poll.cancel()
                     }
                     linkNotes.update { it.copy(bar = failureDetail("soundbar: session", outcome = "connected, then the bar closed the link or stopped answering")) }
+                } else {
+                    failures++
                 }
                 links.update { it.copy(bar = Link.UNREACHABLE) }
+                val now = SystemClock.elapsedRealtime()
+                if (Rediscovery.due(failures, barBrowsedAt, now)) {
+                    barBrowsedAt = now
+                    lookForBar(bar)
+                }
                 backoff(wait)
                 wait = (wait * 2).coerceAtMost(MAX_BACKOFF_MS)
             }
         } finally {
             theatre.disconnect()
+            links.update { it.copy(bar = it.bar.stopped()) }
         }
     }
 
@@ -347,57 +923,238 @@ class TuttiController @Inject constructor(
             links.update { it.copy(tv = Link.ABSENT) }
             return
         }
-        val pin = secure.tvRemotePin()
-        if (pin == null) {
+        val storedPin = secure.tvRemotePin()
+        if (storedPin == null) {
             links.update { it.copy(tv = Link.NEEDS_PAIRING) }
             linkNotes.update { it.copy(tv = failureDetail("tv remote: connect (TLS 6466)", outcome = "no pairing stored on this phone: pair the TV")) }
             return
         }
-        val identity = identities.getOrCreate()
+        // A normal reconnect must never mint an identity: the TV binds pairing to the client
+        // certificate. If a key migration or damaged storage lost that identity, only the explicit
+        // pairing flow may create its replacement; otherwise we would present an unpaired certificate
+        // while still claiming that pairing is stored.
+        val identity = try {
+            identities.existing()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // The Keystore can fail (locked, wiped, a vendor bug): the remote is down, not the app.
+            links.update { it.copy(tv = Link.UNREACHABLE) }
+            linkNotes.update { it.copy(tv = failureDetail("tv remote: client identity (Keystore)", outcome = "could not load", error = e)) }
+            return
+        }
+        if (identity == null) {
+            links.update { it.copy(tv = Link.NEEDS_PAIRING) }
+            linkNotes.update {
+                it.copy(tv = failureDetail("tv remote: client identity (Keystore)", outcome = "pairing pin exists but client identity is missing: pair the TV"))
+            }
+            return
+        }
+        // No local-network permission, no TLS to the TV: say it and wait for the grant
+        // ([onLanPermissionGranted] reruns the sessions), as the pairing checks above do.
+        if (lan.missing()) {
+            lanMissing.value = true
+            links.update { it.copy(tv = Link.UNREACHABLE) }
+            linkNotes.update { it.copy(tv = failureDetail("tv remote: connect (TLS 6466)", outcome = "the local network permission is missing")) }
+            return
+        }
+        // The newest trusted certificate first; a TV that answers with the other trusted one is followed ([TrustedPins.follow]).
+        var pin: io.kud.tutti.protocol.net.CertificatePin = storedPin
+        remoteHost = device.host
         var wait = MIN_BACKOFF_MS
         var handshakeFailures = 0
+        var unreachable = 0
+        // How long the last session stayed up, for ReconnectPace; null after a failed attempt.
+        var lasted: Long? = null
         try {
             while (scope.isActive) {
-                links.update { it.copy(tv = Link.CONNECTING) }
+                var followed: io.kud.tutti.protocol.net.CertificatePin? = null
+                // Once the TV has refused our certificate twice, it keeps reading "pair again" between tries.
+                if (!HandshakeRule.needsPairing(handshakeFailures)) links.update { it.copy(tv = TvLinkRule.whileTrying(unreachable)) }
+                linkTimings.started(io.kud.tutti.protocol.diagnostic.TimedLink.REMOTE, SystemClock.elapsedRealtime())
                 val outcome = try {
                     atv.connect(device.host, identity, pin)
                     if (withTimeoutOrNull(READY_TIMEOUT_MS) { atv.state.first { it.ready } } != null) {
                         Link.ONLINE
                     } else {
-                        linkNotes.update { it.copy(tv = failureDetail("tv remote: connect (TLS 6466)", outcome = "connected, not ready after $READY_TIMEOUT_MS ms")) }
-                        Link.UNREACHABLE
+                        // TLS 1.3: a refused client certificate arrives as an alert on the first read,
+                        // after connect() returned. It counts towards "pair again" like a handshake one.
+                        val readError = atv.failure
+                        handshakeFailures = HandshakeRule.afterNotReady(handshakeFailures, readError)
+                        readError?.let { tvLastConnect = ErrorClass.of(it) }
+                        linkNotes.update {
+                            it.copy(
+                                tv = failureDetail(
+                                    "tv remote: connect (TLS 6466)",
+                                    outcome = "connected, not ready after $READY_TIMEOUT_MS ms; handshake failures in a row: $handshakeFailures",
+                                    error = readError,
+                                ),
+                            )
+                        }
+                        if (HandshakeRule.needsPairing(handshakeFailures)) Link.NEEDS_PAIRING else Link.UNREACHABLE
                     }
                 } catch (e: CancellationException) {
                     throw e
+                } catch (e: LocalNetworkPermissionMissing) {
+                    lanMissing.value = true
+                    linkNotes.update { it.copy(tv = failureDetail("tv remote: connect (TLS 6466)", outcome = "the local network permission is missing", error = e)) }
+                    Link.UNREACHABLE
                 } catch (e: Exception) {
+                    tvLastConnect = ErrorClass.of(e)
                     linkNotes.update { it.copy(tv = failureDetail("tv remote: connect (TLS 6466)", outcome = "handshake failures in a row: $handshakeFailures", error = e)) }
-                    when {
-                        e.hasCause<PinMismatchException>() -> Link.NEEDS_PAIRING
-                        e is ConnectException || e is SocketTimeoutException || e is NoRouteToHostException -> Link.UNREACHABLE
-                        e is SSLException -> if (++handshakeFailures >= 2) Link.NEEDS_PAIRING else Link.UNREACHABLE
-                        else -> Link.UNREACHABLE
+                    if (e.hasCause<PinMismatchException>()) {
+                        val seen = e.causeOf<PinMismatchException>()?.seen
+                        followed = seen?.let { onPinMismatch(io.kud.tutti.protocol.net.PinPlane.REMOTE, device.host, it) }
+                        if (followed != null) Link.UNREACHABLE else Link.NEEDS_PAIRING
+                    } else {
+                        // Only the TV refusing our certificate counts towards "pair again"; a reset,
+                        // timeout or closed port is the network, and clears the count.
+                        handshakeFailures = HandshakeRule.next(handshakeFailures, e)
+                        if (HandshakeRule.needsPairing(handshakeFailures)) Link.NEEDS_PAIRING else Link.UNREACHABLE
                     }
+                }
+                val other = followed
+                if (other != null) {
+                    // The TV answered with its other trusted certificate: use it first from now on, at once.
+                    secure.setTvRemotePin(other)
+                    pin = other
+                    atv.disconnect()
+                    continue
                 }
                 if (outcome == Link.NEEDS_PAIRING) {
                     atv.disconnect()
                     links.update { it.copy(tv = Link.NEEDS_PAIRING) }
-                    return
+                    if (!HandshakeRule.needsPairing(handshakeFailures)) return
+                    // Refused certificates may be a TV still waking its TLS stack: keep trying, slowly.
+                    backoff(HandshakeRule.RETRY_MS)
+                    continue
                 }
                 if (outcome == Link.ONLINE) {
+                    linkTimings.ready(io.kud.tutti.protocol.diagnostic.TimedLink.REMOTE, SystemClock.elapsedRealtime())
+                    // Which key a working session saw, so a later mismatch can tell a reissued certificate from a new key.
+                    atv.peerCertificate?.let { secure.setLastRemoteKeyLabel(io.kud.tutti.protocol.net.pinLabel(PublicKeyPin.of(it).sha256Hex)) }
                     handshakeFailures = 0
+                    unreachable = 0
+                    tvLastConnect = null
                     wait = MIN_BACKOFF_MS
+                    lanMissing.value = false
                     links.update { it.copy(tv = Link.ONLINE) }
                     linkNotes.update { it.copy(tv = null) }
+                    val upAt = SystemClock.elapsedRealtime()
                     atv.state.first { !it.ready }
+                    lasted = SystemClock.elapsedRealtime() - upAt
                     linkNotes.update { it.copy(tv = failureDetail("tv remote: session", outcome = "connected, then the link dropped")) }
+                } else {
+                    lasted = null
+                    unreachable++
                 }
                 atv.disconnect()
                 links.update { it.copy(tv = Link.UNREACHABLE) }
-                backoff(wait)
-                wait = (wait * 2).coerceAtMost(MAX_BACKOFF_MS)
+                val now = SystemClock.elapsedRealtime()
+                // A new address restarts every session (the stored host changed), this loop included.
+                if (Rediscovery.due(unreachable, tvBrowsedAt, now)) {
+                    tvBrowsedAt = now
+                    lookForTv(device, identity, pin)
+                }
+                val pause = ReconnectPace.pause(lasted, wait)
+                if (pause > 0) {
+                    backoff(pause)
+                    wait = (wait * 2).coerceAtMost(MAX_BACKOFF_MS)
+                }
             }
         } finally {
             atv.disconnect()
+            links.update { it.copy(tv = it.tv.stopped()) }
+        }
+    }
+
+    /**
+     * The TV stopped answering at its stored address: browse `_androidtvremote2._tcp` once and move
+     * to an address that presents the pinned Remote v2 certificate, or failing that the pinned REST
+     * public key ([Rediscovery.tvConfirmed]). Nothing is sent but the TLS handshake and, for REST,
+     * one unauthenticated getInterfaceInformation; a host that proves nothing is left alone.
+     */
+    private suspend fun lookForTv(device: TvDevice, identity: ClientIdentity, pin: io.kud.tutti.protocol.net.CertificatePin) {
+        val found = discovery.hosts(listOf(io.kud.tutti.platform.discovery.TvDiscovery.SERVICE_TYPE), REDISCOVERY_WINDOW_MS)
+        val others = listOfNotNull(store.devices.first().bar?.host)
+        val candidates = Rediscovery.candidates(found, device.host, others)
+        if (candidates.isEmpty()) return
+        val restPin = secure.tvRestPin()
+        for (host in candidates) {
+            val remoteSeen = seenRemotePin(host, identity, pin)
+            val restSeen = if (remoteSeen == null && restPin is PublicKeyPin) seenRestKey(host, restPin) else null
+            if (!Rediscovery.tvConfirmed(remoteSeen, restSeen, pin, restPin)) continue
+            Log.i(TAG, "tv found again at a new address by mDNS (${if (remoteSeen != null) "remote pin" else "rest key"})")
+            tvMovedThisSession = true
+            store.updateDevices { devices ->
+                val current = devices.tv
+                if (current == null || current.host != device.host) devices else devices.copy(tv = current.copy(host = host))
+            }
+            return
+        }
+    }
+
+    /** The Remote v2 certificate [host] presents, if it is the pinned one (the connector refuses any other). */
+    private suspend fun seenRemotePin(host: String, identity: ClientIdentity, pin: io.kud.tutti.protocol.net.CertificatePin): io.kud.tutti.protocol.net.CertificatePin? {
+        val connection = try {
+            withTimeoutOrNull(PROBE_TIMEOUT_MS) { tls.connect(host, AtvRemote.PORT, identity, pin) } ?: return null
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            return null
+        }
+        return try {
+            io.kud.tutti.protocol.net.CertificatePin.of(connection.peerCertificate)
+        } finally {
+            connection.close()
+        }
+    }
+
+    /** The REST public key [host] presents over HTTPS when it is [pin]: one unauthenticated getInterfaceInformation. */
+    private suspend fun seenRestKey(host: String, pin: PublicKeyPin): PublicKeyPin? {
+        val transport = OkHttpBraviaTransport(host, pin, { }, lan::require)
+        return try {
+            withTimeoutOrNull(PROBE_TIMEOUT_MS) {
+                transport.post(
+                    BraviaService.SYSTEM.path,
+                    io.kud.tutti.protocol.bravia.JsonRpc.request("getInterfaceInformation", 1, emptyList(), "1.0"),
+                    mapOf("Content-Type" to "application/json; charset=UTF-8"),
+                )
+                transport.observedPin
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    /**
+     * The bar stopped answering at its stored address: browse what a bar may advertise, ask each
+     * new private address its model on port 33336 (one read-only `get`), and offer the first that
+     * answers as the same model. Never moves the bar: the user applies the offer
+     * ([useBarAddressOffer]), since nothing on that port proves which bar it is.
+     */
+    private suspend fun lookForBar(bar: BarDevice) {
+        val found = discovery.hosts(io.kud.tutti.platform.discovery.TvDiscovery.BAR_SERVICE_TYPES, REDISCOVERY_WINDOW_MS / 2)
+        val others = listOfNotNull(store.devices.first().tv?.host)
+        for (host in Rediscovery.candidates(found, bar.host, others)) {
+            val offer = Rediscovery.barOffer(host, BarProbe.model(tcp, host), barModel) ?: continue
+            Log.i(TAG, "a soundbar answers at another address: offered, not applied")
+            barOffer.value = offer
+            return
+        }
+    }
+
+    /** Applies the bar's [barAddressOffer]: the bar's stored address becomes the offered one, and its session restarts there. */
+    fun useBarAddressOffer() {
+        val offer = barOffer.value ?: return
+        barOffer.value = null
+        scope.launch {
+            store.updateDevices { devices ->
+                val current = devices.bar ?: return@updateDevices devices
+                devices.copy(bar = current.copy(host = offer.host))
+            }
         }
     }
 
@@ -408,37 +1165,149 @@ class TuttiController @Inject constructor(
             tv.value = TvState()
             return
         }
-        val transport = OkHttpBraviaTransport(device.host, secure.tvRestPin()) { secure.setTvRestPin(it) }
-        val client = BraviaClient(transport, psk = { psk })
+        if (psk == null && ipCookie == null) {
+            // IP control needs the PSK or the code's cookie for everything past discovery, so
+            // without one there is nothing to poll: retrying only repeated the same failure
+            // (Erwann, 2026-10-24). TV settings explain how to set it up; setPsk and
+            // submitTvCode restart this loop.
+            bravia = null
+            braviaTransport = null
+            links.update { it.copy(rest = Link.ABSENT) }
+            linkNotes.update { it.copy(rest = null) }
+            return
+        }
+        // A new session (a new PSK or code restarts this loop) judges the key afresh.
+        pskRefused = false
+        tv.update { it.copy(pskRefused = false) }
+        // No local-network permission, no REST: report that reason, not a generic transport error.
+        // [onLanPermissionGranted] reruns the sessions once the permission is granted.
+        if (lan.missing()) {
+            lanMissing.value = true
+            bravia = null
+            braviaTransport = null
+            links.update { it.copy(rest = Link.UNREACHABLE) }
+            linkNotes.update { it.copy(rest = failureDetail("tv ip control", outcome = "the local network permission is missing")) }
+            tv.update { it.copy(power = PowerStatus.UNKNOWN) }
+            return
+        }
+        val transport = OkHttpBraviaTransport(device.host, secure.tvRestPin(), { secure.setTvRestPin(it) }, lan::require)
+        // The cookie wins when both exist (BraviaClient sends one credential, never both).
+        val client = BraviaClient(transport, cookie = { ipCookie?.value }, psk = { psk })
         braviaTransport = transport
+        tvHostForIcons = device.host
         bravia = client
+        try {
+            restSession(client, device)
+        } finally {
+            // A stopped session has no TV to talk to and no power reading to stand on.
+            if (bravia === client) {
+                bravia = null
+                braviaTransport = null
+            }
+            links.update { it.copy(rest = it.rest.stopped()) }
+            tv.update { it.copy(power = PowerStatus.UNKNOWN) }
+        }
+    }
+
+    private suspend fun restSession(client: BraviaClient, device: TvDevice) {
         var wait = MIN_BACKOFF_MS
+        // Attempts in a row that found the TV out of reach (TvLinkRule.whileTrying).
+        var unreachable = 0
         while (scope.isActive) {
-            links.update { it.copy(rest = Link.CONNECTING) }
+            if (psk == null && !keepCookieFresh(client)) {
+                // The TV refused the cookie, renewal included: only a new code helps, which restarts this loop.
+                links.update { it.copy(rest = Link.UNAUTHORIZED) }
+                linkNotes.update { it.copy(rest = failureDetail("tv ip control: code cookie", outcome = "expired or refused, and not renewed")) }
+                backoff(MAX_BACKOFF_MS)
+                continue
+            }
+            links.update { it.copy(rest = TvLinkRule.whileTrying(unreachable)) }
+            linkTimings.started(io.kud.tutti.protocol.diagnostic.TimedLink.REST, SystemClock.elapsedRealtime())
             when (val found = client.discover()) {
                 is BraviaResult.Ok -> {
+                    linkTimings.ready(io.kud.tutti.protocol.diagnostic.TimedLink.REST, SystemClock.elapsedRealtime())
                     wait = MIN_BACKOFF_MS
+                    unreachable = 0
+                    lanMissing.value = false
                     links.update { it.copy(rest = Link.ONLINE) }
                     linkNotes.update { it.copy(rest = null) }
                     tv.update { it.copy(capabilities = found.value) }
+                    // A reconnect may follow installs made meanwhile: ask for the app list again.
+                    tvWasActive = false
                     learnMac(client, device.host)
+                    // A missed poll is a blip until PollMisses says otherwise: only a transport miss
+                    // is tolerated; a pin mismatch or a refused cookie ends the loop at once.
+                    var misses = 0
                     while (scope.isActive) {
-                        if (!refreshTv(client)) break
-                        delay(POLL_TV_MS)
+                        val started = SystemClock.elapsedRealtime()
+                        val poll = refreshTv(client)
+                        if (poll == Poll.STOP) break
+                        misses = PollMisses.next(misses, answered = poll == Poll.ANSWERED)
+                        if (PollMisses.unreachable(misses)) break
+                        if (misses > 0) AppLog.events.record(EventLog.Kind.CONNECTION, "rest poll missed ($misses of ${PollMisses.TOLERATED} tolerated)")
+                        if (psk == null && !keepCookieFresh(client)) break
+                        awaitNextPoll(started)
                     }
                     links.update { it.copy(rest = Link.UNREACHABLE) }
                     linkNotes.update { it.copy(rest = failureDetail("tv ip control: poll", outcome = "answered, then stopped answering getPowerStatus")) }
                 }
                 is BraviaResult.Failure -> {
-                    val link = if (found.error == BraviaError.Unauthorized) Link.UNAUTHORIZED else Link.UNREACHABLE
+                    if (found.error == BraviaError.PinMismatch) {
+                        braviaTransport?.lastMismatch?.let { onPinMismatch(io.kud.tutti.protocol.net.PinPlane.REST, device.host, it) }
+                    }
+                    val link = when (found.error) {
+                        BraviaError.Unauthorized -> Link.UNAUTHORIZED
+                        // Another certificate than the pinned one: the TV was reset, or someone is in between.
+                        BraviaError.PinMismatch -> Link.NEEDS_PAIRING
+                        else -> Link.UNREACHABLE
+                    }
+                    unreachable = if (link == Link.UNREACHABLE) unreachable + 1 else 0
+                    // A permission revoked mid-session surfaces here as a transport error: own it.
+                    if (link == Link.UNREACHABLE && lan.missing()) lanMissing.value = true
                     links.update { it.copy(rest = link) }
                     linkNotes.update { it.copy(rest = failureDetail("tv ip control: discover (HTTPS/HTTP + PSK)", outcome = "$link: ${found.error}")) }
                     // A wrong PSK will not fix itself: wait for a new one (restart) or a long while.
-                    if (link == Link.UNAUTHORIZED) wait = MAX_BACKOFF_MS
+                    if (link == Link.UNAUTHORIZED || link == Link.NEEDS_PAIRING) wait = MAX_BACKOFF_MS
                 }
             }
             backoff(wait)
             wait = (wait * 2).coerceAtMost(MAX_BACKOFF_MS)
+        }
+    }
+
+    /**
+     * Before IP control is used with the code's cookie: renews it when due ([IpRegistration.needsRenewal])
+     * or once the TV refused it ([IpCodeStatus.RENEW] pending a check). False only when the TV
+     * refused the renewal too, so a new code is needed; a renewal that could not reach the TV keeps
+     * the cookie for the next try. Renewal itself is unverified on a real TV ([IpRegistration]).
+     */
+    private suspend fun keepCookieFresh(client: BraviaClient, refused: Boolean = false): Boolean {
+        val current = ipCookie ?: return true
+        val now = System.currentTimeMillis()
+        val awaiting = ipCode.value == IpCodeStatus.RENEW
+        when (CookieRenewal.decide(current, awaitingCode = awaiting, refused = refused, nowMs = now, lastTriedAtMs = renewTriedAt)) {
+            CookieRenewal.Step.Keep -> return true
+            CookieRenewal.Step.NeedCode -> {
+                if (!awaiting) ipCode.value = IpCodeStatus.RENEW
+                return false
+            }
+            CookieRenewal.Step.Renew -> Unit
+        }
+        renewTriedAt = now
+        return when (val renewed = client.renew(current, nowMs = now)) {
+            is BraviaResult.Ok -> when (val outcome = renewed.value) {
+                is Registration.Registered -> {
+                    if (outcome.cookie != current) secure.setTvIpCookie(outcome.cookie)
+                    ipCookie = outcome.cookie
+                    ipCode.value = IpCodeStatus.SET
+                    true
+                }
+                Registration.Refused, Registration.CodeShown -> {
+                    ipCode.value = IpCodeStatus.RENEW
+                    false
+                }
+            }
+            is BraviaResult.Failure -> CookieRenewal.keepAfterUnreachable(current, refused, now)
         }
     }
 
@@ -454,34 +1323,125 @@ class TuttiController @Inject constructor(
         }
     }
 
-    /** False when the TV stopped answering. */
-    private suspend fun refreshTv(client: BraviaClient): Boolean {
+    /** The TV was on at the last poll since REST (re)connected; read and written by the poll only. */
+    @Volatile
+    private var tvWasActive = false
+
+    /**
+     * Until the next poll: [TvPollRules.EVERY_MS] after [startedAt], or sooner once Remote v2 reports
+     * another foreground app ([TvPollRules.delayAfterChange]), so the input and the auto target follow.
+     */
+    private suspend fun awaitNextPoll(startedAt: Long) {
+        val remaining = startedAt + TvPollRules.EVERY_MS - SystemClock.elapsedRealtime()
+        if (remaining <= 0) return
+        val changed = withTimeoutOrNull(remaining) {
+            val before = atv.state.value.currentApp
+            atv.state.first { it.currentApp != before }
+        } != null
+        if (changed) delay(TvPollRules.delayAfterChange(startedAt, SystemClock.elapsedRealtime()))
+    }
+
+    /** When the poll last read the input list (elapsedRealtime), for [TvPollRules.inputsDue]. */
+    @Volatile
+    private var inputsAskedAt: Long? = null
+
+    /** When the poll last asked for the app list (elapsedRealtime), for [AppListRefresh]. */
+    @Volatile
+    private var appsAskedAt: Long? = null
+
+    /**
+     * The TV refuses the stored PSK on authenticated calls ([PskRules.refused]); reset when the
+     * REST loop restarts. Read and written by the REST session only.
+     */
+    @Volatile
+    private var pskRefused = false
+
+    /** Folds an authenticated call's outcome into [pskRefused]. Never logs the key. */
+    private fun judgePsk(result: BraviaResult<*>?) {
+        val auth = when (result) {
+            null -> PskRules.Auth.NOT_ASKED
+            is BraviaResult.Ok -> PskRules.Auth.ACCEPTED
+            is BraviaResult.Failure -> if (result.error == BraviaError.Unauthorized) PskRules.Auth.REFUSED else PskRules.Auth.OTHER
+        }
+        val refused = PskRules.refused(pskRefused, hasPsk = !psk.isNullOrEmpty(), hasCookie = ipCookie != null, auth = auth)
+        if (refused == pskRefused) return
+        pskRefused = refused
+        // Beside the link, never instead of it: reads that need no key (picture, sound, inputs,
+        // power) keep working, so the link stays online and only the key's own features step back.
+        tv.update { it.copy(pskRefused = refused) }
+    }
+
+    /** How one poll went: answered, missed (no answer, worth another try), or a reason to stop. */
+    private enum class Poll { ANSWERED, MISSED, STOP }
+
+    /** [Poll.MISSED] when the TV did not answer; [Poll.STOP] on a pin mismatch or a refused cookie. */
+    private suspend fun refreshTv(client: BraviaClient): Poll {
         val power = when (val result = client.powerStatus()) {
             is BraviaResult.Ok -> result.value
-            is BraviaResult.Failure -> if (result.error is BraviaError.Transport) return false else PowerStatus.UNKNOWN
+            is BraviaResult.Failure -> when {
+                result.error is BraviaError.Transport -> return Poll.MISSED
+                result.error == BraviaError.PinMismatch -> return Poll.STOP
+                // A refused cookie: renew it once, or stop polling until a new code.
+                result.error == BraviaError.Unauthorized && psk == null && ipCookie != null -> {
+                    keepCookieFresh(client, refused = true)
+                    return Poll.STOP
+                }
+                else -> PowerStatus.UNKNOWN
+            }
         }
         val caps = client.capabilities
         val active = power == PowerStatus.ACTIVE
-        val input = if (active) client.playingContent().getOrNull()?.uri else null
-        val pictureMode = if (active && caps.supports(BraviaService.VIDEO, "getPictureQualitySettings")) {
-            client.pictureSettings("pictureMode").getOrNull()?.firstOrNull { it.target == "pictureMode" }?.currentValue
+        // getPlayingContentInfo is a `private` method: without a PSK it can only be refused, so it is
+        // not asked. It rides this poll (TvPollRules.EVERY_MS), never a loop of its own. A failed or empty
+        // answer (what an app playing is expected to give) clears [TvState.playing], so the chip
+        // falls back to the app name rather than keeping a stale channel.
+        val playingResult = if (active && (!psk.isNullOrEmpty() || ipCookie != null)) client.playingContent() else null
+        val playing = playingResult?.getOrNull()
+        judgePsk(playingResult)
+        val input = playing?.uri
+        val pictureSetting = if (active && caps.supports(BraviaService.VIDEO, "getPictureQualitySettings")) {
+            client.pictureSettings("pictureMode").getOrNull()?.firstOrNull { it.target == "pictureMode" }
         } else {
             null
         }
+        val pictureMode = pictureSetting?.currentValue
+        val pictureModes = pictureSetting?.candidates?.filter { it.isAvailable }?.map { it.value }?.takeIf { it.isNotEmpty() }
         val current = tv.value
-        val inputs = if (current.inputs.isEmpty() && active) client.externalInputs().getOrNull().orEmpty() else current.inputs
-        val apps = if (current.apps.isEmpty() && active) client.applications().getOrNull().orEmpty() else current.apps
-        tv.update { it.copy(power = power, input = input ?: it.input, pictureMode = pictureMode ?: it.pictureMode, inputs = inputs, apps = apps) }
-        if (current.apps.isEmpty() && apps.isNotEmpty()) scope.launch { rememberApps(apps) }
-        return true
+        val now = SystemClock.elapsedRealtime()
+        // The input list rides this poll ([TvPollRules.inputsDue]): CEC names and what is plugged in
+        // stay current. A failed or empty answer keeps the list we had.
+        val askInputs = TvPollRules.inputsDue(active, current.inputs.isNotEmpty(), inputsAskedAt, now, inputChanged = input != null && input != current.input)
+        val inputs = if (askInputs) {
+            client.externalInputs().getOrNull()?.also { inputsAskedAt = now }?.takeIf { it.isNotEmpty() } ?: current.inputs
+        } else {
+            current.inputs
+        }
+        // The app list rides this poll too ([AppListRefresh]): until it is known, on every wake and
+        // reconnect, and every AppListRefresh.EVERY_MS while on, so an app installed later shows up.
+        val askApps = AppListRefresh.due(active, tvWasActive, current.apps.isNotEmpty(), appsAskedAt, now)
+        tvWasActive = active
+        val appsResult = if (askApps) client.applications().also { appsAskedAt = now } else null
+        judgePsk(appsResult)
+        val fetched = appsResult?.getOrNull()
+        // A failed or empty answer keeps the list we had.
+        val apps = fetched?.takeIf { it.isNotEmpty() } ?: current.apps
+        tv.update { it.copy(power = power, input = input ?: it.input, playing = playing, pictureMode = pictureMode ?: it.pictureMode, pictureModes = pictureModes ?: it.pictureModes, inputs = inputs, apps = apps) }
+        if (apps != current.apps) {
+            // New or changed apps go into the library, whose icon pass then fetches what is missing.
+            scope.launch { rememberApps(apps) }
+        } else if (active && apps.isNotEmpty()) {
+            // Icons that failed are asked again on later polls, each on its own backoff ([IconBook]).
+            scope.launch { fetchMissingIcons() }
+        }
+        return Poll.ANSWERED
     }
 
     // endregion
 
     // region state
 
-    private fun build(s: Stored, l: Live, e: Extra): TuttiUiState {
-        val snapshot = snapshotOf(l.tv, l.remote, l.bar)
+    private fun build(s: Stored, l: Live, e: Extra, v: VolumeExtra): TuttiUiState {
+        val snapshot = snapshotOf(l.tv, l.remote, l.bar, v.target)
         val active = e.activeSceneId
         val scenes = s.scenes.map { scene ->
             val run = e.progress[scene.id]
@@ -496,18 +1456,24 @@ class TuttiController @Inject constructor(
                 }
             }
         }
-        val cap = s.scenes.firstOrNull { it.id == active }?.settings?.get(SceneKey.VOLUME_CAP)?.let { (it as? SceneValue.Level)?.value }
+        val sceneCap = s.scenes.firstOrNull { it.id == active }?.settings?.get(SceneKey.VOLUME_CAP)?.let { (it as? SceneValue.Level)?.value }
+        val wall = System.currentTimeMillis()
+        val tonight = VolumeRules.tonightActive(s.prefs.tonightCap, wall)
+        val cap = VolumeRules.cap(sceneCap, tonight, wall, MAX_VOLUME)
         val tvPowered = l.remote.powered ?: when (l.tv.power) {
             PowerStatus.ACTIVE -> true
             PowerStatus.STANDBY -> false
             PowerStatus.UNKNOWN -> null
         }
-        val barPowered = l.bar.isOn(TheatreFeature.POWER)
+        // Live only: a bar that dropped has no power to report, whatever it said before.
+        val barPowered = l.bar.liveOn(TheatreFeature.POWER)
         val powered = e.overrides.powered ?: when {
             tvPowered == true || barPowered == true -> true
             tvPowered == false || barPowered == false -> false
             else -> null
         }
+        val volume = volumeShown(e.overrides.volume, l.bar.liveLevel(TheatreFeature.VOLUME), s.prefs.lastBarVolume, l.bar.connected)
+        val guardState = VolumeGuardState(s.prefs.volumeGuard, guardLevel(s.prefs), v.guard.unlocked)
         return TuttiUiState(
             loaded = true,
             devices = s.devices,
@@ -520,16 +1486,25 @@ class TuttiController @Inject constructor(
             voiceZoomAvailable = l.voiceZoom,
             scenes = scenes,
             profiles = s.profiles,
-            volume = e.overrides.volume ?: l.bar.level(TheatreFeature.VOLUME),
+            volume = volume,
             volumeCap = cap,
+            sceneVolumeCap = sceneCap,
+            tonightCap = tonight,
+            volumeGuardLine = VolumeRules.guardLine(guardState, volume, cap ?: MAX_VOLUME).takeIf { l.bar.connected },
+            volumeLandmarks = VolumeRules.landmarks(s.prefs.volumePresets, guardState, tonight?.level),
+            volumeAsk = v.guard.ask,
+            volumeGuardNotice = v.guard.notice,
+            sceneUndo = v.undo?.takeIf { !it.stale(SystemClock.elapsedRealtime(), active, powered) },
             powered = powered,
             waking = e.waking,
             pairing = e.pairing,
             cloud = e.cloud,
+            launches = e.launches,
+            lanPermissionMissing = e.lanMissing,
         )
     }
 
-    private fun snapshotOf(tv: TvState, remote: io.kud.tutti.protocol.atv.RemoteState, bar: TheatreState): DeviceSnapshot {
+    private fun snapshotOf(tv: TvState, remote: io.kud.tutti.protocol.atv.RemoteState, bar: TheatreState, target: String?): DeviceSnapshot {
         val tvPowered = remote.powered ?: when (tv.power) {
             PowerStatus.ACTIVE -> true
             PowerStatus.STANDBY -> false
@@ -541,30 +1516,174 @@ class TuttiController @Inject constructor(
             currentApp = remote.currentApp,
             pictureMode = tv.pictureMode,
             tvPowered = tvPowered,
+            // Only once the TV reported it (TV settings read it): there is no documented getter.
+            tvAudioOutput = tv.settings.sound.firstOrNull { it.target == io.kud.tutti.protocol.bravia.TvSetting.OUTPUT_TERMINAL }?.currentValue,
+            target = target,
         )
     }
 
-    private fun snapshot(): DeviceSnapshot = snapshotOf(tv.value, atv.state.value, theatre.state.value)
+    private fun snapshot(): DeviceSnapshot = snapshotOf(tv.value, atv.state.value, theatre.state.value, remoteTarget.value)
 
     // endregion
 
     // region remote
 
     fun key(keyCode: Int) {
-        scope.launch { atv.sendKey(keyCode) }
+        // Bounded (KeyBacklog): a socket slow to drain drops keys rather than piling them up to
+        // arrive after the finger has lifted.
+        if (!keyBacklog.tryAcquire()) return
+        scope.launch {
+            try {
+                keyOrder.withLock { sendTvKey(keyCode, long = false) }
+            } finally {
+                keyBacklog.done()
+            }
+        }
     }
 
-    /** Long-press Select is reserved for the TV: a held key. */
+    private val keyBacklog = KeyBacklog()
+
+    /** Keys go out one at a time, in the order they were pressed. */
+    private val keyOrder = Mutex()
+
+    /**
+     * Implicit wake ([TvLinkRule.wakesTv]): wakes the TV through [power]'s own path (remote power
+     * key, REST, Wake-on-LAN), then sends [keyCode] once the TV says it is on and its remote link
+     * is ready, within [WAKE_KEY_MS]. This is a wake action the press asked for, the way a physical
+     * remote's Home wakes the screen, not a key held through a blip: those are gone (Erwann,
+     * 2026-11-07). A newer wake press wins. A wake that fails says so itself
+     * ([TuttiEvent.WakeFailed]); a TV that answered but never came on drops the key, said.
+     */
+    fun wakeThenKey(keyCode: Int) {
+        val mine = wakeKey.incrementAndGet()
+        power(PowerTarget.TV, on = true)
+        scope.launch {
+            val on = withTimeoutOrNull(WAKE_KEY_MS) {
+                // On by the remote link's word, else REST's, and the remote link up to carry the key.
+                combine(atv.state, tv) { remote, rest -> remote.ready && (remote.powered ?: (rest.power == PowerStatus.ACTIVE)) == true }.first { it }
+            } != null
+            if (mine != wakeKey.get()) return@launch
+            if (!on) {
+                // Something answered, so no WakeFailed will say it: say the key never went.
+                if (atv.state.value.ready || tv.value.power == PowerStatus.ACTIVE) mutableEvents.tryEmit(TuttiEvent.KeyNotSent(KeyOutcome.EXPIRED))
+                return@launch
+            }
+            // The screen is still coming up: a Home sent in the same instant can be lost.
+            delay(WAKE_KEY_SETTLE_MS)
+            if (mine == wakeKey.get()) sendTvKey(keyCode, long = false)
+        }
+    }
+
+    /** The apps seen before the one in front, newest first, for the Apps sheet's "Recent" row. */
+    val recentApps: StateFlow<List<String>> = appHistory.map { it.others() }.distinctUntilChanged()
+        .stateIn(scope, SharingStarted.Eagerly, emptyList())
+
+    /**
+     * Long-press Back: back to the app before the one in front, through the optimistic launch
+     * path ([launchApp], [LaunchQueue]), refused like any tap while the link is down. False when there is none yet.
+     */
+    fun launchPreviousApp(): Boolean {
+        val target = appHistory.value.back() ?: return false
+        // Back means a screen already showing, as for the key: it never wakes the TV.
+        launchApp(target, wake = false)
+        return true
+    }
+
+    /** Long-press Select is reserved for the TV: a held key, for [KeyHold.MIN_HOLD_MS] (TalkBack, pins). */
     fun longPress(keyCode: Int) {
-        scope.launch { atv.longPress(keyCode) }
+        scope.launch { sendTvKey(keyCode, long = true) }
+    }
+
+    /**
+     * A key held by a finger (OK or an arrow held on the pad): down on the TV now (START_LONG), up
+     * on [releaseKey] (END_LONG), never before [minHoldMs] ([KeyHold.MIN_HOLD_MS] for OK, so the
+     * TV sees a long press; 0 for an arrow, which must stop when the finger does). The hold lasts
+     * while [renewHold] keeps coming: it comes up by itself [leaseMs] after the last renewal (a
+     * release lost on the phone), never while the finger is still there and renewing.
+     * Hold and release run in the order they were made, so a quick hold-and-lift never lifts first.
+     * One key is held at a time: a new hold lifts the old one first.
+     * A hold the link can't carry is dropped and said, as a long press is ([TvLinkRule.whileDown]).
+     */
+    fun holdKey(keyCode: Int, minHoldMs: Long = KeyHold.MIN_HOLD_MS, leaseMs: Long = KeyHold.MAX_HOLD_MS) {
+        scope.launch(start = CoroutineStart.UNDISPATCHED) { holdOrder.withLock { holdNow(keyCode, minHoldMs, leaseMs) } }
+    }
+
+    /** The finger that holds the key is still there: re-arm its lease. Nothing goes to the TV. */
+    fun renewHold() {
+        holding?.lease?.renew(SystemClock.uptimeMillis())
+    }
+
+    /** The finger left: the held key comes up. Nothing when nothing is held. */
+    fun releaseKey() {
+        scope.launch(start = CoroutineStart.UNDISPATCHED) { holdOrder.withLock { releaseNow() } }
+    }
+
+    private val holdOrder = Mutex()
+
+    @Volatile
+    private var holding: HeldTvKey? = null
+    private var holdCap: Job? = null
+
+    private class HeldTvKey(val keyCode: Int, val since: Long, val minHoldMs: Long, val lease: HoldLease)
+
+    private suspend fun holdNow(keyCode: Int, minHoldMs: Long, leaseMs: Long) {
+        releaseNow()
+        if (atv.state.value.ready && atv.holdKey(keyCode)) {
+            val now = SystemClock.uptimeMillis()
+            val held = HeldTvKey(keyCode, now, minHoldMs, HoldLease(leaseMs, now))
+            holding = held
+            AppLog.events.record(EventLog.Kind.KEY, "hold $keyCode")
+            holdCap = scope.launch {
+                // Sleeps until the lease runs out; each renewal pushes it further.
+                while (true) {
+                    val wait = held.lease.remaining(SystemClock.uptimeMillis())
+                    if (wait <= 0L) break
+                    delay(wait)
+                }
+                // Not cancelled by the release it makes: it is the cap job itself.
+                holdOrder.withLock {
+                    if (holding === held) {
+                        holdCap = null
+                        releaseNow()
+                    }
+                }
+            }
+            return
+        }
+        val current = links.value
+        AppLog.events.record(EventLog.Kind.KEY, "hold $keyCode not sent: remote ${current.tv}")
+        mutableEvents.tryEmit(TuttiEvent.KeyNotSent(TvLinkRule.whileDown(current.tv, current.tvShown)))
+    }
+
+    private suspend fun releaseNow() {
+        val held = holding ?: return
+        holding = null
+        holdCap?.cancel()
+        holdCap = null
+        delay(KeyHold.releaseDelay(held.since, SystemClock.uptimeMillis(), held.minHoldMs))
+        val sent = atv.releaseKey(held.keyCode)
+        AppLog.events.record(EventLog.Kind.KEY, "release ${held.keyCode} after ${SystemClock.uptimeMillis() - held.since} ms, sent $sent")
+    }
+
+    /** Bumped by every [wakeThenKey], so only the newest key waiting on a wake is sent. */
+    private val wakeKey = java.util.concurrent.atomic.AtomicInteger()
+
+    /**
+     * Sends a TV key now or not at all (Erwann, 2026-11-07: « soit c'est connecté et ça marche,
+     * soit c'est pas connecté et ça fait rien »). With the remote link down the key is dropped,
+     * never held for the link to come back, and [TvLinkRule.whileDown] says why
+     * ([TuttiEvent.KeyNotSent]).
+     */
+    private suspend fun sendTvKey(keyCode: Int, long: Boolean): Boolean {
+        if (atv.state.value.ready && (if (long) atv.longPress(keyCode) else atv.sendKey(keyCode))) return true
+        val current = links.value
+        mutableEvents.tryEmit(TuttiEvent.KeyNotSent(TvLinkRule.whileDown(current.tv, current.tvShown)))
+        return false
     }
 
     /** Replaces the TV field's text (each keystroke, live). */
-    fun text(text: String) {
-        scope.launch { atv.sendText(text) }
-    }
-
-    fun dismissKeyboard() = atv.dismissIme()
+    /** Returns what the TV can't take: characters with no key, when the TV's box only takes key presses. */
+    fun text(text: String): List<Char> = atv.type(text)
 
     // region voice
 
@@ -579,9 +1698,16 @@ class TuttiController @Inject constructor(
 
     /** Press: the mic opens at once, before the TV answers, so the first words are kept. */
     fun startVoice() {
-        scope.launch {
+        scope.launch(start = CoroutineStart.UNDISPATCHED) { voiceOrder.withLock { startVoiceNow() } }
+    }
+
+    /** Press, release and cancel run in the order they were made: a quick tap never finishes before it started. */
+    private val voiceOrder = Mutex()
+
+    private suspend fun startVoiceNow() {
+        run {
             atv.startVoice()
-            if (!atv.voice.value.capturing) return@launch
+            if (!atv.voice.value.capturing) return
             micJob?.cancel()
             micJob = scope.launch {
                 try {
@@ -598,59 +1724,452 @@ class TuttiController @Inject constructor(
 
     /** Release over the button: what was said goes to the TV. */
     fun finishVoice() {
-        scope.launch { atv.finishVoice() }
+        scope.launch(start = CoroutineStart.UNDISPATCHED) { voiceOrder.withLock { atv.finishVoice() } }
     }
 
     /** Slide off, background, or leaving the screen. */
     fun cancelVoice() {
         micJob?.cancel()
-        scope.launch { atv.cancelVoice() }
+        scope.launch(start = CoroutineStart.UNDISPATCHED) { voiceOrder.withLock { atv.cancelVoice() } }
     }
 
     fun clearVoiceFailure() = atv.clearVoiceFailure()
 
     // endregion
 
-    fun launchApp(packageName: String) {
-        scope.launch { launchLink(packageName) }
+    /**
+     * Opens an app, optimistically (Erwann, 2026-10-25: "faut un click optimiste"). The remote
+     * shows the app at once ([TuttiUiState.launches]); the launch goes out now when a route can, or
+     * is refused with the words a key gets ([TvLinkRule.whileDown]), never held for the link
+     * (Erwann, 2026-11-07). A repeat tap of the app in flight sends
+     * nothing; a different app replaces it. Runs in the controller's scope, so leaving the sheet
+     * never cancels a launch half way. With [wake], a tap while the TV sleeps turns it on first
+     * and opens the app once it is ([TvLinkRule.launchWakes], [wakeForLaunch]); only a hand on a
+     * tile, a dock slot or a shortcut asks for that, never anything running on its own.
+     */
+    fun launchApp(packageName: String, wake: Boolean = true): Long? = launchApp(packageName, destination = null, wake = wake)
+
+    /**
+     * [launchApp] to a place inside the app ([io.kud.tutti.protocol.apps.AppDestinations]): the
+     * destination link goes first, the app's ordinary routes after it, and the link again once
+     * the app is up if it took a fallback to open it. A null [destination] is the app's home.
+     */
+    fun launchApp(packageName: String, destination: String?, wake: Boolean = true): Long? {
+        if (destination == null) pendingDestinations.remove(packageName) else pendingDestinations[packageName] = destination
+        val (id, effects) = tapLaunch(packageName, await = false, wake = wake)
+        handleLaunch(effects)
+        return id
     }
 
-    /** Through IP control when the TV ever listed the app, else (or on failure) over the remote link. */
-    private suspend fun launchLink(packageName: String): Boolean {
-        val client = bravia
-        if (client != null && links.value.rest == Link.ONLINE) {
-            val uri = tv.value.apps.firstOrNull { AppLibrary.packageOf(it.uri) == packageName }?.uri
-                ?: store.apps.first().firstOrNull { it.packageName == packageName }?.tvUri
-            if (uri != null && client.setActiveApp(uri) is BraviaResult.Ok) return true
+    /** [launchApp], awaiting the outcome: true once the launch went out (confirmed, or sent unobserved). */
+    private suspend fun requestLaunch(packageName: String, destination: String? = null): Boolean {
+        if (destination == null) pendingDestinations.remove(packageName) else pendingDestinations[packageName] = destination
+        val (id, effects) = tapLaunch(packageName, await = true, wake = true)
+        handleLaunch(effects)
+        return id?.let { launchWaiters[it]?.await() } ?: false
+    }
+
+    /**
+     * One tap through [LaunchQueue.tap], synchronous so the book has changed before the caller
+     * looks. Returns the launch the tap started or joined (null when refused), and the effects.
+     */
+    private fun tapLaunch(packageName: String, await: Boolean, wake: Boolean): Pair<Long?, List<LaunchEffect>> {
+        val link = launchReadiness(packageName, wake)
+        var id: Long? = null
+        val effects = launchStep { book ->
+            LaunchQueue.tap(book, packageName, link, SystemClock.elapsedRealtime()).also { step ->
+                id = step.book.inFlightFor(packageName)
+                // Inside the step, so a launch that settles right after can't finish before its waiter exists.
+                if (await) id?.let { launchWaiters.getOrPut(it) { CompletableDeferred() } }
+            }
         }
-        val link = AppCatalog.byPackage(packageName)?.launchLink ?: "market://launch?id=$packageName"
-        return atv.launch(link)
+        return id to effects
     }
 
-    /** Keeps what the TV listed and fetches the icons not cached yet, one at a time. */
+    /**
+     * The destination of the latest tap per app, read when its launch is sent. Kept beside
+     * [LaunchQueue] rather than in it: the queue decides when a launch goes, not where it lands,
+     * and a newer tap of the same app replaces both.
+     */
+    private val pendingDestinations = java.util.concurrent.ConcurrentHashMap<String, String>()
+
+    /** Callers awaiting a launch's end ([requestLaunch]), by launch id. */
+    private val launchWaiters = java.util.concurrent.ConcurrentHashMap<Long, CompletableDeferred<Boolean>>()
+
+    /** The job sending each launch, by id, so a newer tap can stop the one it replaced. */
+    private val launchJobs = java.util.concurrent.ConcurrentHashMap<Long, Job>()
+
+    /** The one wake a launch waits on ([LaunchEffect.Wake]); a newer app tapped meanwhile waits on the same one. */
+    @Volatile private var launchWake: Job? = null
+
+    /** Applies one [LaunchQueue] step atomically and returns what the caller must do. */
+    private fun launchStep(transition: (LaunchBook) -> LaunchStep): List<LaunchEffect> {
+        var effects: List<LaunchEffect> = emptyList()
+        launches.update { book ->
+            val step = transition(book)
+            effects = step.effects
+            step.book
+        }
+        return effects
+    }
+
+    private fun handleLaunch(effects: List<LaunchEffect>) {
+        for (effect in effects) {
+            when (effect) {
+                is LaunchEffect.Send -> launchJobs[effect.id] = scope.launch {
+                    val result = launchWithResult(effect.packageName)
+                    launchJobs.remove(effect.id)
+                    handleLaunch(launchStep { LaunchQueue.settled(it, effect.id, result.verdict, SystemClock.elapsedRealtime(), Redact.text(result.trace())) })
+                }
+                is LaunchEffect.Wake -> {
+                    mutableEvents.tryEmit(TuttiEvent.AppLaunchWaking(appLabel(effect.packageName)))
+                    if (effect.start) {
+                        launchWake?.cancel()
+                        launchWake = scope.launch { wakeForLaunch(effect.until) }
+                    }
+                }
+                is LaunchEffect.Superseded -> launchJobs.remove(effect.id)?.cancel()
+                is LaunchEffect.Done -> {
+                    launchWaiters.remove(effect.id)?.complete(effect.ok)
+                    if (effect.ok) scheduleLaunchTick()
+                }
+                is LaunchEffect.Failed -> mutableEvents.tryEmit(
+                    TuttiEvent.AppNotOpened(appLabel(effect.failure.packageName), effect.failure.detail, effect.failure.asleep),
+                )
+                is LaunchEffect.Refused -> {
+                    val current = links.value
+                    mutableEvents.tryEmit(TuttiEvent.KeyNotSent(TvLinkRule.whileDown(current.tv, current.tvShown)))
+                }
+                is LaunchEffect.Repeat -> Unit
+            }
+        }
+    }
+
+    /**
+     * Turns the TV on for a launch tapped while it slept, then lets the launch go once the TV says
+     * it is on and a route can carry it. The TV alone, as the short press on Power: the bar follows
+     * it over HDMI-CEC by its own link setting ([shortPress]). A wake that fails is dropped, never
+     * sent into the void; when the wake already said why ([TuttiEvent.WakeFailed], with its Remote
+     * start help), the launch's own failure stays on its tile rather than a second message.
+     */
+    private suspend fun wakeForLaunch(until: Long) {
+        val wake = startPower(PowerTarget.TV, on = true)
+        val window = (until - SystemClock.elapsedRealtime()).coerceAtLeast(0)
+        val on = withTimeoutOrNull(window) {
+            combine(atv.state, tv, links) { remote, rest, link ->
+                val powered = (remote.powered ?: (rest.power == PowerStatus.ACTIVE)) == true
+                powered && (remote.ready || (bravia != null && link.rest == Link.ONLINE && !pskRefused))
+            }.first { it }
+        } != null
+        if (on) {
+            // The screen is still coming up: a launch sent in the same instant can lose to the TV's home.
+            delay(WAKE_KEY_SETTLE_MS)
+            handleLaunch(launchStep(LaunchQueue::awake))
+            return
+        }
+        val said = wake?.let { withTimeoutOrNull(POWER_KNOWN_MS) { it.await() } } != null
+        val effects = launchStep(LaunchQueue::notWoken)
+        handleLaunch(if (said) effects.filterNot { it is LaunchEffect.Failed } else effects)
+    }
+
+    /** Lets an unconfirmed launch's app leave the screen once its grace is over. */
+    private fun scheduleLaunchTick() {
+        scope.launch {
+            delay(LaunchQueue.SENT_GRACE_MS)
+            launchStep { LaunchQueue.tick(it, SystemClock.elapsedRealtime()) }
+        }
+    }
+
+    /** Forgets the last failed launch once its tile has shown it. */
+    fun clearLaunchFailure() = launches.update(LaunchQueue::clearFailure)
+
+    /**
+     * Whether a launch can go now: the remote link ready, or IP control up with a uri the TV
+     * listed. Else it is refused ([TvLinkRule.whileDown]), never held for the link (Erwann, 2026-11-07).
+     * With [wake], a TV asleep is woken first ([TvLinkRule.launchWakes]): one known in standby
+     * even while its links answer, since an app sent to it opens on a dark screen or not at all.
+     */
+    private fun launchReadiness(packageName: String, wake: Boolean): LaunchLink {
+        val shown = links.value
+        val powered = tvPoweredNow()
+        val wakes = wake && TvLinkRule.launchWakes(state.value.devices.tv != null, powered, shown.tv, shown.tvShown)
+        if (wakes && powered == false) return LaunchLink.ASLEEP
+        if (atv.state.value.ready) return LaunchLink.READY
+        // IP control can launch without the remote link, with a uri the TV listed (now or before).
+        val listed = tv.value.apps.any { AppLibrary.lists(it.uri, packageName) } ||
+            state.value.apps.any { it.packageName == packageName && it.tvUri != null }
+        // setActiveApp needs the key: a refused one leaves launches to the remote link.
+        if (bravia != null && links.value.rest == Link.ONLINE && !pskRefused && listed) return LaunchLink.READY
+        return if (wakes) LaunchLink.ASLEEP else LaunchLink.DOWN
+    }
+
+    private suspend fun restUriFor(packageName: String): String? =
+        tv.value.apps.firstOrNull { AppLibrary.lists(it.uri, packageName) }?.uri
+            ?: store.apps.first().firstOrNull { it.packageName == packageName }?.tvUri
+
+    /** An app's name for the words on screen: what the TV listed, else the catalogue's, else the package. */
+    private fun appLabel(packageName: String): String =
+        state.value.apps.firstOrNull { it.packageName == packageName }?.name
+            ?: io.kud.tutti.protocol.atv.AppCatalog.byPackage(packageName)?.name
+            ?: packageName
+
+    /** The last launch's redacted trace, for the developer diagnostic. */
+    @Volatile var lastLaunchTrace: String? = null
+        private set(value) {
+            field = value
+            if (value != null) AppLog.events.record(EventLog.Kind.LAUNCH, value)
+        }
+
+    /** A scene's launch: straight to the routes, since the scene has woken the TV and shows its own progress. */
+    private suspend fun launchDirect(packageName: String): Boolean = launchWithResult(packageName).ok
+
+    /**
+     * Through IP control when it answers and the TV ever listed the app, then each app link the
+     * catalogue knows, watching the remote link's foreground app between them ([AppLauncher]).
+     */
+    private suspend fun launchWithResult(packageName: String): LaunchResult {
+        // IP control set up but not up this instant (a session just started or resumed, a poll
+        // missed, the loop in backoff) used to read "offline" and lose the one route that opens any
+        // installed app (Erwann's Nuvio trace, 2026-11-09). Hold briefly for it, kicking the loop
+        // out of its backoff, and say in the trace that we did.
+        val restWait = if (LaunchPlan.waitsForRest(ipControlNow())) awaitRest() else null
+        val ip = ipControlNow()
+        val client = bravia.takeIf { ip == IpControl.ONLINE }
+        val restOnline = client != null
+        val restUri = if (!restOnline) null else restUriFor(packageName)
+        val restSkipped = LaunchPlan.restSkip(if (ip == IpControl.ONLINE && client == null) IpControl.CONNECTING else ip, restUri)
+        val launcher = AppLauncher(
+            send = { route ->
+                when (route) {
+                    is LaunchRoute.Rest -> client?.setActiveApp(route.uri) is BraviaResult.Ok
+                    is LaunchRoute.AppLink -> atv.launch(route.link)
+                }
+            },
+            foreground = atv.state.map { it.currentApp },
+            // app_info arrives over the remote link only; without it nothing can be confirmed.
+            canObserve = { atv.state.value.ready },
+        )
+        val destination = pendingDestinations.remove(packageName)
+        val plan = LaunchPlan.toDestination(packageName, destination, restOnline, restUri)
+        val result = launcher.launch(packageName, plan, restSkipped).copy(restWait = restWait)
+        lastLaunchTrace = Redact.text(result.trace())
+        return result
+    }
+
+    /** Where IP control stands for a launch ([LaunchPlan.restSkip]); a verdict outranks the raw link. */
+    private fun ipControlNow(): IpControl {
+        val rest = links.value.rest
+        return when {
+            rest == Link.ABSENT -> IpControl.NOT_SET_UP
+            pskRefused || rest == Link.UNAUTHORIZED -> IpControl.KEY_REFUSED
+            rest == Link.NEEDS_PAIRING -> IpControl.CERTIFICATE_CHANGED
+            lanMissing.value -> IpControl.NO_LAN_PERMISSION
+            rest == Link.ONLINE && bravia != null -> IpControl.ONLINE
+            rest == Link.UNREACHABLE -> IpControl.NOT_ANSWERING
+            else -> IpControl.CONNECTING
+        }
+    }
+
+    /**
+     * Holds a launch up to [LaunchPlan.REST_WAIT_MS] for a set-up IP control to come up, waking
+     * its loop out of backoff now and again meanwhile (as [wakeAndPower] does). Stops early on
+     * any verdict that waiting won't change.
+     */
+    private suspend fun awaitRest(): RestWait {
+        val started = SystemClock.elapsedRealtime()
+        val cameUp = coroutineScope {
+            val kick = launch {
+                while (isActive) {
+                    wake.tryEmit(Unit)
+                    delay(REST_KICK_MS)
+                }
+            }
+            val settled = withTimeoutOrNull(LaunchPlan.REST_WAIT_MS) {
+                links.map { ipControlNow() }.first { !LaunchPlan.waitsForRest(it) }
+            }
+            kick.cancel()
+            settled == IpControl.ONLINE
+        }
+        return RestWait(SystemClock.elapsedRealtime() - started, cameUp)
+    }
+
+    /**
+     * Developer probe (Technical details): one app link through the remote link, then what the TV
+     * reported in front ([io.kud.tutti.protocol.apps.LinkProbe]). The link is never logged and
+     * never joins [lastLaunchTrace]; the caller holds the result for the screen only.
+     */
+    suspend fun probeLink(link: String): io.kud.tutti.protocol.apps.LinkProbeResult =
+        io.kud.tutti.protocol.apps.LinkProbe.probe(
+            link = link.trim(),
+            send = { atv.launch(it) },
+            foreground = atv.state.map { it.currentApp },
+            canObserve = { atv.state.value.ready },
+        ).also { AppLog.events.record(EventLog.Kind.LINK, "probe (${linkScheme(link)}): ${it.outcome}, ${it.before} -> ${it.after}") }
+
+    /** Opens a per-app command ([io.kud.tutti.protocol.apps.AppShortcut]) as an app link; never logged. */
+    fun openAppLink(link: String) {
+        scope.launch {
+            val sent = atv.launch(link)
+            AppLog.events.record(EventLog.Kind.LINK, "sent (${linkScheme(link)}): $sent")
+        }
+    }
+
+    /** What the event log says of an app link: its scheme only, since the rest can carry anything. */
+    private fun linkScheme(link: String): String =
+        link.trim().substringBefore(':', "").lowercase().takeIf { it.isNotEmpty() && it.length <= 16 && it.all(Char::isLetterOrDigit) } ?: "?"
+
+    /**
+     * Every value the event log scrubs by name, read on each line: hosts, the TV's MAC, the PSK,
+     * the IP-control cookie, the names given to the TV, the bar and the phone.
+     */
+    private fun knownSecrets(): List<String> {
+        val devices = state.value.devices
+        return listOfNotNull(
+            devices.tv?.host, devices.tv?.mac, devices.tv?.name, devices.bar?.host, devices.bar?.name, psk, ipCookie?.value,
+        ) + AppLog.phoneNames(context)
+    }
+
+    /** Keeps what the TV listed, then fetches the icons not cached yet. */
     private suspend fun rememberApps(fresh: List<TvApp>) {
         store.updateApps { AppLibrary.remember(it, fresh) }
-        val transport = braviaTransport ?: return
-        val dir = iconDir.apply { mkdirs() }
-        for (app in store.apps.first()) {
-            val url = app.iconUrl ?: continue
-            val name = iconFileName(app.packageName) ?: continue
-            if (icons.value.containsKey(name)) continue
-            val bytes = transport.fetchIcon(url) ?: continue
-            val path = withContextIO {
-                val part = File(dir, "$name.part")
-                part.writeBytes(bytes)
-                val target = File(dir, name)
-                if (part.renameTo(target)) target.path else null
-            } ?: continue
-            icons.update { it + (name to path) }
+        fetchMissingIcons()
+    }
+
+    /**
+     * Fetches every listed icon not cached yet and due by [IconBook], one at a time, through
+     * the transport current at each fetch (a reconnect mid-loop must not fail the rest). One
+     * pass at a time; every outcome is kept for the diagnostic report.
+     */
+    private suspend fun fetchMissingIcons() {
+        if (!iconPass.tryLock()) return
+        try {
+            val dir = iconDir.apply { mkdirs() }
+            for (app in store.apps.first()) {
+                val transport = braviaTransport ?: return
+                val host = tvHostForIcons ?: return
+                val name = iconFileName(app.packageName) ?: continue
+                val now = System.currentTimeMillis()
+                if (icons.value.containsKey(name)) {
+                    if (iconBook.value.entries[app.packageName]?.last?.outcome != IconOutcome.CACHED) {
+                        iconBook.update { it.record(app.packageName, app.iconUrl, "cache", IconAttempt(IconOutcome.CACHED), now) }
+                    }
+                    continue
+                }
+                if (!iconBook.value.due(app.packageName, app.iconUrl, now)) continue
+                val attempt = when (val plan = AppIcons.plan(app.iconUrl, host)) {
+                    is AppIcons.Plan.Skip -> plan.outcome.let { IconAttempt(it) } to plan.shape
+                    is AppIcons.Plan.Fetch -> when (val got = transport.fetchIcon(plan.url, psk, cookie = ipCookie?.value)) {
+                        is OkHttpBraviaTransport.IconFetch.Failed -> got.attempt to plan.shape
+                        is OkHttpBraviaTransport.IconFetch.Image -> {
+                            // A full disk or a vanished cache dir is a missing icon, never a crash.
+                            val path = withContextIO {
+                                runCatching {
+                                    val part = File(dir, "$name.part")
+                                    part.writeBytes(got.bytes)
+                                    val target = File(dir, name)
+                                    if (part.renameTo(target)) target.path else null
+                                }.getOrNull()
+                            }
+                            if (path != null) icons.update { it + (name to path) }
+                            (if (path != null) IconAttempt(IconOutcome.CACHED) else IconAttempt(IconOutcome.NETWORK, "cache write")) to plan.shape
+                        }
+                    }
+                }
+                iconBook.update { it.record(app.packageName, app.iconUrl, attempt.second, attempt.first, System.currentTimeMillis()) }
+            }
+        } finally {
+            iconPass.unlock()
         }
     }
+
+    /** Per-app icon outcomes this session, for the diagnostic report: package names and URL shapes, never a host. */
+    fun iconReport(shown: (String) -> String? = { null }): List<String> = iconBook.value.report(shown).map { Redact.text(it) }
 
     private suspend fun <T> withContextIO(block: () -> T): T = kotlinx.coroutines.withContext(Dispatchers.IO) { block() }
 
-    /** The TV's own apps screen, over the remote link (no IP control needed). */
-    fun openAllApps() = key(V2Key.ALL_APPS)
+    /**
+     * Closes every app on the TV through IP control (`appControl.terminateApps`, PSK set): Sony
+     * offers no way to close one app by name. The now-showing card's long press asks first.
+     */
+    fun closeTvApps() {
+        val client = bravia
+        if (client == null || links.value.rest != Link.ONLINE) {
+            mutableEvents.tryEmit(TuttiEvent.ActionFailed("terminateApps: IP control not online"))
+            return
+        }
+        scope.launch {
+            val result = client.terminateApps()
+            if (result !is BraviaResult.Ok) mutableEvents.tryEmit(TuttiEvent.ActionFailed(Redact.text("terminateApps: $result")))
+        }
+    }
+
+    /**
+     * The TV's own apps screen, over the remote link. KEYCODE_ALL_APPS alone did nothing on the
+     * XR80 (dev.71), and neither did the intent links after it (2026-10-26), so [AppsScreenOpener]
+     * tries first, with IP control on, the TV's own IRCC key for it when its list names one
+     * ([AppsScreen.irccRoute]), then the Remote v2 routes. It watches the foreground app; [TuttiEvent.AppsScreen] says
+     * what it saw. With the link down it is dropped like any key ([TvLinkRule.whileDown]) and says so.
+     */
+    /** The apps-screen IRCC key a REST client's list gave, when TV settings had not loaded it ([openAllApps]). */
+    @Volatile private var appsScreenIrcc: Pair<BraviaClient, AppsScreenRoute.Ircc?>? = null
+
+    fun openAllApps() {
+        scope.launch {
+            if (!atv.state.value.ready) {
+                val current = links.value
+                mutableEvents.tryEmit(TuttiEvent.KeyNotSent(TvLinkRule.whileDown(current.tv, current.tvShown)))
+                return@launch
+            }
+            val client = bravia
+            val restOnline = client != null && links.value.rest == Link.ONLINE
+            val ircc = if (client != null && restOnline && client.capabilities.supports(BraviaService.SYSTEM, "getRemoteControllerInfo")) {
+                // The TV's own key list, as TV settings read it; when not loaded yet, asked once per
+                // REST client and remembered, so a second press doesn't pay the round trip again.
+                val known = tv.value.settings.ircc
+                if (known.isNotEmpty()) {
+                    AppsScreen.irccRoute(known)
+                } else {
+                    appsScreenIrcc?.takeIf { it.first === client }?.second
+                        ?: client.remoteControllerInfo().getOrNull()?.let { codes ->
+                            AppsScreen.irccRoute(codes).also { appsScreenIrcc = client to it }
+                        }
+                }
+            } else {
+                null
+            }
+            val opener = AppsScreenOpener(
+                send = { route ->
+                    when (route) {
+                        is AppsScreenRoute.Link -> atv.launch(route.link)
+                        is AppsScreenRoute.Key -> atv.sendKey(route.keyCode)
+                        is AppsScreenRoute.Ircc -> client?.sendIrcc(route.code) is BraviaResult.Ok
+                    }
+                },
+                foreground = atv.state.map { it.currentApp },
+                current = { atv.state.value.currentApp },
+            )
+            val result = opener.open(AppsScreen.routes(ircc))
+            lastLaunchTrace = Redact.text(result.trace())
+            mutableEvents.tryEmit(TuttiEvent.AppsScreen(result.verdict))
+        }
+    }
+
+    /**
+     * Wakes the TV when it isn't known to be on (the scene's own wake, bar included), then switches
+     * to [uri]. True once the TV took the input.
+     */
+    suspend fun showOnTv(uri: String): Boolean {
+        val s = state.value
+        val powered = s.remote.powered ?: when (s.tv.power) {
+            PowerStatus.ACTIVE -> true
+            PowerStatus.STANDBY -> false
+            PowerStatus.UNKNOWN -> null
+        }
+        if (powered != true) actuator.perform(SceneStep.WakeUp)
+        val ok = actuator.perform(SceneStep.TvInput(uri))
+        if (ok) tv.update { it.copy(input = uri) } else actionFailed("show computer on the tv: $uri", outcomeOf(null))
+        return ok
+    }
 
     fun switchInput(uri: String) {
         scope.launch {
@@ -660,44 +2179,78 @@ class TuttiController @Inject constructor(
     }
 
     /**
-     * One Power for both. A device in reach gets the command at once, optimistic for a few
-     * seconds, then its own reports win. Turning on with one out of reach (the TV in standby)
-     * wakes it instead: the sessions retry now rather than at the end of their backoff, the
-     * TV gets a Wake-on-LAN packet when its MAC is known, [TuttiUiState.waking] shows, and the
-     * command follows once it answers, or [TuttiEvent.WakeFailed] if it never does.
+     * The short press on Power: the TV alone, or the bar when there is no TV ([shortPress]). In
+     * reach, the command goes at once, optimistic for a few seconds, then the TV's own reports
+     * win. Turning on a TV out of reach (in standby) wakes it instead: the sessions retry now
+     * rather than at the end of their backoff, the TV gets a Wake-on-LAN packet when its MAC is
+     * known, [TuttiUiState.waking] shows, and the command follows once it answers, or
+     * [TuttiEvent.WakeFailed] if it never does.
      */
     fun power() {
-        if (waking.value) return
-        val current = state.value
-        val on = current.powered != true
-        val tvDevice = current.devices.tv
-        val tvNow = tvDevice != null && tvReachable()
-        val barNow = current.devices.bar != null && theatre.state.value.connected
-        if (tvNow || barNow) {
-            setOverride { it.copy(powered = on) }
-            if (tvNow) scope.launch { tvPower(on) }
-            if (barNow) scope.launch { theatre.setToggle(TheatreFeature.POWER, on) }
+        val s = state.value
+        val tvPowered = tvPoweredNow()
+        val barPowered = s.bar.isOn(TheatreFeature.POWER).takeIf { s.links.bar == Link.ONLINE }
+        val (target, on) = shortPress(s.devices.tv != null, tvPowered, barPowered)
+        power(target, on)
+    }
+
+    /**
+     * Power for one device or both (the long press on Power, and the card's "Turn on the TV"),
+     * through the same wake machinery as [power()]: [powerPlan] decides, per device, whether the
+     * command goes now, waits on a wake, or has nothing to do. A wake tries only the devices the
+     * target names, so [TuttiEvent.WakeFailed] blames only a device that was asked to wake.
+     */
+    fun power(target: PowerTarget, on: Boolean) {
+        startPower(target, on)
+    }
+
+    /** The TV's power as the remote shows it: the remote link's word, else IP control's; null when neither knows. */
+    private fun tvPoweredNow(): Boolean? {
+        val s = state.value
+        return s.remote.powered ?: when (s.tv.power) {
+            PowerStatus.ACTIVE -> true
+            PowerStatus.STANDBY -> false
+            PowerStatus.UNKNOWN -> null
         }
-        // Turning off: whatever is out of reach is asleep already.
-        if (!on) return
-        val tvAway = tvDevice?.takeIf { !tvNow }
-        val barAway = current.devices.bar != null && !barNow
-        if (tvAway == null && !barAway) return
+    }
+
+    /** [power], returning the wake when one started: it ends with the failure it reported, or null. */
+    private fun startPower(target: PowerTarget, on: Boolean): Deferred<WakeAttempt.Cause?>? {
+        if (waking.value) return null
+        val current = state.value
+        val tvDevice = current.devices.tv
+        val plan = powerPlan(
+            target = target,
+            on = on,
+            tvConfigured = tvDevice != null,
+            tvReachable = tvDevice != null && tvReachable(),
+            barConfigured = current.devices.bar != null,
+            barReachable = current.devices.bar != null && theatre.state.value.connected,
+        )
+        plan.overridePowered?.let { powered -> setOverride { it.copy(powered = powered) } }
+        if (plan.sendTv) scope.launch { tvPower(on) }
+        if (plan.sendBar) scope.launch { theatre.setToggle(TheatreFeature.POWER, on) }
+        if (!plan.waking) return null
         waking.value = true
+        // A plain launch, so a crash still reaches the scope's handler; the deferred only carries the outcome.
+        val outcome = CompletableDeferred<WakeAttempt.Cause?>()
         scope.launch {
             try {
-                wakeAndPower(tvAway, barAway)
+                outcome.complete(wakeAndPower(tvDevice?.takeIf { plan.wakeTv }, plan.wakeBar))
             } finally {
                 waking.value = false
+                outcome.complete(null)
             }
         }
+        return outcome
     }
 
     private fun tvReachable(): Boolean = atv.state.value.ready || (bravia != null && links.value.rest == Link.ONLINE)
 
-    private suspend fun wakeAndPower(tvDevice: TvDevice?, bar: Boolean) {
+    private suspend fun wakeAndPower(tvDevice: TvDevice?, bar: Boolean): WakeAttempt.Cause? {
         val mac = tvDevice?.mac
-        val (tvAnswered, barAnswered) = coroutineScope {
+        val sent = AtomicInteger(0)
+        val (tvReach, barReach) = coroutineScope {
             val kick = launch {
                 // The sessions may sit in backoff for up to MAX_BACKOFF_MS: retry now, and again while waiting.
                 while (isActive) {
@@ -709,14 +2262,14 @@ class TuttiController @Inject constructor(
                 launch {
                     repeat(WOL_SENDS) { i ->
                         if (i > 0) delay(WOL_RESEND_MS)
-                        wakeOnLan.send(tvDevice.host, mac)
+                        if (wakeOnLan.send(tvDevice.host, mac)) sent.incrementAndGet()
                     }
                 }
             } else {
                 null
             }
             val tvJob = async {
-                if (tvDevice == null) return@async true
+                if (tvDevice == null) return@async WakeAttempt.Reach.NOT_CONFIGURED
                 val reached = withTimeoutOrNull(WAKE_TIMEOUT_MS) {
                     combine(atv.state, links) { _, _ -> tvReachable() }.first { it }
                 } != null
@@ -724,27 +2277,34 @@ class TuttiController @Inject constructor(
                     setOverride { it.copy(powered = true) }
                     if (!tvPowerAfterWake(packetsSent = packets != null)) actionFailed("power: switch the tv on after waking it", "tv answered, power-on not confirmed")
                 }
-                reached
+                if (reached) WakeAttempt.Reach.ANSWERED else WakeAttempt.Reach.SILENT
             }
             val barJob = async {
-                if (!bar) return@async true
+                if (!bar) return@async WakeAttempt.Reach.NOT_CONFIGURED
                 // The bar often wakes with the TV over HDMI-CEC; it gets the command either way.
                 val reached = withTimeoutOrNull(WAKE_TIMEOUT_MS) { theatre.state.first { it.connected } } != null
                 if (reached) {
                     setOverride { it.copy(powered = true) }
                     theatre.setToggle(TheatreFeature.POWER, true)
                 }
-                reached
+                if (reached) WakeAttempt.Reach.ANSWERED else WakeAttempt.Reach.SILENT
             }
             val result = tvJob.await() to barJob.await()
             kick.cancel()
             packets?.cancel()
             result
         }
-        if (!tvAnswered || !barAnswered) {
-            val detail = failureDetail("power: wake the devices", outcome = "tv answered $tvAnswered, bar answered $barAnswered within $WAKE_TIMEOUT_MS ms")
-            mutableEvents.tryEmit(TuttiEvent.WakeFailed(tv = !tvAnswered, detail = detail))
-        }
+        val attempt = WakeAttempt(
+            tv = tvReach,
+            bar = barReach,
+            macKnown = mac != null,
+            packetsSent = sent.get(),
+            timeoutMs = WAKE_TIMEOUT_MS,
+            tvLastConnect = tvLastConnect,
+        )
+        val cause = attempt.cause ?: return null
+        mutableEvents.tryEmit(TuttiEvent.WakeFailed(cause, failureDetail("power: wake the devices", outcome = attempt.outcome())))
+        return cause
     }
 
     /**
@@ -768,6 +2328,36 @@ class TuttiController @Inject constructor(
         val client = bravia
         if (client != null && links.value.rest == Link.ONLINE) return client.setPower(on) is BraviaResult.Ok
         return if (remote.ready) atv.sendKey(V2Key.POWER) else false
+    }
+
+    /** The last level the bar reported or was asked for, so the rail keeps it (see [volumeShown]). */
+    @Volatile
+    private var lastVolume: Int? = null
+
+    /**
+     * The volume the UI shows (Erwann, 2026-10-24: "je veux que le niveau de volume reste affiché"):
+     * the fresh level ([current], an override or the bar's report) when there is one, else, while the
+     * bar is connected, the last one, so the rail's level and number never drop to nothing when an
+     * override expires before the bar has echoed the level. Unreachable: null.
+     */
+    private fun volumeShown(override: Int?, reported: Int?, stored: Int?, connected: Boolean): Int? {
+        if (reported != null && reported != stored) persistVolume(reported)
+        val current = override ?: reported
+        if (current != null) lastVolume = current
+        // Never reported this session: the level from the last one, even if the bar moved since.
+        return current ?: (lastVolume ?: stored).takeIf { connected }
+    }
+
+    @Volatile
+    private var persistVolumeJob: Job? = null
+
+    /** Keeps the bar's reported level for the next session, at most once a second. */
+    private fun persistVolume(level: Int) {
+        persistVolumeJob?.cancel()
+        persistVolumeJob = scope.launch {
+            delay(PERSIST_VOLUME_MS)
+            store.updatePrefs { it.copy(lastBarVolume = level) }
+        }
     }
 
     private fun setOverride(transform: (Overrides) -> Overrides) {
@@ -799,27 +2389,117 @@ class TuttiController @Inject constructor(
 
     // region bar
 
-    /** Absolute soundbar volume, clamped to the active scene's cap. Sent at most every 60 ms, latest wins. */
-    fun setVolume(level: Int) {
-        val ceiling = state.value.volumeCap ?: MAX_VOLUME
-        val clamped = level.coerceIn(0, ceiling)
-        if (clamped == 0 || clamped == ceiling) mutableEvents.tryEmit(TuttiEvent.VolumeLimit)
-        setOverride { it.copy(volume = clamped) }
-        volumeTarget.value = clamped
+    /** Absolute soundbar volume from the app: see [setVolume] with a source. */
+    fun setVolume(level: Int) = setVolume(level, VolumeSource.APP)
+
+    /**
+     * Absolute soundbar volume, clamped to the ceiling (the active scene's cap and the cap for
+     * tonight, the lower wins) and stopped at the high-volume guard ([VolumeRules.decide]): from the
+     * app it asks ([TuttiUiState.volumeAsk]), elsewhere it says going above needs the app. Sent at
+     * most every 60 ms, latest wins.
+     */
+    fun setVolume(level: Int, source: VolumeSource) {
+        val s = state.value
+        val ceiling = s.volumeCap ?: MAX_VOLUME
+        // The newest level asked for, not the state's, which may lag a burst of presses by a frame.
+        val current = overrides.value.volume ?: s.volume
+        val line = guardLevel(s.prefs)
+        val armed = VolumeGuardState(s.prefs.volumeGuard, line, guard.value.unlocked)
+        when (val decision = VolumeRules.decide(current, level, ceiling, armed, source)) {
+            is VolumeDecision.Send -> sendVolume(decision.level, ceiling, line)
+            is VolumeDecision.Held -> {
+                // The guard is a wall too: the bump, and the level stops exactly on it.
+                mutableEvents.tryEmit(TuttiEvent.VolumeLimit)
+                decision.send?.let { sendVolume(it, ceiling, line, bump = false) }
+                if (decision.ask) {
+                    guard.update { it.copy(ask = VolumeAsk(decision.threshold, decision.wanted)) }
+                } else {
+                    // The quick surfaces read the notice and say going above needs the app.
+                    guard.update { it.copy(notice = true) }
+                }
+            }
+        }
     }
 
-    fun volumeStep(delta: Int) {
-        val current = state.value.volume ?: return
-        setVolume(current + delta)
+    private fun sendVolume(clamped: Int, ceiling: Int, line: Int, bump: Boolean = true) {
+        if (bump && (clamped == 0 || clamped == ceiling)) mutableEvents.tryEmit(TuttiEvent.VolumeLimit)
+        // Below the line again: the guard re-arms at once, before a lagging state could let a step through.
+        if (clamped < line) guard.update { if (it.unlocked || it.notice) it.copy(unlocked = false, notice = false) else it }
+        setOverride { it.copy(volume = clamped) }
+        volumeTarget.trySend(clamped)
+    }
+
+    /** "Go above": the guard opens until the level is below its line again, and the asked level goes. */
+    fun confirmLoud() {
+        val ask = guard.value.ask ?: return
+        guard.update { it.copy(unlocked = true, ask = null, notice = false) }
+        setVolume(ask.wanted, VolumeSource.APP)
+    }
+
+    /** "Stay": the level stays on the line. */
+    fun stayBelowGuard() {
+        guard.update { it.copy(ask = null) }
+    }
+
+    fun volumeStep(delta: Int) = volumeStep(delta, VolumeSource.APP)
+
+    fun volumeStep(delta: Int, source: VolumeSource) {
+        // Level not known yet (the bar has not reported it): ask for it rather than guess a level to set.
+        // The bar hasn't reported its level this session: ask for it, and step from the level
+        // shown meanwhile (possibly last session's) rather than doing nothing.
+        if (theatre.state.value.level(TheatreFeature.VOLUME) == null) scope.launch { theatre.get(TheatreFeature.VOLUME) }
+        val current = overrides.value.volume ?: state.value.volume ?: return
+        setVolume(current + delta, source)
+    }
+
+    /** The high-volume guard's settings (Settings › Remote & dock). */
+    /**
+     * Where the guard's line is now: the day's level, or two thirds of it while a night window is
+     * open on this phone (sound that follows the hour; [io.kud.tutti.protocol.auto.NightHours.guardLine]).
+     */
+    private fun guardLevel(prefs: AppPrefs): Int = VolumeRules.threshold(
+        if (prefs.nightSession != null) io.kud.tutti.protocol.auto.NightHours.guardLine(prefs.volumeGuardLevel) else prefs.volumeGuardLevel,
+    )
+
+    fun setVolumeGuard(enabled: Boolean, level: Int) {
+        scope.launch { store.updatePrefs { it.copy(volumeGuard = enabled, volumeGuardLevel = VolumeRules.threshold(level)) } }
+    }
+
+    /**
+     * A cap for tonight at [level] until [until] (wall clock): enforced like a scene's cap, the lower
+     * wins. A louder bar comes down to it at once.
+     */
+    fun setTonightCap(level: Int, until: Long) {
+        val cap = io.kud.tutti.platform.data.TonightCap(level.coerceIn(0, MAX_VOLUME), until)
+        scope.launch { store.updatePrefs { it.copy(tonightCap = cap) } }
+        val current = overrides.value.volume ?: state.value.volume
+        if (current != null && current > cap.level && theatre.state.value.connected) {
+            setOverride { it.copy(volume = cap.level) }
+            volumeTarget.trySend(cap.level)
+        }
+    }
+
+    fun clearTonightCap() {
+        scope.launch { store.updatePrefs { it.copy(tonightCap = null) } }
+    }
+
+    /** A saved level in the volume sheet: [level] in [slot], or null to empty it. */
+    fun saveVolumePreset(slot: Int, level: Int?) {
+        scope.launch { store.updatePrefs { it.copy(volumePresets = VolumeRules.withPreset(it.volumePresets, slot, level)) } }
     }
 
     fun toggleMute() {
         scope.launch { theatre.setToggle(TheatreFeature.MUTE, !state.value.muted) }
     }
 
-    fun toggleBar(feature: TheatreFeature) {
-        val on = theatre.state.value.isOn(feature) ?: false
-        scope.launch { theatre.setToggle(feature, !on) }
+    /**
+     * Flips a bar toggle ([TheatreState.toggleTarget]): unreported but connected turns it on; an
+     * unreachable bar sends nothing and returns false, so the caller bumps as the Sound tile does.
+     */
+    fun toggleBar(feature: TheatreFeature): Boolean {
+        val on = theatre.state.value.toggleTarget(feature) ?: return false
+        scope.launch { theatre.setToggle(feature, on) }
+        return true
     }
 
     fun setBarToggle(feature: TheatreFeature, on: Boolean) {
@@ -840,8 +2520,98 @@ class TuttiController @Inject constructor(
         scope.launch { theatre.startBluetoothPairing() }
     }
 
+    /** His own name for bar input [value] (null: back to the bar's), shown only in tutti. */
+    fun renameBarInput(value: String, name: String?) {
+        scope.launch { store.updatePrefs { it.copy(barInputNames = if (name == null) it.barInputNames - value else it.barInputNames + (value to name)) } }
+    }
+
+    /** Takes bar input [value] out of the Son sheet's row, or puts it back. */
+    fun setBarInputHidden(value: String, hidden: Boolean) {
+        scope.launch { store.updatePrefs { it.copy(hiddenBarInputs = if (hidden) it.hiddenBarInputs + value else it.hiddenBarInputs - value) } }
+    }
+
+    /**
+     * True when the one-time hint for gesture [id] may show now, and records it as shown: once
+     * ever, never two the same day (discoverability rule 3, [io.kud.tutti.ui.common.GestureHints]).
+     */
+    fun takeHint(id: String): Boolean {
+        val today = java.time.LocalDate.now().toEpochDay()
+        if (!io.kud.tutti.ui.common.GestureHints.mayShow(state.value.prefs.hints, id, today)) return false
+        scope.launch { store.updatePrefs { it.copy(hints = io.kud.tutti.ui.common.GestureHints.shown(it.hints, id, today)) } }
+        return true
+    }
+
+    private val keyboardAsk = MutableStateFlow(false)
+
+    /** A launcher shortcut asked for the keyboard view; the remote opens it and calls [keyboardAnswered]. */
+    val keyboardAsked: StateFlow<Boolean> = keyboardAsk
+
+    fun askKeyboard() {
+        keyboardAsk.value = true
+    }
+
+    fun keyboardAnswered() {
+        keyboardAsk.value = false
+    }
+
+    /** The last exchanges on the bar's TCP 33336, scrubbed, for the diagnostic report. */
+    val barWire: List<String> get() = theatre.wire.lines()
+
     fun refreshBar() {
         scope.launch { theatre.refreshAll() }
+    }
+
+    /**
+     * Technical details opened: the bar's detail readouts on 33336 (paced, queued behind any
+     * refresh), one read-only `http_get` on 54545, and the TV's supported functions over REST
+     * when IP control is up. Each runs once per opening; nothing here is polled.
+     */
+    fun loadTechnical() {
+        loadPinMismatches()
+        scope.launch { theatre.refreshDetails() }
+        val bar = state.value.devices.bar
+        if (bar != null) {
+            scope.launch {
+                technical.update { it.copy(barHttpFetch = Fetch.LOADING) }
+                var fetch = Fetch.DONE
+                val readouts = try {
+                    BarHttpClient(OkHttpBarHttpTransport(bar.host, lan::require)).readouts().also {
+                        if (it == null) fetch = Fetch.UNSUPPORTED
+                    }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: BarHttpUnavailable) {
+                    fetch = Fetch.UNSUPPORTED
+                    null
+                } catch (e: Exception) {
+                    fetch = Fetch.FAILED
+                    null
+                }
+                technical.update {
+                    if (readouts != null) {
+                        it.copy(barHttp = readouts, barHttpFetch = Fetch.DONE)
+                    } else {
+                        it.copy(barHttp = null, barHttpFetch = fetch)
+                    }
+                }
+            }
+        }
+        val client = bravia
+        if (client != null && links.value.rest == Link.ONLINE) {
+            scope.launch {
+                technical.update { it.copy(tvFunctionsFetch = Fetch.LOADING) }
+                val result = client.supportedFunctions()
+                technical.update {
+                    when {
+                        result is BraviaResult.Ok -> it.copy(tvFunctions = result.value, tvFunctionsFetch = Fetch.DONE)
+                        result is BraviaResult.Failure &&
+                            (result.error is BraviaError.Unsupported || (result.error as? BraviaError.Rpc)?.isUnsupported == true) ->
+                            it.copy(tvFunctionsFetch = Fetch.UNSUPPORTED)
+                        else -> it.copy(tvFunctionsFetch = Fetch.FAILED)
+                    }
+                }
+            }
+        }
     }
 
     // endregion
@@ -850,8 +2620,12 @@ class TuttiController @Inject constructor(
 
     fun applyScene(sceneId: String) {
         val scene = state.value.scenes.firstOrNull { it.scene.id == sceneId }?.scene ?: return
+        val before = snapshot()
+        // One level of undo, taken before anything moves; a newer scene replaces it.
+        sceneUndo.value = SceneUndo.capture(scene, before, activeSceneId.value, SystemClock.elapsedRealtime())
+        scheduleUndoExpiry()
         activeSceneId.value = sceneId
-        val steps = SceneEngine.plan(scene, snapshot())
+        val steps = SceneEngine.plan(scene, before)
         sceneJob?.cancel()
         sceneJob = scope.launch {
             var failed = emptyList<SceneStep>()
@@ -874,8 +2648,42 @@ class TuttiController @Inject constructor(
             } else {
                 failureDetail("scene: apply", outcome = "${failed.size} of ${steps.size} steps failed", steps = failed.map { "failed $it" })
             }
-            mutableEvents.emit(TuttiEvent.SceneFinished(sceneId, failed.size, detail))
+            val undoable = sceneUndo.value?.sceneId == sceneId && activeSceneId.value == sceneId
+            mutableEvents.emit(TuttiEvent.SceneFinished(sceneId, failed.size, detail, undoable))
         }
+    }
+
+    private var undoExpiryJob: Job? = null
+
+    private fun scheduleUndoExpiry() {
+        val undo = sceneUndo.value ?: return
+        undoExpiryJob?.cancel()
+        undoExpiryJob = scope.launch {
+            delay(SceneUndo.WINDOW_MS)
+            sceneUndo.compareAndSet(undo, null)
+        }
+    }
+
+    /**
+     * Puts back what the last scene changed ([SceneUndo]), and the scene that was active before it.
+     * One level: the undo is spent. A run still going is stopped first. Restoring is a scene run of
+     * its own (the ceiling applies, the volume guard doesn't: it returns to a level he had).
+     */
+    fun undoLastScene(): Boolean {
+        val undo = state.value.sceneUndo ?: return false
+        sceneUndo.value = null
+        undoExpiryJob?.cancel()
+        sceneJob?.cancel()
+        val name = state.value.scenes.firstOrNull { it.scene.id == undo.sceneId }?.scene?.name
+        activeSceneId.value = undo.previousSceneId
+        val steps = undo.plan(snapshot())
+        sceneJob = scope.launch {
+            var failed = emptyList<SceneStep>()
+            SceneRunner(actuator).run(steps).collect { failed = it.failed }
+            val detail = if (failed.isEmpty()) null else failureDetail("scene: undo", outcome = "${failed.size} of ${steps.size} steps failed", steps = failed.map { "failed $it" })
+            mutableEvents.emit(TuttiEvent.SceneUndone(name, failed.size, detail))
+        }
+        return true
     }
 
     /** "Capturer l'état actuel": every known value, each one a removable chip. */
@@ -911,6 +2719,44 @@ class TuttiController @Inject constructor(
 
     private val actuator: SceneActuator by lazy { SceneActuatorImpl() }
 
+    private data class PictureFollowInput(
+        val context: PictureContext,
+        val config: PictureFollowConfig,
+        val modes: List<String>,
+        val sceneApps: Set<String>,
+    )
+
+    /** Apps whose per-app profile runs a scene that sets the picture mode: that scene owns their picture. */
+    private fun pictureSceneApps(profiles: List<AppProfile>, scenes: List<io.kud.tutti.protocol.scenes.Scene>): Set<String> =
+        profiles.filter { profile -> scenes.firstOrNull { it.id == profile.sceneId }?.settings?.containsKey(SceneKey.PICTURE_MODE) == true }
+            .map { it.appPackage }
+            .toSet()
+
+    /**
+     * One [PictureFollow] step at a time: the next state, its developer log line (modes only,
+     * never the app or input), then its write through IP control. A failed write puts the state
+     * back as it was, since the TV still shows what it showed.
+     */
+    private suspend fun followPicture(step: (PictureFollowState) -> PictureFollow.Step) = pictureFollowLock.withLock {
+        val before = mutablePictureFollow.value
+        val next = step(before)
+        mutablePictureFollow.value = next.state
+        next.log?.let { AppLog.events.record(EventLog.Kind.PICTURE, it) }
+        val write = next.write ?: return@withLock
+        val ok = bravia?.setPictureSetting("pictureMode", write.mode) is BraviaResult.Ok
+        if (ok) {
+            tv.update { it.copy(pictureMode = write.mode) }
+        } else {
+            val failed = PictureFollow.onWriteFailed(before, write)
+            mutablePictureFollow.value = failed.state
+            failed.log?.let { AppLog.events.record(EventLog.Kind.PICTURE, it) }
+        }
+    }
+
+    fun updatePictureFollow(transform: (PictureFollowConfig) -> PictureFollowConfig) {
+        scope.launch { store.updatePrefs { it.copy(pictureFollow = transform(it.pictureFollow)) } }
+    }
+
     private inner class SceneActuatorImpl : SceneActuator {
         override suspend fun perform(step: SceneStep): Boolean = when (step) {
             SceneStep.WakeUp -> {
@@ -919,14 +2765,36 @@ class TuttiController @Inject constructor(
                 delay(WAKE_SETTLE_MS)
                 true
             }
-            is SceneStep.TvInput -> bravia?.setPlayContent(step.uri) is BraviaResult.Ok
-            is SceneStep.TvApp -> launchLink(step.appPackage)
+            is SceneStep.TvInput -> (bravia?.setPlayContent(step.uri) is BraviaResult.Ok).also { ok ->
+                // Optimistic, as switchInput: a target the scene sets next holds against this input.
+                if (ok) tv.update { it.copy(input = step.uri) }
+            }
+            is SceneStep.TvApp -> launchDirect(step.appPackage)
             is SceneStep.PictureMode -> bravia?.setPictureSetting("pictureMode", step.mode) is BraviaResult.Ok
             is SceneStep.Bar -> {
-                theatre.set(step.feature, step.value)
+                // The cap for tonight binds scenes too: the lower cap wins.
+                val tonight = VolumeRules.tonightActive(store.prefs.first().tonightCap, System.currentTimeMillis())
+                val value = if (step.feature == TheatreFeature.VOLUME && tonight != null) {
+                    step.value.toIntOrNull()?.let { minOf(it, tonight.level).toString() } ?: step.value
+                } else {
+                    step.value
+                }
+                theatre.set(step.feature, value)
                 theatre.state.value.connected
             }
-            is SceneStep.LaunchApp -> launchLink(step.appPackage)
+            is SceneStep.LaunchApp -> launchDirect(step.appPackage)
+            is SceneStep.PictureOff -> bravia?.setPowerSavingMode(pictureOffMode(step.on)) is BraviaResult.Ok
+            is SceneStep.TvAudioOutput -> {
+                val ok = bravia?.setSoundSetting(io.kud.tutti.protocol.bravia.TvSetting.OUTPUT_TERMINAL, step.terminal) is BraviaResult.Ok
+                if (ok) {
+                    tv.update { state ->
+                        val sound = state.settings.sound.map { if (it.target == io.kud.tutti.protocol.bravia.TvSetting.OUTPUT_TERMINAL) it.copy(currentValue = step.terminal) else it }
+                        state.copy(settings = state.settings.copy(sound = sound))
+                    }
+                }
+                ok
+            }
+            is SceneStep.Target -> store.deviceList.first()[step.deviceId]?.takeIf { it.kind != io.kud.tutti.protocol.devices.DeviceKind.SOUNDBAR } != null && targetAsks.tryEmit(step.deviceId)
         }
     }
 
@@ -938,19 +2806,50 @@ class TuttiController @Inject constructor(
         scope.launch { perform(action) }
     }
 
+    /**
+     * A launcher shortcut's app: launched as its dock pin launches it, the pin's "Opens on"
+     * destination included, read from the dock now rather than carried in the intent. An app no
+     * longer pinned (a shortcut pinned to the home screen outlives the pin) opens at its default.
+     */
+    fun launchPinnedApp(packageName: String) {
+        val pin = state.value.dock.slots.firstNotNullOfOrNull { slot ->
+            (slot.primary as? DockAction.LaunchApp)?.takeIf { it.packageName == packageName }
+        }
+        run(pin ?: DockAction.LaunchApp(packageName, packageName))
+    }
+
     private suspend fun perform(action: DockAction) {
         when (action) {
-            is DockAction.LaunchApp -> launchLink(action.packageName)
+            is DockAction.LaunchApp -> requestLaunch(
+                action.packageName,
+                AppDestinations.resolve(action.link, state.value.prefs.appDestinations[action.packageName]),
+            )
             is DockAction.Input -> switchInput(action.uri)
-            is DockAction.ToggleBar -> TheatreFeature.fromKey(action.featureKey)?.let(::toggleBar)
+            is DockAction.ToggleBar -> TheatreFeature.fromKey(action.featureKey)?.let { toggleBar(it) }
             is DockAction.RunScene -> applyScene(action.sceneId)
             is DockAction.SetBar -> setBarValue(action.featureKey, action.value)
-            is DockAction.Key -> if (action.long) atv.longPress(action.keyCode) else atv.sendKey(action.keyCode)
+            // A Power pin (or macro step) is a wake while the TV is out of reach, as the Power button
+            // is: the key alone would be dropped (no buffer), and waking it is the one thing that helps.
+            is DockAction.Key -> if (wakesInstead(action.keyCode, action.long, atv.state.value.ready)) {
+                startPower(PowerTarget.TV, on = true)
+            } else {
+                sendTvKey(action.keyCode, action.long)
+            }
             is DockAction.Ircc -> {
                 val result = bravia?.sendIrcc(action.code)
                 if (result !is BraviaResult.Ok) actionFailed("shortcut: IRCC key", outcomeOf(result))
             }
             is DockAction.PictureMode -> if (bravia == null) actionFailed("shortcut: picture mode ${action.mode}", outcomeOf(null)) else setTvSetting(TvSettingGroup.PICTURE, "pictureMode", action.mode)
+            is DockAction.TvSoundOutput -> when {
+                bravia == null -> actionFailed("shortcut: sound output ${action.terminal}", outcomeOf(null))
+                // Readable on this TV: the optimistic setter, which the settings screen also reads back.
+                tv.value.settings.sound.any { it.target == io.kud.tutti.protocol.bravia.TvSetting.OUTPUT_TERMINAL } ->
+                    setTvSetting(TvSettingGroup.SOUND, io.kud.tutti.protocol.bravia.TvSetting.OUTPUT_TERMINAL, action.terminal)
+                else -> setOutputTerminal(action.terminal)
+            }
+            is DockAction.PictureOff -> if (bravia == null) actionFailed("shortcut: picture off", outcomeOf(null)) else setPictureOff(action.on)
+            // Screen-only: the remote opens their sheet and never hands them here (DockAction.OpenApps).
+            DockAction.OpenApps, DockAction.OpenKeys, is DockAction.Remote -> Unit
             is DockAction.Macro -> for (step in action.steps) {
                 when (step) {
                     is MacroStep.Wait -> delay(step.millis.coerceIn(0, MAX_MACRO_WAIT_MS))
@@ -989,19 +2888,51 @@ class TuttiController @Inject constructor(
         scope.launch { store.updatePrefs { it.copy(layout = transform(it.layout)) } }
     }
 
-    /** Back to the screen as it shipped; pins and their pages are his and stay. */
+    /**
+     * The layout and the dock replaced whole: an imported file, or the Undo after one, which puts
+     * back exactly what was there, spare tray included (2026-10-31).
+     */
+    fun replaceLayout(layout: RemoteLayout, dock: DockConfig, destinations: Map<String, String>? = null) {
+        scope.launch {
+            store.updatePrefs { p -> p.copy(layout = layout, appDestinations = destinations ?: p.appDestinations) }
+            store.updateDock { dock }
+        }
+    }
+
+    /** Scenes, pad and hand back as they shipped; the dock is his and stays. */
     fun resetLayout() {
         scope.launch { store.updatePrefs { it.copy(layout = RemoteLayout()) } }
     }
 
-    /** A new empty page of pins at the end (three at most). */
-    fun addDockPage() {
-        scope.launch { store.updateDock { it.withPageAdded() } }
+
+    /** A pin that didn't fit when the row joined the dock, back in the first free place. */
+    fun restoreSparePin(index: Int) {
+        scope.launch { store.updateDock { it.withSpareRestored(index) } }
     }
 
-    /** Page [page] goes, with its pins; the first page left always stays. */
-    fun removeDockPage(page: Int) {
-        scope.launch { store.updateDock { it.withPageRemoved(page) } }
+    /** A pin that didn't fit, let go on his word. */
+    fun dropSparePin(index: Int) {
+        scope.launch { store.updateDock { it.withSpareDropped(index) } }
+    }
+
+    /** Pin [from] dropped on place [to] in the layout editor: moves to an empty place, trades with a filled one. */
+    fun swapDockSlots(from: Int, to: Int) {
+        scope.launch { store.updateDock { it.withSwapped(from, to) } }
+    }
+
+    /** [slot] placed in [index] from the editor's list of kinds; a pin already there goes to the spare tray. */
+    fun placeDockPin(index: Int, slot: DockSlot) {
+        scope.launch { store.updateDock { it.withPlaced(index, slot) } }
+    }
+
+    /** Pin [index] taken out of the dock (dragged off, or its badge); [putBackDockPin] undoes it. */
+    fun removeDockPin(index: Int) {
+        scope.launch { store.updateDock { it.withRemoved(index) } }
+    }
+
+    /** Undo of a removal: back where it was if that place is still free, never over another pin. */
+    fun putBackDockPin(index: Int, slot: DockSlot) {
+        scope.launch { store.updateDock { it.withPutBack(index, slot) } }
     }
 
     fun assignLongPress(button: SecondaryButton, action: DockAction?) {
@@ -1023,6 +2954,11 @@ class TuttiController @Inject constructor(
             pairing.value = PairingUi.Failed(PairingError.UNREACHABLE, failureDetail("pair tv", outcome = "not a private LAN address", sensitive = listOf(address)))
             return
         }
+        // No local-network permission, no TLS to the TV: refuse like a wrong address, with the reason.
+        if (lan.missing()) {
+            pairing.value = PairingUi.Failed(PairingError.UNREACHABLE, failureDetail("pair tv (TLS 6467)", outcome = "the local network permission is missing"))
+            return
+        }
         pairingJob?.cancel()
         pairingJob = scope.launch {
             pairing.value = PairingUi.Connecting
@@ -1038,7 +2974,7 @@ class TuttiController @Inject constructor(
             val attemptJob = coroutineContext.job
             attemptJob.invokeOnCompletion { watchdog?.cancel() }
             suspend fun pairWith(identity: ClientIdentity): PairingResult {
-                val attempt = AtvPairing(tls, serviceName = "tutti", clientName = "Tutti").also { session = it }
+                val attempt = AtvPairing(tls).also { session = it }
                 return attempt.pair(address, identity) { tries ->
                     val answer = CompletableDeferred<String?>()
                     codeAnswer = answer
@@ -1056,40 +2992,74 @@ class TuttiController @Inject constructor(
                     }
                 }
             }
-            val result = try {
-                try {
-                    pairWith(identities.getOrCreate())
-                } catch (e: SSLException) {
-                    // The keystore key couldn't sign in the handshake: retry once with the software key.
-                    if (e.message?.contains("RSA routines") != true) throw e
-                    steps += "keystore key refused, software key"
-                    pairWith(identities.replaceWithSoftware())
-                }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Throwable) {
-                // Throwable, not Exception: an Error here (a missing class, a provider failure) would otherwise kill the app.
-                watchdog?.cancel()
-                pairing.value = PairingUi.Failed(PairingError.UNREACHABLE, detail("failed before pairing finished", e))
-                return@launch
-            }
-            when (result) {
-                is PairingResult.Paired -> {
-                    steps += "paired, saving pin"
-                    secure.setTvRemotePin(result.serverPin)
-                    steps += "saving device"
-                    store.updateDevices { it.copy(tv = (it.tv ?: TvDevice(address)).copy(host = address)) }
-                    restart.update { it + 1 }
+            // Pairing again mints a fresh identity, named per install (ClientNames), and keeps the
+            // stored one until the TV accepts the code: a cancel or a failure leaves the old pairing
+            // working. Identities from before per-install names ("tutti") are replaced this way.
+            var staged: StagedIdentity? = null
+            var committed = false
+            try {
+                val result = try {
+                    try {
+                        pairWith(identities.stage().also { staged = it }.identity)
+                    } catch (e: SSLException) {
+                        // The keystore key couldn't sign in the handshake: retry once with a software key.
+                        if (e.message?.contains("RSA routines") != true) throw e
+                        steps += "keystore key refused, software key"
+                        staged?.let { identities.discard(it) }
+                        pairWith(identities.stage(software = true).also { staged = it }.identity)
+                    }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Throwable) {
+                    // Throwable, not Exception: an Error here (a missing class, a provider failure) would otherwise kill the app.
                     watchdog?.cancel()
-                    pairing.value = PairingUi.Done
+                    pairing.value = PairingUi.Failed(PairingError.UNREACHABLE, detail("failed before pairing finished", e))
+                    return@launch
                 }
-                is PairingResult.Failed -> pairing.value = when (result.failure.also { watchdog?.cancel() }) {
-                    PairingFailure.Cancelled -> PairingUi.Idle
-                    PairingFailure.BadCode -> PairingUi.Failed(PairingError.BAD_CODE, detail("the TV rejected the code"))
-                    PairingFailure.Closed -> PairingUi.Failed(PairingError.UNREACHABLE, detail("closed before pairing finished"))
-                    else -> PairingUi.Failed(PairingError.REFUSED, detail("refused: ${result.failure}"))
+                when (result) {
+                    is PairingResult.Paired -> {
+                        steps += "paired, saving identity and pin"
+                        // Paired: the code timeout must not cancel the saving that follows.
+                        watchdog?.cancel()
+                        staged?.let { identities.commit(it) }
+                        committed = true
+                        secure.setTvRemotePin(result.serverPin)
+                        trustOffers.value = emptyMap()
+                        // The six-character Remote v2 code is the user's explicit trust ceremony.
+                        // Use that moment to refresh REST trust from an unauthenticated HTTPS probe:
+                        // no PSK/cookie is sent before the new certificate has been stored.
+                        refreshRestTrustAfterPairing(address)
+                        steps += "saving device"
+                        store.updateDevices { it.copy(tv = (it.tv ?: TvDevice(address)).copy(host = address)) }
+                        restart.update { it + 1 }
+                        watchdog?.cancel()
+                        pairing.value = PairingUi.Done
+                    }
+                    is PairingResult.Failed -> pairing.value = when (result.failure.also { watchdog?.cancel() }) {
+                        PairingFailure.Cancelled -> PairingUi.Idle
+                        PairingFailure.BadCode -> PairingUi.Failed(PairingError.BAD_CODE, detail("the TV rejected the code"))
+                        PairingFailure.Closed -> PairingUi.Failed(PairingError.UNREACHABLE, detail("closed before pairing finished"))
+                        else -> PairingUi.Failed(PairingError.REFUSED, detail("refused: ${result.failure}"))
+                    }
                 }
+            } finally {
+                if (!committed) staged?.let { withContext(NonCancellable) { identities.discard(it) } }
             }
+        }
+    }
+
+    /**
+     * Refreshes the REST server pin only after Remote v2 pairing proved physical presence at this
+     * TV. The probe itself is unauthenticated: the PSK and cookie stay off the wire until the new
+     * certificate is already stored. A failed probe leaves the old pin in place and therefore fails
+     * closed; an HTTP-only TV clears it only after unauthenticated discovery actually answered there.
+     */
+    private suspend fun refreshRestTrustAfterPairing(address: String) {
+        val probe = OkHttpBraviaTransport(address, initialPin = null, {}, lan::require)
+        val result = runCatching { BraviaClient(probe) { null }.discover() }.getOrNull()
+        when {
+            probe.observedPin != null -> secure.setTvRestPin(probe.observedPin)
+            result is BraviaResult.Ok && probe.scheme == "http" -> secure.setTvRestPin(null)
         }
     }
 
@@ -1107,7 +3077,7 @@ class TuttiController @Inject constructor(
     ): String {
         val devices = state.value.devices
         val l = links.value
-        return FailureReport.render(
+        val report = FailureReport.render(
             what = what,
             outcome = outcome,
             steps = steps,
@@ -1116,15 +3086,20 @@ class TuttiController @Inject constructor(
                 "app" to AppVersion.of(context),
                 "android" to "${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})",
                 "links" to "remote ${l.tv}, rest ${l.rest}, bar ${l.bar}",
-                "configured" to "tv ${devices.tv != null}, bar ${devices.bar != null}, psk ${psk != null}",
+                "configured" to "tv ${devices.tv != null}, bar ${devices.bar != null}, psk ${psk != null}, code ${ipCode.value.name.lowercase()}",
             ),
-            sensitive = sensitive + listOfNotNull(devices.tv?.host, devices.tv?.mac, devices.bar?.host, psk),
+            sensitive = sensitive + listOfNotNull(devices.tv?.host, devices.tv?.mac, devices.bar?.host, psk, ipCookie?.value),
         )
+        AppLog.events.record(EventLog.Kind.ERROR, report, sensitive)
+        return report
     }
 
-    private fun actionFailed(what: String, outcome: String) {
-        mutableEvents.tryEmit(TuttiEvent.ActionFailed(failureDetail(what, outcome)))
+    private fun actionFailed(what: String, outcome: String, keyRefused: Boolean = false) {
+        mutableEvents.tryEmit(TuttiEvent.ActionFailed(failureDetail(what, outcome), keyRefused))
     }
+
+    /** The TV answered 401/403: the write needs the key and refused it, which is not "no answer". */
+    private fun BraviaResult<*>.refusedKey(): Boolean = (this as? BraviaResult.Failure)?.error == BraviaError.Unauthorized
 
     private fun outcomeOf(result: BraviaResult<*>?): String = when (result) {
         null -> "no IP control session (rest ${links.value.rest})"
@@ -1150,12 +3125,88 @@ class TuttiController @Inject constructor(
         return true
     }
 
-    fun setPsk(value: String?) {
+    /**
+     * Stores [value] (null clears it). False, and nothing stored, when it breaks [PskRules]. A new
+     * key replaces the code's cookie: IP control uses one method at a time.
+     */
+    fun setPsk(value: String?): Boolean {
+        if (value != null && !PskRules.valid(value)) return false
         scope.launch {
             secure.setTvPsk(value)
             psk = secure.tvPsk()
+            pskSet.value = psk != null
+            if (psk != null) dropIpCookie()
             restart.update { it + 1 }
         }
+        return true
+    }
+
+    private suspend fun dropIpCookie() {
+        secure.setTvIpCookie(null)
+        ipCookie = null
+        ipCode.value = IpCodeStatus.NONE
+    }
+
+    /**
+     * Step one of « Code affiché sur la TV »: asks the TV to show its 4-digit code (`actRegister`
+     * without credentials, [BraviaClient.requestCode]). The transport is kept for [submitTvCode], so
+     * both go the same way (HTTPS pinned, or HTTP to a private address after the probe).
+     */
+    suspend fun requestTvCode(): TvCodeStep {
+        val host = store.devices.first().tv?.host ?: return TvCodeStep.Failed(TvCodeFailure.NO_TV)
+        if (lan.missing()) return TvCodeStep.Failed(TvCodeFailure.UNREACHABLE)
+        val transport = OkHttpBraviaTransport(host, secure.tvRestPin(), { secure.setTvRestPin(it) }, lan::require)
+        // Same entry in the TV's list of remote devices as last time, when there was one.
+        val clientId = (ipCookie ?: secure.tvIpCookie())?.clientId ?: IpRegistration.clientId(UUID.randomUUID().toString())
+        codeSession = transport to clientId
+        return when (val result = BraviaClient(transport) { null }.requestCode(clientId)) {
+            is BraviaResult.Ok -> when (val outcome = result.value) {
+                Registration.CodeShown -> TvCodeStep.Shown
+                is Registration.Registered -> registered(outcome.cookie)
+                Registration.Refused -> TvCodeStep.Failed(TvCodeFailure.NOT_ENABLED)
+            }
+            is BraviaResult.Failure -> TvCodeStep.Failed(codeFailure(result.error))
+        }
+    }
+
+    /** Step two: the code as typed. A wrong one can be typed again without asking for a new one. */
+    suspend fun submitTvCode(code: String): TvCodeStep {
+        val (transport, clientId) = codeSession ?: return TvCodeStep.Failed(TvCodeFailure.OTHER)
+        if (!IpRegistration.validCode(code)) return TvCodeStep.WrongCode
+        return when (val result = BraviaClient(transport) { null }.submitCode(clientId, code)) {
+            is BraviaResult.Ok -> when (val outcome = result.value) {
+                is Registration.Registered -> registered(outcome.cookie)
+                Registration.Refused, Registration.CodeShown -> TvCodeStep.WrongCode
+            }
+            is BraviaResult.Failure -> TvCodeStep.Failed(codeFailure(result.error))
+        }
+    }
+
+    /** Leaving the code dialog: nothing kept but what was stored. */
+    fun cancelTvCode() {
+        codeSession = null
+    }
+
+    /** The cookie replaces the PSK: one method at a time, the one just set up. */
+    private suspend fun registered(cookie: AuthCookie): TvCodeStep {
+        secure.setTvIpCookie(cookie)
+        secure.setTvPsk(null)
+        psk = null
+        pskSet.value = false
+        ipCookie = cookie
+        ipCode.value = IpCodeStatus.SET
+        codeSession = null
+        restart.update { it + 1 }
+        return TvCodeStep.Registered
+    }
+
+    private fun codeFailure(error: BraviaError): TvCodeFailure = when (error) {
+        is BraviaError.Transport -> TvCodeFailure.UNREACHABLE
+        BraviaError.PinMismatch -> TvCodeFailure.CERTIFICATE
+        BraviaError.Unauthorized, is BraviaError.Http, is BraviaError.Unsupported -> TvCodeFailure.NOT_ENABLED
+        // Sony's 40005, "Display Is Turned off": the TV can't show a code with its screen off.
+        is BraviaError.Rpc -> if (error.code == 40005) TvCodeFailure.SCREEN_OFF else TvCodeFailure.NOT_ENABLED
+        is BraviaError.Malformed -> TvCodeFailure.OTHER
     }
 
     suspend fun hasPsk(): Boolean = secure.tvPsk() != null
@@ -1167,6 +3218,10 @@ class TuttiController @Inject constructor(
             secure.forgetTv()
             identities.forget()
             psk = null
+            pskSet.value = false
+            ipCookie = null
+            ipCode.value = IpCodeStatus.NONE
+            codeSession = null
             activeSceneId.value = null
             store.updateDevices { it.copy(tv = null) }
             tv.value = TvState()
@@ -1188,43 +3243,62 @@ class TuttiController @Inject constructor(
 
     // region tv settings
 
+    /**
+     * The TV's inputs again, for the add flow's polling while a computer is plugged in or woken: one
+     * call, and only each known input's `connected` flag changes (the full list when none is known
+     * yet). [loadTvSettings] stays the whole sweep.
+     */
+    fun refreshInputs() {
+        val client = bravia ?: return
+        scope.launch {
+            val fresh = client.externalInputs().getOrNull() ?: return@launch
+            tv.update { state ->
+                val inputs = if (state.inputs.isEmpty()) {
+                    fresh
+                } else {
+                    state.inputs.map { old -> fresh.firstOrNull { it.uri == old.uri }?.let { old.copy(connected = it.connected) } ?: old }
+                }
+                state.copy(inputs = inputs)
+            }
+        }
+    }
+
     fun loadTvSettings() {
         val client = bravia ?: return
         scope.launch {
-            tv.update { it.copy(settings = it.settings.copy(loading = true)) }
+            // A re-check keeps any part whose call fails instead of wiping it (TvSettingsSweep).
+            val recheck = tv.value.settings.loaded
+            tv.update { it.copy(settings = it.settings.copy(loading = true, waiting = TvSettingsPart.entries.toSet())) }
             val caps = client.capabilities
-            val picture = if (caps.supports(BraviaService.VIDEO, "getPictureQualitySettings")) client.pictureSettings().getOrNull() else null
-            val sound = if (caps.supports(BraviaService.AUDIO, "getSoundSettings")) client.soundSettings().getOrNull() else null
-            val speaker = if (caps.supports(BraviaService.AUDIO, "getSpeakerSettings")) client.speakerSettings().getOrNull() else null
-            val saving = if (caps.supports(BraviaService.SYSTEM, "getPowerSavingMode")) client.powerSavingMode().getOrNull() else null
-            val wol = if (caps.supports(BraviaService.SYSTEM, "getWolMode")) client.wolMode().getOrNull() else null
-            val scene = if (caps.supports(BraviaService.VIDEO_SCREEN, "getSceneSetting")) client.sceneSetting().getOrNull() else null
-            val ircc = if (caps.supports(BraviaService.SYSTEM, "getRemoteControllerInfo")) {
-                client.remoteControllerInfo().getOrNull().orEmpty()
-            } else {
-                emptyList()
-            }
-            val sleep = io.kud.tutti.protocol.bravia.Ircc.sleepTimerCode(ircc)
-            val system = if (caps.supports(BraviaService.SYSTEM, "getSystemInformation")) client.systemInformation().getOrNull() else null
+            val outputSettable = caps.supports(BraviaService.AUDIO, "setSoundSettings")
+            val savingSettable = caps.supports(BraviaService.SYSTEM, "setPowerSavingMode")
+            fun land(answers: TvSettingsAnswers, settings: TvSettingsState) =
+                TvSettingsSweep.merge(settings, answers, recheck, outputSettable, savingSettable)
+            // Each part lands as soon as the TV answers it, so the screen fills top down instead of
+            // all at once after the slowest call (2026-10-26).
+            var answers = TvSettingsAnswers(
+                picture = TvAnswer.ask(caps.supports(BraviaService.VIDEO, "getPictureQualitySettings")) { client.pictureSettings() },
+                scene = TvAnswer.ask(caps.supports(BraviaService.VIDEO_SCREEN, "getSceneSetting")) { client.sceneSetting() },
+            )
+            tv.update { it.copy(settings = land(answers, it.settings).let { s -> s.copy(waiting = s.waiting - TvSettingsPart.PICTURE) }) }
+            answers = answers.copy(
+                sound = TvAnswer.ask(caps.supports(BraviaService.AUDIO, "getSoundSettings")) { client.soundSettings() },
+                speaker = TvAnswer.ask(caps.supports(BraviaService.AUDIO, "getSpeakerSettings")) { client.speakerSettings() },
+            )
+            tv.update { it.copy(settings = land(answers, it.settings).let { s -> s.copy(waiting = s.waiting - TvSettingsPart.SOUND) }) }
+            answers = answers.copy(
+                powerSaving = TvAnswer.ask(caps.supports(BraviaService.SYSTEM, "getPowerSavingMode")) { client.powerSavingMode() },
+                wol = TvAnswer.ask(caps.supports(BraviaService.SYSTEM, "getWolMode")) { client.wolMode() },
+                ircc = TvAnswer.ask(caps.supports(BraviaService.SYSTEM, "getRemoteControllerInfo")) { client.remoteControllerInfo() },
+                system = TvAnswer.ask(caps.supports(BraviaService.SYSTEM, "getSystemInformation")) { client.systemInformation() },
+            )
+            ((answers.system as? TvAnswer.Got<*>)?.value as? io.kud.tutti.protocol.bravia.SystemInfo)?.model
+                ?.let { model -> IssueLink.modelFamily(model)?.let { AppLog.tvFamily = it } }
             val inputs = client.externalInputs().getOrNull()
             tv.update {
                 it.copy(
                     inputs = inputs ?: it.inputs,
-                    settings = TvSettingsState(
-                        loading = false,
-                        picture = picture.orEmpty(),
-                        sound = sound.orEmpty(),
-                        speaker = speaker.orEmpty(),
-                        powerSaving = saving,
-                        powerSavingSupported = saving != null || caps.supports(BraviaService.SYSTEM, "setPowerSavingMode"),
-                        wol = wol,
-                        scene = scene,
-                        outputWriteOnly = sound == null && caps.supports(BraviaService.AUDIO, "setSoundSettings"),
-                        sleepCode = sleep,
-                        ircc = io.kud.tutti.protocol.bravia.Ircc.shortcuts(ircc),
-                        loaded = true,
-                        system = system,
-                    ),
+                    settings = land(answers, it.settings).copy(loading = false, loaded = true, waiting = emptySet()),
                 )
             }
         }
@@ -1253,7 +3327,7 @@ class TuttiController @Inject constructor(
                 TvSettingGroup.SPEAKER -> client.setSpeakerSetting(target, value)
             }
             if (result !is BraviaResult.Ok) {
-                actionFailed("tv setting: $group $target = $value", outcomeOf(result))
+                actionFailed("tv setting: $group $target = $value", outcomeOf(result), keyRefused = result.refusedKey())
                 loadTvSettings()
             }
         }
@@ -1265,7 +3339,7 @@ class TuttiController @Inject constructor(
         scope.launch {
             val result = client.setWolMode(enabled)
             if (result !is BraviaResult.Ok) {
-                actionFailed("tv setting: wake-on-lan = $enabled", outcomeOf(result))
+                actionFailed("tv setting: wake-on-lan = $enabled", outcomeOf(result), keyRefused = result.refusedKey())
                 loadTvSettings()
             }
         }
@@ -1277,7 +3351,7 @@ class TuttiController @Inject constructor(
         scope.launch {
             val result = client.setSceneSetting(value)
             if (result !is BraviaResult.Ok) {
-                actionFailed("tv setting: scene = $value", outcomeOf(result))
+                actionFailed("tv setting: scene = $value", outcomeOf(result), keyRefused = result.refusedKey())
                 loadTvSettings()
             }
         }
@@ -1289,9 +3363,18 @@ class TuttiController @Inject constructor(
         scope.launch {
             val result = client.setSoundSetting(io.kud.tutti.protocol.bravia.TvSetting.OUTPUT_TERMINAL, value)
             if (result !is BraviaResult.Ok) {
-                actionFailed("tv setting: sound output = $value", outcomeOf(result))
+                actionFailed("tv setting: sound output = $value", outcomeOf(result), keyRefused = result.refusedKey())
             }
         }
+    }
+
+    /**
+     * The Power sheet's sleep timer needs the TV's IRCC list ([TvSettingsState.sleepCode]), which
+     * only TV settings load: ask for it once when the sheet opens and it isn't known yet.
+     */
+    fun loadSleepTimer() {
+        val settings = tv.value.settings
+        if (!settings.loaded && !settings.loading && links.value.rest == Link.ONLINE) loadTvSettings()
     }
 
     /** One press of the TV's own sleep-timer key: the TV cycles its steps and shows the choice. */
@@ -1303,6 +3386,13 @@ class TuttiController @Inject constructor(
             if (result !is BraviaResult.Ok) actionFailed("tv: sleep timer key", outcomeOf(result))
         }
     }
+
+    /**
+     * Screen off, sound on: the TV's power saving `pictureOff`, or `off` to
+     * light it again. Sony's help guide says any remote key but volume and mute brings the picture
+     * back; unverified on the XR80 and over tutti's own keys, so tutti always offers the way back.
+     */
+    fun setPictureOff(on: Boolean) = setPowerSaving(pictureOffMode(on))
 
     fun setPowerSaving(mode: String) {
         val client = bravia ?: return
@@ -1333,6 +3423,24 @@ class TuttiController @Inject constructor(
         scope.launch { store.updatePrefs { it.copy(developerMode = enabled) } }
     }
 
+    /**
+     * Where a plain tap opens [packageName] from the Apps sheet, Recent and every pin left on "Same
+     * as the app"; null (or "As usual") forgets it. A link [AppDestinations.accepts] refuses is never stored.
+     */
+    fun setAppDestination(packageName: String, link: String?) {
+        val kept = link?.trim()?.takeIf { it.isNotEmpty() && AppDestinations.accepts(packageName, it) }
+        if (link != null && link.isNotBlank() && kept == null) return
+        scope.launch {
+            store.updatePrefs { p ->
+                p.copy(appDestinations = if (kept == null) p.appDestinations - packageName else p.appDestinations + (packageName to kept))
+            }
+        }
+    }
+
+    /** A plain tap on an app: opens it at its default destination, if it has one. */
+    fun launchAppAsSet(packageName: String): Long? =
+        launchApp(packageName, destination = state.value.prefs.appDestinations[packageName]?.takeUnless { it.isBlank() })
+
     fun setAppShown(packageName: String, shown: Boolean) {
         scope.launch {
             store.updatePrefs { it.copy(hiddenApps = if (shown) it.hiddenApps - packageName else it.hiddenApps + packageName) }
@@ -1359,11 +3467,178 @@ class TuttiController @Inject constructor(
         scope.launch { store.updatePrefs { it.copy(trueBlack = enabled) } }
     }
 
+    /** Settings › Automatic: pause for calls. The phone permission is asked by the row before this turns on. */
+    fun setPauseForCalls(enabled: Boolean) {
+        scope.launch { store.updatePrefs { it.copy(pauseForCalls = enabled) } }
+    }
+
+    /** Settings › Automatic: sound that follows the hour; the window's start and end in minutes of the day. */
+    fun setNightHours(transform: (io.kud.tutti.platform.data.NightHoursPrefs) -> io.kud.tutti.platform.data.NightHoursPrefs) {
+        scope.launch { store.updatePrefs { it.copy(nightHours = transform(it.nightHours)) } }
+    }
+
+    /**
+     * After an automatic resume: the bar from [io.kud.tutti.protocol.auto.ResumeFade]'s low start
+     * back up to [target], clamped to the ceiling and never through the guard (it only ever returns
+     * to a level the bar was already at). A hand on the volume meanwhile wins: the fade stops at the
+     * first level it didn't send itself. Returns whether it ran to the end.
+     */
+    suspend fun fadeBarBackTo(target: Int): Boolean {
+        val ceiling = state.value.volumeCap ?: MAX_VOLUME
+        val levels = io.kud.tutti.protocol.auto.ResumeFade.levels(target.coerceAtMost(ceiling))
+        if (levels.isEmpty() || !theatre.state.value.connected) return false
+        var sent: Int? = null
+        for (level in levels) {
+            val now = overrides.value.volume ?: state.value.volume
+            if (sent != null && now != sent) return false
+            setOverride { it.copy(volume = level) }
+            volumeTarget.trySend(level)
+            sent = level
+            if (level != levels.last()) delay(io.kud.tutti.protocol.auto.ResumeFade.STEP_MS)
+        }
+        return true
+    }
+
+    fun setEveningDim(enabled: Boolean) {
+        scope.launch { store.updatePrefs { it.copy(eveningDim = enabled) } }
+    }
+
+    fun setTraktLink(enabled: Boolean) {
+        scope.launch { store.updatePrefs { it.copy(traktLink = enabled) } }
+    }
+
+    fun setJustWatchLink(enabled: Boolean) {
+        scope.launch { store.updatePrefs { it.copy(justWatchLink = enabled) } }
+    }
+
+    fun setImdbLink(enabled: Boolean) {
+        scope.launch { store.updatePrefs { it.copy(imdbLink = enabled) } }
+    }
+
+    fun setTitleDetails(enabled: Boolean) {
+        scope.launch { store.updatePrefs { it.copy(titleDetails = enabled) } }
+    }
+
+    /** The Details offer's "No thanks": gone for good, on every synced phone. */
+    fun declineTitleDetailsOffer() {
+        scope.launch { store.updatePrefs { it.copy(titleDetailsOfferDeclined = true) } }
+    }
+
+    fun setCastArtwork(enabled: Boolean) {
+        scope.launch { store.updatePrefs { it.copy(castArtwork = enabled) } }
+    }
+
+    fun setOnlyFreeServices(enabled: Boolean) {
+        scope.launch { store.updatePrefs { it.copy(onlyFreeServices = enabled) } }
+    }
+
     fun setPadMode(mode: PadMode) {
         scope.launch { store.updatePrefs { it.copy(padMode = mode) } }
     }
 
     // endregion
+
+    /**
+     * A pinned TV plane presented [seen] instead of a trusted identity. Records it for the
+     * diagnostics (labels only), then: if [seen] is the plane's other trusted identity, returns it
+     * so the caller follows it; otherwise leaves a [TrustOffer] that [autoTrust] admits only under
+     * the gate, within its window.
+     */
+    private suspend fun onPinMismatch(
+        plane: io.kud.tutti.protocol.net.PinPlane,
+        host: String,
+        seen: java.security.cert.X509Certificate,
+    ): io.kud.tutti.protocol.net.CertificatePin? {
+        val seenCert = io.kud.tutti.protocol.net.CertificatePin.of(seen)
+        val seenKey = PublicKeyPin.of(seen)
+        val trusted = when (plane) {
+            io.kud.tutti.protocol.net.PinPlane.REMOTE -> secure.tvRemotePins().map { it.sha256Hex }
+            io.kud.tutti.protocol.net.PinPlane.REST -> secure.tvRestKeys().map { it.sha256Hex }
+        }
+        val sameKey = plane == io.kud.tutti.protocol.net.PinPlane.REMOTE &&
+            secure.lastRemoteKeyLabel() == io.kud.tutti.protocol.net.pinLabel(seenKey.sha256Hex)
+        val event = io.kud.tutti.protocol.net.PinMismatchEvent(
+            atMs = System.currentTimeMillis(),
+            plane = plane,
+            host = io.kud.tutti.protocol.net.hostLabel(host, stored = store.devices.first().tv?.host == host),
+            pinned = trusted.map { io.kud.tutti.protocol.net.pinLabel(it) },
+            seenCert = io.kud.tutti.protocol.net.pinLabel(seenCert.sha256Hex),
+            seenKey = io.kud.tutti.protocol.net.pinLabel(seenKey.sha256Hex),
+            sameKey = sameKey,
+        )
+        // A REST session retries a refused key every few minutes: one line per change, not per retry.
+        val last = secure.pinMismatches().firstOrNull()
+        if (last == null || last.admittedVia != null || last.plane != plane || last.seenCert != event.seenCert || last.host != event.host) {
+            runCatching { secure.recordPinMismatch(event) }
+        }
+        pinMismatchList.value = runCatching { secure.pinMismatches() }.getOrDefault(pinMismatchList.value)
+        Log.w(TAG, "pin mismatch: ${event.line()}")
+        val seenHex = if (plane == io.kud.tutti.protocol.net.PinPlane.REMOTE) seenCert.sha256Hex else seenKey.sha256Hex
+        if (plane == io.kud.tutti.protocol.net.PinPlane.REMOTE && io.kud.tutti.protocol.net.TrustedPins.follow(trusted, seenHex) != null) {
+            return seenCert
+        }
+        // A new sighting of the same identity moves its window to now; another identity replaces it.
+        val pending = io.kud.tutti.protocol.net.PendingIdentity(plane, host, seenHex, SystemClock.elapsedRealtime())
+        trustOffers.update { it + (plane to TrustOffer(pending, event)) }
+        autoTrustWatch.start()
+        return null
+    }
+
+    /**
+     * Admits each pending identity the moment [io.kud.tutti.protocol.net.AutoTrust] says so: the
+     * other plane online to the same host over its own pinned, matching identity, within the
+     * window. Same effect as pairing on that plane alone: the new identity first, the previous one
+     * kept as the second, the sessions restarted; and an entry in the identity changes saying it
+     * was admitted automatically and which plane vouched. Runs on one collector, so one admission
+     * at a time. No button, no banner (Erwann, 2026-11-11).
+     */
+    private suspend fun autoTrust(offers: Map<io.kud.tutti.protocol.net.PinPlane, TrustOffer>, current: Links) {
+        if (offers.isEmpty()) return
+        val now = SystemClock.elapsedRealtime()
+        val remote = io.kud.tutti.protocol.net.PlaneState(online = current.tv == Link.ONLINE, host = remoteHost, pinned = true)
+        val rest = io.kud.tutti.protocol.net.PlaneState(
+            online = current.rest == Link.ONLINE,
+            host = tvHostForIcons,
+            pinned = braviaTransport?.scheme == "https",
+        )
+        for ((plane, offer) in offers) {
+            val other = offers[plane.other()]?.pending
+            when (io.kud.tutti.protocol.net.AutoTrust.decide(offer.pending, now, remote, rest, other)) {
+                io.kud.tutti.protocol.net.AutoTrust.Decision.WAIT -> Unit
+                io.kud.tutti.protocol.net.AutoTrust.Decision.DROP -> trustOffers.update { if (it[plane] == offer) it - plane else it }
+                io.kud.tutti.protocol.net.AutoTrust.Decision.ADMIT -> {
+                    // Still the offer we decided on: a pairing may have cleared it meanwhile.
+                    if (trustOffers.value[plane] != offer) continue
+                    val before = when (plane) {
+                        io.kud.tutti.protocol.net.PinPlane.REMOTE -> secure.tvRemotePins().map { it.sha256Hex }
+                        io.kud.tutti.protocol.net.PinPlane.REST -> secure.tvRestKeys().map { it.sha256Hex }
+                    }
+                    when (plane) {
+                        io.kud.tutti.protocol.net.PinPlane.REMOTE -> secure.setTvRemotePin(io.kud.tutti.protocol.net.CertificatePin(offer.pending.sha256Hex))
+                        io.kud.tutti.protocol.net.PinPlane.REST -> secure.setTvRestPin(PublicKeyPin(offer.pending.sha256Hex))
+                    }
+                    val admitted = offer.event.copy(
+                        atMs = System.currentTimeMillis(),
+                        pinned = before.map { io.kud.tutti.protocol.net.pinLabel(it) },
+                        admittedVia = plane.other(),
+                    )
+                    runCatching { secure.recordPinMismatch(admitted) }
+                    pinMismatchList.value = runCatching { secure.pinMismatches() }.getOrDefault(pinMismatchList.value)
+                    Log.i(TAG, "pin admitted: ${admitted.line()}")
+                    trustOffers.update { if (it[plane] == offer) it - plane else it }
+                    restart.update { it + 1 }
+                }
+            }
+        }
+    }
+
+    /** Reads the recorded pin mismatches into [pinMismatches] (Technical details opening). */
+    fun loadPinMismatches() {
+        scope.launch { pinMismatchList.value = runCatching { secure.pinMismatches() }.getOrDefault(emptyList()) }
+    }
+
+    private inline fun <reified T : Throwable> Throwable.causeOf(): T? =
+        generateSequence(this) { it.cause }.take(8).filterIsInstance<T>().firstOrNull()
 
     private inline fun <reified T : Throwable> Throwable.hasCause(): Boolean {
         var current: Throwable? = this
@@ -1375,14 +3650,31 @@ class TuttiController @Inject constructor(
     }
 
     companion object {
+        private const val TAG = "tutti"
         const val MAX_VOLUME = 100
-        private const val LINGER_MS = 30_000L
+        /**
+         * How long the sessions outlive the last [release]: an idle TLS socket the TV pings every
+         * ~5 s, a REST poll every 10 s and a bar poll every 20 s, cheap on Wi-Fi, so a glance at
+         * another app comes back to a live link. Where Android freezes a cached app, the session
+         * goes stale meanwhile and the return is a resume (TvLinkRule).
+         */
+        private const val LINGER_MS = 5 * 60_000L
         private const val MIN_BACKOFF_MS = 1_000L
         private const val MAX_BACKOFF_MS = 30_000L
+
+        /** How often a launch holding for IP control wakes its loop out of backoff ([awaitRest]). */
+        private const val REST_KICK_MS = 700L
         private const val READY_TIMEOUT_MS = 8_000L
+
+        /** How long one mDNS browse listens before the candidates are probed. */
+        private const val REDISCOVERY_WINDOW_MS = 6_000L
+
+        /** One identity probe of a candidate address (TLS handshake, or one REST call). */
+        private const val PROBE_TIMEOUT_MS = 5_000L
         private const val POLL_BAR_MS = 20_000L
-        private const val POLL_TV_MS = 10_000L
+        private const val REASK_EVERY_POLLS = 3
         private const val OVERRIDE_MS = 2_500L
+        private const val PERSIST_VOLUME_MS = 1_000L
         /** How long Power waits for a sleeping device: a TV woken by a magic packet needs a few seconds for its network. */
         private const val WAKE_TIMEOUT_MS = 12_000L
         private const val WAKE_RETRY_MS = 1_500L
@@ -1391,6 +3683,10 @@ class TuttiController @Inject constructor(
         private const val POWER_KNOWN_MS = 2_000L
         private const val VOLUME_SEND_INTERVAL_MS = 60L
         private const val WAKE_SETTLE_MS = 1_500L
+
+        /** The wake's own timeout and the TV's power report after it: past this a woken key is dropped. */
+        private const val WAKE_KEY_MS = WAKE_TIMEOUT_MS + POWER_KNOWN_MS
+        private const val WAKE_KEY_SETTLE_MS = 500L
         private const val MAX_MACRO_WAIT_MS = 30_000L
         private const val SECRET_ACK_TIMEOUT_MS = 12_000L
     }
@@ -1399,3 +3695,16 @@ class TuttiController @Inject constructor(
 /** The cache file for a package's icon: the package name itself, or null for anything that is not one. */
 internal fun iconFileName(packageName: String): String? =
     packageName.takeIf { Regex("[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z0-9_]+)+").matches(it) }
+
+/**
+ * The controller scope's last resort: a coroutine that throws is logged (scrubbed) instead of
+ * killing the process. Each loop still handles its own failures; this is for the ones nobody
+ * foresaw.
+ */
+internal fun loggingHandler(log: (String) -> Unit): CoroutineExceptionHandler = CoroutineExceptionHandler { _, error ->
+    val text = runCatching { Redact.text(error.stackTraceToString()) }.getOrDefault(error.javaClass.name)
+    runCatching { log("uncaught in the controller scope: $text") }
+}
+
+/** The power saving value that turns the picture off ([on]) or back on. `off` also clears a `low`/`high` saving. */
+internal fun pictureOffMode(on: Boolean): String = if (on) "pictureOff" else "off"

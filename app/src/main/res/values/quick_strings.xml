@@ -1,32 +1,51 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="quick_tile_label">Remote</string>
+    <string name="quick_tile_label">TV + bar</string>
     <string name="quick_widget_label">Quick remote</string>
-    <string name="quick_widget_description">Scenes, volume and mute</string>
+    <string name="quick_widget_description">What’s on, play/pause, scenes and volume</string>
 
     <string name="quick_status_connected">Connected</string>
     <string name="quick_status_disconnected">Disconnected</string>
     <string name="quick_status_off">Off</string>
     <string name="quick_status_muted">Muted</string>
+    <!-- Widget and overlay with nothing set up yet. -->
+    <string name="quick_status_set_up">Open tutti to add the TV</string>
     <string name="quick_volume_value">Volume %1$d</string>
+    <string name="quick_scene_active">%1$s, active</string>
     <string name="quick_scene_modified">%1$s · modified</string>
 
     <string name="quick_action_volume_down">Volume down</string>
     <string name="quick_action_volume_up">Volume up</string>
     <string name="quick_action_mute">Mute</string>
     <string name="quick_action_unmute">Unmute</string>
+    <string name="quick_action_play_pause">Play/pause</string>
     <string name="quick_action_power">Power</string>
     <string name="quick_action_open_app">Open the remote</string>
+    <!-- The overlay over the lock screen: what the unlock adds. -->
+    <string name="quick_locked_hint">Unlock for Power and scenes</string>
     <string name="quick_volume_slider">Bar volume</string>
+    <!-- The overlay rail before the level is reported: empty, never a made-up 0. -->
+    <string name="quick_volume_unknown">Level not reported</string>
 
     <string name="quick_notification_channel">Quick remote</string>
-    <string name="quick_notification_channel_description">Volume, mute and active scene while the TV is on.</string>
-    <string name="quick_notification_volume_down">Vol. −</string>
-    <string name="quick_notification_volume_up">Vol. +</string>
+    <string name="quick_notification_channel_description">The TV in Android’s media player while it is on: what’s showing, previous, play/pause, next and mute.</string>
+    <string name="quick_notification_previous">Previous</string>
+    <string name="quick_notification_next">Next</string>
     <string name="quick_notification_mute">Mute</string>
     <string name="quick_notification_unmute">Unmute</string>
+    <string name="quick_notification_play_pause">Play/pause</string>
+    <!-- Expanded notification only; asks for the unlock first. -->
+    <string name="quick_notification_turn_off">Turn off</string>
+    <string name="quick_level_bar">Bar vol. %1$d</string>
+    <string name="quick_level_tv">TV vol. %1$d</string>
+    <string name="quick_level_bar_muted">Bar muted</string>
+    <string name="quick_level_tv_muted">TV muted</string>
 
-    <string name="quick_pref_notification_title">Control notification</string>
-    <string name="quick_pref_notification_summary">Volume, mute and active scene, on the lock screen too, while the TV is on.</string>
+    <string name="quick_pref_notification_title">Media controls</string>
+    <string name="quick_pref_notification_summary">The TV in Android’s media player, on the lock screen too, while the TV is on: previous, play/pause, next and mute, and Turn off once unlocked. Meanwhile the phone’s volume keys drive the bar, or the TV.</string>
     <string name="quick_pref_notification_denied">Notifications are blocked in Android settings</string>
+
+    <!-- The widget picker's preview (layout/quick_widget_preview.xml): an example, not live state. -->
+    <string name="quick_widget_preview_showing">YouTube · Cinema</string>
+    <string name="quick_widget_preview_level" translatable="false">18</string>
 </resources>

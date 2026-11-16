@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Power sheet, gentle switch-off: at the end of the Cast item playing (2026-11-12). -->
+    <string name="gentle_off_episode">End of episode</string>
+    <string name="gentle_off_episode_label">Switch off at the end of this episode, fading the sound over its last two minutes</string>
+    <string name="gentle_off_episode_running">Off at the end of the episode</string>
+    <string name="gentle_off_episode_left">About %1$s, %2$s left. Follows pauses and jumps. Tap to cancel.</string>
+    <string name="gentle_off_episode_notification">Follows the episode: pauses and jumps move the end</string>
+</resources>

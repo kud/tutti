@@ -2,6 +2,7 @@
 <resources>
     <string name="cancel">Cancel</string>
     <string name="error_action_failed">The device did not answer</string>
+    <string name="error_key_refused">The TV refused the key</string>
     <string name="scene_missing">Deleted scene</string>
     <string name="bar_power">Power</string>
     <string name="bar_volume">Volume</string>
@@ -30,6 +31,8 @@
     <string name="bar_model">Model</string>
     <string name="bar_firmware">Software version</string>
     <string name="bar_bt_mode">Bluetooth mode</string>
+    <string name="bar_bt_mode_rx">Receiving (phone to bar)</string>
+    <string name="bar_bt_mode_tx">Sending (bar to headphones)</string>
     <string name="bar_bt_quality">Bluetooth quality</string>
     <string name="key_settings">TV settings</string>
     <string name="key_input">Input</string>
@@ -44,10 +47,14 @@
     <string name="problem_details_hide">Hide details</string>
     <string name="problem_clip_label">tutti details</string>
     <string name="scene_failed_steps">Part of the scene did not apply</string>
-    <string name="settings_developer">Developer</string>
     <string name="settings_developer_mode">Developer mode</string>
     <string name="settings_developer_mode_detail">Shows the technical details under errors, with Copy details, and the diagnostics.</string>
     <string name="pairing_code_field">Pairing code</string>
     <string name="pairing_code_progress">Entered: %1$d of %2$d</string>
     <string name="action_retry">Try again</string>
+    <!-- tutti's own transient message (replaces system toasts). -->
+    <string name="message_dismiss">Dismiss</string>
+    <string name="message_problem">Problem</string>
+    <string name="choice_refused">refused</string>
+    <string name="choice_refused_note">The bar refused %1$s. Tap it to try again.</string>
 </resources>

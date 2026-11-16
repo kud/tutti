@@ -1,0 +1,1 @@
+First F-Droid build. One remote for a Sony BRAVIA on Google TV, its Theatre Bar and the computer on screen, all over the local network. New in 0.3.0: search from the playback controls, sharp artwork on the lock screen, Settings at a glance, a dock you edit with a long press, and a remote that shows the TV's link as it is.

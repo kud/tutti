@@ -1,6 +1,6 @@
 # tutti
 
-Native Android app that replaces Sony BRAVIA Connect day to day for one living room: a Sony BRAVIA 8 (K-xxXR80, Google TV, EU) and a BRAVIA Theatre Bar 9 (HT-A9000). The remote is the heart of it. Design direction: `docs/design.md`. Protocols and threat model: `docs/architecture.md`.
+Native Android app that replaces Sony BRAVIA Connect day to day for one living room: a Sony BRAVIA 8 (K-xxXR80, Google TV, EU) and a BRAVIA Theatre Bar 9 (HT-A9000). The remote is the heart of it. Scope: the living room's remote for the BRAVIA, the Theatre Bar and the computer shown on the TV (Erwann, 2026-10-25: a Mac, Windows or Linux), never a general-purpose Bluetooth keyboard or trackpad (Erwann, 2026-10-25: « L'idée de tutti est d'être une remote control pour TV et Mac sur TV, pas un trackpad générique. »). Design direction: `docs/design.md`. Protocols and threat model: `docs/architecture.md`.
 
 The name (tutti) lives only in `gradle.properties` (`app.name`, `app.label`, `app.applicationId`). Kotlin packages stay `io.kud.tutti.*` whatever the product is called.
 
@@ -14,8 +14,9 @@ Nothing else. A new concern goes into one of these two.
 
 ## Working here
 
-- Cloud sessions cannot reach Google Maven or Maven Central: **you cannot compile**. CI is the compiler. Write real APIs at real versions, check imports by re-reading, and verify library versions with `git ls-remote --tags` on the upstream repo.
-- Versions live in `gradle/libs.versions.toml`. AGP stays on 8.x and Hilt on 2.58 until a deliberate move to AGP 9 + Gradle 9 + Hilt 2.59+ (the 2.59 Hilt plugin already needs AGP 9 APIs; Dependabot ignores those).
+- Cloud sessions cannot reach Google Maven or Maven Central, but where `/root/android-sdk` and a warm Gradle cache exist **the whole build runs offline**: `export ANDROID_HOME=/root/android-sdk; ./gradlew --offline -q :protocol:test :app:testGithubDebugUnitTest :app:testFdroidDebugUnitTest :app:lintGithubDebug :app:lintFdroidDebug :app:assembleGithubDebug :app:assembleFdroidDebug`, then `grep -c 'severity="Error"' app/build/reports/lint-results-{github,fdroid}Debug.xml` must print 0 for each. Two flavours (`docs/fdroid.md`): `github` carries the in-app updater (`app/src/github`), `fdroid` none; `DistributionGuardsTest` and `checkDistribution<Variant>` keep it that way. Release asset names are the updater's contract: never rename them, never attach an fdroid APK. Run it before every push. Only a new or bumped dependency can't resolve offline; then CI is the compiler: write real APIs at real versions, check imports by re-reading, and verify library versions with `git ls-remote --tags` on the upstream repo.
+- Where the SDK or the cache is missing (a fresh cloud session), or the machine is short of memory, GitHub Actions is the check: push to a working branch, run the Android workflow on it (`workflow_dispatch`, empty tag), and treat green as the full check. It runs the same tasks.
+- Versions live in `gradle/libs.versions.toml`. The project is on AGP 9 + Gradle 9 + Hilt 2.60.
 - Tests: `./gradlew :protocol:test` for the protocol layer. New protocol behaviour comes with a test there.
 - Never block the UI on the network: reducers are optimistic, the UI reads `StateFlow`s.
 - Language: code, comments, commits and docs in English. The UI is English by default: `values/` is **English**, `values-fr/` is French (Erwann's phone). Every string goes in both.
@@ -40,3 +41,7 @@ Secrets live only in `files/datastore/secure.preferences_pb` and `files/secure/`
 ## Releases
 
 Pushing a `vMAJOR.MINOR.PATCH` tag builds a signed APK and attaches it to a GitHub Release. The four signing secrets are listed in the README. The release job fails rather than ship an unsigned APK.
+
+A `-dev.N` pre-release needs no go-ahead (Erwann, 2026-10-25): once the full check above passes on a clean worktree, fast-forward `main` to the verified commit and run the Android workflow on `main` with the next dev tag (`vMAJOR.MINOR.PATCH-dev.N`; N stops at 98, so after `v0.1.0-dev.98` came `v0.2.0-dev.1`), then tell Erwann what it carries. Without the signing secrets it ships the debug APK. A final `vMAJOR.MINOR.PATCH` release still waits for his explicit word.
+
+Engineering and design calls ship without asking first (Erwann, 2026-10-25) as long as nothing breaks, meaning the full check passes, stored data and pairings survive (upgrade tests for any storage change), and no shipped behaviour regresses. Product scope, anything outward-facing, a final release, and reversing an explicit decision of his still go to him.

@@ -6,9 +6,12 @@ import android.net.nsd.NsdServiceInfo
 import android.net.wifi.WifiManager
 import dagger.hilt.android.qualifiers.ApplicationContext
 import io.kud.tutti.protocol.net.LanAddress
+import io.kud.tutti.platform.net.LocalNetworkPermission
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.withTimeoutOrNull
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -20,9 +23,31 @@ data class DiscoveredTv(val name: String, val host: String)
  * requires before Android 14.
  */
 @Singleton
-class TvDiscovery @Inject constructor(@ApplicationContext private val context: Context) {
+class TvDiscovery @Inject constructor(@ApplicationContext private val context: Context, private val localNetwork: LocalNetworkPermission) {
+    fun discover(): Flow<List<DiscoveredTv>> =
+        // Android 17 asks before any LAN traffic, mDNS included: an empty result, not a throw —
+        // the onboarding and rediscovery just find nothing while the ask is pending.
+        if (localNetwork.missing()) flowOf(emptyList()) else discover(SERVICE_TYPE)
+
+    /**
+     * The private addresses answering for [serviceTypes] within [windowMs] per type, one type after
+     * the other (NsdManager resolves one service at a time before Android 14). For rediscovery
+     * ([io.kud.tutti.protocol.net.Rediscovery]): names are dropped, only hosts come back.
+     */
+    suspend fun hosts(serviceTypes: List<String>, windowMs: Long): Set<String> {
+        // Same gate as [discover]: mDNS is LAN traffic, and Android 17 asks before it.
+        if (localNetwork.missing()) return emptySet()
+        val hosts = linkedSetOf<String>()
+        for (type in serviceTypes) {
+            withTimeoutOrNull(windowMs) {
+                discover(type).collect { found -> found.mapTo(hosts) { it.host } }
+            }
+        }
+        return hosts
+    }
+
     @Suppress("DEPRECATION")
-    fun discover(): Flow<List<DiscoveredTv>> = callbackFlow {
+    private fun discover(serviceType: String): Flow<List<DiscoveredTv>> = callbackFlow {
         val nsd = context.getSystemService(Context.NSD_SERVICE) as NsdManager
         val wifi = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
         val lock = wifi.createMulticastLock("tutti-discovery").apply {
@@ -76,14 +101,20 @@ class TvDiscovery @Inject constructor(@ApplicationContext private val context: C
             }
         }
         trySend(emptyList())
-        nsd.discoverServices(SERVICE_TYPE, NsdManager.PROTOCOL_DNS_SD, listener)
+        nsd.discoverServices(serviceType, NsdManager.PROTOCOL_DNS_SD, listener)
         awaitClose {
             runCatching { nsd.stopServiceDiscovery(listener) }
             runCatching { lock.release() }
         }
     }
 
-    private companion object {
+    companion object {
         const val SERVICE_TYPE = "_androidtvremote2._tcp"
+
+        /**
+         * What a BRAVIA Theatre bar may advertise: Chromecast built-in, AirPlay, Spotify Connect.
+         * Which of them the Bar 9 actually answers is unverified; port 33336 decides ([io.kud.tutti.protocol.theatre.BarProbe]).
+         */
+        val BAR_SERVICE_TYPES = listOf("_googlecast._tcp", "_airplay._tcp", "_spotify-connect._tcp")
     }
 }

@@ -14,6 +14,10 @@ import androidx.compose.ui.platform.LocalContext
 /**
  * Dark-first Material 3 theme with dynamic colour (Android 12+).
  * [trueBlack] swaps background and surface for pure black, for OLED.
+ *
+ * Without dynamic colour (Android 11 and below) the scheme is Material 3's baseline: Erwann
+ * preferred it to a brand scheme on his OnePlus (2026-10-24). What must follow the theme is that
+ * nothing (messages, menus, the window) falls outside whichever scheme is in use.
  */
 @Composable
 fun TuttiTheme(

@@ -16,6 +16,8 @@ data class DeviceSnapshot(
             SceneKey.SOUND_FIELD to TheatreFeature.SOUND_FIELD,
             SceneKey.VOICE to TheatreFeature.VOICE,
             SceneKey.NIGHT to TheatreFeature.NIGHT,
+            SceneKey.SPATIAL_360 to TheatreFeature.SPATIAL_360,
+            SceneKey.VOICE_ZOOM to TheatreFeature.VOICE_ZOOM,
             SceneKey.BASS to TheatreFeature.BASS,
             SceneKey.VOLUME to TheatreFeature.VOLUME,
         )
@@ -26,12 +28,17 @@ data class DeviceSnapshot(
             currentApp: String? = null,
             pictureMode: String? = null,
             tvPowered: Boolean? = null,
+            tvAudioOutput: String? = null,
+            target: String? = null,
         ): DeviceSnapshot {
             val values = mutableMapOf<SceneKey, SceneValue>()
             tvInput?.let { values[SceneKey.TV_INPUT] = SceneValue.Text(it) }
             currentApp?.let { values[SceneKey.TV_APP] = SceneValue.Text(it) }
             pictureMode?.let { values[SceneKey.PICTURE_MODE] = SceneValue.Text(it) }
+            tvAudioOutput?.let { values[SceneKey.TV_AUDIO_OUTPUT] = SceneValue.Text(it) }
+            target?.let { values[SceneKey.TARGET] = SceneValue.Text(it) }
             if (theatre != null) {
+                theatre.value(TheatreFeature.INPUT)?.let { values[SceneKey.BAR_INPUT] = SceneValue.Text(it) }
                 for ((key, feature) in BAR_FEATURES) {
                     val value = if (feature.toggleValue(true) != null) {
                         theatre.isOn(feature)?.let { SceneValue.Flag(it) }

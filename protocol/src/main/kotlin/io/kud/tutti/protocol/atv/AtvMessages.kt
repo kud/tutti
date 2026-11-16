@@ -95,19 +95,29 @@ object RemoteMessages {
         return RemoteMessage(remote_key_inject = RemoteKeyInject(key_code = code, direction = direction.wire))
     }
 
-    /** Replaces the focused field's whole text, cursor at the end. Counters come from the TV. */
-    fun text(text: String, imeCounter: Int, fieldCounter: Int) = RemoteMessage(
-        remote_ime_batch_edit = RemoteImeBatchEdit(
-            ime_counter = imeCounter,
-            field_counter = fieldCounter,
-            edit_info = listOf(
-                RemoteEditInfo(
-                    insert = 1,
-                    text_field_status = RemoteImeObject(start = text.length, end = text.length, value_ = text),
+    /**
+     * Replaces the focused field's whole text. Counters come from the TV. The caret is
+     * `length - 1`, as androidtvremote2 (Home Assistant's library, which types on Sony's Google
+     * TVs) sends it: `length` points past the last character, which a field may refuse.
+     */
+    fun text(text: String, imeCounter: Int, fieldCounter: Int): RemoteMessage {
+        val caret = cursorFor(text)
+        return RemoteMessage(
+            remote_ime_batch_edit = RemoteImeBatchEdit(
+                ime_counter = imeCounter,
+                field_counter = fieldCounter,
+                edit_info = listOf(
+                    RemoteEditInfo(
+                        insert = 1,
+                        text_field_status = RemoteImeObject(start = caret, end = caret, value_ = text),
+                    ),
                 ),
             ),
-        ),
-    )
+        )
+    }
+
+    /** The batch edit's caret for [text]: its last character, 0 for an empty field. */
+    fun cursorFor(text: String): Int = (text.length - 1).coerceAtLeast(0)
 
     fun appLink(link: String) = RemoteMessage(remote_app_link_launch_request = RemoteAppLinkLaunchRequest(app_link = link))
 }

@@ -10,7 +10,7 @@
 
 # tutti
 
-[![Kotlin](https://img.shields.io/badge/Kotlin-2.3-7F52FF?style=flat-square&logo=kotlin&logoColor=white)](https://kotlinlang.org)
+[![Kotlin](https://img.shields.io/badge/Kotlin-2.4-7F52FF?style=flat-square&logo=kotlin&logoColor=white)](https://kotlinlang.org)
 [![Android](https://img.shields.io/badge/Android-10%2B-3DDC84?style=flat-square&logo=android&logoColor=white)](https://developer.android.com)
 [![Jetpack Compose](https://img.shields.io/badge/Jetpack%20Compose-Material%203-4285F4?style=flat-square&logo=jetpackcompose&logoColor=white)](https://developer.android.com/compose)
 [![MIT](https://img.shields.io/badge/License-MIT-22C55E?style=flat-square)](LICENSE)
@@ -21,9 +21,18 @@
 
 </div>
 
-An Android remote and control app for a Sony BRAVIA 8 TV and a BRAVIA Theatre Bar 9, built to replace BRAVIA Connect for everyday use. It works on the local network without a Sony account; Sony sign-in is an opt-in extra.
+An Android remote for one living room: a **Sony BRAVIA TV on Google TV** and a **BRAVIA Theatre Bar**, plus the computer shown on the TV. Built to replace BRAVIA Connect for everyday use, and tested with a BRAVIA 8 and a Theatre Bar 9.
+
+It speaks Sony's and Google TV's own local protocols, so it **won't work with other brands**, nor with older BRAVIAs that don't run Google TV. Everything stays on your local network: no Sony account, no cloud service.
 
 Setup, room calibration and speaker placement stay in BRAVIA Connect, and tutti opens it when you need it.
+
+<p align="center">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/1.png" width="270" alt="The remote: scenes, the pad with the volume rail, and the dock">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/3.png" width="270" alt="The soundbar's sound sheet: input, effects, DRC and IMAX">
+</p>
+
+Screenshots are rendered from invented fixtures, never captured from a phone: `TUTTI_SHOWCASE=<dir> ./gradlew --offline :app:testGithubDebugUnitTest --tests '*Showcase*'` (see `ShowcaseRenders`).
 
 ## 🌟 Features
 
@@ -33,12 +42,13 @@ Setup, room calibration and speaker placement stay in BRAVIA Connect, and tutti 
 - 🔊 **Soundbar controls** — volume, sound field, night mode, bass and rear level on the Theatre Bar, over its IP control
 - 🎬 **Scenes and shortcuts** — one tap sets the TV input or app, the picture mode and a volume cap; pinned keys and apps on the remote
 - 📱 **Widget, Quick Settings tile and media notification** — the essentials without opening the app
+- 🔄 **Settings sync** — your layout, scenes and settings in one file, in a folder you choose on your own Drive (or any storage app), so every phone shares them (*Settings › Sync*)
 - 🔒 **Local and private** — LAN only, devices pinned on first use, pairing material encrypted with an Android Keystore key
-- 🩺 **Developer mode** — redacted, copyable details on every error, and a diagnostic of the TV and bar connections
+- 🩺 **Developer mode** — redacted, copyable details on every error, a diagnostic of the TV and bar connections, a scrubbed log of recent events, and "Report on GitHub", which opens a prefilled issue for you to review and submit (nothing is sent by the app)
 
 ## 🚀 Quick Start
 
-Download the latest `tutti-<version>.apk` from [Releases](../../releases) on the phone and open it (allow installs from your browser or file manager once). Later releases install over it. Then set up the devices:
+Install it from [GitHub Releases](../../releases): download the latest `tutti-<version>.apk` on the phone and open it (allow installs from your browser or file manager once). The app tells you when a newer release is out and installs it over the last. F-Droid is coming. Then set up the devices:
 
 1. **Soundbar.** In BRAVIA Connect, enable **External control** (IP control) for the Bar 9. The app talks to it on TCP port 33336.
 2. **TV, remote.** Nothing to enable. On first launch the app pairs with the TV: the TV shows a 6-character code, type it in the app.
@@ -57,11 +67,17 @@ design/     Branding sources
 | Command | What it does |
 | --- | --- |
 | `./gradlew :protocol:test` | Protocol unit tests and simulator tests |
-| `./gradlew :app:testDebugUnitTest` | App unit tests, including the transports against the loopback simulator |
-| `./gradlew :app:lintDebug` | Android lint |
-| `./gradlew :app:assembleDebug` | Debug APK |
+| `./gradlew :app:testGithubDebugUnitTest :app:testFdroidDebugUnitTest` | App unit tests, including the transports against the loopback simulator |
+| `./gradlew :app:lintGithubDebug :app:lintFdroidDebug` | Android lint |
+| `./gradlew :app:assembleGithubDebug` | Debug APK (`assembleFdroidDebug` for the F-Droid build) |
 
-JDK 17. CI (`.github/workflows/android.yml`) runs tests, lint and a debug build on every push and pull request.
+JDK 17. CI (`.github/workflows/android.yml`) runs tests, lint and a debug build of both flavours on every push and pull request.
+
+Two flavours of the same app: `github`, the APKs on GitHub Releases, with the in-app updater; and `fdroid`, without any updater, for F-Droid to build from source.
+
+### F-Droid
+
+Coming soon. The build recipe and the submission steps are in [docs/fdroid.md](docs/fdroid.md); the badge goes here once the app is accepted.
 
 ### Release secrets
 
@@ -80,19 +96,19 @@ Use one keystore forever: Android only installs an update signed with the same k
 keytool -genkeypair -v -keystore release.jks -alias tutti -keyalg RSA -keysize 4096 -validity 36500
 ```
 
-Keep it (and its passwords) somewhere safe outside the repo. If a secret is missing, the tag publishes the debug APK instead, as a pre-release only: it is signed with `app/debug.keystore`, a public debug key (password `android`) committed so every debug build installs over the last. It protects nothing; the release key never lives in the repo.
+Keep it (and its passwords) somewhere safe outside the repo. If a secret is missing, a final release fails: it is never published unsigned or signed with `app/debug.keystore`, the public debug key (password `android`) committed so every debug build installs over the last. Until the key exists, a `-dev` tag still ships that debug build as a pre-release, for test phones only. Each release also carries R8's `mapping.txt`, to read its stack traces. The release key never lives in the repo.
 
 ## 🏗 Tech Stack
 
 | Area | Choice |
 | --- | --- |
-| Language | Kotlin 2.3, JVM 17 |
+| Language | Kotlin 2.4, JVM 17 |
 | UI | Jetpack Compose, Material 3, Glance (widget) |
 | Dependency injection | Hilt (KSP) |
 | Storage | DataStore, Android Keystore |
 | Networking | OkHttp 5, Bouncy Castle, Wire (Android TV Remote v2 protos) |
 | Concurrency | Kotlin coroutines and Flow |
-| Build | Gradle 8, AGP 8 |
+| Build | Gradle 9, AGP 9 |
 
 ## 📝 Docs
 
@@ -103,6 +119,8 @@ Keep it (and its passwords) somewhere safe outside the repo. If a secret is miss
 ## 🙏 Credits
 
 The Android TV Remote v2 protos and pairing hash come from [kud/androidtv-remote](https://github.com/kud/androidtv-remote) (MIT, © 2021 louis49, © 2026 Erwann Mest). Soundbar protocol knowledge from [bravia-quad-homeassistant](https://github.com/steamEngineer/bravia-quad-homeassistant) (MIT), reimplemented.
+
+App logos and icons under `app/src/main/res/` belong to their owners, are used only to identify the app a button opens, and are not covered by the MIT licence. Their sources are listed in [`docs/brand-icons.md`](docs/brand-icons.md).
 
 ---
 

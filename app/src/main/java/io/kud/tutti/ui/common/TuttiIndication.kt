@@ -31,7 +31,7 @@ import io.kud.tutti.ui.motion.Motion
 import kotlinx.coroutines.launch
 
 /**
- * One indication for every pressable thing (Iris's interaction spec): state layers for pressed
+ * One indication for every pressable thing (the interaction spec): state layers for pressed
  * (12 %), hovered (8 %) and dragged (16 %) in [layerColor], and a 3 dp focus ring that follows
  * [shape], 3 dp outside it or, with [ringInset], inside (full-width rows). With [ripple] the
  * Material ripple draws the press and hover layers and this adds only the ring.

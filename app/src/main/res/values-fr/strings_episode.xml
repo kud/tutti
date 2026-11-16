@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="gentle_off_episode">Fin de l’épisode</string>
+    <string name="gentle_off_episode_label">Éteindre à la fin de cet épisode, en baissant le son sur ses deux dernières minutes</string>
+    <string name="gentle_off_episode_running">Extinction à la fin de l’épisode</string>
+    <string name="gentle_off_episode_left">Vers %1$s, encore %2$s. Suit les pauses et les sauts. Touchez pour annuler.</string>
+    <string name="gentle_off_episode_notification">Suit l’épisode : une pause ou un saut déplace la fin</string>
+</resources>

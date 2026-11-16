@@ -30,8 +30,14 @@ object CrashLog {
         val raw = file(context).takeIf { it.exists() }?.let { runCatching { it.readText() }.getOrNull() }
             ?: lastAbnormalExit(context)
             ?: return null
-        return runCatching { Redact.text(raw) }.getOrDefault(raw.take(MAX_CHARS))
+        return scrubbed(raw, Redact::text)
     }
+
+    /** The trace scrubbed, or a placeholder: a trace that could not be scrubbed is never shown raw. */
+    internal fun scrubbed(raw: String, redact: (String) -> String): String =
+        runCatching { redact(raw) }.getOrDefault(UNSCRUBBED)
+
+    internal const val UNSCRUBBED = "(a crash was recorded, but its trace could not be scrubbed, so it is not shown)"
 
     fun clear(context: Context) {
         file(context).delete()

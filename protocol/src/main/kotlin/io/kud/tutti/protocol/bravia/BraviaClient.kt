@@ -9,10 +9,13 @@ import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.add
 import kotlinx.serialization.json.addJsonObject
+import io.kud.tutti.protocol.net.CertificatePinMismatch
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
- * BRAVIA REST (JSON-RPC over HTTP) with Pre-Shared Key auth (`X-Auth-PSK`).
+ * BRAVIA REST (JSON-RPC over HTTP), authenticated by the IP-control cookie of Sony's "Normal"
+ * authentication (`Cookie: auth=…`, see [IpRegistration]) when [cookie] gives one, else by the
+ * Pre-Shared Key (`X-Auth-PSK`). Never both on one request.
  *
  * Call [discover] first: once a service's methods are known, calls to methods it does not
  * list fail fast with [BraviaError.Unsupported] and versions follow what the TV offers.
@@ -21,6 +24,8 @@ import java.util.concurrent.atomic.AtomicInteger
  */
 class BraviaClient(
     private val transport: BraviaTransport,
+    /** The `auth` cookie's value; listed before [psk] so `BraviaClient(transport) { psk }` still reads as the PSK. */
+    private val cookie: () -> String? = { null },
     private val psk: () -> String?,
 ) {
     private val ids = AtomicInteger(0)
@@ -34,11 +39,14 @@ class BraviaClient(
      * per-service `getMethodTypes` is not in the reference, so it is only the fallback.
      */
     suspend fun discover(): BraviaResult<Capabilities> {
+        // Without the PSK: discovery is auth "none", and it is the call that settles which
+        // scheme the transport uses, so the key never goes out before that is known.
         val guide = rawCall(
             GUIDE_PATH,
             "getSupportedApiInfo",
             listOf(buildJsonObject { putJsonArray("services") { BraviaService.entries.forEach { add(it.id) } } }),
             "1.0",
+            authenticated = false,
         )
         if (guide is BraviaResult.Ok) {
             val found = BraviaParsers.supportedApiInfo(guide.value)
@@ -47,7 +55,10 @@ class BraviaClient(
         val found = mutableMapOf<BraviaService, List<MethodInfo>>()
         var lastError: BraviaError? = null
         for (service in BraviaService.entries) {
-            when (val result = rawCall(service.path, "getMethodTypes", listOf(JsonPrimitive("")), "1.0")) {
+            val bare = rawCall(service.path, "getMethodTypes", listOf(JsonPrimitive("")), "1.0", authenticated = false)
+            // Some firmware may want the key even here; by now the guide call has settled the scheme.
+            val result = if ((bare as? BraviaResult.Failure)?.error == BraviaError.Unauthorized) rawCall(service.path, "getMethodTypes", listOf(JsonPrimitive("")), "1.0") else bare
+            when (result) {
                 is BraviaResult.Ok -> found[service] = BraviaParsers.methodTypes(result.value)
                 is BraviaResult.Failure -> {
                     if (result.error == BraviaError.Unauthorized) return result
@@ -80,6 +91,10 @@ class BraviaClient(
         call(BraviaService.SYSTEM, "setPowerStatus", listOf(buildJsonObject { put("status", on) })).map { }
 
     suspend fun systemInformation() = call(BraviaService.SYSTEM, "getSystemInformation").map(BraviaParsers::systemInformation)
+
+    /** What the TV says it supports (`WOL`, `PIP`…). Read-only; values may identify the TV, see [SupportedFunction]. */
+    suspend fun supportedFunctions() =
+        call(BraviaService.SYSTEM, "getSystemSupportedFunction").map(BraviaParsers::supportedFunctions)
 
     /** Every interface (empty `netif` asks for all), with its MAC: what Wake-on-LAN needs. */
     suspend fun networkSettings() =
@@ -146,6 +161,12 @@ class BraviaClient(
     suspend fun setActiveApp(uri: String) =
         call(BraviaService.APP_CONTROL, "setActiveApp", listOf(buildJsonObject { put("uri", uri) })).map { }
 
+    /**
+     * `appControl.terminateApps` (v1.0, no parameters): Sony documents it as terminating every
+     * application the TV runs, never one by name, so the UI says "close apps", plural.
+     */
+    suspend fun terminateApps() = call(BraviaService.APP_CONTROL, "terminateApps").map { }
+
     /** IRCC over SOAP, for keys the v2 remote lacks. [code] comes from [remoteControllerInfo]. */
     suspend fun sendIrcc(code: String): BraviaResult<Unit> {
         val headers = authHeaders() + mapOf(
@@ -162,7 +183,7 @@ class BraviaClient(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            BraviaResult.Failure(BraviaError.Transport(e.message ?: e.javaClass.simpleName))
+            BraviaResult.Failure(transportError(e))
         }
     }
 
@@ -171,18 +192,19 @@ class BraviaClient(
         method: String,
         params: List<JsonElement>,
         version: String,
+        authenticated: Boolean = true,
     ): BraviaResult<JsonArray> {
         val id = ids.incrementAndGet()
         val reply = try {
             transport.post(
                 path,
                 JsonRpc.request(method, id, params, version),
-                authHeaders() + ("Content-Type" to "application/json; charset=UTF-8"),
+                (if (authenticated) authHeaders() else emptyMap()) + ("Content-Type" to "application/json; charset=UTF-8"),
             )
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            return BraviaResult.Failure(BraviaError.Transport(e.message ?: e.javaClass.simpleName))
+            return BraviaResult.Failure(transportError(e))
         }
         if (reply.status == 401 || reply.status == 403) return BraviaResult.Failure(BraviaError.Unauthorized)
         // Sony answers RPC errors with 200 and sometimes with 4xx/5xx and a JSON body: parse first.
@@ -203,7 +225,83 @@ class BraviaClient(
         }
     }
 
-    private fun authHeaders(): Map<String, String> = psk()?.takeIf { it.isNotEmpty() }?.let { mapOf(PSK_HEADER to it) } ?: emptyMap()
+    /**
+     * Step one of the code flow: `actRegister` with no credentials. A 401 means the TV now shows
+     * its 4-digit code ([Registration.CodeShown]); a 200 with a cookie means this client id was
+     * already registered and the TV let it straight back in.
+     */
+    suspend fun requestCode(clientId: String, nickname: String = IpRegistration.NICKNAME, nowMs: Long = System.currentTimeMillis()) =
+        register(clientId, nickname, emptyMap(), nowMs, previous = null, refused = Registration.CodeShown)
+
+    /** Step two: the code typed in, as Basic auth. 401/403 is a wrong code ([Registration.Refused]). */
+    suspend fun submitCode(clientId: String, code: String, nickname: String = IpRegistration.NICKNAME, nowMs: Long = System.currentTimeMillis()): BraviaResult<Registration> {
+        if (!IpRegistration.validCode(code)) return BraviaResult.Ok(Registration.Refused)
+        return register(clientId, nickname, mapOf(AUTHORIZATION to IpRegistration.basic(code)), nowMs, previous = null, refused = Registration.Refused)
+    }
+
+    /**
+     * Renewal (unverified, see [IpRegistration]): `actRegister` again with only the cookie. A 200
+     * with a fresh cookie replaces it; a 200 without one keeps [current] as it is; 401/403 means
+     * the TV wants a new code.
+     */
+    suspend fun renew(current: AuthCookie, nickname: String = IpRegistration.NICKNAME, nowMs: Long = System.currentTimeMillis()) =
+        register(current.clientId, nickname, mapOf(COOKIE to IpRegistration.cookieHeader(current.value)), nowMs, previous = current, refused = Registration.Refused)
+
+    private suspend fun register(
+        clientId: String,
+        nickname: String,
+        credentials: Map<String, String>,
+        nowMs: Long,
+        previous: AuthCookie?,
+        refused: Registration,
+    ): BraviaResult<Registration> {
+        val reply = try {
+            transport.post(
+                IpRegistration.PATH,
+                JsonRpc.request(IpRegistration.METHOD, ids.incrementAndGet(), IpRegistration.params(clientId, nickname), IpRegistration.VERSION),
+                credentials + ("Content-Type" to "application/json; charset=UTF-8"),
+            )
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            return BraviaResult.Failure(transportError(e))
+        }
+        // Asking for the code, only a 401 means "shown": a 403 is a TV that won't register at all
+        // (IP control off, or authentication set to the PSK alone).
+        val asking = refused == Registration.CodeShown
+        if (reply.status == 401 || (reply.status == 403 && !asking)) return BraviaResult.Ok(refused)
+        if (reply.status == 403) return BraviaResult.Failure(BraviaError.Unauthorized)
+        return when (val response = JsonRpc.parse(reply.body)) {
+            is JsonRpc.Response.Error -> when {
+                response.code == 401 || (response.code == 403 && !asking) -> BraviaResult.Ok(refused)
+                response.code == 403 -> BraviaResult.Failure(BraviaError.Unauthorized)
+                else -> BraviaResult.Failure(BraviaError.Rpc(response.code, response.message))
+            }
+            is JsonRpc.Response.Malformed ->
+                BraviaResult.Failure(if (reply.status !in 200..299) BraviaError.Http(reply.status) else BraviaError.Malformed(response.detail))
+            is JsonRpc.Response.Success -> {
+                if (reply.status !in 200..299) return BraviaResult.Failure(BraviaError.Http(reply.status))
+                val fresh = IpRegistration.parseSetCookie(reply.setCookies, clientId, nowMs)
+                when {
+                    fresh != null -> BraviaResult.Ok(Registration.Registered(fresh))
+                    previous != null -> BraviaResult.Ok(Registration.Registered(previous))
+                    else -> BraviaResult.Failure(BraviaError.Malformed("no auth cookie"))
+                }
+            }
+        }
+    }
+
+    private fun transportError(e: Exception): BraviaError =
+        if (generateSequence<Throwable>(e) { it.cause }.take(8).any { it is CertificatePinMismatch }) {
+            BraviaError.PinMismatch
+        } else {
+            BraviaError.Transport(e.message ?: e.javaClass.simpleName)
+        }
+
+    private fun authHeaders(): Map<String, String> {
+        cookie()?.takeIf { IpRegistration.validCookieValue(it) }?.let { return mapOf(COOKIE to IpRegistration.cookieHeader(it)) }
+        return psk()?.takeIf { it.isNotEmpty() }?.let { mapOf(PSK_HEADER to it) } ?: emptyMap()
+    }
 
     private fun target(target: String) = buildJsonObject { put("target", target) }
 
@@ -218,6 +316,14 @@ class BraviaClient(
 
     companion object {
         const val PSK_HEADER = "X-Auth-PSK"
+        const val COOKIE = "Cookie"
+        const val AUTHORIZATION = "Authorization"
+
+        /** Headers that carry a secret: never logged, and a request with one is authenticated. */
+        val CREDENTIAL_HEADERS: Set<String> = setOf(PSK_HEADER, COOKIE, AUTHORIZATION)
+
+        fun carriesCredential(headers: Map<String, String>): Boolean =
+            headers.keys.any { name -> CREDENTIAL_HEADERS.any { it.equals(name, ignoreCase = true) } }
         const val IRCC_PATH = "/sony/ircc"
         const val GUIDE_PATH = "/sony/guide"
         const val SOURCE_GUIDE = "getSupportedApiInfo"

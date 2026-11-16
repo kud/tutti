@@ -5,7 +5,9 @@ import io.kud.tutti.protocol.atv.FrameDecoder
 import io.kud.tutti.protocol.atv.Framing
 import io.kud.tutti.protocol.atv.proto.remote.RemoteConfigure
 import io.kud.tutti.protocol.atv.proto.remote.RemoteDeviceInfo
+import io.kud.tutti.protocol.atv.proto.remote.RemoteImeShowRequest
 import io.kud.tutti.protocol.atv.proto.remote.RemoteMessage
+import io.kud.tutti.protocol.atv.proto.remote.RemoteTextFieldStatus
 import io.kud.tutti.protocol.bravia.BraviaTransport
 import io.kud.tutti.protocol.bravia.HttpReply
 import io.kud.tutti.protocol.net.CertificatePin
@@ -14,6 +16,7 @@ import io.kud.tutti.protocol.net.Connection
 import io.kud.tutti.protocol.net.TcpConnector
 import io.kud.tutti.protocol.net.TlsConnection
 import io.kud.tutti.protocol.net.TlsConnector
+import io.kud.tutti.protocol.theatre.BarHttpUnavailable
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.consumeAsFlow
@@ -59,8 +62,11 @@ private fun livingRoomTv(method: String): HttpReply = when (method) {
     "getSystemInformation" -> ok(
         """[{"product":"TV","model":"K-65XR80","serial":"$SERIAL","macAddr":"$MAC","name":"Salon de Camille","generation":"6.1.0","cid":"$CID"}]""",
     )
-    "getMethodTypes" -> ok("""[["getPowerStatus","[]","[{\"status\":\"string\"}]","1.0"],["getVolumeInformation","[]","[]","1.0"]]""")
+    "getMethodTypes" -> ok("""[["getPowerStatus","[]","[{\"status\":\"string\"}]","1.0"],["getVolumeInformation","[]","[]","1.0"],["getPlayingContentInfo","[]","[]","1.0"]]""")
     "getPowerStatus" -> ok("""[{"status":"active"}]""")
+    "getPlayingContentInfo" -> ok(
+        """[{"uri":"tv:dvbt?srv=$TV","source":"tv:dvbt","title":"Channel Nine","programTitle":"The Garden Hour","dispNum":"009"}]""",
+    )
     "getVolumeInformation" -> HttpReply(200, """{"error":[40005,"display off for $PSK at $TV"],"id":1}""")
     else -> HttpReply(200, """{"error":[12,"No Such Method"],"id":1}""")
 }
@@ -100,6 +106,8 @@ private fun barAnswer(line: String): List<String> {
         "main.volumestep" -> "12"
         "system.modeltype" -> "HT-A9000"
         "system.version" -> "1.2.3"
+        "system.devicename" -> "Salon de Camille"
+        "system.temperature" -> "41"
         "audio.voicezoom3" -> return emptyList()
         "audio.voicezoom3step" -> return emptyList()
         else -> "off"
@@ -107,8 +115,20 @@ private fun barAnswer(line: String): List<String> {
     return listOf("""{"id":$id,"type":"result","feature":"$feature","value":"$value"}""")
 }
 
+/** The bar's HTTP 54545, answering every key it is asked; the AirPlay name must never reach the report. */
+private class FakeBarHttp : io.kud.tutti.protocol.theatre.BarHttpTransport {
+    val bodies = mutableListOf<String>()
+
+    override suspend fun post(body: String): String {
+        bodies += body
+        return """{"type":"http_get_result","packet":[[""" +
+            """{"feature":"network.connectiontype","value":"wireless"},{"feature":"network.internet","value":"connected"},""" +
+            """{"feature":"wlan.strength","value":"3"},{"feature":"airplay.accessoryname","value":"Salon de Camille"}]]}"""
+    }
+}
+
 /** A TV remote port that opens the v2 handshake and records every message the app sends. */
-private class FakeRemote(private val server: ClientIdentity) : TlsConnector {
+private class FakeRemote(private val server: ClientIdentity, private val then: List<RemoteMessage> = emptyList()) : TlsConnector {
     val sent = mutableListOf<RemoteMessage>()
 
     override suspend fun connect(host: String, port: Int, identity: ClientIdentity, expectedPin: CertificatePin?): TlsConnection {
@@ -118,6 +138,7 @@ private class FakeRemote(private val server: ClientIdentity) : TlsConnector {
             remote_configure = RemoteConfigure(code1 = 622, device_info = RemoteDeviceInfo(model = "BRAVIA 8", vendor = "Sony", app_version = "5.4.1")),
         )
         inbox.send(Framing.frame(configure.encode()))
+        then.forEach { inbox.send(Framing.frame(it.encode())) }
         return object : TlsConnection {
             override val localCertificate: X509Certificate = identity.certificate
             override val peerCertificate: X509Certificate = server.certificate
@@ -150,6 +171,52 @@ class DiagnosticRunnerTest {
     private fun List<StepResult>.of(id: String) = first { it.id == id }
 
     @Test
+    fun `the extra reads go only where the TV lists them, and settings schema under its own service`() = runTest {
+        val rest = FakeRest { method ->
+            when (method) {
+                "getMethodTypes" -> ok("""[["getCurrentTime","[]","[\"string\"]","1.0"],["getSettingsSchema","[]","[]","1.0"]]""")
+                "getCurrentTime" -> ok("""["2026-10-26T21:40:00+0100"]""")
+                "getSettingsSchema" -> ok("""[{"target":"x","type":"string"}]""")
+                else -> livingRoomTv(method)
+            }
+        }
+        val runner = DiagnosticRunner(targets(bar = null), rest, RefusingTls, FakeTcp(null), { client }, null, "unavailable")
+        runner.run()
+        val steps = runner.steps.value
+        assertEquals(StepStatus.OK, steps.of("rest.time").status)
+        assertEquals(StepStatus.OK, steps.of("rest.settings_schema").status)
+        assertTrue(steps.of("rest.settings_schema").facts.any { it.first == "call" && it.second.startsWith("system.getSettingsSchema") })
+        // Listed nowhere (every service answered getMethodTypes with the same list here, so videoScreen lists no scene getter).
+        assertEquals(StepStatus.SKIPPED, steps.of("rest.scene").status)
+        assertEquals("not_listed", steps.of("rest.scene").errorClass)
+        assertFalse("getSceneSetting" in rest.methods)
+        // Nothing but getters went out.
+        assertTrue(rest.methods.all { it.startsWith("get") }, rest.methods.toString())
+    }
+
+    @Test
+    fun `a service discovery never listed is skipped while others answered`() = runTest {
+        val asked = mutableListOf<String>()
+        val rest = object : BraviaTransport {
+            override suspend fun post(path: String, body: String, headers: Map<String, String>): HttpReply {
+                val method = Json.parseToJsonElement(body).jsonObject["method"]!!.jsonPrimitive.content
+                asked += "$path $method"
+                // The XR80 has no videoScreen endpoint (2026-10-26).
+                if (path == "/sony/videoScreen") return HttpReply(404, "")
+                return livingRoomTv(method)
+            }
+
+            override val scheme: String get() = "https"
+        }
+        val runner = DiagnosticRunner(targets(bar = null), rest, RefusingTls, FakeTcp(null), { client }, null, "unavailable")
+        runner.run()
+        val scene = runner.steps.value.of("rest.scene")
+        assertEquals(StepStatus.SKIPPED, scene.status)
+        assertEquals("not_listed", scene.errorClass)
+        assertFalse(asked.any { it.endsWith("getSceneSetting") }, asked.toString())
+    }
+
+    @Test
     fun `nothing configured skips every step without touching the network`() = runTest {
         val tcp = FakeTcp(null)
         val runner = DiagnosticRunner(targets(tv = null, bar = null, psk = null, pin = null), null, RefusingTls, tcp, { null }, null, "unavailable")
@@ -179,12 +246,77 @@ class DiagnosticRunnerTest {
     }
 
     @Test
+    fun `optional bar HTTP rejection is unavailable, not a broken soundbar`() = runTest {
+        val unavailable = object : io.kud.tutti.protocol.theatre.BarHttpTransport {
+            override suspend fun post(body: String): String = throw BarHttpUnavailable(500)
+        }
+        val runner = DiagnosticRunner(
+            targets(tv = null, bar = BAR, psk = null, pin = null),
+            null,
+            RefusingTls,
+            FakeTcp(null),
+            { null },
+            null,
+            "unavailable",
+            barHttp = unavailable,
+        )
+
+        runner.run()
+
+        val step = runner.steps.value.of(DiagnosticSteps.BAR_HTTP)
+        assertEquals(StepStatus.SKIPPED, step.status)
+        assertEquals("unsupported", step.errorClass)
+        assertTrue(step.message.orEmpty().contains("HTTP 500"))
+    }
+
+    @Test
+    fun `a listener on 54545 that is not the management plane is unavailable`() = runTest {
+        val other = object : io.kud.tutti.protocol.theatre.BarHttpTransport {
+            override suspend fun post(body: String): String = """{"type":"something_else"}"""
+        }
+        val runner = DiagnosticRunner(
+            targets(tv = null, bar = BAR, psk = null, pin = null),
+            null,
+            RefusingTls,
+            FakeTcp(null),
+            { null },
+            null,
+            "unavailable",
+            barHttp = other,
+        )
+
+        runner.run()
+
+        val step = runner.steps.value.of(DiagnosticSteps.BAR_HTTP)
+        assertEquals(StepStatus.SKIPPED, step.status)
+        assertEquals("unsupported", step.errorClass)
+    }
+
+    @Test
+    fun `a field the tv opens gives int5 and its inferred kind, never its text or label`() = runTest {
+        val show = RemoteMessage(
+            remote_ime_show_request = RemoteImeShowRequest(
+                remote_text_field_status = RemoteTextFieldStatus(counter_field = 1, value_ = "hunter2-typed", int5 = 129, label = "Mot de passe de Camille"),
+            ),
+        )
+        val runner = DiagnosticRunner(targets(bar = null), null, FakeRemote(server, listOf(show)), FakeTcp(null), { client }, null, "unavailable")
+        runner.run()
+        val session = runner.steps.value.of(DiagnosticSteps.REMOTE_SESSION)
+        assertTrue(session.facts.contains("tv text field" to "int5 129, kind text/password (inferred)"), session.facts.toString())
+        val report = DiagnosticReport.render(emptyList(), runner.steps.value, runner.sensitive)
+        assertFalse("hunter2" in report)
+        assertFalse("Camille" in report)
+    }
+
+    @Test
     fun `a full run probes every plane, read-only`() = runTest {
         val rest = FakeRest(::livingRoomTv)
         val bar = FakeLineConnection(::barAnswer)
         val remote = FakeRemote(server)
+        val http = FakeBarHttp()
         val runner = DiagnosticRunner(
             targets(), rest, remote, FakeTcp(bar), { client }, { DiscoveryOutcome(found = 1, configuredTvSeen = true) }, "interface only",
+            barHttp = http,
         )
         runner.run()
         val steps = runner.steps.value
@@ -209,11 +341,24 @@ class DiagnosticRunnerTest {
         assertTrue(remote.sent.all { it.remote_configure != null || it.remote_set_active != null || it.remote_ping_response != null })
 
         assertEquals(StepStatus.OK, steps.of(DiagnosticSteps.BAR_FEATURES).status)
-        assertTrue(steps.of(DiagnosticSteps.BAR_FEATURES).facts.contains("system.version" to "1.2.3"))
+        assertTrue(steps.of(DiagnosticSteps.BAR_FEATURES).facts.contains("system.version" to "answered 1.2.3"))
         assertEquals("no_answer", steps.of(DiagnosticSteps.BAR_VOICE_ZOOM).errorClass)
         // The bar only ever receives gets.
         assertTrue(bar.written.all { "\"type\":\"get\"" in it }, bar.written.toString())
         assertEquals(StepStatus.SKIPPED, steps.of(DiagnosticSteps.CLOUD).status)
+
+        // The detail readouts are in the pass; the bar's own name only as answered.
+        assertTrue(steps.of(DiagnosticSteps.BAR_FEATURES).facts.contains("system.temperature" to "answered 41"))
+        assertTrue(steps.of(DiagnosticSteps.BAR_FEATURES).facts.contains("system.devicename" to "answered"))
+        // HTTP 54545: one read, only the four readout keys.
+        val httpStep = steps.of(DiagnosticSteps.BAR_HTTP)
+        assertEquals(StepStatus.OK, httpStep.status, httpStep.toString())
+        assertTrue(httpStep.facts.contains("wlan.strength" to "answered 3"))
+        assertTrue(httpStep.facts.contains("airplay.accessoryname" to "answered"))
+        assertEquals(1, http.bodies.size)
+        assertTrue("http_get" in http.bodies.single())
+        // The TV's supported functions are asked only when listed: this TV does not list them.
+        assertEquals(StepStatus.SKIPPED, steps.of("rest.supported_functions").status)
     }
 
     @Test
@@ -221,6 +366,7 @@ class DiagnosticRunnerTest {
         val runner = DiagnosticRunner(
             targets(), FakeRest(::livingRoomTv), FakeRemote(server), FakeTcp(FakeLineConnection(::barAnswer)), { client },
             { DiscoveryOutcome(1, true) }, "interface only",
+            barHttp = FakeBarHttp(),
         )
         runner.run()
         val environment = listOf(
@@ -231,12 +377,29 @@ class DiagnosticRunnerTest {
         )
         val report = DiagnosticReport.render(environment, runner.steps.value, runner.sensitive)
 
-        val leaks = listOf(PSK, TV, BAR, SERIAL, MAC, CID, "Camille", "fe80", pin.sha256Hex, "192.168.")
+        val leaks = listOf(PSK, TV, BAR, SERIAL, MAC, CID, "Camille", "Salon", "fe80", pin.sha256Hex, "192.168.")
         for (leak in leaks) assertFalse(leak in report, "report leaks $leak:\n$report")
         // Still useful: models, versions, method list, error classes.
         for (kept in listOf("K-65XR80", "getPowerStatus@1.0", "rpc_40005_standby", "HT-A9000", "BRAVIA 8", "summary:")) {
             assertTrue(kept in report, "report lost $kept:\n$report")
         }
+    }
+
+    @Test
+    fun `developer mode keeps the playing content reply, scrubbed`() = runTest {
+        suspend fun playing(developer: Boolean): StepResult {
+            val runner = DiagnosticRunner(
+                targets(), FakeRest(::livingRoomTv), FakeRemote(server), FakeTcp(FakeLineConnection(::barAnswer)), { client },
+                null, "interface only", developer = developer,
+            )
+            runner.run()
+            return runner.steps.value.of("rest.playing")
+        }
+        val raw = playing(developer = true).facts.firstOrNull { it.first == "raw" }?.second
+        assertTrue(raw != null && "The Garden Hour" in raw && "009" in raw, playing(developer = true).toString())
+        assertFalse(TV in raw, raw)
+        assertFalse(PSK in raw, raw)
+        assertTrue(playing(developer = false).facts.none { it.first == "raw" })
     }
 
     @Test
@@ -246,5 +409,18 @@ class DiagnosticRunnerTest {
         val shape = JsonShape.of(json, sensitive)
         assertEquals("""[{"model":"K-65XR80","serial":<redacted>,"macAddr":<redacted>,"inputs":[2x {"uri":str(20)}]}]""", shape)
         assertEquals(setOf(SERIAL, MAC), sensitive)
+    }
+
+    @Test
+    fun `button names are not identifying, so they never reach the scrub list`() {
+        val sensitive = mutableSetOf<String>()
+        val json = Json.parseToJsonElement("""[{"bundled":true,"type":"IR_REMOTE_BUNDLE_TYPE_AEP_N"},[{"name":"Red","value":"AAAAAgAAAJcAAAAlAw=="},{"name":"Play","value":"x"}]]""")
+        JsonShape.of(json, sensitive, public = setOf("name"))
+        assertTrue(sensitive.isEmpty(), sensitive.toString())
+        val ircc = DiagnosticSteps.REST_READS.first { it.method == "getRemoteControllerInfo" }
+        assertEquals(setOf("name"), ircc.public)
+        // Elsewhere a name is still someone's: the bar's, an input's.
+        JsonShape.of(Json.parseToJsonElement("""{"name":"Invented Lounge"}"""), sensitive)
+        assertEquals(setOf("Invented Lounge"), sensitive)
     }
 }

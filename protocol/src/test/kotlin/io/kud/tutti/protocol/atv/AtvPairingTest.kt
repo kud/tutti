@@ -33,6 +33,7 @@ private class FakeTv(
     private val blockingRead: Boolean = false,
 ) : TlsConnector {
     var receivedSecret: ByteArray? = null
+    var requestedClientName: String? = null
 
     override suspend fun connect(host: String, port: Int, identity: ClientIdentity, expectedPin: CertificatePin?): TlsConnection {
         val inbox = Channel<ByteArray>(Channel.UNLIMITED)
@@ -61,6 +62,7 @@ private class FakeTv(
             override suspend fun send(bytes: ByteArray) {
                 for (frame in decoder.feed(bytes)) {
                     val message = PairingMessage.ADAPTER.decode(frame)
+                    message.pairing_request?.let { requestedClientName = it.client_name }
                     val reply = when {
                         message.pairing_request != null -> PairingMessage(status = ok, pairing_request_ack = PairingRequestAck(server_name = "BRAVIA"))
                         message.pairing_option != null -> PairingMessage(status = ok, pairing_option = PairingOption())
@@ -118,6 +120,23 @@ class AtvPairingTest {
         assertEquals(PairingResult.Paired(CertificatePin.of(server.certificate)), result)
         assertEquals(listOf(1, 2), attempts)
         assertEquals(32, tv.receivedSecret?.size)
+    }
+
+    @Test
+    fun `the pairing request names the client as its certificate does`() = runTest {
+        val named = ClientCertificates.generate(ClientNames.forInstall("Phone X", kotlin.random.Random(7)))
+        val tv = FakeTv(named, server)
+        AtvPairing(tv).pair("192.168.1.10", named) { null }
+        assertEquals(ClientNames.of(named.certificate), tv.requestedClientName)
+        assertTrue(tv.requestedClientName!!.startsWith("tutti (Phone X "))
+    }
+
+    @Test
+    fun `an identity made before per-install names still pairs as tutti`() = runTest {
+        val legacy = ClientCertificates.generate(ClientNames.LEGACY)
+        val tv = FakeTv(legacy, server)
+        AtvPairing(tv).pair("192.168.1.10", legacy) { null }
+        assertEquals("tutti", tv.requestedClientName)
     }
 
     @Test

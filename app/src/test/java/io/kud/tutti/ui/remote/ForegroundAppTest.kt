@@ -1,0 +1,132 @@
+package io.kud.tutti.ui.remote
+
+import io.kud.tutti.controller.Link
+import io.kud.tutti.protocol.apps.KnownApp
+import io.kud.tutti.protocol.bravia.ExternalInput
+import io.kud.tutti.protocol.bravia.PlayingContent
+import io.kud.tutti.protocol.bravia.PowerStatus
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Test
+
+class ForegroundAppTest {
+    @Test
+    fun `a catalogued package shows by name`() {
+        assertEquals("Netflix", foregroundAppName("com.netflix.ninja", Link.ONLINE, PowerStatus.UNKNOWN))
+    }
+
+    @Test
+    fun `an unknown package shows nothing, never the raw id`() {
+        assertNull(foregroundAppName("com.example.launcher", Link.ONLINE, PowerStatus.ACTIVE))
+        assertNull(foregroundAppName(null, Link.ONLINE, PowerStatus.ACTIVE))
+    }
+
+    @Test
+    fun `an app the tv listed shows by name and icon, not as the home screen`() {
+        val listed = listOf(KnownApp(packageName = "com.example.player", name = "Example Player"))
+        assertEquals("Example Player", foregroundAppName("com.example.player", Link.ONLINE, PowerStatus.ACTIVE, listed))
+        val now = nowShowing(null, emptyList(), Link.NEEDS_PAIRING, "com.example.player", Link.ONLINE, PowerStatus.ACTIVE, listed)
+        assertEquals(NowShowing.App("Example Player", "com.example.player"), now)
+        assertEquals(CardShowing.Showing(now!!), cardShowing(true, now, Link.ONLINE, PowerStatus.ACTIVE, barOn = true))
+        // Named, it opens the playback sheet and its long press the app's actions, like YouTube's.
+        assertEquals(CardTap.PLAYBACK, cardTap(CardShowing.Showing(now), onComputerInput = false))
+        assertEquals(now, cardActionsApp(CardShowing.Showing(now)))
+    }
+
+    @Test
+    fun `the launcher stays the home screen`() {
+        val listed = listOf(KnownApp(packageName = "com.google.android.apps.tv.launcherx", name = "Google TV Home"))
+        val now = nowShowing(null, emptyList(), Link.ONLINE, "com.google.android.apps.tv.launcherx", Link.ONLINE, PowerStatus.ACTIVE, listed)
+        assertNull(now)
+        assertEquals(CardShowing.Home, cardShowing(true, now, Link.ONLINE, PowerStatus.ACTIVE, barOn = true))
+    }
+
+    private val tuner = PlayingContent(
+        uri = "tv:dvbt?trip=1.1.1",
+        source = "tv:dvbt",
+        title = "Channel Nine",
+        programTitle = "The Garden Hour",
+        dispNum = "009",
+    )
+    private val hdmi = PlayingContent(uri = "extInput:hdmi?port=2", source = "extInput:hdmi", title = "HDMI 2")
+
+    private fun now(playing: PlayingContent?, rest: Link = Link.ONLINE, app: String? = "com.netflix.ninja", inputs: List<ExternalInput> = emptyList()) =
+        nowShowing(playing, inputs, rest, app, Link.ONLINE, PowerStatus.ACTIVE)
+
+    @Test
+    fun `the tuner shows number, channel and programme`() {
+        val channel = now(tuner) as NowShowing.Channel
+        assertEquals("9 · Channel Nine — The Garden Hour", channel.text)
+        assertEquals("9 · Channel Nine", (now(tuner.copy(programTitle = " ")) as NowShowing.Channel).text)
+        assertNull((now(PlayingContent("tv:dvbt", null, null)) as NowShowing.Channel).text)
+    }
+
+    @Test
+    fun `an input shows its user label, else the tv's title`() {
+        assertEquals(NowShowing.Input("HDMI 2"), now(hdmi))
+        val labelled = listOf(ExternalInput(uri = "extInput:hdmi?port=2", title = "HDMI 2", label = "Console", connected = true))
+        assertEquals(NowShowing.Input("Console"), now(hdmi, inputs = labelled))
+    }
+
+    @Test
+    fun `no rest answer falls back to the app, and a stale one is ignored`() {
+        assertEquals(NowShowing.App("Netflix", "com.netflix.ninja"), now(null))
+        assertEquals(NowShowing.App("Netflix", "com.netflix.ninja"), now(tuner, rest = Link.UNREACHABLE))
+        assertNull(now(null, app = null))
+    }
+
+    @Test
+    fun `a stale package says nothing once the tv is away or asleep`() {
+        assertNull(foregroundAppName("com.netflix.ninja", Link.UNREACHABLE, PowerStatus.ACTIVE))
+        assertNull(foregroundAppName("com.netflix.ninja", Link.ONLINE, PowerStatus.STANDBY))
+    }
+
+    @Test
+    fun `the card always has something to say once a tv is set up`() {
+        val app = NowShowing.App("Netflix", "com.netflix.ninja")
+        assertNull(cardShowing(false, app, Link.ONLINE, PowerStatus.ACTIVE, barOn = true))
+        assertEquals(CardShowing.Showing(app), cardShowing(true, app, Link.ONLINE, PowerStatus.ACTIVE, barOn = true))
+        assertEquals(CardShowing.Home, cardShowing(true, null, Link.ONLINE, PowerStatus.ACTIVE, barOn = true))
+        assertEquals(CardShowing.Offline, cardShowing(true, null, Link.UNREACHABLE, PowerStatus.UNKNOWN, barOn = false))
+        assertEquals(CardShowing.Offline, cardShowing(true, null, Link.CONNECTING, PowerStatus.UNKNOWN, barOn = false))
+    }
+
+    @Test
+    fun `a reconnect says so, and a link down wins over what rest still reports`() {
+        val channel = NowShowing.Channel("2", "France 2", null)
+        assertEquals(CardShowing.Reconnecting, cardShowing(true, channel, Link.CONNECTING, PowerStatus.ACTIVE, barOn = true, reconnecting = true))
+        assertEquals(CardShowing.Offline, cardShowing(true, channel, Link.UNREACHABLE, PowerStatus.ACTIVE, barOn = true))
+        assertEquals(CardShowing.Standby(true), cardShowing(true, null, Link.CONNECTING, PowerStatus.STANDBY, barOn = true, reconnecting = true))
+    }
+
+    @Test
+    fun `standby wins and says whether the bar stays on`() {
+        val app = NowShowing.App("Netflix", "com.netflix.ninja")
+        assertEquals(CardShowing.Standby(true), cardShowing(true, app, Link.ONLINE, PowerStatus.STANDBY, barOn = true))
+        assertEquals(CardShowing.Standby(false), cardShowing(true, null, Link.UNREACHABLE, PowerStatus.STANDBY, barOn = false))
+    }
+
+    @Test
+    fun `the app just tapped shows before the tv reports it, by the name the tv listed`() {
+        val apps = listOf(KnownApp("org.example.player", "Example Player"))
+        assertEquals(NowShowing.App("Example Player", "org.example.player"), launchingApp("org.example.player", apps, Link.ONLINE, PowerStatus.ACTIVE))
+        assertEquals(NowShowing.App("Netflix", "com.netflix.ninja"), launchingApp("com.netflix.ninja", emptyList(), Link.ONLINE, PowerStatus.UNKNOWN))
+    }
+
+    @Test
+    fun `no optimistic app with nothing launching, the link not shown up, the tv asleep or no name`() {
+        val apps = listOf(KnownApp("org.example.player", "Example Player"))
+        assertNull(launchingApp(null, apps, Link.ONLINE, PowerStatus.ACTIVE))
+        assertNull(launchingApp("org.example.player", apps, Link.CONNECTING, PowerStatus.ACTIVE))
+        assertNull(launchingApp("org.example.player", apps, Link.ONLINE, PowerStatus.STANDBY))
+        assertNull(launchingApp("org.example.unknown", apps, Link.ONLINE, PowerStatus.ACTIVE))
+    }
+
+    @Test
+    fun `a resume keeps the last card, never a skeleton, and the live one takes over after`() {
+        val netflix = CardShowing.Showing(NowShowing.App("Netflix", "com.netflix.ninja"))
+        assertEquals(netflix, heldCard(live = CardShowing.Offline, resuming = true, last = netflix))
+        assertEquals(CardShowing.Home, heldCard(live = CardShowing.Home, resuming = false, last = netflix))
+        assertEquals(CardShowing.Offline, heldCard(live = CardShowing.Offline, resuming = true, last = null))
+    }
+}

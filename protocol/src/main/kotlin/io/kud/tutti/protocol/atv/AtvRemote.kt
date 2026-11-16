@@ -15,10 +15,12 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withTimeoutOrNull
 import okio.ByteString.Companion.toByteString
 import java.io.IOException
 
@@ -27,6 +29,13 @@ import java.io.IOException
  * The TV pings about every 5 s; the app should treat ~10 s of silence as a dead link
  * (socket read timeout in its [TlsConnector]) and reconnect.
  *
+ * A read timeout cannot see a phone that slept: it runs on the clock that stops in deep sleep,
+ * so a socket the TV closed meanwhile still reads as ready on waking, and a key written into it
+ * reported success and went nowhere (Erwann, 2026-11-06: « la connexion se fait pas pendant
+ * quelques secondes »). [clock] counts sleep (the app passes `SystemClock.elapsedRealtime`):
+ * a session that has heard nothing for [STALE_MS] is dropped before a key goes into it
+ * ([send]), and when the app comes back ([dropIfStale]).
+ *
  * A TLS failure right after connecting usually means the TV forgot the pairing:
  * surface "Associer à nouveau" rather than retrying forever.
  */
@@ -34,6 +43,8 @@ class AtvRemote(
     private val connector: TlsConnector,
     private val scope: CoroutineScope,
     deviceInfo: ClientDeviceInfo = ClientDeviceInfo(),
+    /** Milliseconds on a clock that keeps counting while the phone sleeps. */
+    private val clock: () -> Long = { System.nanoTime() / 1_000_000 },
 ) {
     private val session = RemoteSession(deviceInfo)
     private val mutableState = MutableStateFlow(RemoteState())
@@ -53,16 +64,33 @@ class AtvRemote(
     private var voiceTimer: Job? = null
 
     @Volatile private var connection: TlsConnection? = null
+
+    /** The certificate the TV presented on the open session, for diagnostics; null when closed. */
+    val peerCertificate: java.security.cert.X509Certificate? get() = connection?.peerCertificate
     private var readJob: Job? = null
+
+    /**
+     * Why the current session's read ended, when it ended in an error; null while it is open,
+     * after a clean EOF, and from the next [connect] or [disconnect]. TLS 1.3 sends a refused
+     * client certificate after the handshake, so it surfaces here, on the first read, and never
+     * from [connect]: the caller reads it to tell a forgotten pairing from a quiet TV.
+     */
+    @Volatile var failure: Throwable? = null
+        private set
+
+    /** When the current session last heard from the TV, on [clock]. */
+    @Volatile private var heardAt = 0L
 
     suspend fun connect(host: String, identity: ClientIdentity, serverPin: CertificatePin) {
         disconnect()
         val conn = connector.connect(host, PORT, identity, serverPin)
+        heardAt = clock()
         connection = conn
         readJob = scope.launch {
             val decoder = FrameDecoder()
             try {
                 conn.incoming.collect { chunk ->
+                    heardAt = clock()
                     for (frame in decoder.feed(chunk)) {
                         val message = try {
                             RemoteMessage.ADAPTER.decode(frame)
@@ -84,6 +112,7 @@ class AtvRemote(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
+                if (connection === conn) failure = e
                 mutableState.update { it.copy(error = e.message ?: "connection lost") }
             } finally {
                 // EOF or a read timeout leaves our end open: close it, or the TV keeps a dead session.
@@ -97,12 +126,26 @@ class AtvRemote(
         }
     }
 
+    /**
+     * True when a session is open but the TV, which pings every few seconds, has said nothing for
+     * [STALE_MS]: after a sleep it has almost certainly closed its end.
+     */
+    fun isStale(): Boolean = connection != null && clock() - heardAt >= STALE_MS
+
+    /** Drops a stale session ([isStale]) so the caller's loop reconnects now. True when it did. */
+    fun dropIfStale(): Boolean {
+        if (!isStale()) return false
+        disconnect()
+        return true
+    }
+
     fun disconnect() {
         val conn = connection
         connection = null
+        failure = null
         readJob?.cancel()
         conn?.close()
-        mutableState.update { it.copy(ready = false, ime = null) }
+        mutableState.update { it.disconnected() }
         mutableVoice.update { VoiceSession.disconnected(it, now()) }
     }
 
@@ -166,29 +209,116 @@ class AtvRemote(
     /** Returns false when not connected or [keyCode] is not a v2 key. */
     suspend fun sendKey(keyCode: Int, direction: KeyDirection = KeyDirection.SHORT): Boolean {
         val message = RemoteMessages.key(keyCode, direction) ?: return false
+        if (keyCode == V2Key.ENTER || keyCode == V2Key.NUMPAD_ENTER) beforeEnter()
         return send(message)
     }
 
-    /** Long press: Select held, for the TV's own long-press menus. */
-    suspend fun longPress(keyCode: Int): Boolean =
-        sendKey(keyCode, KeyDirection.START_LONG) && sendKey(keyCode, KeyDirection.END_LONG)
+    /**
+     * A fixed long press, for the TV's own long-press menus: the key goes down, stays down for
+     * [KeyHold.MIN_HOLD_MS] so the TV sees it held, then comes up. A held finger uses [holdKey]
+     * and [releaseKey] instead, so the key stays down as long as the finger does.
+     */
+    suspend fun longPress(keyCode: Int): Boolean {
+        if (!holdKey(keyCode)) return false
+        delay(KeyHold.MIN_HOLD_MS)
+        return releaseKey(keyCode)
+    }
 
-    /** Replaces the focused field's text. Echoed locally first. */
-    suspend fun sendText(text: String): Boolean {
-        val current = mutableState.value
-        mutableState.update { session.typed(it, text) }
-        return send(RemoteMessages.text(text, current.imeCounter, current.fieldCounter))
+    /** The key goes down on the TV (START_LONG) and stays down until [releaseKey]. */
+    suspend fun holdKey(keyCode: Int): Boolean = sendKey(keyCode, KeyDirection.START_LONG)
+
+    /** The key held by [holdKey] comes up (END_LONG). */
+    suspend fun releaseKey(keyCode: Int): Boolean = sendKey(keyCode, KeyDirection.END_LONG)
+
+    private val typing = ArrayDeque<RemoteMessage>()
+    private val typingLock = Mutex()
+
+    /**
+     * The phone field's whole text, on every change. Not suspending on purpose: the mirror and
+     * the queue take each keystroke in the order it was typed, on the caller's thread, and one
+     * drainer sends them in that order. A coroutine per keystroke on a pool once let "ph" reach
+     * the mirror before "p" did.
+     */
+    fun type(text: String): List<Char> {
+        var dropped = emptyList<Char>()
+        synchronized(typing) {
+            var messages = emptyList<RemoteMessage>()
+            val now = now()
+            mutableState.update { state -> session.type(state, text, now).also { messages = it.messages; dropped = it.dropped }.state }
+            if (messages.isEmpty()) return dropped
+            typing.addAll(messages)
+        }
+        scope.launch { drainTyping() }
+        watchAnswer()
+        return dropped
+    }
+
+    private suspend fun drainTyping() {
+        typingLock.withLock {
+            while (true) {
+                val next = synchronized(typing) { typing.removeFirstOrNull() } ?: break
+                send(next)
+            }
+        }
+    }
+
+    /** Queues what [RemoteSession.settle] says an unanswered edit needs (its text as keys). */
+    private fun settleTyping() {
+        synchronized(typing) {
+            var messages = emptyList<RemoteMessage>()
+            val now = now()
+            mutableState.update { state -> session.settle(state, now).also { messages = it.messages }.state }
+            typing.addAll(messages)
+        }
+    }
+
+    private var answerWatch: Job? = null
+
+    /**
+     * Once an edit is out, checks it was answered within [RemoteSession.ACK_MS] even if nothing
+     * more is typed: an unanswered one goes as keys then, not on the next keystroke.
+     */
+    private fun watchAnswer() {
+        if (mutableState.value.imeSentAt == null || answerWatch?.isActive == true) return
+        answerWatch = scope.launch {
+            while (true) {
+                val sentAt = mutableState.value.imeSentAt ?: break
+                val wait = sentAt + RemoteSession.ACK_MS - now()
+                if (wait > 0) {
+                    delay(wait)
+                    continue
+                }
+                settleTyping()
+                drainTyping()
+                break
+            }
+        }
+    }
+
+    /**
+     * Before Enter: what was typed reaches the field first. An edit still unanswered gets the
+     * rest of [RemoteSession.ACK_MS] to be, then goes as keys; and Enter never overtakes the
+     * typing queue, or it submitted the field before its last letters.
+     */
+    private suspend fun beforeEnter() {
+        val sentAt = mutableState.value.imeSentAt
+        if (sentAt != null) {
+            val wait = sentAt + RemoteSession.ACK_MS - now()
+            if (wait > 0) withTimeoutOrNull(wait) { mutableState.first { it.imeSentAt == null } }
+            settleTyping()
+        }
+        drainTyping()
     }
 
     suspend fun launch(link: String): Boolean = send(RemoteMessages.appLink(link))
 
-    fun dismissIme() {
-        mutableState.update { session.dismissIme(it) }
-    }
 
     private suspend fun send(message: RemoteMessage): Boolean {
         val conn = connection ?: return false
         if (!mutableState.value.ready) return false
+        // A write into a socket the TV closed while the phone slept "succeeds": refuse it, so the
+        // caller's blip handling shows it, and drop the session so it comes back at once.
+        if (dropIfStale()) return false
         return try {
             write(conn, message)
             true
@@ -206,6 +336,13 @@ class AtvRemote(
 
     companion object {
         const val PORT = 6466
+
+        /**
+         * Silence that marks a session dead: two of the TV's ~5 s pings missed, with margin. Only
+         * checked at a key or on coming back, never by a timer, since nothing on the wire proves
+         * the pings hold in every TV state.
+         */
+        const val STALE_MS = 12_000L
         private const val VOICE_TICK_MS = 250L
     }
 }

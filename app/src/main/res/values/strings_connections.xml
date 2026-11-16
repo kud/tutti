@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The Connections sheet, from the device pill (Erwann, 2026-10-25). -->
+    <string name="conn_title">Connections</string>
+    <string name="conn_target">The remote controls %1$s</string>
+    <string name="conn_device_targeted">%1$s, the remote\'s keys go here</string>
+    <string name="conn_device_tv">TV</string>
+    <string name="conn_device_bar">Soundbar</string>
+    <string name="conn_device_computer">Computer</string>
+    <string name="conn_line">%1$s · %2$s</string>
+    <string name="conn_line_said">%1$s, %2$s: %3$s</string>
+    <string name="conn_link_google_tv">Google TV</string>
+    <string name="conn_link_sony_ip">Sony IP control</string>
+    <string name="conn_link_network">Network</string>
+    <string name="conn_link_bluetooth">Bluetooth</string>
+    <string name="conn_connected">connected</string>
+    <string name="conn_connecting">connecting…</string>
+    <string name="conn_reconnecting">reconnecting…</string>
+    <string name="conn_standby">on standby</string>
+    <string name="conn_not_set_up">not set up</string>
+    <string name="conn_unreachable">out of reach</string>
+    <string name="conn_key_refused">key refused</string>
+    <string name="conn_code_to_renew">code to renew</string>
+    <string name="conn_needs_pairing">needs pairing again</string>
+    <string name="conn_ready">ready, connects when controlled</string>
+    <string name="conn_not_paired">not paired</string>
+    <string name="conn_bluetooth_off">the phone\'s Bluetooth is off</string>
+    <string name="conn_needs_permission">needs permission</string>
+    <string name="conn_busy">taken by another app: only one at a time can be the keyboard</string>
+    <string name="conn_not_added">not added</string>
+    <string name="conn_moved">seems to answer at a new address</string>
+    <string name="conn_gives_google_tv">keys, keyboard, apps</string>
+    <string name="conn_gives_sony_ip">icons, HDMI inputs, TV settings</string>
+    <string name="conn_gives_bar">volume, sound, power</string>
+    <string name="conn_gives_bt_computer">keys, trackpad, typing</string>
+    <string name="conn_gives_bt_tv">keys, touchpad and keyboard when the network drops</string>
+    <!-- Under a TV that is set up but out of reach: why, and what keeps it reachable. Never a setup prompt. -->
+    <string name="conn_note_tv_off_network">The TV may be on standby with its network off. To keep it reachable, turn on Remote start on the TV: Settings › Network &amp; Internet › Remote start.</string>
+    <string name="conn_note_tv_remote_start_on">Remote start is on, so the TV stays reachable on standby: check it’s plugged in and on this phone’s Wi-Fi.</string>
+    <!-- Under a bar that is set up but out of reach: why, and what keeps it reachable. Never a setup prompt. -->
+    <string name="conn_note_bar_off_network">The bar may be on standby with its network off. To keep it reachable, turn on Network / Bluetooth standby for the bar in BRAVIA Connect, and keep it on this phone’s Wi-Fi.</string>
+    <string name="conn_note_bar_standby_on">Network / Bluetooth standby is on, so the bar stays reachable on standby: check it’s plugged in and on this phone’s Wi-Fi.</string>
+    <string name="conn_action_pair">Pair</string>
+    <string name="conn_action_set_up">Set up</string>
+    <string name="conn_action_add">Add</string>
+    <string name="conn_action_use_address">Use it</string>
+    <string name="conn_action_control">Control</string>
+    <string name="conn_action_devices">Open Devices</string>
+    <!-- Android 17\'s local-network permission, the banner\'s line and the sheet\'s one step. -->
+    <string name="conn_banner_lan">Android keeps tutti off the home network until you allow it. The TV and soundbar answer nothing meanwhile.</string>
+    <string name="conn_action_lan_allow">Allow</string>
+    <string name="conn_action_lan_open_settings">Open Settings</string>
+</resources>

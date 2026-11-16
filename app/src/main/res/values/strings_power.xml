@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Screen off, sound on (Power sheet, pins, scenes) -->
+    <string name="screen_off_title">Screen off, sound on</string>
+    <string name="screen_off_detail">For music or a podcast. Tap again here to bring the picture back.</string>
+    <string name="screen_off_back">Picture back on</string>
+    <string name="screen_off_back_detail">The TV says its screen is off.</string>
+    <string name="screen_off_pin">Pin to the dock</string>
+    <string name="screen_off_picker">Screen</string>
+    <string name="screen_off_scene_key">Screen off</string>
+    <string name="screen_off_summary_on">Screen off</string>
+    <string name="screen_off_summary_off">Screen on</string>
+    <!-- Gentle switch-off timer (Power sheet, now-showing card, its notification) -->
+    <string name="gentle_off_title">Switch off gently</string>
+    <string name="gentle_off_detail">The volume lowers over the last 2 minutes, then the TV and the soundbar turn off.</string>
+    <string name="gentle_off_minutes">%1$d min</string>
+    <string name="gentle_off_minutes_label">Switch off in %1$d minutes</string>
+    <string name="gentle_off_at">Off at %1$s</string>
+    <string name="gentle_off_left">%1$s left · tap to cancel</string>
+    <string name="gentle_off_card">Off at %1$s · %2$s left</string>
+    <string name="gentle_off_cancel">Cancel</string>
+    <string name="gentle_off_late">May switch off a few minutes late</string>
+    <string name="gentle_off_allow">Allow exact timing</string>
+    <string name="gentle_off_all_off">The TV and the soundbar are off</string>
+    <string name="gentle_off_fading">Lowering the volume, then switching off</string>
+    <string name="gentle_off_notification_text">The volume lowers over the last 2 minutes</string>
+    <string name="gentle_off_channel">Switch-off timer</string>
+    <string name="gentle_off_channel_description">The countdown before the TV and the soundbar switch off.</string>
+    <string name="gentle_off_at_tomorrow">Off tomorrow at %1$s</string>
+    <string name="gentle_off_card_tomorrow">Off tomorrow at %1$s · %2$s left</string>
+    <string name="gentle_off_span_hours">%1$d h %2$02d</string>
+    <string name="gentle_off_at_time">At a time…</string>
+    <string name="gentle_off_at_time_label">Switch off at a time you choose</string>
+    <string name="gentle_off_too_soon">Choose a time at least 2 minutes away: the volume needs them to lower.</string>
+</resources>

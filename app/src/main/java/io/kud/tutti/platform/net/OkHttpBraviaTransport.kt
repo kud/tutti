@@ -1,9 +1,30 @@
 package io.kud.tutti.platform.net
 
+import io.kud.tutti.protocol.apps.AppIcons
+import io.kud.tutti.protocol.apps.IconAttempt
+import io.kud.tutti.protocol.apps.IconOutcome
+import io.kud.tutti.protocol.apps.IconProbe
+import io.kud.tutti.protocol.bravia.BraviaClient
 import io.kud.tutti.protocol.bravia.BraviaTransport
 import io.kud.tutti.protocol.bravia.HttpReply
-import io.kud.tutti.protocol.net.CertificatePin
+import io.kud.tutti.protocol.bravia.IpRegistration
+import io.kud.tutti.protocol.net.CertificatePinMismatch
 import io.kud.tutti.protocol.net.LanAddress
+import io.kud.tutti.protocol.net.MAX_PINS
+import io.kud.tutti.protocol.net.PinSet
+import io.kud.tutti.protocol.net.PublicKeyPin
+import io.kud.tutti.protocol.net.ServerIdentityPin
+import java.io.IOException
+import java.io.InterruptedIOException
+import java.net.ConnectException
+import java.net.InetSocketAddress
+import java.net.Proxy
+import java.security.SecureRandom
+import java.security.cert.X509Certificate
+import java.util.concurrent.TimeUnit
+import javax.net.SocketFactory
+import javax.net.ssl.SSLContext
+import javax.net.ssl.SSLException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.Call
@@ -13,109 +34,230 @@ import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
-import java.io.IOException
-import java.io.InterruptedIOException
-import java.net.ConnectException
-import java.net.InetSocketAddress
-import java.net.Proxy
-import java.security.SecureRandom
-import java.security.cert.X509Certificate
-import java.util.concurrent.TimeUnit
-import javax.net.ssl.SSLContext
-import javax.net.ssl.SSLException
+import okhttp3.Response
 
 /**
  * BRAVIA REST over OkHttp, LAN only.
  *
- * HTTPS first, pinned trust-on-first-use: the first certificate seen is persisted through
- * [savePin] only after a request has succeeded, and every later request must match it.
- * Plain HTTP is used only when HTTPS is refused outright (port closed) AND no pin has ever
- * been recorded for this TV, and only towards a private address. Once a pin exists, HTTPS
- * is the only way in. Headers (they carry the PSK) are never logged: there is no logging
- * interceptor on this client.
+ * Authenticated means carrying any of [BraviaClient.CREDENTIAL_HEADERS]: the PSK, the IP-control
+ * cookie, or the code from the TV during `actRegister`. All three follow the same rules below,
+ * written for the PSK.
+ *
+ * HTTPS first, pinned trust-on-first-use: the first server public key seen is persisted through
+ * [savePin] only after an authenticated request has had a 2xx answer. Later certificates may be
+ * reissued, but their public key must match; a changed key is a [CertificatePinMismatch]. Plain
+ * HTTP is used only when HTTPS is refused outright (port closed), no pin has ever been
+ * recorded for this TV, an unauthenticated request (discovery) has answered over HTTP, and
+ * only towards a private address. The PSK never goes out on that first HTTP request, and
+ * every unauthenticated request tries HTTPS again first, so a TV caught while booting does
+ * not stay on HTTP. Once a pin exists, HTTPS is the only way in. Headers (they carry the
+ * PSK) are never logged: there is no logging interceptor on this client.
  *
  * The internal constructor is the test seam: the device simulator listens on loopback ports.
  */
 class OkHttpBraviaTransport internal constructor(
     private val host: String,
-    initialPin: CertificatePin?,
-    private val savePin: suspend (CertificatePin) -> Unit,
+    initialPin: ServerIdentityPin?,
+    private val savePin: suspend (PublicKeyPin) -> Unit,
     private val httpsPort: Int,
     private val httpPort: Int,
     private val checkHost: (String) -> Unit,
     private val readTimeoutMs: Long,
+    private val requireAccess: () -> Unit = {},
+    private val socketFactory: SocketFactory = SocketFactory.getDefault(),
 ) : BraviaTransport {
-    constructor(host: String, initialPin: CertificatePin?, savePin: suspend (CertificatePin) -> Unit) :
-        this(host, initialPin, savePin, HTTPS_PORT, HTTP_PORT, ::requireLan, READ_TIMEOUT_MS)
+    constructor(host: String, initialPin: ServerIdentityPin?, savePin: suspend (PublicKeyPin) -> Unit, requireAccess: () -> Unit) :
+        this(host, initialPin, savePin, HTTPS_PORT, HTTP_PORT, ::requireLan, READ_TIMEOUT_MS, requireAccess, LanRoute.socketFactory)
 
-    @Volatile private var firstSeen: CertificatePin? = null
+    @Volatile private var observedKeyPin: PublicKeyPin? = null
     @Volatile private var useHttp = false
-    private val trust = PinningTrustManager(initialPin) { firstSeen = it }
+
+    /** The certificate of the last pin mismatch, for diagnostics and the trust offer; never trusted by itself. */
+    @Volatile internal var lastMismatch: X509Certificate? = null
+        private set
+    private val trust = PinningTrustManager(initialPin) { observedKeyPin = PublicKeyPin.of(it) }
 
     private val client: OkHttpClient by lazy {
         val context = SSLContext.getInstance("TLS")
         context.init(null, arrayOf(trust), SecureRandom())
         OkHttpClient.Builder()
             .sslSocketFactory(context.socketFactory, trust)
-            // The TV's self-signed certificate never names its IP; identity is the pin, checked
-            // again here so a session can never outlive a pin change.
+            // The TV's self-signed certificate never names its IP; the pinned identity is checked
+            // again here so a session can never outlive a key change.
             .hostnameVerifier { _, session ->
                 val leaf = session.peerCertificates.firstOrNull() as? X509Certificate
-                val pin = trust.expected ?: firstSeen
+                val pin = trust.expected ?: observedKeyPin
                 leaf != null && pin != null && pin.matches(leaf)
             }
             .connectTimeout(4, TimeUnit.SECONDS)
             .readTimeout(readTimeoutMs, TimeUnit.MILLISECONDS)
             .writeTimeout(8, TimeUnit.SECONDS)
             .retryOnConnectionFailure(false)
-            .eventListener(FreshConnectionListener)
+            // The TV is on the LAN: a system or app proxy must never see the PSK.
+            .proxy(Proxy.NO_PROXY)
+            // On the LAN network, never the default (LanRoute): the factory reads it per socket.
+            .socketFactory(socketFactory)
+            // Never follow a redirect: OkHttp keeps custom headers on one, so the PSK could
+            // reach a host that is not the TV. A 3xx is an answer, reported as such.
+            .followRedirects(false)
+            .followSslRedirects(false)
+            .eventListener(AttemptListener)
             .build()
     }
 
-    override val scheme: String? get() = if (useHttp) "http" else if (firstSeen != null || trust.expected != null) "https" else null
+    override val scheme: String? get() = if (useHttp) "http" else if (observedKeyPin != null || trust.expected != null) "https" else null
+
+    /**
+     * Public key seen on HTTPS in this transport's lifetime.
+     * Read-only: callers may promote it to a stored pin only after their own trust ceremony.
+     */
+    internal val observedPin: PublicKeyPin? get() = observedKeyPin
 
     override suspend fun post(path: String, body: String, headers: Map<String, String>): HttpReply =
         withContext(Dispatchers.IO) {
+            // First of all: no socket may open while Android 17 keeps the LAN shut. Typed, so the
+            // callers say "permission", never "unreachable".
+            requireAccess()
             checkHost(host)
-            if (!useHttp) {
-                try {
-                    return@withContext execute("https", path, body, headers).also { persistFirstSeen() }
-                } catch (e: ConnectException) {
-                    // Port 443 closed. Fall back to HTTP only if this TV was never seen over HTTPS,
-                    // and stay on HTTP only once it answers: a TV still booting refuses both ports,
-                    // and an HTTPS-only (EU) TV caught then was never tried over HTTPS again.
-                    if (trust.expected != null) throw e
-                    return@withContext execute("http", path, body, headers).also { useHttp = true }
+            val authenticated = BraviaClient.carriesCredential(headers)
+            if (useHttp && authenticated) return@withContext execute("http", path, body, headers)
+            try {
+                execute("https", path, body, headers).also { reply ->
+                    useHttp = false
+                    if (authenticated && reply.status in 200..299) persistObservedPin()
                 }
+            } catch (e: ConnectException) {
+                // Port 443 closed. HTTP only for a TV never pinned, and only on a request without
+                // the key: it is the probe, and HTTP sticks only once it has answered.
+                if (trust.expected != null || authenticated) throw e
+                execute("http", path, body, headers).also { useHttp = true }
+            } catch (e: SSLException) {
+                val mismatch = generateSequence<Throwable>(e) { it.cause }.take(8).filterIsInstance<PinMismatchException>().firstOrNull()
+                if (mismatch != null) {
+                    lastMismatch = mismatch.seen
+                    throw CertificatePinMismatch(e)
+                }
+                throw e
             }
-            execute("http", path, body, headers)
         }
 
-    /**
-     * One app icon from the TV's own list. Only from the TV itself: HTTPS through the same
-     * pinned client (no pin yet, no icon), or HTTP to a private LAN address. No PSK header
-     * goes with it. Null on any failure or anything over [maxBytes].
-     */
-    suspend fun fetchIcon(url: String, maxBytes: Int = MAX_ICON_BYTES): ByteArray? = withContext(Dispatchers.IO) {
-        val parsed = url.toHttpUrlOrNull() ?: return@withContext null
-        if (!LanAddress.isPrivate(parsed.host)) return@withContext null
-        if (parsed.scheme == "https" && (parsed.host != host || (trust.expected == null && firstSeen == null))) return@withContext null
-        runCatching {
-            client.newCall(Request.Builder().url(parsed).get().build()).execute().use { response ->
-                if (!response.isSuccessful) return@use null
-                val declared = response.body.contentLength()
-                if (declared > maxBytes) return@use null
-                response.body.bytes().takeIf { it.isNotEmpty() && it.size <= maxBytes }
-            }
-        }.getOrNull()
+    /** One icon fetch: the image bytes, or why there are none. */
+    sealed interface IconFetch {
+        class Image(val bytes: ByteArray) : IconFetch
+        data class Failed(val attempt: IconAttempt) : IconFetch
     }
 
-    private suspend fun persistFirstSeen() {
-        val seen = firstSeen ?: return
-        if (trust.expected == null) {
-            trust.expected = seen
-            savePin(seen)
+    /**
+     * One app icon, from this TV only ([AppIcons.plan] aims every icon URL at it). HTTPS goes
+     * through the same pinned client (no pin yet, no icon); HTTP only to a private address. An
+     * HTTP icon on a pinned TV that refuses port 80, or answers there with a redirect, is asked
+     * again over HTTPS at the same path. No PSK (or [cookie], which wins when both are given) goes with the first request; a
+     * 401 or 403 is asked once more with it, since it is this TV's own key going to this TV. A stale pooled connection is retried once, as
+     * for [post]. Anything that is not an image, or over [maxBytes], is refused. A failure carries
+     * an [IconProbe] of each request it made (status and a few header tokens, or the phase a
+     * request with no answer stopped in), for the diagnostic report only.
+     */
+    suspend fun fetchIcon(url: String, psk: String? = null, maxBytes: Int = MAX_ICON_BYTES, cookie: String? = null): IconFetch = withContext(Dispatchers.IO) {
+        val credential: Pair<String, String>? = when {
+            cookie != null && IpRegistration.validCookieValue(cookie) -> BraviaClient.COOKIE to IpRegistration.cookieHeader(cookie)
+            !psk.isNullOrEmpty() -> BraviaClient.PSK_HEADER to psk
+            else -> null
         }
+        fun failed(outcome: IconOutcome, detail: String? = null) = IconFetch.Failed(IconAttempt(outcome, detail))
+        // No icon without the LAN; not an exception outcome, the diagnostic reads it as any other.
+        runCatching { requireAccess() }.onFailure { return@withContext failed(IconOutcome.NETWORK, "local network permission") }
+        val parsed = url.toHttpUrlOrNull() ?: return@withContext failed(IconOutcome.MALFORMED)
+        if (parsed.host.removePrefix("[").removeSuffix("]") != host.removePrefix("[").removeSuffix("]")) {
+            return@withContext failed(IconOutcome.INTERNET, "not the tv")
+        }
+        runCatching { checkHost(parsed.host) }.onFailure { return@withContext failed(IconOutcome.INTERNET, "not private") }
+        val pinned = trust.expected != null || observedKeyPin != null
+        if (parsed.scheme == "https" && !pinned) return@withContext failed(IconOutcome.NO_PIN)
+        var target = parsed
+        var note: String? = null
+        val probe = mutableListOf<String>()
+        var current: Attempt? = null
+        fun seen(response: Response) {
+            probe += IconProbe.response(
+                target.scheme, response.code, response.header("Server"), response.header("Content-Type"),
+                response.header("Content-Length"), response.header("WWW-Authenticate"),
+            )
+        }
+        // The key only ever rides HTTPS to the pinned TV (the hostname verifier checks the pin).
+        fun get(withPsk: Boolean): IconFetch = execute(
+            Request.Builder().url(target).get()
+                .apply { if (withPsk && credential != null && target.scheme == "https") header(credential.first, credential.second) },
+            onAttempt = { current = it },
+        ) { response ->
+            if (!response.isSuccessful) seen(response)
+            when {
+                !response.isSuccessful -> failed(IconOutcome.HTTP_STATUS, "${response.code}")
+                response.body.contentLength() > maxBytes -> failed(IconOutcome.TOO_BIG)
+                else -> {
+                    val bytes = response.body.bytes()
+                    when {
+                        bytes.size > maxBytes -> failed(IconOutcome.TOO_BIG)
+                        !AppIcons.looksLikeImage(bytes) -> {
+                            seen(response)
+                            failed(IconOutcome.NOT_IMAGE, response.body.contentType()?.let { "${it.type}/${it.subtype}" })
+                        }
+                        else -> IconFetch.Image(bytes)
+                    }
+                }
+            }
+        }
+        fun attempt(): IconFetch = try {
+            get(withPsk = false).let { first ->
+                val code = ((first as? IconFetch.Failed)?.attempt?.detail)
+                when {
+                    first !is IconFetch.Failed || (code != "401" && code != "403") || credential == null -> first
+                    target.scheme == "https" -> get(withPsk = true)
+                    // Refused over HTTP: the key goes only over HTTPS, so only to a pinned TV.
+                    pinned -> {
+                        target = target.newBuilder().scheme("https").port(httpsPort).build()
+                        note = "http $code, https with key"
+                        get(withPsk = true)
+                    }
+                    else -> first
+                }
+            }
+        } catch (e: ConnectException) {
+            probe += IconProbe.failure(target.scheme, e.javaClass.simpleName, current?.phase)
+            failed(IconOutcome.REFUSED)
+        } catch (e: IOException) {
+            probe += IconProbe.failure(target.scheme, e.javaClass.simpleName, current?.phase)
+            failed(IconOutcome.NETWORK, e.javaClass.simpleName)
+        }
+        var result = attempt()
+        // Port 80 shut, or open only to send everything to HTTPS: ask the pinned TV itself over
+        // HTTPS at the same path. The redirect's Location is never read, so it can't aim us elsewhere.
+        val upgrade = (result as? IconFetch.Failed)?.attempt?.let { failure ->
+            when {
+                failure.outcome == IconOutcome.REFUSED -> "http refused, https"
+                failure.outcome == IconOutcome.HTTP_STATUS && failure.detail?.toIntOrNull() in 300..399 -> "http ${failure.detail}, https"
+                else -> null
+            }
+        }
+        if (upgrade != null && parsed.scheme == "http" && pinned) {
+            target = parsed.newBuilder().scheme("https").port(httpsPort).build()
+            note = upgrade
+            result = attempt()
+        }
+        if (result !is IconFetch.Failed) return@withContext result
+        val detail = if (note != null) listOfNotNull(note, result.attempt.detail).joinToString(": ") else result.attempt.detail
+        IconFetch.Failed(result.attempt.copy(detail = detail, probe = probe.takeIf { it.isNotEmpty() }?.joinToString("; ")))
+    }
+
+    private suspend fun persistObservedPin() {
+        val seen = observedKeyPin ?: return
+        // A matching legacy full-certificate pin is promoted after one authenticated success.
+        // A mismatching legacy pin never reaches here: the TLS handshake has already failed.
+        // With two trusted keys (PinSet), the one the TV answered with becomes the newest and the
+        // other stays trusted, so a TV that alternates keeps working in this session too.
+        val current = trust.expected
+        if (current == seen || (current is PinSet && current.pins.firstOrNull() == seen)) return
+        trust.expected = if (current is PinSet) PinSet(listOf(seen) + current.pins.filter { it != seen && it is PublicKeyPin }.take(MAX_PINS - 1)) else seen
+        savePin(seen)
     }
 
     /**
@@ -126,37 +268,64 @@ class OkHttpBraviaTransport internal constructor(
      * and neither is a failure on a connection opened for this call: those are real answers.
      */
     private fun execute(scheme: String, path: String, body: String, headers: Map<String, String>): HttpReply {
-        val attempt = Attempt()
-        return try {
-            executeOnce(scheme, path, body, headers, attempt)
-        } catch (e: IOException) {
-            if (attempt.freshConnection || e is InterruptedIOException || e is SSLException) throw e
-            client.connectionPool.evictAll()
-            executeOnce(scheme, path, body, headers, Attempt())
-        }
-    }
-
-    private fun executeOnce(scheme: String, path: String, body: String, headers: Map<String, String>, attempt: Attempt): HttpReply {
         val contentType = headers.entries.firstOrNull { it.key.equals("Content-Type", ignoreCase = true) }?.value
         val request = Request.Builder()
             .url("$scheme://${urlHost()}:${if (scheme == "https") httpsPort else httpPort}$path")
             .post(body.toRequestBody(contentType?.toMediaTypeOrNull()))
             .apply { headers.forEach { (name, value) -> if (!name.equals("Content-Type", true)) header(name, value) } }
-            .tag(Attempt::class.java, attempt)
-            .build()
-        client.newCall(request).execute().use { response ->
-            return HttpReply(response.code, response.body.string())
+        return execute(request) { response -> HttpReply(response.code, response.body.string(), response.headers("Set-Cookie")) }
+    }
+
+    private fun <T> execute(request: Request.Builder, onAttempt: (Attempt) -> Unit = {}, read: (Response) -> T): T {
+        val attempt = Attempt().also(onAttempt)
+        return try {
+            executeOnce(request, attempt, read)
+        } catch (e: IOException) {
+            if (attempt.freshConnection || e is InterruptedIOException || e is SSLException) throw e
+            client.connectionPool.evictAll()
+            executeOnce(request, Attempt().also(onAttempt), read)
         }
     }
 
-    /** Whether a call opened its own connection rather than reusing a pooled one. */
+    private fun <T> executeOnce(request: Request.Builder, attempt: Attempt, read: (Response) -> T): T =
+        client.newCall(request.tag(Attempt::class.java, attempt).build()).execute().use(read)
+
+    /**
+     * Whether a call opened its own connection rather than reusing a pooled one, and the last phase
+     * it reached ([IconProbe.failure] names where a timeout came: connect, tls, write or read).
+     */
     private class Attempt {
         @Volatile var freshConnection = false
+        @Volatile var phase = "start"
     }
 
-    private object FreshConnectionListener : EventListener() {
+    private object AttemptListener : EventListener() {
+        private fun Call.attempt() = request().tag(Attempt::class.java)
+
         override fun connectStart(call: Call, inetSocketAddress: InetSocketAddress, proxy: Proxy) {
-            call.request().tag(Attempt::class.java)?.freshConnection = true
+            call.attempt()?.apply { freshConnection = true; phase = "connect" }
+        }
+
+        override fun secureConnectStart(call: Call) {
+            call.attempt()?.phase = "tls"
+        }
+
+        override fun requestHeadersStart(call: Call) {
+            call.attempt()?.phase = "write"
+        }
+
+        // The request is out: from here on the call waits on the TV. OkHttp reports
+        // responseHeadersStart only once header bytes arrive, so it can't mark the wait.
+        override fun requestHeadersEnd(call: Call, request: Request) {
+            call.attempt()?.phase = "read"
+        }
+
+        override fun requestBodyEnd(call: Call, byteCount: Long) {
+            call.attempt()?.phase = "read"
+        }
+
+        override fun responseBodyStart(call: Call) {
+            call.attempt()?.phase = "read body"
         }
     }
 

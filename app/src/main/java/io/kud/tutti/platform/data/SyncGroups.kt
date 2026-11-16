@@ -1,0 +1,124 @@
+package io.kud.tutti.platform.data
+
+import io.kud.tutti.protocol.scenes.AppProfile
+import io.kud.tutti.protocol.scenes.SceneJson
+import io.kud.tutti.protocol.scenes.SceneListSerializer
+import io.kud.tutti.protocol.scenes.StarterScenes
+import kotlinx.serialization.KSerializer
+import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonObject
+
+/**
+ * What settings sync carries, as groups of JSON, between the stored values and the sync file
+ * (docs/adr/0001-settings-sync.md). Only these four stored keys ever reach it: `prefs`, `dock`,
+ * `scenes` and `profiles`. Devices, hosts, the TV's app list and everything in SecureStore have no
+ * way in, and nothing here can write them.
+ */
+internal object SyncGroups {
+    const val PREFERENCES = "preferences"
+    const val REMOTE = "remote"
+    const val SCENES = "scenes"
+    const val PROFILES = "profiles"
+
+    /**
+     * Preferences that stay on this phone, each with why; every other field of [AppPrefs] travels in
+     * [PREFERENCES] (Erwann, 2026-11-12: every option syncs, except what is sensitive or is this
+     * phone's own state). `SyncedPrefsGuardTest` fails on a field that is neither, or a stale entry.
+     * Nothing sensitive lives in [AppPrefs]: pairing material, the PSK, tokens and addresses are in
+     * the devices store and the Keystore-backed secure store, which never reach a sync group.
+     */
+    val LOCAL_PREFS: Map<String, String> = mapOf(
+        "onboarded" to "setup done on this phone",
+        "developerMode" to "a per-phone diagnostic switch",
+        "lastBarVolume" to "a reading of the bar, not a setting",
+        "hints" to "the one-time tips this phone already showed",
+        "tonightCap" to "a timed state, set for tonight on this phone",
+        "nightSession" to "a timed state: the night window open on this phone, with what to put back",
+        "layout" to "travels in REMOTE with the dock",
+    )
+
+    /** The four stored strings, as DataStore holds them (null when never written). */
+    data class Raw(val prefs: String?, val dock: String?, val scenes: String?, val profiles: String?)
+
+    private val profilesSerializer = ListSerializer(AppProfile.serializer())
+
+    fun read(raw: Raw): Map<String, JsonElement> {
+        val prefs = prefsObject(raw.prefs)
+        val dock = decode(raw.dock, DockConfig.serializer(), StoreJson) ?: DockConfig()
+        val scenes = decode(raw.scenes, SceneListSerializer, SceneJson) ?: StarterScenes.all
+        val profiles = decode(raw.profiles, profilesSerializer, SceneJson) ?: emptyList()
+        return mapOf(
+            PREFERENCES to JsonObject(prefs.filterKeys { it !in LOCAL_PREFS }),
+            REMOTE to buildJsonObject {
+                put("layout", prefs.getValue("layout"))
+                put("dock", StoreJson.encodeToJsonElement(DockConfig.serializer(), dock))
+            },
+            SCENES to SceneJson.encodeToJsonElement(SceneListSerializer, scenes),
+            PROFILES to SceneJson.encodeToJsonElement(profilesSerializer, profiles),
+        )
+    }
+
+    /**
+     * [raw] with [incoming] groups taken in. A group that doesn't decode here is left out and the
+     * stored value kept: a bad file never empties a setting. Unknown groups are ignored.
+     */
+    fun apply(raw: Raw, incoming: Map<String, JsonElement>): Raw {
+        var prefs = prefsObject(raw.prefs)
+        var prefsChanged = false
+        var dock = raw.dock
+
+        (incoming[PREFERENCES] as? JsonObject)?.let { synced ->
+            // A key the other phone doesn't know (an older tutti) keeps this phone's value, except
+            // the vibration level: a file from before it carries only the old switch, and this
+            // phone's level would then outrank it (Off · Essentials · Everything is one choice
+            // since 2026-11-12, read from both through `AppPrefs.vibrationLevel`).
+            val base = if ("haptics" in synced && "vibration" !in synced) JsonObject(prefs - "vibration") else prefs
+            val next = JsonObject(base + synced.filterKeys { it !in LOCAL_PREFS })
+            if (decodes(next, StoredPrefs, StoreJson)) {
+                prefs = next
+                prefsChanged = true
+            }
+        }
+        (incoming[REMOTE] as? JsonObject)?.let { remote ->
+            remote["layout"]?.takeIf { decodes(it, RemoteLayout.serializer(), StoreJson) }?.let {
+                prefs = JsonObject(prefs + ("layout" to it))
+                prefsChanged = true
+            }
+            remote["dock"]?.let { element ->
+                runCatching { StoreJson.decodeFromJsonElement(DockConfig.serializer(), element) }.getOrNull()
+                    ?.let { dock = StoreJson.encodeToString(DockConfig.serializer(), it.safeLinks()) }
+            }
+        }
+        // The scene list reader is forgiving (it skips what it can't read), so anything but a list is refused here.
+        val scenes = (incoming[SCENES] as? JsonArray)?.let { element ->
+            runCatching { SceneJson.decodeFromJsonElement(SceneListSerializer, element) }.getOrNull()
+                ?.let { SceneJson.encodeToString(SceneListSerializer, it) }
+        } ?: raw.scenes
+        val profiles = (incoming[PROFILES] as? JsonArray)?.let { element ->
+            runCatching { SceneJson.decodeFromJsonElement(profilesSerializer, element) }.getOrNull()
+                ?.let { SceneJson.encodeToString(profilesSerializer, it) }
+        } ?: raw.profiles
+        val prefsText = if (prefsChanged) {
+            StoreJson.encodeToString(StoredPrefs, StoreJson.decodeFromJsonElement(StoredPrefs, prefs).safeDestinations())
+        } else {
+            raw.prefs
+        }
+        return Raw(prefsText, dock, scenes, profiles)
+    }
+
+    private fun prefsObject(text: String?): JsonObject {
+        val prefs = decode(text, StoredPrefs, StoreJson) ?: AppPrefs()
+        return StoreJson.encodeToJsonElement(StoredPrefs, prefs).jsonObject
+    }
+
+    private fun <T> decode(text: String?, serializer: KSerializer<T>, json: Json): T? =
+        text?.let { runCatching { json.decodeFromString(serializer, it) }.getOrNull() }
+
+    private fun <T> decodes(element: JsonElement, serializer: KSerializer<T>, json: Json): Boolean =
+        runCatching { json.decodeFromJsonElement(serializer, element) }.isSuccess
+}

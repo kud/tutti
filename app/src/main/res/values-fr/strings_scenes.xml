@@ -4,7 +4,7 @@
     <string name="scenes_new">Nouvelle scène</string>
     <string name="scenes_edit">Modifier la scène</string>
     <string name="scenes_active">Active</string>
-    <string name="scene_key_input">Source TV</string>
+    <string name="scene_key_input">Entrée TV</string>
     <string name="scene_key_app">App TV</string>
     <string name="scene_key_picture">Mode d’image</string>
     <string name="scene_key_cap">Volume max</string>
@@ -37,12 +37,12 @@
     <string name="editor_profile">Appliquer automatiquement</string>
     <string name="editor_profile_value">Quand %1$s est au premier plan</string>
     <string name="editor_none">Aucune</string>
-    <string name="editor_dock">Placer dans le dock</string>
+    <string name="editor_dock">Épingler au dock</string>
     <string name="editor_done">OK</string>
     <string name="editor_free_value">Valeur telle que la TV l’écrit</string>
     <string name="scene_starter_cinema">Cinéma</string>
     <string name="scene_starter_serie">Série du soir</string>
-    <string name="scene_starter_nuit">Nuit</string>
+    <string name="scene_starter_nuit">Coucher</string>
     <string name="scene_starter_musique">Musique</string>
     <string name="scene_starter_sport">Sport</string>
     <string name="scene_starter_jeu">Jeu</string>
@@ -53,4 +53,23 @@
         <item quantity="other">%1$d étapes sur %2$d ont échoué</item>
     </plurals>
     <string name="scene_failed_short">échec</string>
+    <!-- Scene colours, read by TalkBack in the editor's colour picker. -->
+    <string name="scene_colour_violet">Violet</string>
+    <string name="scene_colour_blue">Bleu</string>
+    <string name="scene_colour_navy">Bleu marine</string>
+    <string name="scene_colour_pink">Rose</string>
+    <string name="scene_colour_green">Vert</string>
+    <string name="scene_colour_orange">Orange</string>
+    <string name="scene_colour_grey">Gris</string>
+    <string name="scene_colour_red">Rouge</string>
+    <string name="scene_key_tv_output">Sortie son de la TV</string>
+    <string name="scene_key_target">La télécommande pilote</string>
+    <string name="summary_tv_output">Son TV : %1$s</string>
+    <string name="summary_bar_input">Barre sur %1$s</string>
+    <string name="summary_360_on">360 Spatial</string>
+    <string name="summary_360_off">Sans 360 Spatial</string>
+    <string name="summary_voice_zoom_on">Voice Zoom</string>
+    <string name="summary_voice_zoom_off">Sans Voice Zoom</string>
+    <string name="summary_target">Pilote %1$s</string>
+    <string name="summary_target_unknown">un appareil retiré</string>
 </resources>

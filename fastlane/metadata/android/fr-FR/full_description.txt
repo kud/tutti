@@ -1,0 +1,25 @@
+tutti est la télécommande d’un salon : une TV Sony BRAVIA sous Google TV, une barre de son BRAVIA Theatre, et l’ordinateur affiché sur la TV. Elle remplace BRAVIA Connect au quotidien.
+
+Tout passe par votre réseau local. tutti n’a besoin ni d’un compte Sony ni d’un service cloud, et n’envoie rien sur vous nulle part.
+
+<b>Ce qu’elle fait</b>
+<ul>
+<li>Une télécommande digne de Google TV : pavé tactile ou croix directionnelle, et une bande sous le pavé pour passer de l’un à l’autre</li>
+<li>Clavier en direct : tapez dans les champs de texte de la TV depuis le téléphone</li>
+<li>Voix : maintenez le micro pour parler à l’Assistant de la TV</li>
+<li>Réglages de la barre de son par son contrôle IP : volume, champ sonore, mode nuit, basses et enceintes arrière</li>
+<li>Scènes et raccourcis : un appui règle l’entrée ou l’appli, le mode d’image et un plafond de volume</li>
+<li>Un widget, des tuiles de réglages rapides et une notification multimédia</li>
+<li>Une minuterie d’extinction en douceur</li>
+<li>Mode développeur : détails masqués et copiables sur chaque erreur, et un diagnostic des connexions à la TV et à la barre</li>
+</ul>
+
+<b>Vie privée et sécurité</b>
+Les appareils sont épinglés au premier appairage, les données d’appairage sont chiffrées par une clé Android Keystore et exclues des sauvegardes, et le HTTP en clair ne part jamais que vers une adresse du réseau local.
+
+<b>Mise en route</b>
+Appairez la TV en tapant le code qu’elle affiche. Pour la barre de son, activez le contrôle externe (contrôle IP) dans BRAVIA Connect. L’installation, la calibration de la pièce et le placement des enceintes restent dans BRAVIA Connect, que tutti ouvre quand il le faut.
+
+Les boutons d’applis portent le logo de chaque appli pour la reconnaître. Ces marques appartiennent à leurs propriétaires.
+
+tutti n’est ni affiliée à Sony ni approuvée par Sony. BRAVIA est une marque de Sony Group Corporation.

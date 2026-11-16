@@ -72,7 +72,8 @@ object BraviaParsers {
 
     fun applications(result: JsonArray): List<TvApp> = result.innerObjects().mapNotNull { obj ->
         val uri = obj.string("uri") ?: return@mapNotNull null
-        TvApp(title = obj.string("title").orEmpty(), uri = uri, icon = obj.string("icon")?.ifEmpty { null })
+        // Titles come HTML-escaped on some firmware ("Live TV &amp; Catch Up").
+        TvApp(title = HtmlText.decode(obj.string("title").orEmpty()), uri = uri, icon = obj.string("icon")?.trim()?.ifEmpty { null })
     }
 
     /** `[{bundled, type}, [{name, value}, …]]`. */
@@ -95,7 +96,15 @@ object BraviaParsers {
     }
 
     fun playingContent(result: JsonArray): PlayingContent? = result.firstObject()?.let {
-        PlayingContent(uri = it.string("uri"), source = it.string("source"), title = it.string("title"))
+        PlayingContent(
+            uri = it.string("uri"),
+            source = it.string("source"),
+            title = it.string("title"),
+            programTitle = it.string("programTitle"),
+            dispNum = it.string("dispNum"),
+            startDateTime = it.string("startDateTime"),
+            durationSec = it.int("durationSec"),
+        )
     }
 
     fun powerSavingMode(result: JsonArray): String? = result.firstObject()?.string("mode")
@@ -124,6 +133,12 @@ object BraviaParsers {
             name = it.string("name"),
             mac = it.string("macAddr"),
         )
+    }
+
+    /** `system.getSystemSupportedFunction`: `[[{option, value}, …]]`. Entries without an option are dropped. */
+    fun supportedFunctions(result: JsonArray): List<SupportedFunction> = result.innerObjects().mapNotNull {
+        val option = it.string("option")?.takeIf(String::isNotBlank) ?: return@mapNotNull null
+        SupportedFunction(option, it.string("value"))
     }
 
     /** `system.getNetworkSettings`: `[[{netif, hwAddr, ipAddrV4, …}, …]]`, one entry per interface. */

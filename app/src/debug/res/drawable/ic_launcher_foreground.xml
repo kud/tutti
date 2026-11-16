@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- Temporary debug-only launcher artwork from design/branding/v2/android. -->
-<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
-<path android:fillColor="#FFF4EFE7" android:pathData="M49.06,26.25h9.88a9.72,9.72 0,0 1,9.72 9.72v36.06a9.72,9.72 0,0 1,-9.72 9.72h-9.88a9.72,9.72 0,0 1,-9.72 -9.72v-36.06a9.72,9.72 0,0 1,9.72 -9.72z"/>
-<path android:fillColor="#FF1C1B22" android:pathData="M54,31.68a2.31,2.31 0,1 1,0 4.62a2.31,2.31 0,1 1,0 -4.62z"/>
-<path android:fillColor="#FF1C1B22" android:pathData="M54,40.08a11.53,11.53 0,1 1,0 23.06a11.53,11.53 0,1 1,0 -23.06z"/>
-<path android:fillColor="#FF424047" android:pathData="M54,46.18a5.43,5.43 0,1 1,0 10.86a5.43,5.43 0,1 1,0 -10.86z"/>
-<path android:fillColor="#FFE5A14A" android:pathData="M47.17,70.39h13.66a2.555,2.555 0,0 1,0 5.11h-13.66a2.555,2.555 0,0 1,0 -5.11z"/>
-</vector>

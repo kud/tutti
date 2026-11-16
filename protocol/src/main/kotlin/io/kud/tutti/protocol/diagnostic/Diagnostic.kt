@@ -8,6 +8,7 @@ enum class Plane(val label: String) {
     REST("bravia rest"),
     REMOTE("android tv remote v2"),
     BAR("soundbar tcp 33336"),
+    BAR_HTTP("soundbar http 54545"),
     CLOUD("sony cloud"),
 }
 
@@ -41,20 +42,28 @@ object DiagnosticSteps {
     const val BAR_CONNECT = "bar.connect"
     const val BAR_FEATURES = "bar.features"
     const val BAR_VOICE_ZOOM = "bar.voicezoom"
+    const val BAR_HTTP = "bar.http"
     const val CLOUD = "cloud.plane"
 
     /** Read-only REST calls after discovery: (step id, service, method). */
     val REST_READS: List<RestRead> = listOf(
         RestRead("rest.power", "system", "getPowerStatus"),
         RestRead("rest.power_saving", "system", "getPowerSavingMode"),
-        RestRead("rest.ircc_codes", "system", "getRemoteControllerInfo"),
+        RestRead("rest.supported_functions", "system", "getSystemSupportedFunction"),
+        RestRead("rest.ircc_codes", "system", "getRemoteControllerInfo", public = setOf("name")),
         RestRead("rest.volume", "audio", "getVolumeInformation"),
         RestRead("rest.sound", "audio", "getSoundSettings", target = true),
         RestRead("rest.speaker", "audio", "getSpeakerSettings", target = true),
         RestRead("rest.picture", "video", "getPictureQualitySettings", target = true),
         RestRead("rest.inputs", "avContent", "getCurrentExternalInputsStatus"),
-        RestRead("rest.playing", "avContent", "getPlayingContentInfo"),
+        RestRead("rest.playing", "avContent", "getPlayingContentInfo", raw = true),
         RestRead("rest.apps", "appControl", "getApplicationList"),
+        // Read-only getters that settle "unverified" rows on his own TV (architecture.md, "Verified vs not").
+        RestRead("rest.time", "system", "getCurrentTime"),
+        RestRead("rest.wol", "system", "getWolMode"),
+        RestRead("rest.scene", "videoScreen", "getSceneSetting"),
+        // Pro-display in Sony's reference: asked only where getMethodTypes lists it, under whichever service.
+        RestRead("rest.settings_schema", "system", "getSettingsSchema", anyService = true),
     )
 
     val ALL: List<Pair<String, Plane>> = buildList {
@@ -70,14 +79,29 @@ object DiagnosticSteps {
         add(BAR_CONNECT to Plane.BAR)
         add(BAR_FEATURES to Plane.BAR)
         add(BAR_VOICE_ZOOM to Plane.BAR)
+        add(BAR_HTTP to Plane.BAR_HTTP)
         add(CLOUD to Plane.CLOUD)
     }
 
     fun initial(): List<StepResult> = ALL.map { (id, plane) -> StepResult(id, plane) }
 }
 
-/** [target]: the method takes `[{"target":""}]` (every setting). */
-data class RestRead(val id: String, val service: String, val method: String, val target: Boolean = false)
+/**
+ * [target]: the method takes `[{"target":""}]` (every setting). [raw]: in developer mode the
+ * report also keeps the reply itself, scrubbed, not only its shape (the playing content, whose
+ * answer while an app plays is undocumented). [anyService]: the service is not documented for
+ * this TV; the read goes to whichever service the discovery lists it under, and only there.
+ * [public]: keys that identify nobody in this reply (see [JsonShape.of]).
+ */
+data class RestRead(
+    val id: String,
+    val service: String,
+    val method: String,
+    val target: Boolean = false,
+    val raw: Boolean = false,
+    val anyService: Boolean = false,
+    val public: Set<String> = emptySet(),
+)
 
 /** Short, stable error classes, so two reports can be compared at a glance. */
 object ErrorClass {

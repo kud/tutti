@@ -9,11 +9,11 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -23,9 +23,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilledTonalIconButton
@@ -33,25 +31,28 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -61,9 +62,17 @@ import io.kud.tutti.quick.QuickControls
 import io.kud.tutti.quick.QuickRuntime
 import io.kud.tutti.quick.QuickScene
 import io.kud.tutti.quick.QuickState
+import io.kud.tutti.quick.overlayRail
+import io.kud.tutti.quick.lock.keyguardLocked
+import io.kud.tutti.quick.lock.keyguardLockedFlow
+import io.kud.tutti.quick.lock.unlockThen
+import io.kud.tutti.quick.playPauseOffered
 import io.kud.tutti.quick.quickControls
+import io.kud.tutti.quick.quickHeadline
+import io.kud.tutti.quick.text
 import io.kud.tutti.ui.common.FeedbackPrefs
 import io.kud.tutti.ui.common.LocalFeedbackPrefs
+import io.kud.tutti.ui.common.tabular
 import io.kud.tutti.ui.common.rememberFeedback
 import io.kud.tutti.ui.theme.TuttiTheme
 import kotlinx.coroutines.Job
@@ -73,28 +82,43 @@ import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 /**
- * The compact remote the Quick Settings tile opens: status, Power, volume rail,
+ * The compact remote the Quick Settings tile opens: what's on, play/pause, Power, volume rail,
  * mute and scene pills, in a bottom card over a dimmed scrim. Tap outside to close.
  * Phone volume keys drive the bar while it is in front (design.md § Quick access).
+ *
+ * Opened on the lock screen it shows over it with only what is harmless in anyone's hand:
+ * play/pause, the volume rail (still stopped at the high-volume guard and the cap) and mute.
+ * Power and scenes wait for the unlock, and the card says so; they appear as soon as the
+ * phone is unlocked, and "Open the remote" asks for the unlock first.
  */
 class QuickOverlayActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         QuickRuntime.start(this)
+        // Only over the lock screen when opened there; the content below follows the lock live.
+        val lockedAtStart = keyguardLocked()
+        if (lockedAtStart) setShowWhenLocked(true)
         val stateFlow: StateFlow<QuickState> = quickControls()?.state ?: MutableStateFlow(QuickState())
+        val lockedFlow = keyguardLockedFlow(this)
         setContent {
             TuttiTheme {
                 val state by stateFlow.collectAsStateWithLifecycle()
+                val locked by lockedFlow.collectAsStateWithLifecycle(initialValue = lockedAtStart)
                 CompositionLocalProvider(LocalFeedbackPrefs provides FeedbackPrefs(state.vibration, state.keySounds)) {
                     QuickOverlay(
                         state = state,
+                        locked = locked,
                         act = { block -> QuickRuntime.act(this, block) },
                         onOpenApp = {
-                            startActivity(
-                                Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                            unlockThen(
+                                onUnlocked = {
+                                    startActivity(
+                                        Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                                    )
+                                },
+                                onDone = ::finish,
                             )
-                            finish()
                         },
                         onDismiss = ::finish,
                     )
@@ -133,6 +157,7 @@ class QuickOverlayActivity : ComponentActivity() {
 @Composable
 private fun QuickOverlay(
     state: QuickState,
+    locked: Boolean,
     act: (suspend QuickControls.() -> Unit) -> Job?,
     onOpenApp: () -> Unit,
     onDismiss: () -> Unit,
@@ -169,6 +194,11 @@ private fun QuickOverlay(
             Column(modifier = Modifier.padding(vertical = 16.dp)) {
                 Header(
                     state = state,
+                    locked = locked,
+                    onPlayPause = {
+                        feedback.click()
+                        act { playPause() }
+                    },
                     onPower = {
                         feedback.click()
                         act { togglePower() }
@@ -179,8 +209,7 @@ private fun QuickOverlay(
                     state = state,
                     enabled = enabled,
                     onStep = { up ->
-                        val atLimit = if (up) state.volume >= state.volumeLimit else state.volume <= 0
-                        if (atLimit) feedback.bump() else feedback.tick()
+                        if (overlayRail(state).atLimit(up)) feedback.bump() else feedback.tick()
                         act { if (up) volumeUp() else volumeDown() }
                     },
                     onSet = { level -> act { setVolume(level) } },
@@ -189,26 +218,41 @@ private fun QuickOverlay(
                         act { toggleMute() }
                     },
                 )
-                if (state.scenes.isNotEmpty()) {
+                if (locked) {
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        text = stringResource(R.string.quick_locked_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                    )
+                } else if (state.scenes.isNotEmpty()) {
                     Spacer(Modifier.height(12.dp))
-                    LazyRow(
-                        contentPadding = PaddingValues(horizontal = 16.dp),
+                    // A plain scrolling row, not a LazyRow: a handful of pills, composed in the first
+                    // frame without subcomposition or prefetch (the sheet must draw at once).
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState())
+                            .padding(horizontal = 16.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        items(state.scenes, key = { it.id }) { scene ->
-                            ScenePill(
-                                scene = scene,
-                                active = scene.id == state.activeSceneId,
-                                modified = scene.id == state.activeSceneId && state.activeSceneModified,
-                                enabled = enabled,
-                                onClick = {
-                                    feedback.click()
-                                    scope.launch {
-                                        act { applyScene(scene.id) }?.join()
-                                        feedback.doublePulse()
-                                    }
-                                },
-                            )
+                        for (scene in state.scenes) {
+                            key(scene.id) {
+                                ScenePill(
+                                    scene = scene,
+                                    active = scene.id == state.activeSceneId,
+                                    modified = scene.id == state.activeSceneId && state.activeSceneModified,
+                                    enabled = enabled,
+                                    onClick = {
+                                        feedback.click()
+                                        scope.launch {
+                                            act { applyScene(scene.id) }?.join()
+                                            feedback.doublePulse()
+                                        }
+                                    },
+                                )
+                            }
                         }
                     }
                 }
@@ -227,20 +271,19 @@ private fun QuickOverlay(
 }
 
 @Composable
-private fun Header(state: QuickState, onPower: () -> Unit) {
+private fun Header(state: QuickState, locked: Boolean, onPlayPause: () -> Unit, onPower: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(
-            modifier = Modifier
-                .size(8.dp)
-                .clip(CircleShape)
-                .background(
-                    if (state.connected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
-                ),
+        // The state's glyph, beside its words: never a dot's colour alone.
+        Icon(
+            painterResource(quickHeadline(state).glyph),
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(20.dp),
         )
         Spacer(Modifier.width(10.dp))
         Column(modifier = Modifier.weight(1f)) {
@@ -256,14 +299,23 @@ private fun Header(state: QuickState, onPower: () -> Unit) {
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        val powerLabel = stringResource(R.string.quick_action_power)
-        if (state.power) {
-            FilledIconButton(onClick = onPower, enabled = state.connected, modifier = Modifier.size(48.dp)) {
-                Icon(painterResource(R.drawable.quick_ic_power), contentDescription = powerLabel)
+        if (state.tvConfigured) {
+            FilledTonalIconButton(onClick = onPlayPause, enabled = playPauseOffered(state), modifier = Modifier.size(48.dp)) {
+                Icon(painterResource(R.drawable.ic_play_pause), contentDescription = stringResource(R.string.quick_action_play_pause))
             }
-        } else {
-            FilledTonalIconButton(onClick = onPower, enabled = state.connected, modifier = Modifier.size(48.dp)) {
-                Icon(painterResource(R.drawable.quick_ic_power), contentDescription = powerLabel)
+        }
+        // Power waits for the unlock: the lock screen is anyone's hand.
+        if (!locked) {
+            Spacer(Modifier.width(8.dp))
+            val powerLabel = stringResource(R.string.quick_action_power)
+            if (state.power) {
+                FilledIconButton(onClick = onPower, enabled = state.connected, modifier = Modifier.size(48.dp)) {
+                    Icon(painterResource(R.drawable.quick_ic_power), contentDescription = powerLabel)
+                }
+            } else {
+                FilledTonalIconButton(onClick = onPower, enabled = state.connected, modifier = Modifier.size(48.dp)) {
+                    Icon(painterResource(R.drawable.quick_ic_power), contentDescription = powerLabel)
+                }
             }
         }
     }
@@ -271,18 +323,10 @@ private fun Header(state: QuickState, onPower: () -> Unit) {
 
 @Composable
 private fun statusLine(state: QuickState): String {
-    val base = when {
-        !state.connected -> stringResource(R.string.quick_status_disconnected)
-        !state.power -> stringResource(R.string.quick_status_off)
-        else -> stringResource(R.string.quick_status_connected)
-    }
-    val scene = state.activeScene ?: return base
-    val name = if (state.activeSceneModified) {
-        stringResource(R.string.quick_scene_modified, scene.name)
-    } else {
-        scene.name
-    }
-    return "$base · $name"
+    // Stopped at the high-volume guard: the overlay can't ask, so it says where to go.
+    if (state.guardHeld && state.guardLine != null) return stringResource(R.string.quick_guard_held, state.guardLine)
+    // What's on, in the now-showing card's words, as the widget says it; never "Connected".
+    return quickHeadline(state).text(LocalContext.current)
 }
 
 @Composable
@@ -296,8 +340,10 @@ private fun VolumeRow(
     val feedback = rememberFeedback()
     // While dragging, the thumb follows the finger; the controller only hears the release.
     var dragging by remember { mutableStateOf<Float?>(null) }
-    val shown = dragging ?: state.volume.toFloat()
-    val limit = state.volumeLimit.toFloat()
+    val rail = overlayRail(state)
+    // Null until the level is reported (and nobody is dragging): an empty rail and a dash, never 0.
+    val shown = dragging ?: rail.level?.toFloat()
+    val limit = rail.limit.toFloat()
 
     Row(
         modifier = Modifier
@@ -312,11 +358,13 @@ private fun VolumeRow(
             )
         }
         val sliderLabel = stringResource(R.string.quick_volume_slider)
+        val unknownLabel = stringResource(R.string.quick_volume_unknown)
+        val scheme = MaterialTheme.colorScheme
         Slider(
-            value = shown,
+            value = shown ?: 0f,
             onValueChange = { raw ->
                 val next = raw.coerceAtMost(limit)
-                if (next.roundToInt() != shown.roundToInt()) {
+                if (next.roundToInt() != shown?.roundToInt()) {
                     if (raw > limit) feedback.bump() else feedback.tick()
                 }
                 dragging = next
@@ -325,12 +373,25 @@ private fun VolumeRow(
                 dragging?.let { onSet(it.roundToInt()) }
                 dragging = null
             },
-            valueRange = 0f..100f,
+            valueRange = 0f..rail.range.toFloat(),
             enabled = enabled,
+            // Unknown: no thumb and no filled part, the bare track. A drag still sets a level.
+            colors = if (shown == null) {
+                SliderDefaults.colors(
+                    thumbColor = Color.Transparent,
+                    activeTrackColor = scheme.surfaceContainerHighest,
+                    inactiveTrackColor = scheme.surfaceContainerHighest,
+                )
+            } else {
+                SliderDefaults.colors()
+            },
             modifier = Modifier
                 .weight(1f)
                 .padding(horizontal = 4.dp)
-                .semantics { contentDescription = sliderLabel },
+                .semantics {
+                    contentDescription = sliderLabel
+                    if (shown == null) stateDescription = unknownLabel
+                },
         )
         IconButton(onClick = { onStep(true) }, enabled = enabled) {
             Icon(
@@ -339,8 +400,8 @@ private fun VolumeRow(
             )
         }
         Text(
-            text = shown.roundToInt().toString(),
-            style = MaterialTheme.typography.titleMedium,
+            text = shown?.roundToInt()?.toString() ?: "–",
+            style = MaterialTheme.typography.titleMedium.tabular(),
             modifier = Modifier.width(32.dp),
         )
         val muteLabel = stringResource(

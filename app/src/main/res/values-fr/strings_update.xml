@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="update_title">Mises à jour</string>
+    <string name="update_installed">Installée : version %1$s</string>
+    <string name="update_check">Rechercher une mise à jour</string>
+    <string name="update_checking">Recherche sur GitHub…</string>
+    <string name="update_up_to_date">À jour : rien de plus récent sur GitHub.</string>
+    <string name="update_available">La version %1$s est disponible.</string>
+    <string name="update_download_install">Télécharger et installer</string>
+    <string name="update_downloading">Téléchargement…</string>
+    <string name="update_downloading_percent">Téléchargement : %1$d %%</string>
+    <string name="update_installing">Android va vous demander de confirmer. L’app se fermera ensuite pour se mettre à jour, et une notification vous y ramènera.</string>
+    <string name="update_permission_title">Android a besoin de votre accord pour installer des mises à jour depuis cette app.</string>
+    <string name="update_permission_detail">Ouvrez le réglage, activez « Autoriser cette source », puis revenez ici. Android ne le demande qu’une fois.</string>
+    <string name="update_permission_open">Ouvrir le réglage</string>
+    <string name="update_try_again">Réessayer</string>
+    <string name="update_failed_network">GitHub ne répond pas. Vérifiez la connexion, puis réessayez.</string>
+    <!-- GitHub a répondu, mais pas avec la liste (2026-11-15). %1$s est une heure locale, %1$d un statut HTTP. -->
+    <string name="update_failed_rate_limited_until">GitHub demande d’attendre avant de vérifier à nouveau. Réessayez après %1$s.</string>
+    <string name="update_failed_rate_limited">GitHub demande d’attendre avant de vérifier à nouveau. Réessayez un peu plus tard.</string>
+    <string name="update_failed_github_code">GitHub a répondu par une erreur (%1$d). Réessayez plus tard.</string>
+    <string name="update_failed_github">GitHub a répondu par une erreur. Réessayez plus tard.</string>
+    <string name="update_failed_feed">La réponse de GitHub est illisible. Réessayez plus tard.</string>
+    <string name="update_open_releases">Voir les versions sur GitHub</string>
+    <string name="update_failed_download">Le téléchargement s’est interrompu avant la fin. Réessayez.</string>
+    <string name="update_failed_digest">Le fichier ne correspond pas à celui annoncé par GitHub : il a été supprimé.</string>
+    <string name="update_failed_package">Ce fichier n’est pas une version plus récente de cette app : il a été supprimé.</string>
+    <string name="update_failed_install">Android n’a pas installé la mise à jour.</string>
+    <string name="update_failed_install_detail">Android n’a pas installé la mise à jour : %1$s</string>
+    <string name="update_note">Cherche sur GitHub quand vous le demandez, et quand l’app s’ouvre ou revient : au plus une fois par heure avec les versions de test, une fois par jour sinon. Rien ne s’installe sans votre accord.</string>
+    <string name="update_message_install">Installer</string>
+    <string name="update_later">Plus tard</string>
+    <string name="update_menu_row">Installer la version %1$s</string>
+    <string name="action_more_update">Plus d’options, mise à jour disponible</string>
+    <string name="settings_line_update">Version %1$s disponible</string>
+    <!-- Stable or test builds (2026-11-06). -->
+    <string name="update_channel_test">Recevoir les versions de test</string>
+    <string name="update_channel_test_detail">Plus récentes, moins éprouvées. Les désactiver ne revient pas en arrière : Android n’installe pas une version plus ancienne, l’app attend la prochaine version finale.</string>
+    <!-- Après une mise à jour lancée par l’app (docs/design.md, "Updates"). -->
+    <string name="update_done_title">%1$s a été mis à jour</string>
+    <string name="update_done_text">Version %1$s. Touchez pour ouvrir la télécommande.</string>
+    <string name="update_done_channel">Mises à jour</string>
+    <string name="update_done_channel_description">Une notification discrète après une mise à jour, pour rouvrir la télécommande.</string>
+</resources>

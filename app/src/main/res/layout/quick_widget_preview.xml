@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The widget picker's preview: the medium widget (QuickWidget.kt) with example content, so the
+  picker shows what the widget does instead of a loading layout. RemoteViews-safe views only.
+  previewLayout on Android 12+, and the generated preview on Android 15+ (QuickWidgetPreview.kt).
+  Keep it in step with QuickWidget's status and volume rows.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/quick_widget_preview_background"
+    android:gravity="center_vertical"
+    android:orientation="vertical"
+    android:paddingHorizontal="12dp"
+    android:paddingVertical="10dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="36dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <ImageView
+            android:layout_width="18dp"
+            android:layout_height="18dp"
+            android:importantForAccessibility="no"
+            android:src="@drawable/ic_apps"
+            android:tint="@color/quick_preview_on_surface_variant" />
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:text="@string/quick_widget_preview_showing"
+            android:textColor="@color/quick_preview_on_surface"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+
+        <ImageView
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_marginStart="6dp"
+            android:background="@drawable/quick_widget_preview_button"
+            android:contentDescription="@string/quick_action_play_pause"
+            android:padding="9dp"
+            android:src="@drawable/ic_play_pause"
+            android:tint="@color/quick_preview_on_button" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:layout_marginTop="6dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <ImageView
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="@drawable/quick_widget_preview_button"
+            android:contentDescription="@string/quick_action_volume_down"
+            android:padding="12dp"
+            android:src="@drawable/quick_ic_remove"
+            android:tint="@color/quick_preview_on_button" />
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="@string/quick_widget_preview_level"
+            android:textColor="@color/quick_preview_on_surface"
+            android:textSize="22sp" />
+
+        <ImageView
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="@drawable/quick_widget_preview_button"
+            android:contentDescription="@string/quick_action_volume_up"
+            android:padding="12dp"
+            android:src="@drawable/quick_ic_add"
+            android:tint="@color/quick_preview_on_button" />
+
+        <ImageView
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_marginStart="6dp"
+            android:background="@drawable/quick_widget_preview_button"
+            android:contentDescription="@string/quick_action_mute"
+            android:padding="12dp"
+            android:src="@drawable/quick_ic_volume_up"
+            android:tint="@color/quick_preview_on_button" />
+    </LinearLayout>
+</LinearLayout>

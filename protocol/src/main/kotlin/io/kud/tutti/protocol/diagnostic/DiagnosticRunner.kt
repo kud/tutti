@@ -3,6 +3,7 @@ package io.kud.tutti.protocol.diagnostic
 import io.kud.tutti.protocol.atv.AtvRemote
 import io.kud.tutti.protocol.atv.ClientDeviceInfo
 import io.kud.tutti.protocol.atv.FrameDecoder
+import io.kud.tutti.protocol.atv.ImeFieldKind
 import io.kud.tutti.protocol.atv.Framing
 import io.kud.tutti.protocol.atv.RemoteSession
 import io.kud.tutti.protocol.atv.RemoteState
@@ -16,23 +17,33 @@ import io.kud.tutti.protocol.bravia.JsonRpc
 import io.kud.tutti.protocol.net.CertificatePin
 import io.kud.tutti.protocol.net.ClientIdentity
 import io.kud.tutti.protocol.net.Connection
-import io.kud.tutti.protocol.net.LineSplitter
+import io.kud.tutti.protocol.net.Redact
 import io.kud.tutti.protocol.net.TcpConnector
 import io.kud.tutti.protocol.net.TlsConnection
 import io.kud.tutti.protocol.net.TlsConnector
+import io.kud.tutti.protocol.theatre.BarHttpCodec
+import io.kud.tutti.protocol.theatre.BarHttpKey
+import io.kud.tutti.protocol.theatre.BarHttpTransport
+import io.kud.tutti.protocol.theatre.BarHttpUnavailable
+import io.kud.tutti.protocol.theatre.BarHttpValue
+import io.kud.tutti.protocol.theatre.JsonStreamSplitter
 import io.kud.tutti.protocol.theatre.TheatreCodec
 import io.kud.tutti.protocol.theatre.TheatreFeature
 import io.kud.tutti.protocol.theatre.TheatreInbound
 import io.kud.tutti.protocol.theatre.TheatreOutbound
+import io.kud.tutti.protocol.theatre.TheatreWireLog
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.JsonArray
@@ -49,6 +60,8 @@ data class DiagnosticTargets(
     val psk: String?,
     val remotePin: CertificatePin?,
     val restPinRecorded: Boolean,
+    /** The IP-control cookie from the code shown on the TV; used instead of [psk] when set. */
+    val ipCookie: String? = null,
 )
 
 /** mDNS result, counted only: service names can carry a person's name. */
@@ -58,7 +71,10 @@ data class DiagnosticTimeouts(
     val stepMillis: Long = 12_000,
     val sessionMillis: Long = 8_000,
     val settleMillis: Long = 2_500,
-    val barMillis: Long = 3_500,
+    /** How long one bar `get` may wait for its answer; three wait at once. */
+    val barAnswerMillis: Long = 1_500,
+    /** The whole bar feature pass: about 40 paced `get`s, one at a time, longer than an ordinary step. */
+    val barFeaturesMillis: Long = 45_000,
 )
 
 /**
@@ -82,12 +98,16 @@ class DiagnosticRunner(
     private val deviceInfo: ClientDeviceInfo = ClientDeviceInfo(),
     private val timeouts: DiagnosticTimeouts = DiagnosticTimeouts(),
     private val clock: () -> Long = { System.nanoTime() / 1_000_000 },
+    /** Developer mode: keep the scrubbed reply of reads marked [RestRead.raw]. */
+    private val developer: Boolean = false,
+    /** The bar's HTTP 54545 plane, read-only; null skips its step. */
+    private val barHttp: BarHttpTransport? = null,
 ) {
     private val mutableSteps = MutableStateFlow(DiagnosticSteps.initial())
     val steps: StateFlow<List<StepResult>> = mutableSteps.asStateFlow()
 
     private val scrub = ConcurrentHashMap.newKeySet<String>().apply {
-        listOfNotNull(targets.tvHost, targets.barHost, targets.psk, targets.remotePin?.sha256Hex).forEach(::add)
+        listOfNotNull(targets.tvHost, targets.barHost, targets.psk, targets.ipCookie, targets.remotePin?.sha256Hex).forEach(::add)
     }
 
     /** Everything the report must never show: hosts, PSK, pin, and identifying values seen in replies. */
@@ -96,9 +116,12 @@ class DiagnosticRunner(
     suspend fun run() {
         mutableSteps.value = DiagnosticSteps.initial()
         runDiscovery()
+        // The bar first: it is quick and needs nothing from the TV, so a slow or stuck TV plane
+        // can no longer leave its steps PENDING in a report copied mid-run.
+        runBar()
+        runBarHttp()
         runRest()
         runRemote()
-        runBar()
         skip(DiagnosticSteps.CLOUD, cloudNote)
     }
 
@@ -146,12 +169,12 @@ class DiagnosticRunner(
             return restSteps.drop(1).forEach { skip(it, "TV REST unreachable (see rest.interface)") }
         }
 
-        val client = BraviaClient(transport) { targets.psk }
-        if (targets.psk.isNullOrEmpty()) {
-            skip(DiagnosticSteps.REST_AUTH, "no PSK set in the app")
+        val client = BraviaClient(transport, cookie = { targets.ipCookie }) { targets.psk }
+        if (targets.psk.isNullOrEmpty() && targets.ipCookie.isNullOrEmpty()) {
+            skip(DiagnosticSteps.REST_AUTH, "no code cookie or PSK set in the app")
         } else {
             step(DiagnosticSteps.REST_AUTH) {
-                fact("psk", "set")
+                fact("auth", if (!targets.ipCookie.isNullOrEmpty()) "code cookie" else "psk")
                 val result = expect(client.call(BraviaService.SYSTEM, "getSystemInformation"))
                 fact("shape", JsonShape.of(result, scrub))
             }
@@ -171,18 +194,33 @@ class DiagnosticRunner(
         }
 
         for (read in DiagnosticSteps.REST_READS) {
-            val service = BraviaService.entries.first { it.id == read.service }
             val caps = client.capabilities
+            val service = if (read.anyService) {
+                BraviaService.entries.firstOrNull { caps.supports(it, read.method) }
+            } else {
+                BraviaService.entries.first { it.id == read.service }
+            }
+            if (service == null) {
+                skip(read.id, "${read.method} not listed by any service", "not_listed")
+                continue
+            }
             if (caps.isKnown(service) && !caps.supports(service, read.method)) {
                 skip(read.id, "${read.method} not listed by getMethodTypes", "not_listed")
                 continue
             }
+            // A service discovery never listed while others answered has no endpoint on this TV
+            // (videoScreen answered 404 on the XR80, 2026-10-26). With nothing known, still ask.
+            if (!caps.isKnown(service) && caps.methods.isNotEmpty()) {
+                skip(read.id, "${service.id} not listed by discovery", "not_listed")
+                continue
+            }
             step(read.id) {
                 val version = caps.version(service, read.method) ?: BraviaClient.DEFAULT_VERSIONS[read.method] ?: "1.0"
-                fact("call", "${read.service}.${read.method}@$version")
+                fact("call", "${service.id}.${read.method}@$version")
                 val params = if (read.target) listOf(buildJsonObject { put("target", "") }) else emptyList()
                 val result = expect(client.call(service, read.method, params))
-                fact("shape", JsonShape.of(result, scrub))
+                fact("shape", JsonShape.of(result, scrub, public = read.public))
+                if (developer && read.raw) fact("raw", Redact.text(result.toString(), scrub).take(RAW_MAX))
             }
         }
     }
@@ -206,6 +244,7 @@ class DiagnosticRunner(
             is BraviaError.Unsupported -> fail("not_listed", error.method)
             is BraviaError.Malformed -> fail("malformed", error.detail)
             is BraviaError.Transport -> fail("transport", error.detail)
+            BraviaError.PinMismatch -> fail("pin_mismatch", "certificate does not match the recorded pin")
         }
     }
 
@@ -302,6 +341,8 @@ class DiagnosticRunner(
         state.powered?.let { fact("powered", yesNo(it)) }
         state.volume?.let { fact("volume", "${it.level}/${it.max}, muted ${yesNo(it.muted)}") }
         state.currentApp?.let { fact("foreground app", it) }
+        // A field the TV opened during the run: int5 and its inferred kind, never its text or label.
+        state.imeProbe?.let { fact("tv text field", "int5 ${it.int5}, kind ${ImeFieldKind.of(it.int5)} (inferred)") }
         when {
             remoteError -> fail("remote_error", "the TV sent remote_error")
             !state.ready -> fail("no_configure", "no remote_configure within ${timeouts.sessionMillis} ms")
@@ -328,6 +369,38 @@ class DiagnosticRunner(
 
     // region soundbar
 
+    /**
+     * One `http_get` for the [BarHttpKey] readouts: answered (value, or only "answered" for the
+     * AirPlay name), refused or not reported. Nothing else is ever asked on this plane.
+     */
+    private suspend fun runBarHttp() {
+        val transport = barHttp
+        if (targets.barHost == null || transport == null) return skip(DiagnosticSteps.BAR_HTTP, "no bar configured")
+        step(DiagnosticSteps.BAR_HTTP) {
+            fact("port", BarHttpKey.PORT.toString())
+            val body = try {
+                transport.post(BarHttpCodec.request())
+            } catch (e: BarHttpUnavailable) {
+                skipStep("unsupported", "HTTP ${e.status}: this optional management plane is not available")
+            }
+            val readouts = BarHttpCodec.parse(body)
+                ?: skipStep("unsupported", "port 54545 answered, but not with http_get_result")
+            for (key in BarHttpKey.entries) {
+                val shown = when (val value = readouts[key]) {
+                    is BarHttpValue.Answered -> if (key.key in BarHttpKey.BLANKED) {
+                        scrub += value.value
+                        "answered"
+                    } else {
+                        "answered ${value.value}"
+                    }
+                    BarHttpValue.Refused -> "refused"
+                    BarHttpValue.NotReported -> "not reported"
+                }
+                fact(key.key, shown)
+            }
+        }
+    }
+
     private suspend fun runBar() {
         val host = targets.barHost
         val later = listOf(DiagnosticSteps.BAR_FEATURES, DiagnosticSteps.BAR_VOICE_ZOOM)
@@ -340,7 +413,7 @@ class DiagnosticRunner(
             }
             val conn = connection ?: return later.forEach { skip(it, "not connected (see bar.connect)") }
             val answers = ConcurrentHashMap<String, String>()
-            step(DiagnosticSteps.BAR_FEATURES) { features(conn, answers) }
+            step(DiagnosticSteps.BAR_FEATURES, timeouts.barFeaturesMillis) { features(conn, answers) }
             step(DiagnosticSteps.BAR_VOICE_ZOOM) {
                 val zoom = answers[TheatreFeature.VOICE_ZOOM.key]
                 val level = answers[TheatreFeature.VOICE_ZOOM_LEVEL.key]
@@ -354,30 +427,42 @@ class DiagnosticRunner(
         }
     }
 
+    /**
+     * Asks every feature the way the app does (a few at a time, never a burst), then reports
+     * each one as answered (with its value), refused or silent, plus the raw exchange.
+     * Objects are split by [JsonStreamSplitter], so a bar that sends no newline is still heard.
+     */
     private suspend fun Collector.features(conn: Connection, answers: MutableMap<String, String>) {
-        val byId = TheatreFeature.entries.mapIndexed { i, f -> (i + 1) to f.key }.toMap()
-        val all = CompletableDeferred<Unit>()
-        val notified = linkedSetOf<String>()
+        val features = TheatreFeature.entries
+        val byId = features.mapIndexed { i, f -> (i + 1) to f.key }.toMap()
+        val waiting = ConcurrentHashMap<Int, CompletableDeferred<TheatreInbound.Result>>()
+        val refused = ConcurrentHashMap.newKeySet<String>()
+        val notified = ConcurrentHashMap.newKeySet<String>()
         val odd = mutableListOf<String>()
+        val wire = TheatreWireLog(capacity = BAR_WIRE_LINES)
         coroutineScope {
             val reader = launch {
-                val splitter = LineSplitter()
+                val splitter = JsonStreamSplitter()
                 try {
                     conn.incoming.collect { chunk ->
-                        for (line in splitter.feed(chunk)) {
-                            when (val message = TheatreCodec.decode(line)) {
+                        wire.received(chunk)
+                        for (text in splitter.feed(chunk)) {
+                            when (val message = TheatreCodec.decode(text)) {
                                 is TheatreInbound.Result -> {
                                     val key = message.feature ?: message.id?.let(byId::get)
-                                    if (key != null && message.value != null && !message.isAck) {
-                                        answers[key] = message.value
-                                    } else if (odd.size < MAX_SAMPLES) {
-                                        odd += line.take(160)
+                                    when {
+                                        key == null || message.value == null || message.isAck ->
+                                            if (odd.size < MAX_SAMPLES) odd += TheatreWireLog.scrub(text.take(160))
+                                        message.isRefusal -> refused += key
+                                        else -> answers[key] = message.value
                                     }
+                                    val id = message.id ?: byId.entries.firstOrNull { it.value == key }?.key
+                                    id?.let { waiting[it]?.complete(message) }
                                 }
                                 is TheatreInbound.Notify -> notified += message.feature
-                                is TheatreInbound.Malformed -> if (odd.size < MAX_SAMPLES) odd += "${message.reason}: ${line.take(160)}"
+                                is TheatreInbound.Malformed ->
+                                    if (odd.size < MAX_SAMPLES) odd += "${message.reason}: ${TheatreWireLog.scrub(text.take(160))}"
                             }
-                            if (answers.keys.containsAll(byId.values)) all.complete(Unit)
                         }
                     }
                 } catch (e: CancellationException) {
@@ -386,15 +471,39 @@ class DiagnosticRunner(
                     odd += "read: ${ErrorClass.describe(e)}"
                 }
             }
-            for ((id, key) in byId) conn.send(TheatreCodec.encode(TheatreOutbound.GetRequest(id, key)).encodeToByteArray())
-            withTimeoutOrNull(timeouts.barMillis) { all.await() }
+            val gate = Semaphore(BAR_IN_FLIGHT)
+            val asks = byId.map { (id, key) ->
+                gate.acquire()
+                val answer = CompletableDeferred<TheatreInbound.Result>()
+                waiting[id] = answer
+                val text = TheatreCodec.encode(TheatreOutbound.GetRequest(id, key))
+                wire.sent(text)
+                conn.send(text.encodeToByteArray())
+                launch {
+                    try {
+                        withTimeoutOrNull(timeouts.barAnswerMillis) { answer.await() }
+                    } finally {
+                        gate.release()
+                    }
+                }.also { delay(BAR_GAP_MS) }
+            }
+            asks.joinAll()
             reader.cancel()
         }
-        fact("answered", "${answers.size}/${byId.size}")
-        for (key in byId.values) fact(key, answers[key] ?: "no answer")
+        val silent = byId.values.filter { it !in answers && it !in refused }
+        fact("answered", "${answers.size}/${byId.size}, refused ${refused.size}, silent ${silent.size}")
+        for (key in byId.values) {
+            val answer = answers[key]
+            // The user's own name for the bar: answered or not, never its value.
+            if (answer != null && key in TheatreFeature.BLANKED) scrub += answer
+            val shown = answer?.let { if (key in TheatreFeature.BLANKED) "answered" else "answered $it" }
+            fact(key, shown ?: if (key in refused) "refused" else "silent")
+        }
         if (notified.isNotEmpty()) fact("notify", notified.joinToString(", "))
         odd.forEachIndexed { i, line -> fact("unexpected ${i + 1}", line) }
-        if (answers.isEmpty()) fail("no_answer", "connected, but no get was answered: is External control on in BRAVIA Connect?")
+        // The raw exchange, so a report shows exactly what this bar sends and how it frames it.
+        wire.lines().forEachIndexed { i, line -> fact("wire %02d".format(i + 1), line) }
+        if (answers.isEmpty() && refused.isEmpty()) fail("no_answer", "connected, but no get was answered: is External control on in BRAVIA Connect?")
     }
 
     // endregion
@@ -410,11 +519,14 @@ class DiagnosticRunner(
         }
 
         fun fail(errorClass: String, message: String): Nothing = throw StepFailure(errorClass, message)
+
+        fun skipStep(errorClass: String, message: String): Nothing = throw StepSkip(errorClass, message)
     }
 
     private class StepFailure(val errorClass: String, override val message: String) : Exception(message)
+    private class StepSkip(val errorClass: String, override val message: String) : Exception(message)
 
-    private suspend fun <T> step(id: String, block: suspend Collector.() -> T): T? {
+    private suspend fun <T> step(id: String, timeoutMillis: Long = timeouts.stepMillis, block: suspend Collector.() -> T): T? {
         update(id) { it.copy(status = StepStatus.RUNNING) }
         val start = clock()
         val collector = Collector()
@@ -422,15 +534,18 @@ class DiagnosticRunner(
             it.copy(status = status, millis = clock() - start, errorClass = errorClass, message = message, facts = collector.facts.toList())
         }
         return try {
-            withTimeout(timeouts.stepMillis) { collector.block() }.also { finish(StepStatus.OK) }
+            withTimeout(timeoutMillis) { collector.block() }.also { finish(StepStatus.OK) }
         } catch (e: TimeoutCancellationException) {
-            finish(StepStatus.FAILED, "timeout", "no result within ${timeouts.stepMillis} ms")
+            finish(StepStatus.FAILED, "timeout", "no result within $timeoutMillis ms")
             null
         } catch (e: CancellationException) {
             finish(StepStatus.SKIPPED, "cancelled", "stopped")
             throw e
         } catch (e: StepFailure) {
             finish(StepStatus.FAILED, e.errorClass, e.message)
+            null
+        } catch (e: StepSkip) {
+            finish(StepStatus.SKIPPED, e.errorClass, e.message)
             null
         } catch (e: Exception) {
             finish(StepStatus.FAILED, ErrorClass.of(e), ErrorClass.describe(e))
@@ -452,6 +567,10 @@ class DiagnosticRunner(
     private companion object {
         const val PAIRING_PORT = 6467
         const val MAX_SAMPLES = 4
+        const val BAR_IN_FLIGHT = 1
+        const val BAR_GAP_MS = 60L
+        const val BAR_WIRE_LINES = 50
+        const val RAW_MAX = 2_000
         val UNREACHABLE = setOf("connection_refused", "timeout", "no_route", "unknown_host", "not_lan")
     }
 

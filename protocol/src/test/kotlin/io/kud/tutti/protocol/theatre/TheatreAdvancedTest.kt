@@ -6,6 +6,7 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -116,16 +117,19 @@ class TheatreAdvancedTest {
         val refreshed = connection.sentFeatures()
         assertTrue(refreshed.isNotEmpty())
         assertTrue((refreshed.toSet() intersect TheatreFeature.NEVER_ASKED).isEmpty())
+        advanceTimeBy(600_000)
+        runCurrent()
 
         connection.sent.clear()
         val pairing = launch { client.startBluetoothPairing() }
         runCurrent()
-        assertEquals(listOf("main.input", "bluetooth.mode"), connection.sentFeatures())
+        // One request at a time: the next waits for an answer (none here) before it goes.
+        assertEquals(listOf("main.input"), connection.sentFeatures())
         advanceUntilIdle()
         pairing.join()
-        val lines = connection.sent.map { Json.parseToJsonElement(it).jsonObject }
+        // Each unanswered set is then asked again with a get; the sets themselves keep their order.
+        val lines = connection.sent.map { Json.parseToJsonElement(it).jsonObject }.filter { it["type"]!!.jsonPrimitive.content == "set" }
         assertEquals(listOf("bluetooth", "Off", "RX"), lines.map { it["value"]!!.jsonPrimitive.content })
-        assertTrue(lines.all { it["type"]!!.jsonPrimitive.content == "set" })
         assertEquals("RX", client.state.value.value(TheatreFeature.BLUETOOTH_MODE))
         client.disconnect()
     }
@@ -135,6 +139,7 @@ class TheatreAdvancedTest {
         val connection = FakeConnection()
         val client = TheatreClient(FakeConnector(connection), backgroundScope, clock = { testScheduler.currentTime })
         client.connect("192.0.2.10")
+        advanceTimeBy(600_000)
         runCurrent()
         connection.sent.clear()
         val answer = launch {

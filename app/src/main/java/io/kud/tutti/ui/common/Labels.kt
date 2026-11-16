@@ -1,5 +1,7 @@
 package io.kud.tutti.ui.common
 
+import io.kud.tutti.protocol.apps.AppDestinations
+import io.kud.tutti.ui.remote.shortcutLabel
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.compose.runtime.Composable
@@ -24,6 +26,7 @@ val SceneGlyphs: List<String> = listOf("movie", "tv", "bedtime", "music_note", "
 fun glyphRes(name: String): Int = when (name) {
     "movie" -> R.drawable.ic_movie
     "tv" -> R.drawable.ic_tv
+    "computer" -> R.drawable.ic_laptop
     "bedtime" -> R.drawable.ic_bedtime
     "music_note" -> R.drawable.ic_music
     "sports_soccer" -> R.drawable.ic_sport
@@ -62,6 +65,15 @@ fun featureLabel(feature: TheatreFeature): Int = when (feature) {
     TheatreFeature.FIRMWARE_VERSION -> R.string.bar_firmware
     TheatreFeature.BLUETOOTH_MODE -> R.string.bar_bt_mode
     TheatreFeature.BLUETOOTH_QUALITY -> R.string.bar_bt_quality
+    TheatreFeature.TEMPERATURE -> R.string.technical_bar_temperature
+    TheatreFeature.TIMEZONE -> R.string.technical_bar_timezone
+    TheatreFeature.LANGUAGE -> R.string.technical_bar_language
+    TheatreFeature.REGION -> R.string.technical_bar_region
+    TheatreFeature.MANUFACTURER -> R.string.technical_bar_manufacturer
+    TheatreFeature.DEVICE_NAME -> R.string.technical_bar_name
+    TheatreFeature.TV_AV_SYNC -> R.string.technical_bar_tv_av_sync
+    TheatreFeature.NETWORK_MODE -> R.string.technical_bar_network_mode
+    TheatreFeature.NETWORK_DHCP -> R.string.technical_bar_dhcp
 }
 
 /** TV keys offered as shortcuts. */
@@ -146,7 +158,7 @@ private fun namedKeyRes(name: String): Int? = when (name) {
 fun keyIcon(keyCode: Int): Int = when (keyCode) {
     V2Key.SETTINGS -> R.drawable.ic_settings
     V2Key.HOME -> R.drawable.ic_home
-    V2Key.BACK -> R.drawable.ic_back
+    V2Key.BACK -> R.drawable.ic_tv_back
     V2Key.POWER, 177 -> R.drawable.ic_power
     V2Key.SEARCH, V2Key.ASSIST -> R.drawable.ic_mic
     V2Key.TV_INPUT, V2Key.TV_INPUT_HDMI_1, V2Key.TV_INPUT_HDMI_2, V2Key.TV_INPUT_HDMI_3, V2Key.TV_INPUT_HDMI_4 -> R.drawable.ic_input
@@ -154,6 +166,25 @@ fun keyIcon(keyCode: Int): Int = when (keyCode) {
     V2Key.VOLUME_MUTE -> R.drawable.ic_volume_off
     V2Key.ALL_APPS, V2Key.APP_SWITCH -> R.drawable.ic_apps
     223 -> R.drawable.ic_bedtime
+    V2Key.INFO -> R.drawable.ic_info
+    V2Key.GUIDE -> R.drawable.ic_guide
+    // The options-menu mark, not a list: Guide already wears the list glyph.
+    V2Key.MENU -> R.drawable.ic_more_vert
+    V2Key.CAPTIONS -> R.drawable.ic_subtitles
+    V2Key.MEDIA_AUDIO_TRACK, 252 -> R.drawable.ic_audiotrack
+    V2Key.MEDIA_PLAY -> R.drawable.ic_play
+    V2Key.MEDIA_PAUSE -> R.drawable.ic_pause
+    V2Key.MEDIA_STOP -> R.drawable.ic_stop
+    V2Key.MEDIA_NEXT -> R.drawable.ic_skip_next
+    V2Key.MEDIA_PREVIOUS -> R.drawable.ic_skip_previous
+    // Skips jump by a few seconds: drawn as the rewind and fast-forward they resemble.
+    V2Key.MEDIA_REWIND, 273 -> R.drawable.ic_fast_rewind
+    V2Key.MEDIA_FAST_FORWARD, 272 -> R.drawable.ic_fast_forward
+    130 -> R.drawable.ic_record
+    226 -> R.drawable.ic_article
+    V2Key.CHANNEL_UP -> R.drawable.ic_arrow_up
+    V2Key.CHANNEL_DOWN -> R.drawable.ic_arrow_down
+    // Only play/pause wears play/pause: every playback key above has its own glyph (KeyIconTest).
     else -> when (NamedKeys.byCode(keyCode)?.group) {
         KeyGroup.PLAYBACK -> R.drawable.ic_play_pause
         KeyGroup.NAVIGATION -> R.drawable.ic_dpad
@@ -175,7 +206,7 @@ fun keyGroupLabel(group: KeyGroup): Int = when (group) {
 /** A bar value as the picker and the pin's name say it: On / Off, a signed level, a named choice. */
 @Composable
 fun barValueLabel(feature: TheatreFeature, value: String): String = when (val kind = feature.kind) {
-    is FeatureKind.Toggle -> stringResource(if (value == kind.on) R.string.state_on else R.string.state_off)
+    is FeatureKind.Toggle -> stringResource(if (value == kind.on) R.string.toggle_state_on else R.string.toggle_state_off)
     is FeatureKind.Level -> value.toIntOrNull()?.let { if (it > 0 && kind.min < 0) "+$it" else if (it < 0) "\u2212${-it}" else "$it" } ?: value
     is FeatureKind.Choice -> when (value) {
         "tv" -> "TV"
@@ -185,7 +216,29 @@ fun barValueLabel(feature: TheatreFeature, value: String): String = when (val ki
         "airplay2" -> "AirPlay 2"
         else -> optionLabel(value)
     }
-    FeatureKind.ReadOnly -> value
+    FeatureKind.ReadOnly -> when {
+        // The bar's raw "rx" / "tx" read as jargon (seen on the Bar 9, 2026-10-24).
+        feature == TheatreFeature.BLUETOOTH_MODE && value == "rx" -> stringResource(R.string.bar_bt_mode_rx)
+        feature == TheatreFeature.BLUETOOTH_MODE && value == "tx" -> stringResource(R.string.bar_bt_mode_tx)
+        feature == TheatreFeature.NETWORK_MODE || feature == TheatreFeature.NETWORK_DHCP -> barWord(value) ?: value
+        else -> value
+    }
+}
+
+/**
+ * The bar's network words, as the Technical details screen reads them (Erwann, 2026-10-26: « en mots
+ * clairs »): wired or Wi-Fi, connected or not, on or off. Null for a word tutti doesn't know, which
+ * the screen then shows as the bar spells it: these vocabularies are unverified on the Bar 9.
+ */
+@Composable
+fun barWord(value: String): String? = when (value.lowercase()) {
+    "wired", "ethernet" -> stringResource(R.string.bar_value_wired)
+    "wireless", "wifi", "wlan" -> stringResource(R.string.bar_value_wireless)
+    "connected" -> stringResource(R.string.bar_value_connected)
+    "disconnected", "notconnected", "not_connected" -> stringResource(R.string.bar_value_not_connected)
+    "on" -> stringResource(R.string.toggle_state_on)
+    "off" -> stringResource(R.string.toggle_state_off)
+    else -> null
 }
 
 /** Icons a pin can wear instead of its action's, by name (stored in DockSlot.icon). */
@@ -226,6 +279,7 @@ fun pinGlyphLabel(name: String): Int = when (name) {
     "mic" -> R.string.pin_glyph_mic
     "home" -> R.string.pin_glyph_home
     "settings" -> R.string.pin_glyph_settings
+    "auto_awesome" -> R.string.pin_glyph_auto_awesome
     else -> R.string.pin_icon
 }
 
@@ -246,7 +300,9 @@ val ToggleFeatures: List<TheatreFeature> = listOf(
 
 @Composable
 fun actionLabel(action: DockAction, state: TuttiUiState): String = when (action) {
-    is DockAction.LaunchApp -> action.label
+    // An auto-named pin takes its destination's name ("Subscriptions"); a custom link keeps the app's.
+    is DockAction.LaunchApp -> AppDestinations.shortcutFor(AppDestinations.resolve(action.link, state.prefs.appDestinations[action.packageName]))
+        ?.let { stringResource(shortcutLabel(it)) } ?: action.label
     is DockAction.Input -> action.label
     is DockAction.ToggleBar -> TheatreFeature.fromKey(action.featureKey)?.let { stringResource(featureLabel(it)) } ?: action.featureKey
     is DockAction.SetBar -> TheatreFeature.fromKey(action.featureKey)?.let {
@@ -257,6 +313,11 @@ fun actionLabel(action: DockAction, state: TuttiUiState): String = when (action)
     is DockAction.Key -> keyLabel(action.keyCode).let { if (action.long) stringResource(R.string.action_held, it) else it }
     is DockAction.Ircc -> Ircc.displayName(action.name)
     is DockAction.PictureMode -> stringResource(R.string.action_picture, action.label)
+    is DockAction.TvSoundOutput -> stringResource(tvSoundOutputLabel(action.terminal))
+    is DockAction.PictureOff -> stringResource(if (action.on) R.string.screen_off_title else R.string.screen_off_back)
+    DockAction.OpenApps -> stringResource(R.string.dock_apps)
+    DockAction.OpenKeys -> stringResource(R.string.dock_keys)
+    is DockAction.Remote -> io.kud.tutti.ui.remote.rowButtonLabel(action.button)
     is DockAction.Macro -> action.name.ifBlank {
         action.steps.count { it is io.kud.tutti.platform.data.MacroStep.Run }.let { pluralStringResource(R.plurals.macro_steps, it, it) }
     }
@@ -272,12 +333,23 @@ fun actionIcon(action: DockAction, state: TuttiUiState): Int = when (action) {
     is DockAction.Key -> keyIcon(action.keyCode)
     is DockAction.Ircc -> R.drawable.ic_tv
     is DockAction.PictureMode -> R.drawable.ic_tune
+    is DockAction.TvSoundOutput -> tvSoundOutputIcon(action.terminal)
+    is DockAction.PictureOff -> if (action.on) R.drawable.ic_visibility_off else R.drawable.ic_tv
+    DockAction.OpenApps -> R.drawable.ic_apps
+    DockAction.OpenKeys -> R.drawable.ic_dialpad
+    is DockAction.Remote -> io.kud.tutti.ui.remote.rowButtonIcon(action.button)
     is DockAction.Macro -> R.drawable.ic_bolt
 }
 
+/** A bar feature's glyph, the same on its Sound sheet tile and on a Dock pin, so one is recognised in the other. */
 @DrawableRes
 fun barIcon(featureKey: String): Int = when (featureKey) {
     TheatreFeature.NIGHT.key -> R.drawable.ic_bedtime
+    TheatreFeature.VOICE.key -> R.drawable.ic_voice_enhance
+    TheatreFeature.VOICE_ZOOM.key -> R.drawable.ic_frame_person
+    TheatreFeature.SOUND_FIELD.key -> R.drawable.ic_surround_sound
+    TheatreFeature.SPATIAL_360.key -> R.drawable.ic_360
+    TheatreFeature.AUTO_VOLUME.key -> R.drawable.ic_graphic_eq
     TheatreFeature.MUTE.key -> R.drawable.ic_volume_off
     TheatreFeature.VOLUME.key -> R.drawable.ic_volume_up
     TheatreFeature.INPUT.key -> R.drawable.ic_input
@@ -288,3 +360,14 @@ fun barIcon(featureKey: String): Int = when (featureKey) {
 @DrawableRes
 fun slotIcon(slot: DockSlot, state: TuttiUiState): Int? =
     slot.icon?.let(::pinGlyphRes) ?: slot.primary?.let { actionIcon(it, state) }
+
+/** "Sound to the bar" / "Sound to the TV speakers": the shortcut names where the sound goes, not the wire value. */
+@StringRes
+fun tvSoundOutputLabel(terminal: String): Int = when (terminal) {
+    io.kud.tutti.protocol.bravia.TvSetting.TERMINAL_SPEAKER -> R.string.action_tv_sound_speaker
+    else -> R.string.action_tv_sound_bar
+}
+
+@DrawableRes
+fun tvSoundOutputIcon(terminal: String): Int =
+    if (terminal == io.kud.tutti.protocol.bravia.TvSetting.TERMINAL_SPEAKER) R.drawable.ic_tv else R.drawable.ic_speaker

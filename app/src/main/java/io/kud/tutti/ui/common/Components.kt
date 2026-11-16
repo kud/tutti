@@ -10,6 +10,13 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -27,13 +34,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawOutline
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntRect
@@ -44,22 +51,23 @@ import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
 import io.kud.tutti.ui.motion.Motion
+import io.kud.tutti.ui.motion.linkFade
 import io.kud.tutti.ui.motion.snappyOrFade
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.filter
 
 /**
- * A big round tonal key (Iris's interaction spec, round keys). On press-down, in the frame: it
+ * A big round tonal key (the interaction spec, round keys). On press-down, in the frame: it
  * tightens to 0.92 with its corners squarer (50 → 30 %), a 12 % layer lands, and [feedback]
  * plays; nothing waits for [onClick], which runs on release so a long press can still be told
  * apart. No ripple: the shape is the response.
  *
  * - [active] ("on") is carried by shape first: the key rests as a squircle (30 %), and the
  *   caller passes a solid or struck icon where one exists. The fill only doubles it.
- * - [unreachable]: the device this key drives can't be reached. The key stays tappable, drawn
- *   as a dashed outline with no fill and its icon kept; a tap bumps and nudges the system chip
- *   instead of sending (Erwann, 2026-10-23: no greying).
+ * - [unreachable]: the device this key drives can't be reached. The key stays tappable and wears
+ *   the down dress ([downFill], [DOWN_INK]): its own fill, solid and quieter, its glyph faded; a
+ *   tap bumps and nudges the system chip instead of sending.
  * - With [onLongClick], a ring sweeps the edge from 150 ms to the long-press timeout and the key
  *   pops to 1.04 when it lands.
  * - Reduced motion: no scale, no corner travel, no sweep; the layer fades and the ring appears
@@ -79,6 +87,12 @@ fun TonalRoundButton(
     unreachable: Boolean = false,
     feedback: FeedbackEvent = FeedbackEvent.KEY,
     size: Dp = 56.dp,
+    stateDescription: String? = null,
+    /**
+     * Drawn as a dock pin rather than a round key (2026-10-29: the row joined the dock): the pins'
+     * one tone and rounded tile, at the width the caller gives, this name under the glyph.
+     */
+    pinLabel: String? = null,
 ) {
     val interaction = remember { MutableInteractionSource() }
     val haptics = rememberFeedback()
@@ -102,47 +116,43 @@ fun TonalRoundButton(
         }
     }
     val tagAlpha by animateFloatAsState(if (tag) 1f else 0f, tween(Motion.FADE_OUT), label = "tag")
-    val shape = remember(press, restCorner) {
+    val morph = remember(press, restCorner) {
         MorphCornerShape { restCorner.value + (ON_CORNER - restCorner.value).coerceAtMost(0f) * press.fraction }
     }
+    // As a pin: the pins' corners, squarer when on (the remote's one "on" dress).
+    val shape: Shape = if (pinLabel != null) RoundedCornerShape(if (active) PIN_ON_CORNER else PIN_CORNER) else morph
     val scheme = MaterialTheme.colorScheme
+    val rest = if (pinLabel != null) scheme.surfaceContainerHigh else scheme.secondaryContainer
     val container by animateColorAsState(
         when {
-            unreachable -> Color.Transparent
+            unreachable -> downFill(rest)
             active -> scheme.primary
-            else -> scheme.secondaryContainer
+            else -> rest
         },
-        snappyOrFade(),
+        if (unreachable) linkFade(true) else snappyOrFade(),
         label = "container",
     )
-    val content = when {
-        unreachable -> scheme.onSurfaceVariant
-        active -> scheme.onPrimary
-        else -> scheme.onSecondaryContainer
-    }
-    val dashed = scheme.outline
+    // The down dress fades in and out with the link (linkFade): a blip reads as a fade, never a flash.
+    val content by animateColorAsState(
+        when {
+            unreachable -> downInk(if (pinLabel != null) scheme.onSurfaceVariant else scheme.onSecondaryContainer)
+            active -> scheme.onPrimary
+            pinLabel != null -> scheme.onSurfaceVariant
+            else -> scheme.onSecondaryContainer
+        },
+        linkFade(unreachable),
+        label = "content",
+    )
     Box(
         modifier = modifier
-            .size(size)
+            .then(if (pinLabel != null) Modifier.heightIn(min = PIN_MIN_HEIGHT) else Modifier.size(size))
             .graphicsLayer {
                 val scale = press.scale * pop
                 scaleX = scale
                 scaleY = scale
                 alpha = if (enabled) 1f else 0.38f
             }
-            .drawBehind {
-                val outline = shape.createOutline(this.size, layoutDirection, this)
-                if (unreachable) {
-                    val dash = 4.dp.toPx()
-                    drawOutline(
-                        outline,
-                        dashed,
-                        style = Stroke(width = 1.5.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(dash, dash))),
-                    )
-                } else {
-                    drawOutline(outline, container)
-                }
-            }
+            .drawBehind { drawOutline(shape.createOutline(this.size, layoutDirection, this), container) }
             .longPressRing({ ring.value }, shape, scheme.onSurface)
             .combinedClickable(
                 interactionSource = interaction,
@@ -152,10 +162,15 @@ fun TonalRoundButton(
                 onLongClickLabel = onLongClickLabel,
                 onLongClick = if (longPress) onLongClick else null,
                 onClick = if (unreachable) nudge::poke else onClick,
-            ),
+            )
+            .then(if (stateDescription != null) Modifier.semantics { this.stateDescription = stateDescription } else Modifier),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(painterResource(icon), contentDescription = contentDescription, tint = content)
+        if (pinLabel != null) {
+            PinKeyFace(icon, contentDescription, pinLabel, content)
+        } else {
+            Icon(painterResource(icon), contentDescription = contentDescription, tint = content)
+        }
         if (tagAlpha > 0f && tagLabel != null) {
             val gap = with(LocalDensity.current) { TAG_GAP.roundToPx() }
             Popup(popupPositionProvider = remember(gap) { AboveAnchor(gap) }, properties = PopupProperties(focusable = false)) {
@@ -164,6 +179,65 @@ fun TonalRoundButton(
         }
     }
 }
+
+/**
+ * A remote key's face as a dock pin, in the dock's dress ([LocalDockLabels], [pinDress]): its
+ * glyph, its name under it, or either alone. TalkBack hears [contentDescription] in every dress,
+ * never the drawn name (a caller that passes null, the mic, names the key on its own node).
+ */
+@Composable
+fun PinKeyFace(@DrawableRes icon: Int, contentDescription: String?, label: String, tint: Color) {
+    val dress = pinDress(LocalDockLabels.current, label)
+    Column(
+        Modifier.padding(horizontal = 4.dp, vertical = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        if (!dress.name) {
+            Icon(painterResource(icon), contentDescription = contentDescription, tint = tint, modifier = Modifier.size(dress.glyphSize))
+            return@Column
+        }
+        if (!dress.glyph) {
+            PinNameOnly(label, dress.nameLines, tint, contentDescription)
+            return@Column
+        }
+        Icon(painterResource(icon), contentDescription = contentDescription, tint = tint, modifier = Modifier.size(dress.glyphSize))
+        Spacer(Modifier.height(4.dp))
+        Text(
+            label,
+            style = MaterialTheme.typography.labelSmall,
+            color = tint,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.clearAndSetSemantics {},
+        )
+    }
+}
+
+/** The dock pin's measures, shared by the pins and the remote's keys drawn as pins. */
+val PIN_MIN_HEIGHT = 64.dp
+val PIN_CORNER = 20.dp
+val PIN_ON_CORNER = 14.dp
+val PIN_ICON = 20.dp
+
+/**
+ * The down dress (2026-10-25; solid since 2026-11-07, from Erwann on dev.5: « Quand c'est
+ * déconnecté on dirait plus que c'est éditable que disabled »): a control whose device's link isn't
+ * up, connecting or out of reach alike, keeps its own shape and its own resting fill, solid, at
+ * [DOWN_FILL], and its glyph and words at [DOWN_INK]. The control reads as waiting, by lightness
+ * and contrast rather than hue; the words (the system chip, the card, TalkBack) say why. Never a
+ * dashed edge: dashes are the layout editor's (an empty place, a drop target), and a dashed key read
+ * as a slot to fill. Every TV and bar control uses it (round keys, mic, Dock pins, the pad).
+ */
+fun downFill(rest: Color): Color = rest.copy(alpha = rest.alpha * DOWN_FILL)
+
+/** A down control's glyph and words: its own ink, faded ([downFill]). */
+fun downInk(ink: Color): Color = ink.copy(alpha = ink.alpha * DOWN_INK)
+
+/** How much of its resting fill a down control keeps: enough to stay a solid shape on the page. */
+const val DOWN_FILL = 0.5f
+
+/** How much of its ink a down control keeps: Material's disabled content emphasis. */
+const val DOWN_INK = 0.38f
 
 /** Centred above the anchor, kept inside the window. */
 private class AboveAnchor(private val gap: Int) : PopupPositionProvider {
@@ -183,7 +257,8 @@ private val TAG_GAP = 8.dp
 fun ValueTag(text: String, modifier: Modifier = Modifier) {
     Text(
         text = text,
-        style = MaterialTheme.typography.labelLarge,
+        // "Vol 24": tabular, so the tag holds its width while two fingers step through levels.
+        style = MaterialTheme.typography.labelLarge.tabular(),
         color = MaterialTheme.colorScheme.inverseOnSurface,
         maxLines = 1,
         modifier = modifier
@@ -197,7 +272,7 @@ fun SectionTitle(text: String, modifier: Modifier = Modifier) {
     Text(
         text = text,
         style = MaterialTheme.typography.titleSmall,
-        color = MaterialTheme.colorScheme.primary,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = modifier.padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 8.dp),
     )
 }

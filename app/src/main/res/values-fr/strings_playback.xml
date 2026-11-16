@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="card_playback_open">Commandes de lecture</string>
+    <string name="card_app_actions_open">Actions de l\'app</string>
+    <string name="playback_label">Lecture</string>
+    <string name="playback_note">Chaque app de la TV décide de l\'effet de ces touches.</string>
+    <!-- Said by TalkBack when a sheet key that opens a TV menu closes its sheet. -->
+    <string name="sheet_key_tv_menu">Envoyé à la TV. Utilisez le pavé dans son menu.</string>
+    <string name="app_actions_label">Actions de l\'app</string>
+    <string name="app_actions_pin">Épingler au dock</string>
+    <string name="app_actions_pin_detail">Choisissez son emplacement</string>
+    <string name="app_actions_unpin">Retirer du dock</string>
+    <string name="app_actions_unpin_detail">Libère l\'épingle %1$d</string>
+    <string name="app_actions_hide">Masquer des apps</string>
+    <string name="app_actions_hide_detail">Réglages → Apps la réaffiche</string>
+    <string name="app_actions_close">Fermer les apps de la TV</string>
+    <string name="app_actions_close_detail">Toutes les apps, pas seulement celle-ci</string>
+    <string name="app_actions_close_down">Demande le contrôle IP, qui ne répond pas</string>
+    <string name="app_actions_close_confirm_title">Fermer toutes les apps de la TV ?</string>
+    <string name="app_actions_close_confirm_text">La TV ne sait fermer que toutes ses apps à la fois, %1$s comprise.</string>
+    <string name="app_actions_close_confirm">Fermer les apps</string>
+    <string name="timeline_label">Position de lecture</string>
+    <string name="timeline_spoken">%1$d sur %2$d minutes</string>
+    <string name="jog_name">Molette</string>
+    <string name="jog_label">Tournez pour sauter</string>
+    <string name="jog_about">Environ %1$s</string>
+    <string name="jog_none">Aucun saut</string>
+    <string name="jog_revealed">Commandes affichées sur la TV</string>
+    <plurals name="jog_jumps_forward">
+        <item quantity="one">%1$d saut en avant</item>
+        <item quantity="many">%1$d sauts en avant</item>
+        <item quantity="other">%1$d sauts en avant</item>
+    </plurals>
+    <plurals name="jog_jumps_back">
+        <item quantity="one">%1$d saut en arrière</item>
+        <item quantity="many">%1$d sauts en arrière</item>
+        <item quantity="other">%1$d sauts en arrière</item>
+    </plurals>
+    <string name="shortcut_search_tv">Rechercher sur la TV</string>
+    <string name="shortcut_search">Rechercher</string>
+    <string name="shortcut_subscriptions">Abonnements</string>
+    <string name="shortcut_history">Historique</string>
+    <string name="shortcut_library">Bibliothèque</string>
+</resources>

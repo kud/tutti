@@ -1,7 +1,9 @@
 package io.kud.tutti.ui.settings
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -16,23 +18,31 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import io.kud.tutti.R
+import io.kud.tutti.ui.common.SettingsRow
 import io.kud.tutti.controller.TuttiController
 import io.kud.tutti.controller.TuttiUiState
 import io.kud.tutti.protocol.theatre.FeatureKind
 import io.kud.tutti.protocol.theatre.TheatreFeature
-import io.kud.tutti.ui.common.ChoiceRow
-import io.kud.tutti.ui.common.SectionTitle
+import io.kud.tutti.ui.common.barValueLabel
+import io.kud.tutti.ui.common.OptionsRow
+import io.kud.tutti.ui.common.LocalRowSurface
+import io.kud.tutti.ui.common.SettingsGroup
 import io.kud.tutti.ui.common.SwitchRow
 import io.kud.tutti.ui.common.featureLabel
+import io.kud.tutti.ui.common.openBraviaConnect
 import io.kud.tutti.ui.remote.LevelSlider
 import io.kud.tutti.ui.remote.barReason
 import io.kud.tutti.ui.remote.choiceLabel
 
-/** Soundbar system settings over TCP 33336: HDMI, standby, Bluetooth, updates, device info. Never the serial. */
+/**
+ * Settings › Soundbar: the bar's system settings over TCP 33336 (HDMI, standby, Bluetooth, updates,
+ * device info, never the serial), its hidden inputs, and what stays in BRAVIA Connect.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BarSettingsScreen(state: TuttiUiState, controller: TuttiController, onBack: () -> Unit) {
@@ -40,7 +50,7 @@ fun BarSettingsScreen(state: TuttiUiState, controller: TuttiController, onBack: 
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.settings_bar_settings)) },
+                title = { Text(stringResource(R.string.settings_bar)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(painterResource(R.drawable.ic_back), contentDescription = stringResource(R.string.action_back))
@@ -61,29 +71,58 @@ fun BarSettingsScreen(state: TuttiUiState, controller: TuttiController, onBack: 
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
                 )
             }
+            // Inputs hidden from the Son sheet's row by his long press come back here (rule 4: never only behind a gesture).
+            val hidden = state.prefs.hiddenBarInputs
+            if (hidden.isNotEmpty()) {
+                SettingsGroup(stringResource(R.string.bar_input_hidden_title)) {
+                    for (value in hidden.sorted()) {
+                        val name = io.kud.tutti.ui.remote.barInputName(value, barValueLabel(TheatreFeature.INPUT, value), state.prefs.barInputNames)
+                        SettingsRow(
+                            title = stringResource(R.string.bar_input_show, name),
+                            icon = R.drawable.ic_visibility,
+                            onClick = { controller.setBarInputHidden(value, false) },
+                            role = androidx.compose.ui.semantics.Role.Button,
+                        )
+                    }
+                }
+            }
             for ((title, features) in Sections) {
                 val shown = features.filter(bar::supports)
                 if (shown.isEmpty()) continue
-                SectionTitle(stringResource(title))
-                for (feature in shown) {
-                    when {
-                        feature == TheatreFeature.BLUETOOTH_MODE -> {
-                            Info(state, feature)
-                            LinkRow(
-                                title = stringResource(R.string.bar_bt_pair),
-                                detail = barReason(state, feature) ?: stringResource(R.string.bar_bt_pair_detail),
-                                enabled = bar.connected,
-                                onClick = controller::startBarPairing,
-                            )
+                SettingsGroup(stringResource(title)) {
+                    for (feature in shown) {
+                        when {
+                            feature == TheatreFeature.BLUETOOTH_MODE -> {
+                                Info(state, feature)
+                                LinkRow(
+                                    title = stringResource(R.string.bar_bt_pair),
+                                    detail = barReason(state, feature) ?: stringResource(R.string.bar_bt_pair_detail),
+                                    enabled = bar.connected,
+                                    onClick = controller::startBarPairing,
+                                )
+                            }
+                            feature.kind is FeatureKind.Toggle -> Toggle(state, controller, feature)
+                            feature.kind is FeatureKind.Choice -> Choice(state, controller, feature)
+                            feature.kind is FeatureKind.Level -> Column(
+                                Modifier.fillMaxWidth().background(LocalRowSurface.current).padding(horizontal = 16.dp, vertical = 12.dp),
+                            ) {
+                                LevelSlider(state, feature, onLevel = { controller.setBarLevel(feature, it) })
+                            }
+                            else -> Info(state, feature)
                         }
-                        feature.kind is FeatureKind.Toggle -> Toggle(state, controller, feature)
-                        feature.kind is FeatureKind.Choice -> Choice(state, controller, feature)
-                        feature.kind is FeatureKind.Level -> Column(Modifier.padding(horizontal = 16.dp)) {
-                            LevelSlider(state, feature, onLevel = { controller.setBarLevel(feature, it) })
-                        }
-                        else -> Info(state, feature)
                     }
                 }
+            }
+            // Calibration lives in Sony's app; reachable with or without the bar in reach.
+            val context = LocalContext.current
+            SettingsGroup(stringResource(R.string.settings_bravia_connect)) {
+                LinkRow(
+                    title = stringResource(R.string.sound_recalibrate),
+                    detail = stringResource(R.string.settings_recalibrate_detail),
+                    enabled = true,
+                    onClick = { openBraviaConnect(context) },
+                    icon = R.drawable.ic_open,
+                )
             }
         }
     }
@@ -123,23 +162,28 @@ private fun Toggle(state: TuttiUiState, controller: TuttiController, feature: Th
 @Composable
 private fun Choice(state: TuttiUiState, controller: TuttiController, feature: TheatreFeature) {
     val kind = feature.kind as? FeatureKind.Choice ?: return
-    ChoiceRow(
+    // Segments where the names fit (Auto · On · Off), else the choice sheet (Erwann, 2026-11-12).
+    OptionsRow(
         label = stringResource(featureLabel(feature)),
+        selected = state.bar.value(feature),
         valueLabel = optionLabel(state.bar.value(feature)),
         options = kind.options.map { it to optionLabel(it) },
         onSelect = { controller.setBarChoice(feature, it) },
         reason = barReason(state, feature),
+        refused = state.bar.refusedValues(feature),
     )
 }
 
 /** Read-only, shown raw (e.g. the undocumented Bluetooth mode vocabulary). */
 @Composable
 private fun Info(state: TuttiUiState, feature: TheatreFeature) {
-    LinkRow(
+    // Read-only information (2026-10-27): full contrast, nothing to tap. When the bar can't
+    // say, the reason leads with the warning glyph, as on every row the bar makes unavailable.
+    val reason = barReason(state, feature)
+    SettingsRow(
         title = stringResource(featureLabel(feature)),
-        detail = barReason(state, feature) ?: state.bar.value(feature).orEmpty(),
-        enabled = false,
-        onClick = {},
+        detail = state.bar.value(feature)?.let { barValueLabel(feature, it) },
+        notice = reason,
     )
 }
 

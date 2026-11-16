@@ -5,8 +5,6 @@
     <string name="sound_reason_no_bar">Aucune barre ajoutée</string>
     <string name="sound_reason_unreported">Non signalé par la barre</string>
     <string name="sound_recalibrate">Recalibrer dans BRAVIA Connect</string>
-    <string name="state_on">Activé</string>
-    <string name="state_off">Désactivé</string>
     <string name="state_auto">Auto</string>
     <string name="sound_tile_failed">Pas pris en compte · réessayez</string>
 </resources>

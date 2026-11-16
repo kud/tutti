@@ -2,8 +2,9 @@
 <resources>
     <string name="cancel">Annuler</string>
     <string name="error_action_failed">L’appareil n’a pas répondu</string>
+    <string name="error_key_refused">La TV a refusé la clé</string>
     <string name="scene_missing">Scène supprimée</string>
-    <string name="bar_power">Alimentation</string>
+    <string name="bar_power">Marche / arrêt</string>
     <string name="bar_volume">Volume</string>
     <string name="bar_mute">Sourdine</string>
     <string name="bar_input">Entrée de la barre</string>
@@ -30,9 +31,11 @@
     <string name="bar_model">Modèle</string>
     <string name="bar_firmware">Version du logiciel</string>
     <string name="bar_bt_mode">Mode Bluetooth</string>
+    <string name="bar_bt_mode_rx">Réception (téléphone vers la barre)</string>
+    <string name="bar_bt_mode_tx">Émission (barre vers un casque)</string>
     <string name="bar_bt_quality">Qualité Bluetooth</string>
     <string name="key_settings">Réglages TV</string>
-    <string name="key_input">Source</string>
+    <string name="key_input">Entrée</string>
     <string name="key_guide">Guide</string>
     <string name="key_captions">Sous-titres</string>
     <string name="key_assistant">Assistant</string>
@@ -44,10 +47,14 @@
     <string name="problem_details_hide">Masquer les détails</string>
     <string name="problem_clip_label">Détails tutti</string>
     <string name="scene_failed_steps">Une partie de la scène ne s’est pas appliquée</string>
-    <string name="settings_developer">Développeur</string>
     <string name="settings_developer_mode">Mode développeur</string>
     <string name="settings_developer_mode_detail">Affiche les détails techniques sous les erreurs, avec Copier les détails, et les diagnostics.</string>
     <string name="pairing_code_field">Code d’association</string>
-    <string name="pairing_code_progress">Saisis : %1$d sur %2$d</string>
+    <string name="pairing_code_progress">%1$d caractères sur %2$d</string>
     <string name="action_retry">Réessayer</string>
+    <!-- Message passager de tutti (remplace les toasts système). -->
+    <string name="message_dismiss">Fermer</string>
+    <string name="message_problem">Problème</string>
+    <string name="choice_refused">refusée</string>
+    <string name="choice_refused_note">La barre refuse %1$s. Touchez pour réessayer.</string>
 </resources>

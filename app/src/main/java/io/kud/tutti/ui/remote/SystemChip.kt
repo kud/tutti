@@ -13,13 +13,17 @@ import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.StrokeCap
+import io.kud.tutti.ui.common.LocalReducedMotion
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import io.kud.tutti.ui.common.LocalChipNudge
 import io.kud.tutti.ui.motion.Motion
 import io.kud.tutti.ui.motion.snappyOrFade
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -45,9 +49,7 @@ import androidx.compose.ui.unit.dp
 import io.kud.tutti.R
 import io.kud.tutti.controller.Link
 import io.kud.tutti.controller.TuttiUiState
-
-private val Online = Color(0xFF4CD18A)
-private val Pending = Color(0xFFF2B84B)
+import io.kud.tutti.ui.common.AppIcon
 
 private fun Link.isDown() = this == Link.UNREACHABLE || this == Link.NEEDS_PAIRING
 
@@ -56,10 +58,19 @@ private fun Link.isDown() = this == Link.UNREACHABLE || this == Link.NEEDS_PAIRI
  * one device drops ("Bar 9 injoignable").
  */
 @Composable
-fun SystemChip(state: TuttiUiState, onClick: () -> Unit, modifier: Modifier = Modifier) {
+fun SystemChip(state: TuttiUiState, onClick: () -> Unit, modifier: Modifier = Modifier, showNow: Boolean = true) {
     val tv = state.devices.tv
     val bar = state.devices.bar
-    val tvLink = if (tv != null) state.links.tv else Link.ABSENT
+    // The shown link (TvLinkRule): the link as it is. A drop reads "Reconnecting…" at once, with the
+    // working ring, never the down mark before give-up (Iris, 2026-11-07).
+    // The bar on its own with the TV known asleep: a sleeping TV is not a fault, so its silent
+    // link reads neither "unreachable" nor "Connecting…"; the chip says "on standby" instead.
+    val tvAsleepAlone = barAlone(state)?.tvAsleep == true
+    val tvLink = when {
+        tv == null -> Link.ABSENT
+        tvAsleepAlone -> Link.ONLINE
+        else -> state.links.tvShown.link
+    }
     val barLink = if (bar != null) state.links.bar else Link.ABSENT
     val configured = listOfNotNull(tv?.let { it.name to tvLink }, bar?.let { it.name to barLink })
     val down = configured.filter { it.second.isDown() }
@@ -67,14 +78,17 @@ fun SystemChip(state: TuttiUiState, onClick: () -> Unit, modifier: Modifier = Mo
         configured.isEmpty() -> DotState.NONE
         down.size == configured.size -> DotState.DOWN
         down.isNotEmpty() -> DotState.PARTIAL
-        configured.any { it.second == Link.CONNECTING } -> DotState.CONNECTING
+        // Waking the TV: the open ring until it answers, then the full dot (motion spec).
+        configured.any { it.second == Link.CONNECTING } || (state.waking && tv != null) -> DotState.CONNECTING
         else -> DotState.ONLINE
     }
     val dotTarget = when (dotState) {
         DotState.NONE -> MaterialTheme.colorScheme.outline
         DotState.DOWN -> MaterialTheme.colorScheme.error
-        DotState.PARTIAL, DotState.CONNECTING -> Pending
-        DotState.ONLINE -> Online
+        // Scheme roles, so the dot follows dynamic colour and keeps its contrast in both themes;
+        // the state itself is told by shape (dot, open ring, hollow) and the chip's words.
+        DotState.PARTIAL, DotState.CONNECTING -> MaterialTheme.colorScheme.tertiary
+        DotState.ONLINE -> MaterialTheme.colorScheme.secondary
     }
     val nudge = LocalChipNudge.current
     val pulse = remember { Animatable(0f) }
@@ -85,6 +99,19 @@ fun SystemChip(state: TuttiUiState, onClick: () -> Unit, modifier: Modifier = Mo
     }
     val pulseColor = MaterialTheme.colorScheme.onSurface
     val dot by animateColorAsState(dotTarget, snappyOrFade(), label = "dot")
+    // The open ring closes into the full dot with one pulse out of it; none under reduced motion.
+    val reduced = LocalReducedMotion.current
+    val landed = remember { Animatable(0f) }
+    var lastDot by remember { mutableStateOf(dotState) }
+    LaunchedEffect(dotState) {
+        val was = lastDot
+        lastDot = dotState
+        if (was == DotState.CONNECTING && dotState == DotState.ONLINE && !reduced) {
+            landed.snapTo(0f)
+            landed.animateTo(1f, tween(LANDED_PULSE_MS, easing = Motion.Emphasized))
+            landed.snapTo(0f)
+        }
+    }
     val room = stringResource(R.string.system_room)
     Surface(
         onClick = onClick,
@@ -96,7 +123,18 @@ fun SystemChip(state: TuttiUiState, onClick: () -> Unit, modifier: Modifier = Mo
         },
     ) {
         Row(Modifier.padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-            StatusDot(dotState, dot, Modifier.size(12.dp))
+            // Ring to dot (and back) is a short fade between shapes; the colour follows on its own.
+            Crossfade(
+                dotState,
+                Modifier.size(12.dp).drawBehind {
+                    val p = landed.value
+                    if (p > 0f) drawCircle(dot, size.minDimension / 2f * (1f + 1.2f * p), style = Stroke(1.5.dp.toPx()), alpha = 1f - p)
+                },
+                animationSpec = tween(Motion.SHORT),
+                label = "dotShape",
+            ) { shape ->
+                StatusDot(shape, dot, Modifier.size(12.dp), turning = !reduced)
+            }
             Spacer(Modifier.width(10.dp))
             Column {
                 if (configured.isEmpty()) {
@@ -129,6 +167,54 @@ fun SystemChip(state: TuttiUiState, onClick: () -> Unit, modifier: Modifier = Mo
                             color = MaterialTheme.colorScheme.error,
                             maxLines = 1,
                         )
+                    } else if (dotState == DotState.CONNECTING) {
+                        // The words carry the state with the ring's shape; the colour only follows.
+                        Text(
+                            stringResource(
+                                if (tv != null && state.links.tvShown.reconnecting) R.string.system_reconnecting_tv else R.string.system_connecting,
+                            ),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                        )
+                    } else if (tvAsleepAlone && tv != null) {
+                        Text(
+                            stringResource(R.string.system_tv_standby, tv.name),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                        )
+                    } else {
+                        // What is on screen: the tuner's channel and programme, an input, or the
+                        // app the catalogue knows (daily-state: now playing). Text says it all;
+                        // the app's icon is decoration beside its name. While the now-showing
+                        // card says it ([showNow] off), the chip keeps to one line.
+                        nowShowing(state)?.takeIf { showNow }?.let { now ->
+                            val what = when (now) {
+                                is NowShowing.Channel -> now.text ?: stringResource(R.string.system_tv_channel)
+                                is NowShowing.Input -> now.title
+                                is NowShowing.App -> now.name
+                            }
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                if (now is NowShowing.App) {
+                                    AppIcon(
+                                        name = now.name,
+                                        iconPath = state.appIcons[now.packageName],
+                                        packageName = now.packageName,
+                                        size = 14.dp,
+                                        corner = 3.dp,
+                                    )
+                                    Spacer(Modifier.width(4.dp))
+                                }
+                                Text(
+                                    stringResource(R.string.system_current_app, what),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -139,17 +225,18 @@ fun SystemChip(state: TuttiUiState, onClick: () -> Unit, modifier: Modifier = Mo
 private enum class DotState { NONE, ONLINE, CONNECTING, PARTIAL, DOWN }
 
 /**
- * Online is a filled dot, connecting a dashed ring that turns, one device down a half-filled dot
- * (with the second line), all down a slashed ring (with "Nothing reachable"). The turn stays under
- * reduced motion: it is a status indicator, not decoration.
+ * Online is a filled dot, connecting an open ring that turns once every 900 ms (with
+ * "Connecting…"), one device down a half-filled dot (with the second line), all down a slashed
+ * ring (with "Nothing reachable"). Under reduced motion ([turning] off) the open ring holds still:
+ * its shape and the words already say it (the splash notes, 2026-10-24).
  */
 @Composable
-private fun StatusDot(state: DotState, color: Color, modifier: Modifier = Modifier) {
-    val turn = if (state == DotState.CONNECTING) {
+private fun StatusDot(state: DotState, color: Color, modifier: Modifier = Modifier, turning: Boolean = true) {
+    val turn = if (state == DotState.CONNECTING && turning) {
         rememberInfiniteTransition(label = "dot").animateFloat(
             initialValue = 0f,
             targetValue = 360f,
-            animationSpec = infiniteRepeatable(tween(durationMillis = 1600, easing = LinearEasing)),
+            animationSpec = infiniteRepeatable(tween(durationMillis = CONNECTING_TURN_MS, easing = LinearEasing)),
             label = "turn",
         ).value
     } else {
@@ -163,7 +250,15 @@ private fun StatusDot(state: DotState, color: Color, modifier: Modifier = Modifi
             DotState.ONLINE -> drawCircle(color)
             DotState.NONE -> drawCircle(color, radius, style = ring)
             DotState.CONNECTING -> rotate(turn) {
-                drawCircle(color, radius, style = Stroke(width, pathEffect = PathEffect.dashPathEffect(floatArrayOf(radius * 0.9f, radius * 0.7f))))
+                drawArc(
+                    color,
+                    startAngle = -90f,
+                    sweepAngle = 270f,
+                    useCenter = false,
+                    topLeft = Offset(center.x - radius, center.y - radius),
+                    size = Size(radius * 2f, radius * 2f),
+                    style = Stroke(width, cap = StrokeCap.Round),
+                )
             }
             DotState.PARTIAL -> {
                 drawCircle(color, radius, style = ring)
@@ -179,3 +274,9 @@ private fun StatusDot(state: DotState, color: Color, modifier: Modifier = Modifi
 }
 
 private const val NUDGE_LAYER = 0.16f
+
+/** One turn of the connecting ring (the splash notes). */
+private const val CONNECTING_TURN_MS = 900
+
+/** The pulse out of the dot when the connection lands. */
+private const val LANDED_PULSE_MS = 220

@@ -45,4 +45,22 @@ class TileOutcomeTest {
     fun `nothing asked, nothing settles`() {
         assertEquals(TileSettle.NONE, TileOutcome().observe(pending = null, shown = "off", connected = true))
     }
+
+    @Test
+    fun `a refused value that the bar reports after all settles as late`() {
+        val outcome = TileOutcome()
+        outcome.observe(pending = "on", shown = "on", connected = true)
+        assertEquals(TileSettle.REFUSED, outcome.observe(pending = null, shown = "off", connected = true))
+        assertEquals(TileSettle.LATE, outcome.observe(pending = null, shown = "on", connected = true))
+        assertEquals(TileSettle.NONE, outcome.observe(pending = null, shown = "on", connected = true))
+    }
+
+    @Test
+    fun `a new request forgets the missed value`() {
+        val outcome = TileOutcome()
+        outcome.observe(pending = "on", shown = "on", connected = true)
+        outcome.observe(pending = null, shown = "off", connected = true)
+        outcome.observe(pending = "off", shown = "off", connected = true)
+        assertEquals(TileSettle.REFUSED, outcome.observe(pending = null, shown = "on", connected = true))
+    }
 }

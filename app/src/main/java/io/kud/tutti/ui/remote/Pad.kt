@@ -1,8 +1,8 @@
 package io.kud.tutti.ui.remote
 
+import android.os.SystemClock
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -12,19 +12,21 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.AbsoluteAlignment
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -45,62 +47,113 @@ import androidx.compose.ui.input.pointer.PointerEvent
 import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.util.VelocityTracker
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import io.kud.tutti.R
 import io.kud.tutti.controller.TuttiController
 import io.kud.tutti.platform.data.PadMode
+import io.kud.tutti.protocol.atv.DirectionPress
 import io.kud.tutti.protocol.atv.V2Key
+import io.kud.tutti.ui.common.DOWN_INK
 import io.kud.tutti.ui.common.FeedbackEvent
+import io.kud.tutti.ui.common.LocalChipNudge
+import io.kud.tutti.ui.common.downFill
 import io.kud.tutti.ui.common.LocalReducedMotion
 import io.kud.tutti.ui.common.RING_DELAY_MS
 import io.kud.tutti.ui.common.ValueTag
 import io.kud.tutti.ui.common.rememberHaptics
+import io.kud.tutti.ui.intro.LocalIntroAnchors
+import io.kud.tutti.ui.intro.TouchpadAnchor
 import io.kud.tutti.ui.motion.Motion
+import io.kud.tutti.ui.motion.linkFade
+import io.kud.tutti.ui.motion.snappyOrFade
 import kotlin.math.abs
 import kotlin.math.min
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
  * The pad: one large quiet surface, no grid lines. Touchpad (swipe steps) or D-pad (a disc with
- * a chevron at each point and an OK centre); [PadModeSwitch] under it switches in one move. Tap = OK; long press = held Select for the TV.
- * Two gestures only, in touchpad mode: two-finger tap = play/pause, two-finger vertical drag = bar volume.
+ * a chevron at each point and an OK centre); [PadModeSwitch], a quiet glyph in its top corner facing the rail
+ * ([switchOnLeft]: top-left when the pad stands on the right), switches in one tap.
+ * Tap = OK; OK held = the TV's OK held, down at the long-press timeout and up on release
+ * ([OkHold]), as a physical remote holds it, so apps open their long-press menus.
+ * A held arrow on the D-pad is held on the TV ([DirectionPress]); a finger resting after a swipe step repeats on the [KeyRepeat] schedule.
+ * A fast swipe flings: steps carry on after the lift and slow down ([PadFling]); a new touch stops them.
+ * Two-finger gestures, in both modes: tap = play/pause, vertical drag = bar volume, horizontal
+ * drag = skip back or forward ([TwoFingerTrack]); the app on the TV decides how far, so no
+ * duration is ever shown or spoken.
  *
- * Each swipe step leaves a dot behind the halo that fades over 250 ms; a two-finger step shows a
- * "Vol 24" tag at the top, from [volume] and [volumeCap], ticking inside the range (the walls are
+ * The halo follows the finger and steps leave no mark (Erwann, 2026-10-24: the halo stays, the
+ * step dot goes); a two-finger step shows a "Vol 24" tag at the top, from [volume] and [volumeCap], ticking inside the range (the walls are
  * the controller's bump).
  */
 @Composable
 fun Pad(
     mode: PadMode,
     onKey: (Int) -> Unit,
-    onLongSelect: () -> Unit,
+    /** OK held: true when the key should go down on the TV, false when it comes up (once each). */
+    onSelectHold: (Boolean) -> Unit,
+    /**
+     * An arrow held on the D-pad: true when it should go down, false when it comes up (once each).
+     * Returns false on the way down when the route can't hold it: the pad then repeats plain keys.
+     */
+    onDirectionHold: (code: Int, down: Boolean) -> Boolean = { _, _ -> false },
+    /** The held key's finger is still there: re-arm its lease. */
+    onHoldRenew: () -> Unit = {},
     onPlayPause: () -> Unit,
     onVolumeStep: (Int) -> Unit,
+    /** Two-finger horizontal drag: -1 skips back, +1 forward ([skipKey]). Null: the drag does nothing. */
+    onSkip: ((Int) -> Unit)?,
+    /** Null where the pad's mode is fixed (the input view's D-pad): no switch is drawn or hit. */
+    onModeChange: ((PadMode) -> Unit)?,
     modifier: Modifier = Modifier,
     volume: Int? = null,
     volumeCap: Int? = null,
+    /** Levels a two-finger step feels as a detent ([io.kud.tutti.controller.TuttiUiState.volumeLandmarks]). */
+    volumeLandmarks: List<Int> = emptyList(),
+    /** The switch's corner: top-left for a right-hand layout (the rail on the left), else top-right. */
+    switchOnLeft: Boolean = false,
+    /**
+     * The TV's link isn't up (controlLink): the surface stays, a dashed edge runs round it, the
+     * D-pad face and the switch dim, and any touch bumps and nudges the chip; nothing is sent.
+     */
+    down: Boolean = false,
+    /** Why, for TalkBack: "Connecting to the TV", "BRAVIA 8 unreachable". */
+    downReason: String? = null,
 ) {
     val haptics = rememberHaptics()
+    val nudge = LocalChipNudge.current
     val scope = rememberCoroutineScope()
     val glowAlpha = remember { Animatable(0f) }
     var glow by remember { mutableStateOf(Offset.Unspecified) }
     val key by rememberUpdatedState(onKey)
-    val longSelect by rememberUpdatedState(onLongSelect)
+    val selectHold by rememberUpdatedState(onSelectHold)
+    val directionHold by rememberUpdatedState(onDirectionHold)
+    val holdRenew by rememberUpdatedState(onHoldRenew)
     val playPause by rememberUpdatedState(onPlayPause)
     val volumeStep by rememberUpdatedState(onVolumeStep)
+    val skip by rememberUpdatedState(onSkip)
     val currentVolume by rememberUpdatedState(volume)
     val currentCap by rememberUpdatedState(volumeCap)
-    val dots = remember { mutableStateListOf<StepDot>() }
+    val currentLandmarks by rememberUpdatedState(volumeLandmarks)
     var tagVisible by remember { mutableStateOf(false) }
     var tagLevel by remember { mutableIntStateOf(0) }
+    // The skip tag's running count of steps, signed ("Skip back ×3"); null while the tag shows a volume.
+    var tagSkip by remember { mutableStateOf<Int?>(null) }
     var tagJob by remember { mutableStateOf<Job?>(null) }
     val glowColor = MaterialTheme.colorScheme.primary
     // D-pad press feedback: the zone under the finger lights from press to release, then fades.
@@ -110,6 +163,15 @@ fun Pad(
     // tells the time honestly. Reduced motion: no sweep, it appears whole at the timeout.
     val okRing = remember { Animatable(0f) }
     val reducedNow by rememberUpdatedState(LocalReducedMotion.current)
+    val modeChange by rememberUpdatedState(onModeChange)
+    // The corner switch: pressed while a finger that went down in its square is still there.
+    var switchPressed by remember { mutableStateOf(false) }
+    val switchable = onModeChange != null
+    fun switchTo(target: PadMode) {
+        val change = modeChange ?: return
+        haptics.select()
+        change(target)
+    }
 
     fun flash(at: Offset) {
         glow = at
@@ -119,25 +181,7 @@ fun Pad(
         }
     }
 
-    // A step leaves a dot where the finger was, fading behind the halo.
-    fun dot() {
-        val at = glow
-        if (!at.isSpecified) return
-        val dot = StepDot(at)
-        dots += dot
-        scope.launch {
-            dot.alpha.animateTo(0f, tween(durationMillis = DOT_FADE_MS))
-            dots.remove(dot)
-        }
-    }
-
-    // The two-finger level, counted from the tag while it shows so quick steps never read a stale state.
-    fun volumeTag(delta: Int) {
-        val base = (if (tagVisible) tagLevel else null) ?: currentVolume ?: return
-        val ceiling = currentCap ?: TuttiController.MAX_VOLUME
-        val next = VolumeSteps.step(base, delta, ceiling)
-        if (VolumeSteps.ticks(next, ceiling)) haptics.tick()
-        tagLevel = next
+    fun showTag() {
         tagVisible = true
         tagJob?.cancel()
         tagJob = scope.launch {
@@ -146,13 +190,59 @@ fun Pad(
         }
     }
 
+    // The two-finger level, counted from the tag while it shows so quick steps never read a stale state.
+    fun volumeTag(delta: Int) {
+        val base = (if (tagVisible) tagLevel else null) ?: currentVolume ?: return
+        val ceiling = currentCap ?: TuttiController.MAX_VOLUME
+        val next = VolumeSteps.step(base, delta, ceiling)
+        when (VolumeSteps.feel(base, next, ceiling, currentLandmarks)) {
+            StepFeel.DETENT -> haptics.detent()
+            StepFeel.TICK -> haptics.tick()
+            StepFeel.WALL -> Unit
+        }
+        tagLevel = next
+        tagSkip = null
+        showTag()
+    }
+
+    // A skip ticks and counts on from the tag while it shows: two steps read "Skip forward ×2".
+    fun skipStep(delta: Int) {
+        val run = skip ?: return
+        haptics.tick()
+        tagSkip = (if (tagVisible) tagSkip ?: 0 else 0) + delta
+        showTag()
+        run(delta)
+    }
+
+    fun twoFinger(step: TwoFingerStep) {
+        when (step.axis) {
+            TwoFingerAxis.VOLUME -> {
+                volumeTag(step.delta)
+                volumeStep(step.delta)
+            }
+            TwoFingerAxis.SKIP -> skipStep(step.delta)
+        }
+    }
+
     val padLabel = stringResource(R.string.pad_label)
-    val gestures = if (mode == PadMode.TOUCHPAD) {
-        Modifier.pointerInput(haptics) {
+    val gestures = if (down) {
+        Modifier.pointerInput(Unit) {
+            detectTapGestures(
+                onPress = {
+                    haptics.bump()
+                    nudge.poke()
+                },
+            )
+        }
+    } else if (mode == PadMode.TOUCHPAD) {
+        Modifier.pointerInput(haptics, switchable, switchOnLeft) {
+            val corner = if (switchable) PAD_SWITCH_ZONE.dp.toPx() else 0f
             touchpadGestures(
+                inCorner = { at -> inPadSwitchCorner(at.x, at.y, size.width.toFloat(), corner, switchOnLeft) },
+                onCornerPress = { switchPressed = it },
+                onSwitch = { switchTo(PadMode.DPAD) },
                 onStep = { code ->
                     haptics.tick()
-                    dot()
                     key(code)
                 },
                 onTap = { at ->
@@ -160,18 +250,15 @@ fun Pad(
                     flash(at)
                     key(V2Key.DPAD_CENTER)
                 },
-                onLong = {
-                    haptics.longPress()
-                    longSelect()
+                onHold = { down ->
+                    if (down) haptics.longPress()
+                    selectHold(down)
                 },
                 onTwoFingerTap = {
                     haptics.select()
                     playPause()
                 },
-                onTwoFingerStep = { delta ->
-                    volumeTag(delta)
-                    volumeStep(delta)
-                },
+                onTwoFingerStep = ::twoFinger,
                 // Finger down shows a soft halo under it, and nothing is sent.
                 onDown = { at ->
                     glow = at
@@ -182,10 +269,21 @@ fun Pad(
             )
         }
     } else {
-        Modifier.pointerInput(haptics) {
+        Modifier.pointerInput(haptics, switchable, switchOnLeft) {
+            val corner = if (switchable) PAD_SWITCH_ZONE.dp.toPx() else 0f
+            // OK held: the press that is on OK now, so the long press can put the key down and
+            // the release (or a cancel: two fingers, the pad going down) bring it up.
+            var okHold: OkHold? = null
+            fun zoneAt(at: Offset): Int? = dpadZone(at, size.width.toFloat(), size.height.toFloat(), corner, switchOnLeft)
+            fun cornerAt(at: Offset): Boolean = inPadSwitchCorner(at.x, at.y, size.width.toFloat(), corner, switchOnLeft)
             detectTapGestures(
                 onPress = { at ->
-                    val zone = dpadZone(at, size.width.toFloat(), size.height.toFloat())
+                    val zone = zoneAt(at)
+                    if (zone == null && cornerAt(at)) {
+                        switchPressed = true
+                        tryAwaitRelease()
+                        switchPressed = false
+                    }
                     if (zone != null) {
                         pressedZone = zone
                         // On down, in the frame: OK is a key (click), a direction a step (tick).
@@ -207,7 +305,42 @@ fun Pad(
                                 }
                             }
                         }
-                        tryAwaitRelease()
+                        // A held direction is held on the TV, as a physical remote holds it
+                        // (DirectionPress): one key down past the hold delay, the TV repeats and
+                        // accelerates, one key up on lift. A quick one goes once, on release.
+                        val press = if (zone == V2Key.DPAD_CENTER) null else DirectionPress(SystemClock.uptimeMillis())
+                        val driver = press?.let {
+                            scope.launch {
+                                DirectionDrive.run(
+                                    press = it,
+                                    clock = SystemClock::uptimeMillis,
+                                    hold = {
+                                        haptics.tick()
+                                        directionHold(zone, true)
+                                    },
+                                    renew = { holdRenew() },
+                                    repeat = {
+                                        haptics.tick()
+                                        key(zone)
+                                    },
+                                )
+                            }
+                        }
+                        val hold = if (zone == V2Key.DPAD_CENTER) OkHold().also { okHold = it } else null
+                        var released = false
+                        try {
+                            released = tryAwaitRelease()
+                        } finally {
+                            // Lifted, or the press was cancelled (the pad went down mid-hold, the
+                            // gesture restarted): the driver stops and a held key always comes up.
+                            // It once ran on in the screen's scope and kept the TV scrubbing.
+                            driver?.cancel()
+                            if (press != null) DirectionDrive.end(press, released, tap = { key(zone) }, release = { directionHold(zone, false) })
+                            if (hold != null) {
+                                if (hold.end() == OkHoldEffect.RELEASE) selectHold(false)
+                                if (okHold === hold) okHold = null
+                            }
+                        }
                         scope.launch { pressAlpha.animateTo(0f, tween(durationMillis = 180)) }
                         if (ring != null) {
                             ring.cancel()
@@ -215,64 +348,120 @@ fun Pad(
                         }
                     }
                 },
+                // Directions are sent from onPress, so a hold can repeat; only OK waits for the tap.
                 onTap = { at ->
-                    val code = dpadZone(at, size.width.toFloat(), size.height.toFloat()) ?: return@detectTapGestures
-                    key(code)
+                    val zone = zoneAt(at)
+                    if (zone == V2Key.DPAD_CENTER && pressedZone == V2Key.DPAD_CENTER) key(V2Key.DPAD_CENTER)
+                    // dpadZone leaves the switch's corner out, so a tap there is only the switch.
+                    if (zone == null && cornerAt(at)) switchTo(PadMode.TOUCHPAD)
                 },
                 onLongPress = { at ->
-                    if (dpadZone(at, size.width.toFloat(), size.height.toFloat()) == V2Key.DPAD_CENTER) {
+                    if (zoneAt(at) == V2Key.DPAD_CENTER && okHold?.timeout() == OkHoldEffect.HOLD) {
                         haptics.longPress()
-                        longSelect()
+                        selectHold(true)
                     }
                 },
+            )
+        }.pointerInput(haptics) {
+            // Two fingers take over from the D-pad's taps (they see the touch consumed and let go):
+            // the same play/pause, volume and skip as the touchpad, the mode changes nothing.
+            twoFingerGestures(
+                onTap = {
+                    haptics.select()
+                    playPause()
+                },
+                onStep = ::twoFinger,
             )
         }
     }
 
     val dpadLabel = stringResource(R.string.pad_dpad_label)
     val okLabel = stringResource(R.string.pad_ok)
+    val okHoldLabel = stringResource(R.string.pad_ok_hold)
+    val playPauseLabel = stringResource(R.string.action_play_pause)
+    val volumeUpLabel = stringResource(R.string.volume_up)
+    val volumeDownLabel = stringResource(R.string.volume_down)
+    val skipBackLabel = stringResource(R.string.pad_skip_back)
+    val skipForwardLabel = stringResource(R.string.pad_skip_forward)
     val directionLabels = listOf(
         V2Key.DPAD_UP to stringResource(R.string.pad_up),
         V2Key.DPAD_DOWN to stringResource(R.string.pad_down),
         V2Key.DPAD_LEFT to stringResource(R.string.pad_left),
         V2Key.DPAD_RIGHT to stringResource(R.string.pad_right),
     )
-    val semanticsModifier = if (mode == PadMode.TOUCHPAD) {
-        Modifier.semantics { contentDescription = padLabel }
-    } else {
+    val semanticsModifier = if (down) {
+        // Down, it is one node that says why, with no actions: TalkBack can't send what a finger can't.
         Modifier.semantics {
-            contentDescription = dpadLabel
+            contentDescription = if (mode == PadMode.TOUCHPAD) padLabel else dpadLabel
+            if (downReason != null) stateDescription = downReason
+        }
+    } else {
+        // Both modes offer TalkBack the same OK and four directions: a swipe can't be read out,
+        // but the keys it stands for can.
+        Modifier.semantics {
+            contentDescription = if (mode == PadMode.TOUCHPAD) padLabel else dpadLabel
             onClick(label = okLabel) {
                 key(V2Key.DPAD_CENTER)
                 true
+            }
+            // The two-finger gestures too, named for what they do (the audit's rule 5).
+            val gestureActions = buildList {
+                // OK held, as a finger holds it: down then up, the controller keeps it down long enough.
+                add(
+                    CustomAccessibilityAction(okHoldLabel) {
+                        selectHold(true)
+                        selectHold(false)
+                        true
+                    },
+                )
+                add(CustomAccessibilityAction(playPauseLabel) { playPause(); true })
+                add(CustomAccessibilityAction(volumeUpLabel) { volumeStep(1); true })
+                add(CustomAccessibilityAction(volumeDownLabel) { volumeStep(-1); true })
+                skip?.let { run ->
+                    add(CustomAccessibilityAction(skipBackLabel) { run(-1); true })
+                    add(CustomAccessibilityAction(skipForwardLabel) { run(1); true })
+                }
             }
             customActions = directionLabels.map { (code, label) ->
                 CustomAccessibilityAction(label) {
                     key(code)
                     true
                 }
-            }
+            } + gestureActions
         }
     }
-    // In D-pad mode the disc is the surface: the rounded rectangle fades out behind it, so the
-    // only shape on screen is the one that answers a tap.
-    val surfaceColor by animateColorAsState(
-        targetValue = if (mode == PadMode.TOUCHPAD) MaterialTheme.colorScheme.surfaceContainerHigh else Color.Transparent,
-        animationSpec = tween(durationMillis = 200),
-        label = "padSurface",
-    )
+    // One surface in both modes, the same box, corner and tone (Erwann, 2026-10-24: "D-pad et
+    // touchpad" the same size): switching modes changes what is on it, never its size. In D-pad
+    // mode the disc sits on it a tone up, and the whole surface answers (dpadZone).
+    val surfaceColor = MaterialTheme.colorScheme.surfaceContainerHigh
 
-    // The mode switch lives under the pad (PadModeSwitch), never on it: touchpadGestures reads
-    // every touch, consumed or not, so anything drawn over the surface also reached the TV as OK.
-    Box(
+    // The launch intro's ring becomes this surface, in either mode: it reads its box and corner.
+    val introAnchors = LocalIntroAnchors.current
+    val cornerPx = with(LocalDensity.current) { PAD_CORNER.toPx() }
+    DisposableEffect(introAnchors) { onDispose { introAnchors.touchpad = null } }
+    val touchpadAnchor = Modifier.onGloballyPositioned { introAnchors.touchpad = TouchpadAnchor(it.boundsInWindow(), cornerPx) }
+
+    // The mode switch sits on the surface (PadModeSwitch) but never reads a touch: touchpadGestures reads
+    // every touch, consumed or not, so the pad hit-tests the corner itself and a tap there is only the switch.
+    // The D-pad face fades in and out; it also scales unless motion is reduced.
+    val reducedMotion = LocalReducedMotion.current
+    val faceShown by animateFloatAsState(
+        targetValue = if (mode == PadMode.DPAD) 1f else 0f,
+        animationSpec = snappyOrFade(),
+        label = "dpadFace",
+    )
+    // Down is the down dress: the surface keeps its shape, solid and quieter (downFill), and what
+    // sends (the chevrons, OK, the switch) fades to DOWN_INK, so the big pad reads as waiting, not
+    // broken and not an editor's empty place. Opacity alone, which is also its reduced-motion form.
+    val live by animateFloatAsState(if (down) DOWN_INK else 1f, linkFade(down), label = "padLive")
+    val surface by animateColorAsState(if (down) downFill(surfaceColor) else surfaceColor, linkFade(down), label = "padSurface")
+    BoxWithConstraints(
         modifier = modifier
-            .clip(RoundedCornerShape(36.dp))
-            .background(surfaceColor)
+            .then(touchpadAnchor)
+            .clip(RoundedCornerShape(PAD_CORNER))
+            .background(surface)
             .then(semanticsModifier)
             .drawBehind {
-                dots.forEach { dot ->
-                    drawCircle(glowColor.copy(alpha = DOT_ALPHA * dot.alpha.value), radius = DOT_RADIUS.toPx(), center = dot.at)
-                }
                 if (glow.isSpecified && glowAlpha.value > 0f) {
                     drawCircle(
                         brush = Brush.radialGradient(
@@ -289,37 +478,71 @@ fun Pad(
     ) {
         val tagAlpha by animateFloatAsState(if (tagVisible) 1f else 0f, tween(durationMillis = Motion.FADE_OUT), label = "volumeTag")
         if (tagAlpha > 0f) {
+            val steps = tagSkip
             ValueTag(
-                stringResource(R.string.pad_volume_tag, tagLevel),
+                if (steps == null) {
+                    stringResource(R.string.pad_volume_tag, tagLevel)
+                } else {
+                    val way = stringResource(if (steps < 0) R.string.pad_skip_back else R.string.pad_skip_forward)
+                    if (abs(steps) > 1) stringResource(R.string.pad_skip_times, way, abs(steps)) else way
+                },
                 Modifier
                     .align(Alignment.TopCenter)
                     .padding(top = 16.dp)
                     .graphicsLayer { alpha = tagAlpha },
             )
         }
-        if (mode == PadMode.DPAD) {
+        if (mode == PadMode.DPAD || faceShown > 0f) {
+            // The launch intro's OK lands here: it reads where the live D-pad is drawn.
+            val anchors = LocalIntroAnchors.current
+            DisposableEffect(anchors) { onDispose { anchors.pad = null } }
+            // The face is a square of the disc's own size, shrunk if needed so it clears the switch's corner.
+            val faceSide = with(LocalDensity.current) {
+                (2f * dpadFaceRadius(constraints.maxWidth.toFloat(), constraints.maxHeight.toFloat(), (if (switchable) PAD_SWITCH_ZONE.dp.toPx() else 0f), switchOnLeft)).toDp()
+            }
             DpadFace(
                 pressedZone = pressedZone,
                 pressed = pressAlpha.value,
-                reduced = LocalReducedMotion.current,
+                reduced = reducedMotion,
                 okRing = okRing.value,
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .size(faceSide)
+                    .graphicsLayer {
+                        alpha = faceShown.coerceIn(0f, 1f) * live
+                        val scale = if (reducedMotion) 1f else 0.92f + 0.08f * faceShown
+                        scaleX = scale
+                        scaleY = scale
+                    }
+                    .onGloballyPositioned { if (mode == PadMode.DPAD) anchors.pad = it.boundsInWindow() },
+            )
+        }
+        if (switchable) {
+            PadModeSwitch(
+                mode = mode,
+                pressed = switchPressed,
+                onSwitch = ::switchTo,
+                atLeft = switchOnLeft,
+                modifier = Modifier
+                    .align(if (switchOnLeft) AbsoluteAlignment.TopLeft else AbsoluteAlignment.TopRight)
+                    .graphicsLayer { alpha = live },
             )
         }
     }
 }
 
 /**
- * The D-pad face. Geometry comes from the same fractions as [dpadZone], so what is drawn is
- * what answers: the OK disc and its moat are the centre zone, each quarter of the ring between
- * the diagonals is a direction. [pressed] (0..1) lights [pressedZone] with a state layer and
- * brings its chevron to full contrast. Tonal only: no outlines, no dividers. [okRing] (0..1) is
- * the long-press sweep, drawn in the moat round OK.
+ * The D-pad face, drawn on the pad's surface a tone up. Geometry comes from the same fractions
+ * as [dpadZone], so what is drawn is what answers: the OK disc and its moat are the centre zone,
+ * each quarter of the ring between the diagonals is a direction (and so is the surface round it,
+ * along the same diagonals). [pressed] (0..1) lights [pressedZone] with a state layer and brings
+ * its chevron to full contrast. Tonal only: no outlines, no dividers. [okRing] (0..1) is the
+ * long-press sweep, drawn in the moat round OK.
  */
 @Composable
 internal fun DpadFace(pressedZone: Int?, pressed: Float, modifier: Modifier = Modifier, reduced: Boolean = false, okRing: Float = 0f) {
     val scheme = MaterialTheme.colorScheme
-    val disc = scheme.surfaceContainerHigh
+    val disc = scheme.surfaceContainerHighest
     val chevron = scheme.onSurfaceVariant
     val chevronPressed = scheme.onSurface
     val ringLayer = scheme.onSurface
@@ -379,7 +602,8 @@ internal fun DpadFace(pressedZone: Int?, pressed: Float, modifier: Modifier = Mo
     }
 }
 
-private fun DrawScope.drawChevron(code: Int, distance: Float, arm: Float, color: Color, stroke: Stroke) {
+/** One chevron, [distance] from [centre] (the face's own centre by default); the launch intro draws them too. */
+internal fun DrawScope.drawChevron(code: Int, distance: Float, arm: Float, color: Color, stroke: Stroke, centre: Offset = center) {
     // Pointing up, the tip sits a little outward of the ring's middle line; rotate for the others.
     val (ux, uy) = when (code) {
         V2Key.DPAD_UP -> 0f to -1f
@@ -387,8 +611,8 @@ private fun DrawScope.drawChevron(code: Int, distance: Float, arm: Float, color:
         V2Key.DPAD_LEFT -> -1f to 0f
         else -> 1f to 0f
     }
-    val tip = center + Offset(ux, uy) * (distance + arm * 0.25f)
-    val back = center + Offset(ux, uy) * (distance - arm * 0.75f)
+    val tip = centre + Offset(ux, uy) * (distance + arm * 0.25f)
+    val back = centre + Offset(ux, uy) * (distance - arm * 0.75f)
     val side = Offset(-uy, ux) * arm
     val path = Path().apply {
         moveTo(back.x + side.x, back.y + side.y)
@@ -405,15 +629,22 @@ private fun sweepStart(code: Int): Float = when (code) {
     else -> 225f
 }
 
-/** The key under [at], or null outside the disc (with a little slack for a thumb's edge). */
-private fun dpadZone(at: Offset, width: Float, height: Float): Int? {
+/**
+ * The key under [at] in a pad of [width] x [height]: OK inside the centre zone, else the direction
+ * of the quarter between the diagonals, anywhere on the surface (the D-pad is the whole surface,
+ * as the touchpad is), except the switch's top [corner] square, which is null. Same units throughout.
+ */
+internal fun dpadZone(at: Offset, width: Float, height: Float, corner: Float, cornerOnLeft: Boolean): Int? {
+    if (inPadSwitchCorner(at.x, at.y, width, corner, cornerOnLeft)) return null
     val dx = at.x - width / 2f
     val dy = at.y - height / 2f
-    val radius = min(width, height) / 2f
+    val radius = dpadFaceRadius(width, height, corner, cornerOnLeft)
     val distance = Offset(dx, dy).getDistance()
+    // Only the drawn disc answers: the surface round it is the touchpad's plate, inert in D-pad
+    // mode (Erwann, 2026-10-24: "on devrait activer les flèches que quand on touche les flèches").
     return when {
+        distance > radius -> null
         distance < radius * CENTRE_FRACTION -> V2Key.DPAD_CENTER
-        distance > radius * (DISC_FRACTION + SLACK_FRACTION) -> null
         abs(dx) > abs(dy) -> if (dx > 0) V2Key.DPAD_RIGHT else V2Key.DPAD_LEFT
         else -> if (dy > 0) V2Key.DPAD_DOWN else V2Key.DPAD_UP
     }
@@ -421,14 +652,41 @@ private fun dpadZone(at: Offset, width: Float, height: Float): Int? {
 
 private val DIRECTIONS = listOf(V2Key.DPAD_UP, V2Key.DPAD_DOWN, V2Key.DPAD_LEFT, V2Key.DPAD_RIGHT)
 
-/** Disc radius, as a fraction of half the pad's shorter side. */
+/** The D-pad's OK radius in a face of [width] x [height] px, moat of [moat] px off, as [DpadFace] draws it. */
+internal fun dpadOkRadius(width: Float, height: Float, moat: Float): Float = min(width, height) / 2f * CENTRE_FRACTION - moat
+
+/** The D-pad disc's outer edge in a face of [width] x [height] px, as [DpadFace] draws it. */
+internal fun dpadEdgeRadius(width: Float, height: Float): Float = min(width, height) / 2f * DISC_FRACTION
+
+/** The ring's inner edge (OK plus its moat) in a face of [width] x [height] px, as [DpadFace] draws it. */
+internal fun dpadRingInner(width: Float, height: Float): Float = min(width, height) / 2f * CENTRE_FRACTION
+
+/** A resting chevron's arm in a face of [width] x [height] px, as [DpadFace] draws it. */
+internal fun dpadChevronArm(width: Float, height: Float): Float = (dpadEdgeRadius(width, height) - dpadRingInner(width, height)) * 0.18f
+
+/** A resting chevron's stroke width, as [DpadFace] draws it. */
+internal val DPAD_CHEVRON_STROKE = 3.5.dp
+
+/** The pad surface's corner (touchpad mode), which the launch intro's ring lands on. */
+internal val PAD_CORNER = 36.dp
+
+/** The directions clockwise from the top, for anything that plays the chevrons in turn. */
+internal val DPAD_CLOCKWISE = listOf(V2Key.DPAD_UP, V2Key.DPAD_RIGHT, V2Key.DPAD_DOWN, V2Key.DPAD_LEFT)
+
+/** Disc radius, as a fraction of half the face's side ([dpadFaceRadius]). */
 private const val DISC_FRACTION = 0.94f
 
 /** OK zone radius (disc plus its moat), same unit; drawn and hit-tested alike. */
 private const val CENTRE_FRACTION = 0.38f
 
-/** Taps this far past the disc's edge still count, so a thumb on the rim is not lost. */
+/** The clear margin kept between the disc's edge and the switch's corner, same unit. */
 private const val SLACK_FRACTION = 0.06f
+
+/**
+ * How far the drawn disc and its margin reach, as a fraction of the face's half side: what
+ * [dpadFaceRadius] keeps out of the switch's corner, so the glyph never sits on the ring.
+ */
+internal const val DPAD_REACH = DISC_FRACTION + SLACK_FRACTION
 
 /** Material 3's pressed state layer is 10%; a little more reads on a dark surface. */
 private const val PRESSED_LAYER = 0.14f
@@ -442,15 +700,6 @@ private val OK_RING_WIDTH = 3.dp
 /** How far a pressed chevron steps outward; none when motion is reduced. */
 private val CHEVRON_TRAVEL = 3.dp
 
-/** A swipe step's dot: where the finger was, fading over [DOT_FADE_MS]. */
-private class StepDot(val at: Offset) {
-    val alpha: Animatable<Float, AnimationVector1D> = Animatable(1f)
-}
-
-private const val DOT_FADE_MS = 250
-private const val DOT_ALPHA = 0.5f
-private val DOT_RADIUS = 5.dp
-
 /** How long the "Vol 24" tag stays after the last two-finger step. */
 private const val TAG_MS = 900L
 
@@ -458,91 +707,182 @@ private const val TAG_MS = 900L
 private const val HALO_ALPHA = 0.16f
 
 /**
- * One gesture at a time: a swipe emits a D-pad step every [STEP_DP] along its dominant axis;
- * a still finger held past the long-press timeout is a long Select; two fingers become
+ * One gesture at a time: a swipe emits a D-pad step every [STEP_DP] along its dominant axis,
+ * and a finger that rests after a step (within touch slop) repeats it on the [KeyRepeat] schedule
+ * until it moves or lifts; a still finger held past the long-press timeout holds OK down on the TV
+ * until it lifts or a second finger lands ([OkHold]); two fingers become
  * play/pause (tap) or bar volume (vertical drag, one step per [VOLUME_STEP_DP]).
  */
 private suspend fun PointerInputScope.touchpadGestures(
+    inCorner: (Offset) -> Boolean,
+    onCornerPress: (Boolean) -> Unit,
+    onSwitch: () -> Unit,
     onStep: (Int) -> Unit,
     onTap: (Offset) -> Unit,
-    onLong: () -> Unit,
+    onHold: (Boolean) -> Unit,
     onTwoFingerTap: () -> Unit,
-    onTwoFingerStep: (Int) -> Unit,
+    onTwoFingerStep: (TwoFingerStep) -> Unit,
     onDown: (Offset) -> Unit,
     onUp: () -> Unit,
     onMove: (Offset) -> Unit,
 ) {
     val stepPx = STEP_DP.dp.toPx()
-    val volumeStepPx = VOLUME_STEP_DP.dp.toPx()
     val slop = viewConfiguration.touchSlop
     val longPressMillis = viewConfiguration.longPressTimeoutMillis
-    awaitEachGesture {
-        val down = awaitFirstDown(requireUnconsumed = false)
-        onDown(down.position)
-        var pointers = 1
-        var moved = false
-        var longFired = false
-        var travel = Offset.Zero
-        var accumulated = Offset.Zero
-        var volumeAccumulated = 0f
-        var volumeTravel = 0f
-        var lastUptime = down.uptimeMillis
-        while (true) {
-            val event: PointerEvent? = if (!moved && !longFired && pointers == 1) {
-                val remaining = (longPressMillis - (lastUptime - down.uptimeMillis)).coerceAtLeast(1L)
-                withTimeoutOrNull(remaining) { awaitPointerEvent() }
-            } else {
-                awaitPointerEvent()
+    val pxPerDp = 1.dp.toPx()
+    coroutineScope {
+        // The steps a fling carries after its lift; the next touch-down stops them.
+        var fling: Job? = null
+        awaitEachGesture {
+            val down = awaitFirstDown(requireUnconsumed = false)
+            val hold = OkHold()
+            // A touch that stops a fling only stops it: no OK, as a finger stops a scrolling list.
+            val stoppedFling = fling?.isActive == true
+            fling?.cancel()
+            fling = null
+            // The corner is the switch's own key: no halo, no long Select, and a still tap there only switches.
+            val startedInCorner = inCorner(down.position)
+            if (startedInCorner) onCornerPress(true) else onDown(down.position)
+            var pointers = 1
+            var moved = false
+            var longFired = false
+            var travel = Offset.Zero
+            var accumulated = Offset.Zero
+            val twoFinger = TwoFingerTrack(slop, VOLUME_STEP_DP.dp.toPx(), SKIP_STEP_DP.dp.toPx())
+            val velocity = VelocityTracker().apply { addPosition(down.uptimeMillis, down.position) }
+            var lastUptime = down.uptimeMillis
+            // The repeat after a step: where the finger rested when it went, and the running job.
+            var restAt = Offset.Unspecified
+            var repeater: Job? = null
+            fun stopRepeat() {
+                repeater?.cancel()
+                repeater = null
+                restAt = Offset.Unspecified
             }
-            if (event == null) {
-                longFired = true
-                onLong()
-                continue
+            fun step(code: Int, at: Offset) {
+                onStep(code)
+                stopRepeat()
+                restAt = at
+                repeater = launch { KeyRepeat.run { onStep(code) } }
             }
-            val pressed = event.changes.filter { it.pressed }
-            if (pressed.isEmpty()) break
-            lastUptime = event.changes.first().uptimeMillis
-            if (pressed.size > pointers) pointers = pressed.size
-            if (pointers >= 2) {
-                val dy = pressed.map { it.positionChange().y }.average().toFloat()
-                volumeAccumulated += dy
-                volumeTravel += abs(dy)
-                if (volumeTravel > slop) moved = true
-                while (volumeAccumulated <= -volumeStepPx) {
-                    onTwoFingerStep(1)
-                    volumeAccumulated += volumeStepPx
+            try {
+                while (true) {
+                    val event: PointerEvent? = if (!moved && !longFired && pointers == 1) {
+                        val remaining = (longPressMillis - (lastUptime - down.uptimeMillis)).coerceAtLeast(1L)
+                        withTimeoutOrNull(remaining) { awaitPointerEvent() }
+                    } else {
+                        awaitPointerEvent()
+                    }
+                    if (event == null) {
+                        longFired = true
+                        if (!startedInCorner && hold.timeout() == OkHoldEffect.HOLD) onHold(true)
+                        continue
+                    }
+                    val pressed = event.changes.filter { it.pressed }
+                    if (pressed.isEmpty()) break
+                    if (pressed.size > 1) {
+                        stopRepeat()
+                        // A second finger is a two-finger gesture: a held OK comes up first.
+                        if (hold.interrupt() == OkHoldEffect.RELEASE) onHold(false)
+                    }
+                    lastUptime = event.changes.first().uptimeMillis
+                    if (pressed.size > pointers) pointers = pressed.size
+                    if (pointers >= 2) {
+                        val dx = pressed.map { it.positionChange().x }.average().toFloat()
+                        val dy = pressed.map { it.positionChange().y }.average().toFloat()
+                        twoFinger.move(dx, dy).forEach(onTwoFingerStep)
+                        if (twoFinger.moved) moved = true
+                    } else if (!longFired) {
+                        val change = pressed.first()
+                        val delta = change.positionChange()
+                        velocity.addPosition(change.uptimeMillis, change.position)
+                        // Leaving the corner's slop turns its press into a swipe: the icon lets go.
+                        if (startedInCorner && !moved && (travel + delta).getDistance() > slop) onCornerPress(false)
+                        onMove(change.position)
+                        travel += delta
+                        accumulated += delta
+                        if (!moved && travel.getDistance() > slop) moved = true
+                        // Moving again ends the repeat; the travel goes on counting steps as before.
+                        if (restAt.isSpecified && (change.position - restAt).getDistance() > slop) stopRepeat()
+                        if (moved) {
+                            if (abs(accumulated.x) >= stepPx && abs(accumulated.x) >= abs(accumulated.y)) {
+                                val right = accumulated.x > 0
+                                step(if (right) V2Key.DPAD_RIGHT else V2Key.DPAD_LEFT, change.position)
+                                accumulated = Offset(accumulated.x - if (right) stepPx else -stepPx, 0f)
+                            } else if (abs(accumulated.y) >= stepPx && abs(accumulated.y) > abs(accumulated.x)) {
+                                val downwards = accumulated.y > 0
+                                step(if (downwards) V2Key.DPAD_DOWN else V2Key.DPAD_UP, change.position)
+                                accumulated = Offset(0f, accumulated.y - if (downwards) stepPx else -stepPx)
+                            }
+                        }
+                    }
+                    event.changes.forEach { it.consume() }
                 }
-                while (volumeAccumulated >= volumeStepPx) {
-                    onTwoFingerStep(-1)
-                    volumeAccumulated -= volumeStepPx
-                }
-            } else if (!longFired) {
-                val change = pressed.first()
-                val delta = change.positionChange()
-                onMove(change.position)
-                travel += delta
-                accumulated += delta
-                if (!moved && travel.getDistance() > slop) moved = true
-                if (moved) {
-                    if (abs(accumulated.x) >= stepPx && abs(accumulated.x) >= abs(accumulated.y)) {
-                        val right = accumulated.x > 0
-                        onStep(if (right) V2Key.DPAD_RIGHT else V2Key.DPAD_LEFT)
-                        accumulated = Offset(accumulated.x - if (right) stepPx else -stepPx, 0f)
-                    } else if (abs(accumulated.y) >= stepPx && abs(accumulated.y) > abs(accumulated.x)) {
-                        val downwards = accumulated.y > 0
-                        onStep(if (downwards) V2Key.DPAD_DOWN else V2Key.DPAD_UP)
-                        accumulated = Offset(0f, accumulated.y - if (downwards) stepPx else -stepPx)
+                stopRepeat()
+            } finally {
+                // Lifted, or the touch was cancelled (the pad went down, the screen left): never leave OK held.
+                if (hold.end() == OkHoldEffect.RELEASE) onHold(false)
+            }
+            onUp()
+            if (startedInCorner) onCornerPress(false)
+            // A one-finger swipe lifted at speed carries on (PadFling); a finger that rested before
+            // lifting has no speed left, so a hold-and-lift never flings.
+            if (moved && !longFired && pointers == 1) {
+                val v = velocity.calculateVelocity()
+                val code = PadFling.direction(v.x, v.y)
+                val along = if (code == V2Key.DPAD_LEFT || code == V2Key.DPAD_RIGHT) v.x else v.y
+                val plan = PadFling.schedule(along / pxPerDp, STEP_DP.toFloat())
+                if (plan.isNotEmpty()) {
+                    fling = launch {
+                        var at = 0L
+                        for (next in plan) {
+                            delay(next - at)
+                            at = next
+                            onStep(code)
+                        }
                     }
                 }
             }
+            when (padTouchEnd(moved, longFired, pointers, startedInCorner)) {
+                PadTouchEnd.TWO_FINGER_TAP -> onTwoFingerTap()
+                PadTouchEnd.SWITCH -> onSwitch()
+                PadTouchEnd.TAP -> if (!stoppedFling) onTap(down.position)
+                PadTouchEnd.NOTHING -> Unit
+            }
+        }
+    }
+}
+
+/**
+ * The D-pad's two-finger layer, read on the Initial pass so it sees a second finger before the
+ * D-pad's tap detector does: from then on it consumes every change, which cancels the D-pad's
+ * press (no OK, no direction, its repeat stops). One finger alone passes straight through.
+ */
+private suspend fun PointerInputScope.twoFingerGestures(onTap: () -> Unit, onStep: (TwoFingerStep) -> Unit) {
+    val slop = viewConfiguration.touchSlop
+    awaitEachGesture {
+        awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+        var two = false
+        val track = TwoFingerTrack(slop, VOLUME_STEP_DP.dp.toPx(), SKIP_STEP_DP.dp.toPx())
+        while (true) {
+            val event = awaitPointerEvent(PointerEventPass.Initial)
+            val pressed = event.changes.filter { it.pressed }
+            if (pressed.isEmpty()) break
+            if (pressed.size >= 2) two = true
+            if (!two) continue
+            val dx = pressed.map { it.positionChange().x }.average().toFloat()
+            val dy = pressed.map { it.positionChange().y }.average().toFloat()
+            track.move(dx, dy).forEach(onStep)
             event.changes.forEach { it.consume() }
         }
-        onUp()
-        if (!moved && !longFired) {
-            if (pointers >= 2) onTwoFingerTap() else onTap(down.position)
-        }
+        if (two && !track.moved) onTap()
     }
 }
 
 private const val STEP_DP = 44
 private const val VOLUME_STEP_DP = 14
+
+/** One skip per this much two-finger travel: a short flick is one 10 s jump, a long drag a few. */
+private const val SKIP_STEP_DP = 72
+
+/** How far a down pad's face and switch dim: enough to read as waiting, the glyphs still legible. */
