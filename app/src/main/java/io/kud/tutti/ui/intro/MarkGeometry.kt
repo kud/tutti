@@ -1,12 +1,11 @@
 package io.kud.tutti.ui.intro
 
 /**
- * The launcher mark's geometry, in its 108-unit adaptive-icon viewport: one ivory handset, a small
- * top button, the OK and an amber pill. The vectors (ic_launcher_foreground, ic_launcher_monochrome,
- * splash_icon) spell out the same numbers by hand, and the launch intro draws from these, so the
- * system splash and the first frame of the intro are the same picture (2026-10-24, from the
- * v2 brand study: the taller handset, the top button and the heavier pill; not its dial ring,
- * gradients or glow).
+ * The splash and animated intro mark's geometry, in a 108-unit viewport: an ivory handset,
+ * top button, OK and amber pill. splash_icon.xml mirrors these numbers, preserving the
+ * transition between system splash and first intro frame. The home-screen launcher icon
+ * now has independently approved v2 artwork, so changing the launcher does not alter
+ * the launch choreography.
  */
 internal object MarkGeometry {
     const val VIEWPORT = 108f

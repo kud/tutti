@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Launch screen: the splash lockup, the launcher mark (ic_launcher_foreground) over the lowercase
+  Launch screen: the splash lockup, the existing intro mark over the lowercase
   "tutti", still, in the theme's colours, so the first frame already reads the name (Erwann,
   2026-10-24). The lockup is the mark scaled by MarkGeometry.LOCKUP_SCALE with its middle on the
   icon's centre, inside the splash's visible 192 dp circle (MarkGeometry.SPLASH_RADIUS) on Android

@@ -25,7 +25,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** The launcher mark survives every adaptive mask, and the vectors draw what the intro draws. */
+/** The intro and splash remain consistent; the launcher may use independent v2 artwork. */
 class MarkGeometryTest {
     private fun f(v: Float) = if (v == v.toInt().toFloat()) v.toInt().toString() else v.toString()
 
@@ -50,7 +50,7 @@ class MarkGeometryTest {
     }
 
     @Test
-    fun `the launcher, themed and splash vectors spell the same handset and OK`() {
+    fun `the splash vector spells the same handset and OK as the intro`() {
         val w = BODY_RIGHT - BODY_LEFT - 2 * BODY_CORNER
         val h = BODY_BOTTOM - BODY_TOP - 2 * BODY_CORNER
         val r = f(BODY_CORNER)
@@ -58,11 +58,32 @@ class MarkGeometryTest {
         val ok = "M${f(CENTRE)},${f(OK_Y - OK_RADIUS)}a${f(OK_RADIUS)},${f(OK_RADIUS)}"
         val top = "M${f(CENTRE)},${f(TOP_Y - TOP_RADIUS)}a${f(TOP_RADIUS)},${f(TOP_RADIUS)}"
         val pill = "M${f(PILL_LEFT + (PILL_BOTTOM - PILL_TOP) / 2f)},${f(PILL_TOP)}h"
-        for (name in listOf("ic_launcher_foreground", "ic_launcher_monochrome", "splash_icon")) {
+        for (name in listOf("splash_icon")) {
             val xml = File("src/main/res/drawable/$name.xml").readText()
             for (part in listOf(body, ok, top, pill)) assertTrue("$name lacks $part", part in xml)
         }
     }
+
+    @Test
+    fun `the launcher vectors preserve the approved v2 geometry`() {
+        // The launcher can change without modifying the established splash/intro animation.
+        val approved = File("../design/branding/v2/android/ic_launcher_foreground.xml").readText()
+        val foreground = File("src/main/res/drawable/ic_launcher_foreground.xml").readText()
+        val themed = File("src/main/res/drawable/ic_launcher_monochrome.xml").readText()
+        fun paths(xml: String) =
+            Regex("""android:pathData="([^"]+)"""").findAll(xml).map { it.groupValues[1] }.toList()
+
+        val v2 = paths(approved)
+        assertEquals("handset, top button, navigation disc, centre and amber pill", 5, v2.size)
+        assertEquals("production matches tested icon", v2, paths(foreground))
+        assertEquals("monochrome uses the same geometry", listOf(v2.joinToString("")), paths(themed))
+        assertTrue("monochrome has cut-outs", """android:fillType="evenOdd"""" in themed)
+        assertTrue("ivory handset", "#FFF4EFE7" in foreground)
+        assertTrue("amber button", "#FFE5A14A" in foreground)
+        // Approved geometry retains a 7.25-unit gap from the disc to the amber pill.
+        assertTrue(70.39f - (51.61f + 11.53f) >= 4f)
+    }
+
     @Test
     fun `the wordmark sits centred under the handset, close enough to read as one lockup`() {
         val s = Wordmark.SCALE

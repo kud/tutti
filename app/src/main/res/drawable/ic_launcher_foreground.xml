@@ -1,23 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-  The remote: an ivory handset, its small top button, the OK and an amber pill, inside the 66dp
-  safe zone. Geometry: ui/intro/MarkGeometry.kt, which the launch intro draws from; keep them equal.
--->
+<!-- Approved v2 launcher artwork. The splash and intro retain their established mark. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <path
-        android:fillColor="#FFF2EDE4"
-        android:pathData="M50,25h8a13,13 0,0 1,13 13v32a13,13 0,0 1,-13 13h-8a13,13 0,0 1,-13 -13v-32a13,13 0,0 1,13 -13z" />
-    <path
-        android:fillColor="#FF1C1B22"
-        android:pathData="M54,29.5a2.5,2.5 0,1 1,0 5a2.5,2.5 0,1 1,0 -5z" />
-    <path
-        android:fillColor="#FF1C1B22"
-        android:pathData="M54,40a10,10 0,1 1,0 20a10,10 0,1 1,0 -20z" />
-    <path
-        android:fillColor="#FFE3A35B"
-        android:pathData="M48,69h12a3,3 0,0 1,0 6h-12a3,3 0,0 1,0 -6z" />
+    <path android:fillColor="#FFF4EFE7" android:pathData="M49.06,26.25h9.88a9.72,9.72 0,0 1,9.72 9.72v36.06a9.72,9.72 0,0 1,-9.72 9.72h-9.88a9.72,9.72 0,0 1,-9.72 -9.72v-36.06a9.72,9.72 0,0 1,9.72 -9.72z" />
+    <path android:fillColor="#FF1C1B22" android:pathData="M54,31.68a2.31,2.31 0,1 1,0 4.62a2.31,2.31 0,1 1,0 -4.62z" />
+    <path android:fillColor="#FF1C1B22" android:pathData="M54,40.08a11.53,11.53 0,1 1,0 23.06a11.53,11.53 0,1 1,0 -23.06z" />
+    <path android:fillColor="#FF424047" android:pathData="M54,46.18a5.43,5.43 0,1 1,0 10.86a5.43,5.43 0,1 1,0 -10.86z" />
+    <path android:fillColor="#FFE5A14A" android:pathData="M47.17,70.39h13.66a2.555,2.555 0,0 1,0 5.11h-13.66a2.555,2.555 0,0 1,0 -5.11z" />
 </vector>
