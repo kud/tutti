@@ -1,0 +1,1 @@
+New in 0.3.2: a new app icon. tutti now follows an app you open with the TV's own remote, instead of staying on the one before. Sharing what's on works again on Android 10 to 12. A pinned app's badge in the dock is no longer cut off.

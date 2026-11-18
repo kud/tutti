@@ -1,0 +1,1 @@
+Nouveau en 0.3.2 : une nouvelle icône. tutti suit désormais l’app ouverte avec la télécommande de la TV, au lieu de rester sur la précédente. Le partage refonctionne sur Android 10 à 12. Le badge d’une app épinglée dans le dock n’est plus coupé.
