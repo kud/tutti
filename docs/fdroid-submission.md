@@ -90,7 +90,7 @@ fdroid lint app.beansontoast.tutti
 fdroid build -v -l app.beansontoast.tutti   # downloads Binaries and compares
 ```
 
-These were not run for this version of the recipe: the session that wrote it could not install fdroidserver. The merge request's pipeline runs all of them.
+These have not been run on this version of the recipe yet; the merge request's pipeline runs all of them.
 
 ## Merge request
 
