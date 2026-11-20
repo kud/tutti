@@ -6,6 +6,7 @@ Everything Erwann needs to open the merge request to [`fdroid/fdroiddata`](https
 
 The first F-Droid version is **0.3.2**, built reproducibly so F-Droid publishes the APK signed with tutti's release key. F-Droid's template is explicit: without reproducible builds "the apk will be signed with our key so you can't enable it later". 0.3.1 cannot be verified (no release-signed fdroid APK, and a dependency-metadata signing block fdroidserver rejects), so it is not submitted.
 
+0. **Wait until 2027-01-20.** F-Droid's inclusion policy, Quality Control point 6 (the one the template asks to "pay special attention" to): "The application should have been actively developed for at least 3 months", unless it has proven users, the author maintains other apps on F-Droid, or it is for an event. tutti's first commit is 2026-10-20, so the earliest submission that meets it is 2027-01-20. None of the exceptions holds yet. Opening the merge request earlier risks it being closed.
 1. **Merge** the reproducible-builds pull request (`fix/fdroid-reproducible-builds`): `dependenciesInfo` off, JDK 21 releases, `tutti-<version>-fdroid.apk` attached to final releases after an `apksigcopier compare` against a clean unsigned rebuild.
 2. **Tag `v0.3.2`** on that `main` (a final release, so it waits for Erwann's word). The release job must end green: if the fdroid APK does not reproduce, it fails before publishing.
 3. **Check the release** carries `tutti-0.3.2.apk`, `tutti-0.3.2-fdroid.apk` and the mapping, and that the fdroid APK is signed with the expected certificate:
@@ -100,9 +101,13 @@ These have not been run on this version of the recipe yet; the merge request's p
 New app: tutti
 ```
 
-**Description** (fdroiddata's default template, filled in)
+**Description** (fdroiddata's default template, `.gitlab/merge_request_templates/Default.md`, copied verbatim section by section with every checkbox; answers are indented under their item)
 
-```markdown
+````markdown
+<!--TEMPLATE FOR NEW APP INCLUSION! For updates or other types of MRs replace the text below-->
+
+
+
 ## Abstract for new app inclusion
 
 ### Please introduce the functions and usage of your app in summary, and also attach some screenshots.
@@ -113,6 +118,8 @@ tutti is a remote for one living room: a Sony BRAVIA TV on Google TV, a BRAVIA T
 - Soundbar control over the Theatre Bar's IP control (TCP 33336): volume, sound field, night mode, bass and rear level
 - Scenes (one tap sets input or app, picture mode and a volume cap), a widget, Quick Settings tiles, a media notification, a switch-off timer
 - Devices pinned on first pairing; pairing material encrypted with an Android Keystore key and excluded from backups
+
+Anti-features, declared in the recipe: `NonFreeAssets` (app buttons show third-party app logos, some taken from Google Play) and `NonFreeNet` (optional features, each off by default and all off under "Only free services", reach Stremio's Cinemeta and image hosts: YouTube, Google, TMDB, Stremio). The rest of the traffic is to the user's own TV and soundbar on the LAN (Android TV Remote v2 over TLS, the bar's IP control, Sony's local REST API, Cast, mDNS, Wake-on-LAN); I did not declare NonFreeNet for that local control, since it reaches the user's own device with no service in between, and I'm glad to change it if you read it differently. Setup and room calibration hand off to Sony's BRAVIA Connect (its store page when missing), which I did not count as NonFreeAdd. The recipe builds the `fdroid` flavour, which has no self-updater (no `REQUEST_INSTALL_PACKAGES`, no update code; a Gradle check and a unit test enforce it); the `github` flavour keeps its updater for GitHub installs. Dependencies: AndroidX/Compose, Hilt, Kotlin, kotlinx, OkHttp, Wire, BouncyCastle, from Google Maven and Maven Central; no Play Services, Firebase or Cast SDK.
 
 Screenshots (rendered from invented fixtures, also in the fastlane folder):
 
@@ -129,8 +136,10 @@ I wrote it to stop depending on BRAVIA Connect, which needs a Sony account and t
 ### Policy
 
 * [x] The app complies with the [inclusion policy](https://f-droid.org/docs/Inclusion_Policy). _Pay special attention to Quality point 6._
-* [x] The original app author has been notified (and does not oppose the inclusion). I am the author.
-* [x] The upstream app source code repo contains the app metadata in a [Fastlane](https://gitlab.com/snippets/1895688) or [Triple-T](https://gitlab.com/snippets/1901490) folder structure. `fastlane/metadata/android/` has `en-US` and `fr-FR`: title, short and full description, changelogs, icon (en-US) and six phone screenshots each.
+* [x] The original app author has been notified (and does not oppose the inclusion). If you are not the author, please paste the link of the reply from the author.
+  I am the author.
+* [x] The upstream app source code repo contains the app metadata in a [Fastlane](https://gitlab.com/snippets/1895688) or [Triple-T](https://gitlab.com/snippets/1901490) folder structure. The summary and description must be included and images, icon, and changelog should also be provided for better user experience. The `en-US` locale must be included.
+  `fastlane/metadata/android/` has `en-US` and `fr-FR`: title, short and full description, changelogs, icon (en-US) and six phone screenshots each.
 
 ### Docs
 
@@ -142,9 +151,10 @@ I wrote it to stop depending on BRAVIA Connect, which needs a Sony account and t
 ### Merge Request Setup
 
 * [x] The title of this merge request should follow "New app: app name" format.
-* [x] Please make sure your fdroiddata fork is public and your branch is not protected.
+* [x] Please make sure your fdroiddata fork is public and your branch is not protected. See <https://docs.gitlab.com/user/project/repository/branches/protected/>.
 * [x] Please read [our Git guide](https://gitlab.com/fdroid/wiki/-/wikis/Tips-for-fdroiddata-contributors/Git-Usage) if you don't know how to rebase your branch. Don't rebase your branch if there is no conflict.
-* [x] All related [fdroiddata](https://gitlab.com/fdroid/fdroiddata/issues) and [RFP issues](https://gitlab.com/fdroid/rfp/issues) have been referenced in this merge request. There are none.
+* [x] All related [fdroiddata](https://gitlab.com/fdroid/fdroiddata/issues) and [RFP issues](https://gitlab.com/fdroid/rfp/issues) have been referenced in this merge request
+  There are none.
 * [x] Please only submit one app in one MR.
 
 ### Metadata
@@ -152,33 +162,35 @@ I wrote it to stop depending on BRAVIA Connect, which needs a Sony account and t
 * [x] Metadata must be put in `metadata/<applicationId>.yml`.
 * [x] Metadata must be a valid YAML file.
 * [x] Metadata must use LF as line ending.
-* [x] Don't add summary/description/changelog/images or anything that should be provided in upstream repo.
-* [ ] Releases are tagged and auto update is enabled unless there is a special reason. Releases are tagged (`vMAJOR.MINOR.PATCH`; `-dev.N` tags are pre-releases), but auto update is off for now: versionName and versionCode are derived from the tag by CI (`(MAJOR×1000000 + MINOR×1000 + PATCH)×100 + 99`) and passed to Gradle, so no file at the tag holds them for checkupdates to read. I add each release's `Builds` entry by hand and am happy to move the version into `gradle.properties` if you prefer auto updates.
+* [x] Don't add summary/description/changelog/images or anything that should be provided in upstream repo. Please check the Changes tab to make sure there is no other unrelated files added in the MR.
+* [ ] Releases are tagged and auto update is enabled unless there is a special reason.
+  Releases are tagged (`vMAJOR.MINOR.PATCH`; `-dev.N` tags are pre-releases), but auto update is off for now: versionName and versionCode are derived from the tag by CI (`(MAJOR×1000000 + MINOR×1000 + PATCH)×100 + 99`) and passed to Gradle, so no file at the tag holds them for checkupdates to read. I add each release's `Builds` entry by hand and am happy to move the version into `gradle.properties` if you prefer auto updates.
 * [x] There is an issue tracker and contact info of the author so that we can report bugs and contact the author.
 * [x] An AuthorName must be added. It doesn't need to be the real name.
-* [x] External repos are added as git submodules instead of srclibs. None are used.
-* [x] Enable [Reproducible Builds](https://f-droid.org/docs/Reproducible_Builds). `Binaries` points at the release's `tutti-%v-fdroid.apk`, built from the same commit with JDK 21, prebuilt native libraries kept as published (no NDK strip); every final release checks it with `apksigcopier compare` against a clean unsigned rebuild before publishing. `AllowedAPKSigningKeys` is the release certificate.
-* [x] Setup abi split if the APK is large and the splitted ones can be much smaller. The only native code is two small prebuilt AndroidX libraries (about 70 KB across four ABIs), so one universal APK.
-* [x] Only the latest versions should be kept in the metadata before it's merged.
+* [x] External repos are added as git submodules instead of srclibs. You can update git submodules without opening an MR in this repo and the submodule is covered by our scanner.
+  None are used.
+* [x] Enable [Reproducible Builds](https://f-droid.org/docs/Reproducible_Builds). We'll use your signature for improved security/reliability, also allowing users to switch between different channels. Do note that if you don't enable reproducible build then the apk will be signed with our key so you can't enable it later. If you can't enable this, please add the reasons here.
+  Enabled. `Binaries` points at the release's `tutti-%v-fdroid.apk`, built from the same commit with JDK 21, prebuilt native libraries kept as published (no NDK strip); every final release checks it with `apksigcopier compare` against a clean unsigned rebuild before publishing. `AllowedAPKSigningKeys` is the release certificate.
+* [x] Setup abi split if the APK is large and the splitted ones can be much smaller.
+  The only native code is two small prebuilt AndroidX libraries (about 70 KB across four ABIs), so one universal APK.
+* [x] Only the latest versions should be kept in the metadata before it's merged. If you update the metadata, please replace the old versions with the new ones.
 * [x] Don't add any disabled versions in the metadata.
-* [x] The `commit` field should be the full hash.
+* [x] The `commit` field should be the full hash. Please don't use tag or branch in commit.
 
 ### Pipeline
 
 * [ ] All pipelines should pass.
 * [ ] All warnings and errors in the Reports tab should be fixed or explained.
+* [x] F-Droid CI runners are under GitLab's FOSS program, so there's no need for you to pay for any CI time. If Gitlab starts asking for phone numbers or credit cards don't submit anything, just leave a note in the MR so we know we need to trigger the CI.
 
-### Notes for the reviewer
+---------------------
 
-- **Anti-features.** `NonFreeAssets`: app buttons show third-party app logos, some taken from Google Play. `NonFreeNet`: optional features, each off by default and all off under "Only free services", reach Stremio's Cinemeta and image hosts (YouTube, Google, TMDB, Stremio). The rest of the traffic is to the user's own TV and soundbar on the LAN (Android TV Remote v2 over TLS, the bar's IP control, Sony's local REST API, Cast, mDNS, Wake-on-LAN). I did not declare NonFreeNet for that local control: it is the user's own device, reached directly, with no service in between; please say if you read it differently.
-- **Flavours.** The recipe builds the `fdroid` flavour, which has no self-updater (no `REQUEST_INSTALL_PACKAGES`, no update code; a Gradle check and a unit test enforce it). The `github` flavour carries the updater for GitHub installs.
-- **BRAVIA Connect.** Setup and room calibration hand off to Sony's app, opening its store page when it is missing. That is a hand-off for tasks tutti does not do, not promotion, so I did not declare NonFreeAdd.
-- **Dependencies.** AndroidX/Compose, Hilt, Kotlin, kotlinx, OkHttp, Wire, BouncyCastle, from Google Maven and Maven Central. No Play Services, Firebase or Cast SDK.
+<!--Add the corresponding issue number or remove this if this merge request does not close an issue at rfp.-->
 
 /label ~"New App"
-```
+````
 
-The template's last line, `Closes rfp#<RFP issue number>`, is removed since there is no RFP issue.
+The template's `Closes rfp#<RFP issue number>` line is dropped, as its own comment asks when no RFP issue exists; the comment itself stays.
 
 ## Ticking honestly
 
