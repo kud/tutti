@@ -14,8 +14,8 @@ import kotlinx.serialization.json.intOrNull
 /**
  * "Title details" in the playback sheet (Erwann, 2026-11-12: « le plus de métadata quand je lis un
  * film… l'image, possiblement les acteurs »): what Cinemeta, Stremio's public catalogue, says about
- * the title Cast reports. Opt-in, off by default, and only in the github flavour (docs/fdroid.md):
- * the request names what is playing to a third party, which the artwork alone never did beyond the
+ * the title Cast reports. Opt-in, off by default, in both flavours, and off under "Only free
+ * services" (docs/fdroid.md, NonFreeNet): the request names what is playing to a third party, which the artwork alone never did beyond the
  * host the TV itself already asked.
  *
  * The id comes only from evidence: the IMDb id embedded in a Cinemeta poster or background URL the

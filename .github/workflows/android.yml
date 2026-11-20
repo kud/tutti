@@ -38,8 +38,8 @@ jobs:
       - uses: gradle/actions/setup-gradle@v6.4.1
 
       # Both builds are tested, linted and assembled: `github` (with the updater, the one published
-      # here) and `fdroid` (no updater, built by F-Droid from source; never attached to a release,
-      # since installs that predate the updater's `-fdroid.apk` rule would take it as theirs).
+      # here) and `fdroid` (no updater, built by F-Droid from source). A final release also attaches
+      # the release-signed fdroid APK for F-Droid's reproducible-build check (release job below).
       # A manual run without a tag also writes the render tests' PNGs (invented fixtures), to judge a
       # visual change, and the showcase screenshots (README, F-Droid) under `renders/showcase`; push,
       # PR and release runs never do.
@@ -78,6 +78,53 @@ jobs:
           path: |
             protocol/build/reports/
             app/build/reports/
+          if-no-files-found: ignore
+
+  # A manual run without a tag: is the fdroid release build deterministic? Built twice on JDK 21,
+  # the second time from a clean tree on one worker with no build cache and the version passed as
+  # Gradle properties (as F-Droid's recipe does); the two unsigned APKs must be identical. A final
+  # release runs the signed form of this check against F-Droid's exact procedure (release job).
+  reproducible:
+    name: Reproducible fdroid APK
+    if: github.event_name == 'workflow_dispatch' && inputs.tag == ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: gradle/actions/setup-gradle@v6.4.1
+
+      - name: Build twice and compare
+        env:
+          TUTTI_VERSION_NAME: 0.0.0-repro
+          TUTTI_VERSION_CODE: "1"
+        run: |
+          out=app/build/outputs/apk/fdroid/release/app-fdroid-release-unsigned.apk
+          mkdir -p repro
+          ./gradlew --stacktrace :app:assembleFdroidRelease
+          cp "$out" repro/first.apk
+          ./gradlew --stacktrace clean
+          env -u TUTTI_VERSION_NAME -u TUTTI_VERSION_CODE ./gradlew --stacktrace --no-build-cache --rerun-tasks --max-workers=1 \
+            -Ptutti.versionName=0.0.0-repro -Ptutti.versionCode=1 :app:assembleFdroidRelease
+          cp "$out" repro/second.apk
+          sha256sum repro/*.apk
+          if ! cmp -s repro/first.apk repro/second.apk; then
+            echo "::error::The fdroid release APK is not reproducible; entries that differ (CRC-32, name):"
+            diff <(unzip -lv repro/first.apk | awk '{print $7, $8}') <(unzip -lv repro/second.apk | awk '{print $7, $8}') || true
+            exit 1
+          fi
+
+      - name: Upload the two builds
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: reproducible
+          path: repro/
           if-no-files-found: ignore
 
   release:
@@ -147,16 +194,24 @@ jobs:
           echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.jks"
           echo "TUTTI_KEYSTORE_PATH=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
 
+      # JDK 21: the default on F-Droid's Debian Trixie build server, which the recipe installs too.
+      # The fdroid APK below must match F-Droid's own build byte for byte, and javac's output can
+      # differ between JDK majors (docs/fdroid.md, "Reproducibility").
       - uses: actions/setup-java@v6
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: "21"
 
       - uses: gradle/actions/setup-gradle@v6.4.1
 
+      # A final release builds the fdroid flavour too, with the same key: F-Droid rebuilds it from
+      # source and publishes this signed copy only if the two match (`Binaries` in the recipe).
       - name: Assemble release
         if: env.SIGNED == 'true'
-        run: ./gradlew --stacktrace :app:assembleGithubRelease
+        run: |
+          tasks=(:app:assembleGithubRelease)
+          if [ "$PRERELEASE" = "false" ]; then tasks+=(:app:assembleFdroidRelease); fi
+          ./gradlew --stacktrace "${tasks[@]}"
 
       - name: Verify the signature
         if: env.SIGNED == 'true'
@@ -183,6 +238,31 @@ jobs:
           cp "$mapping" "$RUNNER_TEMP/$name-$TUTTI_VERSION_NAME-mapping.txt"
           echo "RELEASE_MAPPING=$RUNNER_TEMP/$name-$TUTTI_VERSION_NAME-mapping.txt" >> "$GITHUB_ENV"
 
+      # What F-Droid will check, run here first: rebuild the fdroid flavour from a clean tree with no
+      # build cache, unsigned, the version passed as Gradle properties exactly as the recipe passes
+      # them, then copy the release signature onto that rebuild and require it to verify
+      # (apksigcopier, the tool fdroidserver uses). A mismatch stops the release before it ships an
+      # APK F-Droid would refuse.
+      - name: Check the fdroid APK reproduces
+        if: env.SIGNED == 'true' && env.PRERELEASE == 'false'
+        run: |
+          signed=app/build/outputs/apk/fdroid/release/app-fdroid-release.apk
+          [ -f "$signed" ] || { echo "::error::$signed not found"; ls -la app/build/outputs/apk/fdroid/release/ || true; exit 1; }
+          apksigner=$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -n 1)
+          "$apksigner" verify --print-certs "$signed"
+          name=$(grep '^app.name=' gradle.properties | cut -d= -f2)
+          fdroid_apk="$RUNNER_TEMP/$name-$TUTTI_VERSION_NAME-fdroid.apk"
+          cp "$signed" "$fdroid_apk"
+          ./gradlew --stacktrace clean
+          env -u TUTTI_KEYSTORE_PATH -u TUTTI_VERSION_NAME -u TUTTI_VERSION_CODE ./gradlew --stacktrace --no-build-cache --rerun-tasks \
+            "-Ptutti.versionName=$TUTTI_VERSION_NAME" "-Ptutti.versionCode=$TUTTI_VERSION_CODE" :app:assembleFdroidRelease
+          unsigned=app/build/outputs/apk/fdroid/release/app-fdroid-release-unsigned.apk
+          [ -f "$unsigned" ] || { echo "::error::$unsigned not found"; ls -la app/build/outputs/apk/fdroid/release/ || true; exit 1; }
+          python3 -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install --quiet apksigcopier==1.1.1
+          PATH="$(dirname "$apksigner"):$PATH" "$RUNNER_TEMP/venv/bin/apksigcopier" compare --unsigned "$fdroid_apk" "$unsigned"
+          echo "RELEASE_FDROID_APK=$fdroid_apk" >> "$GITHUB_ENV"
+
       - name: Assemble debug
         if: env.SIGNED != 'true'
         run: |
@@ -196,7 +276,8 @@ jobs:
 
       # Asset names are the updater's contract (protocol/update/Updates.kt, `assetFor`): a release
       # install takes `tutti-<version>.apk`, a debug install `tutti-<version>-debug.apk`. Renaming
-      # either strands every install; never attach an fdroid build.
+      # either strands every install. `tutti-<version>-fdroid.apk` (final releases only) is for
+      # F-Droid's `Binaries` URL; every release-key install skips `*-fdroid.apk`, since v0.2.0.
       - name: Publish the GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -215,6 +296,7 @@ jobs:
           fi
           files=("$RELEASE_APK")
           if [ -n "${RELEASE_MAPPING:-}" ]; then files+=("$RELEASE_MAPPING"); fi
+          if [ -n "${RELEASE_FDROID_APK:-}" ]; then files+=("$RELEASE_FDROID_APK"); fi
           gh release create "$TAG" "${files[@]}" --generate-notes --title "$TAG" "${flags[@]}"
 
       - name: Remove the keystore

@@ -96,6 +96,13 @@ android {
     }
 
     packaging {
+        // The only native code is prebuilt AndroidX libraries (Compose's graphics path, DataStore's
+        // shared counter), already stripped. AGP strips them again whenever it finds an NDK, and
+        // that rewrites their bytes: GitHub's runners carry NDKs, F-Droid's build server usually
+        // doesn't, so the fdroid APK would stop matching F-Droid's build. Ship them as published.
+        jniLibs {
+            keepDebugSymbols += "**/*.so"
+        }
         resources {
             // BouncyCastle jars each ship this file; AGP refuses duplicates.
             excludes += "/META-INF/versions/9/OSGI-INF/MANIFEST.MF"
@@ -119,6 +126,15 @@ android {
             it.maxHeapSize = "2g"
             if (!renders) it.exclude("**/*Renders*")
         }
+    }
+
+    // AGP otherwise writes a dependency report into the APK Signing Block, encrypted with a key only
+    // Google Play can read. F-Droid's scanner refuses an APK that carries it ("extra signing block
+    // 'Dependency metadata'"), and that block would sink the reproducible-build check that lets
+    // F-Droid publish the release-signed fdroid APK (docs/fdroid.md, "Reproducibility").
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
     }
 
     lint {
