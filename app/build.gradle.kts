@@ -121,6 +121,15 @@ android {
         }
     }
 
+    // AGP otherwise writes a dependency report into the APK Signing Block, encrypted with a key only
+    // Google Play can read. F-Droid's scanner refuses an APK that carries it ("extra signing block
+    // 'Dependency metadata'"), and that block would sink the reproducible-build check that lets
+    // F-Droid publish the release-signed fdroid APK (docs/fdroid.md, "Reproducibility").
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
+    }
+
     lint {
         abortOnError = true
         checkReleaseBuilds = false

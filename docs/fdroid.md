@@ -5,7 +5,7 @@ tutti ships as two flavours of the same app (`productFlavors` in `app/build.grad
 - **`github`**: the APKs on GitHub Releases, with the in-app updater (`app/src/github`: `REQUEST_INSTALL_PACKAGES`, PackageInstaller, GitHub's release API). Every CI build and every release asset is this flavour.
 - **`fdroid`**: no updater code, no install permission, no updater receiver. F-Droid builds it from source and updates it. About › Version says updates come through F-Droid.
 
-Same `applicationId` (`app.beansontoast.tutti`) and versionCode formula in both. They are told apart by signature: an F-Droid install cannot update from a GitHub APK, nor the reverse, which is why the updater never takes an `*-fdroid.apk` asset and CI never attaches one (installs older than that rule would take it).
+Same `applicationId` (`app.beansontoast.tutti`), versionCode formula and release key in both. F-Droid publishes the release-signed fdroid APK after rebuilding it from source and finding it identical (reproducible builds, below), so an install moves between GitHub and F-Droid without reinstalling or losing its pairings: the F-Droid client offers the fdroid build over a GitHub install, and a GitHub APK installs over an F-Droid one (bringing the updater back). Each final release attaches `tutti-<version>-fdroid.apk` for F-Droid to fetch; the updater never takes an `*-fdroid.apk`, a rule every release-key install has carried since v0.2.0, the first release-signed build (debug builds take only `*-debug.apk`).
 
 Guards: `checkDistribution<Variant>` reads each merged manifest before it assembles or lints (fdroid: no updater; github: the updater must be there); `DistributionGuardsTest` scans `src/main` and `src/fdroid` for any reach into the updater, with a probe proving it still matches `src/github`. The pure release-feed rules stay in `:protocol` `update/` (no network there); R8 drops them from an fdroid release since nothing references them.
 
@@ -27,7 +27,13 @@ All free: AndroidX and Compose (Apache-2.0, Google Maven, which F-Droid accepts)
 
 ## Reproducibility
 
-- No build timestamps or git calls in the build; versionName and versionCode come from the environment (CI) or from Gradle properties (F-Droid's `gradleprops`), else `0.0.0-dev` / 1.
+F-Droid ships Erwann's signature, not its own: the recipe's `Binaries` points at the release's `tutti-%v-fdroid.apk` and `AllowedAPKSigningKeys` names the release certificate. `fdroid publish` builds the fdroid flavour from the tagged commit, copies the signature from the downloaded APK onto its own unsigned build (apksigcopier) and publishes the downloaded APK only if the result verifies, which needs every byte but the signature to match (https://f-droid.org/docs/Reproducible_Builds/). A mismatch skips that version; it never falls back to F-Droid's key. Submitting without this would have F-Droid sign with its own key for good: its merge request template warns it cannot be enabled later.
+
+- **Release certificate:** SHA-256 `1acccde4aac64d6605dd8cbd03f0359df931a584518f641f07fad4bb60931af4`, read from the APK Signing Block of `tutti-0.3.1.apk` (v2 scheme; minSdk 29, so no v1 JAR signature and `keytool -printcert -jarfile` prints nothing: use `apksigner verify --print-certs`).
+- **No dependency metadata block:** `dependenciesInfo` is off (`app/build.gradle.kts`). AGP otherwise writes Google-Play-encrypted dependency data into the signing block, and fdroidserver's scanner rejects an APK carrying it. Every release up to 0.3.1 has it, which is one reason the first submission is 0.3.2.
+- **Same JDK:** releases build on JDK 21 (Temurin in CI), the recipe installs Debian's `openjdk-21-jdk-headless`, the default on F-Droid's Trixie build server. Different JDK majors can change `classes.dex` (F-Droid's "Mismatched Toolchains").
+- **Checked before release:** a final release builds the signed fdroid APK, rebuilds it from a clean tree with no build cache, unsigned, the version passed as Gradle properties as the recipe does, and runs `apksigcopier compare --unsigned` on the pair; a mismatch fails the release before anything is published. A manual Android workflow run without a tag also builds the fdroid release twice (the second time on one worker, from scratch) and requires identical bytes, which is where a non-deterministic `baseline.prof` (a known AGP issue F-Droid lists) would show. If it ever does, the fix is to disable the `ArtProfile` tasks for the fdroid variants only.
+- **Version from the recipe:** versionName and versionCode come from the environment (CI) or from Gradle properties (F-Droid's `gradleprops`), else `0.0.0-dev` / 1; the build reads no clock and calls no git. AGP's `META-INF/version-control-info.textproto` records the commit hash, which is the same in both builds as long as releases are built from the tagged commit, as CI does.
 - Toolchain pinned: `gradle/libs.versions.toml`, the wrapper with `distributionSha256Sum`.
 - The only binaries in the tree are the Gradle wrapper jar and `app/debug.keystore` (public by design, used by debug builds only).
 - `includeComposeMappingFile` is off, so no tool outside the build graph is needed.
@@ -64,7 +70,7 @@ docker run --rm -it --platform linux/amd64 -v "$PWD":/repo -w /repo \
 
 Cost: the image is about 0.7 GB compressed (a few GB unpacked); the build then downloads the Gradle 9.9.1 distribution, AGP and every dependency (around 1 GB more) and the SDK platform for compileSdk 37 if the image lacks it. On an Intel Linux machine, expect 10–20 minutes; on an Apple Silicon Mac the amd64 image runs under emulation, so expect 30–60 minutes. Success ends with `unsigned/app.beansontoast.tutti_<versionCode>.apk`. The merge request's pipeline runs the same build on GitLab's runners, so skipping the local run only moves the wait there.
 
-Later, once a release key exists: reproducible builds with the developer's signature (`Binaries:` pointing at the GitHub asset and `AllowedAPKSigningKeys`), as pastille does. That needs the fdroid flavour's release APK attached under a name the updater never takes (`tutti-<version>-fdroid.apk`), and only after every install in use is new enough to skip it.
+To check reproducibility as F-Droid will, once the release is out, run the same container with the recipe's `Binaries` and `AllowedAPKSigningKeys` in place: `fdroid build` then downloads `tutti-<version>-fdroid.apk` and compares it with its own build.
 
 ## Submitting (Erwann's to send)
 
