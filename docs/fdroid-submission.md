@@ -157,8 +157,8 @@ I wrote it to stop depending on BRAVIA Connect, which needs a Sony account and t
 * [x] There is an issue tracker and contact info of the author so that we can report bugs and contact the author.
 * [x] An AuthorName must be added. It doesn't need to be the real name.
 * [x] External repos are added as git submodules instead of srclibs. None are used.
-* [x] Enable [Reproducible Builds](https://f-droid.org/docs/Reproducible_Builds). `Binaries` points at the release's `tutti-%v-fdroid.apk`, built from the same commit with JDK 21; every final release checks it with `apksigcopier compare` against a clean unsigned rebuild before publishing. `AllowedAPKSigningKeys` is the release certificate.
-* [x] Setup abi split if the APK is large and the splitted ones can be much smaller. No native code; one universal APK.
+* [x] Enable [Reproducible Builds](https://f-droid.org/docs/Reproducible_Builds). `Binaries` points at the release's `tutti-%v-fdroid.apk`, built from the same commit with JDK 21, prebuilt native libraries kept as published (no NDK strip); every final release checks it with `apksigcopier compare` against a clean unsigned rebuild before publishing. `AllowedAPKSigningKeys` is the release certificate.
+* [x] Setup abi split if the APK is large and the splitted ones can be much smaller. The only native code is two small prebuilt AndroidX libraries (about 70 KB across four ABIs), so one universal APK.
 * [x] Only the latest versions should be kept in the metadata before it's merged.
 * [x] Don't add any disabled versions in the metadata.
 * [x] The `commit` field should be the full hash.
