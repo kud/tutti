@@ -6,8 +6,6 @@
 
 &nbsp;
 
-📺
-
 # tutti
 
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.4-7F52FF?style=flat-square&logo=kotlin&logoColor=white)](https://kotlinlang.org)
