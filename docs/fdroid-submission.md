@@ -194,7 +194,7 @@ The template's `Closes rfp#<RFP issue number>` line is dropped, as its own comme
 
 ## Ticking honestly
 
-Two boxes stay open on purpose. "Auto update" is explained in its line. "All pipelines should pass" and "Reports tab" can only be ticked once the pipeline has run: the `fdroid build` job is the first real build of tutti on F-Droid's server (AGP 9.5.1, Gradle 9.9.1, compileSdk 37). If it fails on the SDK platform, adding `prebuild: sdkmanager 'platforms;android-37'` to the build entry is the usual fix; the exact package name should be read from the failing log.
+Two boxes stay open on purpose. "Auto update" is explained in its line. "All pipelines should pass" and "Reports tab" can only be ticked once the pipeline has run: the `fdroid build` job is the first real build of tutti on F-Droid's server (AGP 9.5.1, Gradle 9.9.2, compileSdk 37). If it fails on the SDK platform, adding `prebuild: sdkmanager 'platforms;android-37'` to the build entry is the usual fix; the exact package name should be read from the failing log.
 
 ## Donate field (not added)
 
