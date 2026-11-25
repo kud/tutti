@@ -24,3 +24,7 @@ keystore.properties
 
 # Local worktrees
 .claude/
+
+# Environment files
+.env*
+!.env.example
